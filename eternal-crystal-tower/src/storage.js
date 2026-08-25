@@ -48,12 +48,12 @@ export function sanitizePlayerName(value) {
   return cleaned || "无名守望者";
 }
 
-function compareLeaderboardEntries(a, b) {
+export function compareLeaderboardEntries(a, b) {
   return b.score - a.score || b.threat - a.threat || b.kills - a.kills || b.time - a.time || a.date - b.date;
 }
 
-export function submitLeaderboardEntry(save, entry) {
-  const normalized = {
+export function normalizeLeaderboardEntry(entry) {
+  return {
     name: sanitizePlayerName(entry?.name),
     score: boundedInt(entry?.score, 0, 2_000_000_000),
     kills: boundedInt(entry?.kills, 0, 1_000_000_000),
@@ -62,6 +62,10 @@ export function submitLeaderboardEntry(save, entry) {
     coins: boundedInt(entry?.coins, 0, 1_000_000_000),
     date: boundedInt(entry?.date ?? Date.now(), 0, Number.MAX_SAFE_INTEGER)
   };
+}
+
+export function submitLeaderboardEntry(save, entry) {
+  const normalized = normalizeLeaderboardEntry(entry);
   save.leaderboard = [...(Array.isArray(save.leaderboard) ? save.leaderboard : []), normalized]
     .sort(compareLeaderboardEntries)
     .slice(0, GAME_CONFIG.score.leaderboardSize);

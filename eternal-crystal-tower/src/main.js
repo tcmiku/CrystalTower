@@ -1,7 +1,8 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { calculateRunScore, calculateStardust, collectCoinAt, createGameState, cycleTargetProtocol, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, purchaseUpgrade, setTargetProtocol, spawnEnemy, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyResearch, defaultSave, loadSave, researchCost, SAVE_KEY, sanitizePlayerName, submitLeaderboardEntry, writeSave } from "./storage.js";
+import { buyResearch, defaultSave, loadSave, researchCost, SAVE_KEY, sanitizePlayerName, writeSave } from "./storage.js";
+import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { AudioSynth } from "./audio.js";
 import { Renderer } from "./renderer.js";
 
@@ -61,7 +62,7 @@ const dom = Object.fromEntries([
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
   "scoreText", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
-  "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "stardustText", "researchList", "restartButton", "clearSaveButton"
+  "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton"
 ].map((id) => [id, document.getElementById(id)]));
 
 let save = loadSave();
@@ -261,8 +262,12 @@ if (previewMode === "leaderboard") {
 }
 let runSettled = false;
 let scoreSubmitted = false;
+let scoreSubmitting = false;
 let currentRunScore = null;
 let currentEntryDate = null;
+let leaderboardEntries = [];
+let leaderboardLoading = true;
+let leaderboardError = "";
 let lastFrame = performance.now();
 let accumulator = 0;
 let toastTimer = 0;
@@ -566,42 +571,76 @@ function updateUi() {
 
 function renderLeaderboard(highlightDate = currentEntryDate) {
   dom.leaderboardList.replaceChildren();
-  if (save.leaderboard.length === 0) {
+  dom.leaderboardCount.textContent = leaderboardEntries.length > 0 ? `${leaderboardEntries.length} 条` : "全服";
+  if (leaderboardEntries.length === 0) {
     const empty = document.createElement("li");
     empty.className = "empty";
-    empty.textContent = "尚无记录 · 成为第一位守望者";
+    empty.textContent = leaderboardLoading ? "正在读取全服排行榜…" : leaderboardError || "尚无记录 · 成为第一位守望者";
     dom.leaderboardList.append(empty);
     return;
   }
-  for (const entry of save.leaderboard) {
+  for (const entry of leaderboardEntries) {
     const item = document.createElement("li");
     item.classList.toggle("current", highlightDate !== null && entry.date === highlightDate);
-    item.innerHTML = `<b>${entry.name}</b><strong>${formatScore(entry.score)}</strong><span>威胁 ${formatThreat(entry.threat)}</span><span>${entry.kills} 击杀</span>`;
+    const name = document.createElement("b");
+    const score = document.createElement("strong");
+    const threat = document.createElement("span");
+    const kills = document.createElement("span");
+    name.textContent = entry.name;
+    score.textContent = formatScore(entry.score);
+    threat.textContent = `威胁 ${formatThreat(entry.threat)}`;
+    kills.textContent = `${entry.kills} 击杀`;
+    item.append(name, score, threat, kills);
     dom.leaderboardList.append(item);
   }
 }
 
-function submitCurrentScore(event) {
+async function refreshLeaderboard() {
+  leaderboardLoading = true;
+  leaderboardError = "";
+  renderLeaderboard();
+  try {
+    leaderboardEntries = await fetchLeaderboard();
+  } catch {
+    leaderboardError = "全服排行榜暂时无法连接";
+  } finally {
+    leaderboardLoading = false;
+    renderLeaderboard();
+  }
+}
+
+async function submitCurrentScore(event) {
   event.preventDefault();
-  if (!currentRunScore || scoreSubmitted) return;
+  if (!currentRunScore || scoreSubmitted || scoreSubmitting) return;
+  scoreSubmitting = true;
   const date = Date.now();
-  const result = submitLeaderboardEntry(save, {
-    name: dom.playerNameInput.value,
-    score: currentRunScore.total,
-    kills: state.stats.kills,
-    threat: state.stats.highestThreat,
-    time: state.time,
-    coins: Math.floor(state.coins),
-    date
-  });
-  save.settings.playerName = result.entry.name;
-  save = writeSave(save);
-  scoreSubmitted = true;
-  currentEntryDate = date;
   dom.playerNameInput.disabled = true;
   dom.submitScoreButton.disabled = true;
-  dom.scoreEntryStatus.textContent = result.rank > 0 ? `成绩登记完成 · RANK ${String(result.rank).padStart(2, "0")}` : "成绩登记完成 · 未进入 TOP 10";
-  renderLeaderboard();
+  dom.scoreEntryStatus.textContent = "正在登记全服成绩…";
+  try {
+    const result = await postLeaderboardEntry({
+      name: dom.playerNameInput.value,
+      score: currentRunScore.total,
+      kills: state.stats.kills,
+      threat: state.stats.highestThreat,
+      time: state.time,
+      coins: Math.floor(state.coins),
+      date
+    });
+    save.settings.playerName = result.entry.name;
+    save = writeSave(save);
+    leaderboardEntries = result.entries;
+    scoreSubmitted = true;
+    currentEntryDate = result.entry.date;
+    dom.scoreEntryStatus.textContent = `成绩登记完成 · 全服 RANK ${String(result.rank).padStart(2, "0")}`;
+    renderLeaderboard();
+  } catch {
+    dom.playerNameInput.disabled = false;
+    dom.submitScoreButton.disabled = false;
+    dom.scoreEntryStatus.textContent = "登记失败 · 无法连接排行榜服务器，请稍后重试";
+  } finally {
+    scoreSubmitting = false;
+  }
 }
 
 function settleRun(stardust) {
@@ -628,7 +667,7 @@ function settleRun(stardust) {
   dom.scoreEntryStatus.textContent = "";
   setTechTreeOpen(false);
   renderResearch();
-  renderLeaderboard();
+  refreshLeaderboard();
   setTimeout(() => {
     dom.gameOverModal.classList.remove("hidden");
     dom.playerNameInput.focus({ preventScroll: true });
@@ -690,6 +729,7 @@ for (const button of dom.targetProtocolList.children) button.addEventListener("c
 updateUi();
 if (previewMode === "tech" || previewMode === "drones" || previewMode === "element-tech" || previewMode === "drone-energy") setTechTreeOpen(true);
 announce("守住中央晶塔");
+refreshLeaderboard();
 if (previewMode === "leaderboard") {
   updateGame(state, GAME_CONFIG.fixedStep);
   handleEvents(state.events);

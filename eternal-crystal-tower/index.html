@@ -117,14 +117,14 @@
           <p>战斗积分 <b id="resultCombatScore">0</b><i>+</i>金币奖励 <b id="resultCoinScore">0</b></p>
         </section>
         <section class="leaderboard-panel" aria-labelledby="leaderboardTitle">
-          <div class="leaderboard-heading"><div><span>LOCAL RANKING</span><h3 id="leaderboardTitle">永耀名人榜</h3></div><strong>TOP 10</strong></div>
+          <div class="leaderboard-heading"><div><span>GLOBAL RANKING</span><h3 id="leaderboardTitle">永耀名人榜</h3></div><strong id="leaderboardCount">全服</strong></div>
           <form id="scoreEntryForm" class="score-entry-form">
             <label for="playerNameInput">输入守望者姓名</label>
             <div><input id="playerNameInput" name="playerName" maxlength="12" autocomplete="nickname" placeholder="PLAYER" aria-describedby="scoreEntryHint"><button id="submitScoreButton" type="submit">登记成绩</button></div>
             <small id="scoreEntryHint">中文、字母或数字，最多 12 个字符</small>
           </form>
           <p id="scoreEntryStatus" class="score-entry-status" aria-live="polite"></p>
-          <ol id="leaderboardList" class="leaderboard-list" aria-label="本地高分榜"></ol>
+          <ol id="leaderboardList" class="leaderboard-list" aria-label="全服排行榜"></ol>
         </section>
         <div class="research-heading"><div><span>永久研究</span><strong>星尘 <b id="stardustText">0</b></strong></div><small>每一级都让下一座晶塔更强</small></div>
         <div id="researchList" class="research-list"></div>

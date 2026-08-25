@@ -12,7 +12,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
     "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText",
     "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
     "pauseButton", "muteButton", "scoreText", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput",
-    "submitScoreButton", "leaderboardList", "researchList", "restartButton", "clearSaveButton"
+    "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton"
   ];
   for (const id of requiredIds) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.doesNotMatch(html, /(?:src|href)=["']https?:\/\//i);
