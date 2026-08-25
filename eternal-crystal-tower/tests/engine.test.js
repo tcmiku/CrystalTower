@@ -546,6 +546,20 @@ test("无人机满级后才能解锁晶塔自动收集", () => {
   assert.equal(state.coinOrbs[0].collector, null);
 });
 
+test("研究磁吸核心后护航模式仍允许手动点击金币", () => {
+  const state = createGameState(711);
+  state.threat = 6; state.coins = 10_000; state.spawnTimer = 999; state.wave.nextAt = 999;
+  purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "autoCollect");
+  state.tower.droneCooldown = 999;
+  state.coinOrbs.push({ x: 240, y: 200, renderX: 240, renderY: 200, value: 12, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  const before = state.coins;
+  assert.equal(state.tower.droneMode, "collect");
+  assert.equal(collectCoinAt(state, 240, 200), true);
+  for (let index = 0; index < 30; index += 1) updateGame(state, 1 / 60);
+  assert.equal(state.coins, before + 12);
+});
+
 test("磁吸核心完成后才能切换无人机攻击模式", () => {
   const state = createGameState(72);
   assert.equal(toggleDroneMode(state), false);
@@ -581,7 +595,7 @@ test("攻击模式无人机脱离轨道并近身伤害敌人", () => {
   assert.ok(state.drones.some((drone) => drone.targetId === enemy.id));
 });
 
-test("攻击模式停止金币回收并耗电，耗尽后强制返回护航充能", () => {
+test("攻击模式暂停自动回收但保留手动拾币，耗尽后返回护航充能", () => {
   const state = createGameState(74);
   state.threat = 6; state.coins = 10_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   purchaseUpgrade(state, "damage");
@@ -595,12 +609,16 @@ test("攻击模式停止金币回收并耗电，耗尽后强制返回护航充�
   assert.equal(state.tower.droneEnergy, 15);
   assert.equal(state.coinOrbs[0].collector, null);
   assert.equal(state.coins, coins);
+  assert.equal(collectCoinAt(state, 300, 300), true);
+  updateGame(state, 0.5);
+  assert.equal(state.coins, coins + 10);
+  state.coinOrbs.push({ x: 310, y: 300, renderX: 310, renderY: 300, value: 10, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   state.tower.droneEnergy = 1;
   updateGame(state, 0.3);
   assert.equal(state.tower.droneMode, "collect");
   assert.ok(state.events.some((event) => event.type === "droneDepleted"));
   updateGame(state, 0.5);
-  assert.ok(state.coins > coins);
+  assert.ok(state.coins > coins + 10);
   assert.ok(state.tower.droneEnergy >= GAME_CONFIG.drones.coinEnergy);
   state.tower.droneEnergy = GAME_CONFIG.drones.minAttackEnergy - 1;
   assert.equal(toggleDroneMode(state), false);
@@ -658,6 +676,7 @@ test("晶刃炮膛解锁后由每枚晶刃发射弹丸", () => {
   state.coins = 100_000;
   purchaseUpgrade(state, "damage");
   purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw");
+  assert.equal(purchaseUpgrade(state, "sawOverdrive"), true);
   assert.equal(purchaseUpgrade(state, "sawGun"), true);
   spawnEnemy(state, "brute", { x: 650, y: 360 });
   updateGame(state, 1 / 60);
@@ -665,6 +684,77 @@ test("晶刃炮膛解锁后由每枚晶刃发射弹丸", () => {
   assert.equal(sawShots.length, 3);
   assert.equal(Math.round(Math.hypot(sawShots[0].vx, sawShots[0].vy)), 430);
   assert.equal(sawShots[0].radius, 7);
+});
+
+test("晶刃疾旋与弹射专精互斥且疾旋分支保留炮膛", () => {
+  const orbit = createGameState(811);
+  orbit.threat = 10; orbit.coins = 100_000;
+  purchaseUpgrade(orbit, "damage");
+  purchaseUpgrade(orbit, "saw"); purchaseUpgrade(orbit, "saw"); purchaseUpgrade(orbit, "saw");
+  assert.equal(purchaseUpgrade(orbit, "sawOverdrive"), true);
+  assert.equal(purchaseUpgrade(orbit, "sawGun"), true);
+  assert.equal(purchaseUpgrade(orbit, "sawLaunch"), false);
+  assert.match(getTechStatus(orbit, "sawLaunch").reason, /已选择/);
+
+  const launch = createGameState(812);
+  launch.threat = 10; launch.coins = 100_000;
+  purchaseUpgrade(launch, "damage");
+  purchaseUpgrade(launch, "saw"); purchaseUpgrade(launch, "saw"); purchaseUpgrade(launch, "saw");
+  assert.equal(purchaseUpgrade(launch, "sawLaunch"), true);
+  assert.equal(purchaseUpgrade(launch, "sawOverdrive"), false);
+  assert.equal(purchaseUpgrade(launch, "sawGun"), false);
+});
+
+test("疾旋锻刃提高环绕速度和伤害", () => {
+  const base = createGameState(813);
+  const boosted = createGameState(813);
+  for (const sample of [base, boosted]) {
+    sample.threat = 10; sample.coins = 100_000; sample.spawnTimer = 999; sample.wave.nextAt = 999; sample.tower.fireCooldown = 999;
+    purchaseUpgrade(sample, "damage");
+    purchaseUpgrade(sample, "saw"); purchaseUpgrade(sample, "saw"); purchaseUpgrade(sample, "saw");
+  }
+  purchaseUpgrade(boosted, "sawOverdrive"); purchaseUpgrade(boosted, "sawOverdrive"); purchaseUpgrade(boosted, "sawOverdrive");
+  const baseEnemy = spawnEnemy(base, "boss", { x: 584, y: 360 });
+  const boostedEnemy = spawnEnemy(boosted, "boss", { x: 584, y: 360 });
+  for (const enemy of [...base.enemies, ...boosted.enemies]) if (enemy.type !== "anchor") enemy.speed = 0;
+  updateGame(base, 0.01); updateGame(boosted, 0.01);
+  assert.ok(boosted.tower.sawAngle > base.tower.sawAngle * 1.8);
+  assert.ok(boostedEnemy.maxHp - boostedEnemy.hp > (baseEnemy.maxHp - baseEnemy.hp) * 1.6);
+});
+
+test("弹射飞刃连续命中其他目标并按科技缩短恢复", () => {
+  const state = createGameState(814);
+  state.threat = 10; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw");
+  purchaseUpgrade(state, "sawLaunch");
+  purchaseUpgrade(state, "sawRicochet"); purchaseUpgrade(state, "sawRicochet");
+  purchaseUpgrade(state, "sawRecovery"); purchaseUpgrade(state, "sawRecovery");
+  const first = spawnEnemy(state, "brute", { x: 650, y: 360 });
+  const second = spawnEnemy(state, "brute", { x: 650, y: 450 });
+  first.speed = 0; second.speed = 0;
+  const firstHp = first.hp; const secondHp = second.hp;
+  updateGame(state, 1 / 60);
+  assert.equal(state.launchedSaws.length, 1);
+  assert.equal(state.launchedSaws[0].bouncesRemaining, GAME_CONFIG.upgrades.sawLaunch.baseBounces + 2);
+  state.tower.sawLaunchCooldown = 999;
+  for (let index = 0; index < 120; index += 1) updateGame(state, 1 / 60);
+  assert.ok(first.hp < firstHp);
+  assert.ok(second.hp < secondHp);
+  assert.ok(state.tower.sawRecoveries[0] > 0);
+  assert.ok(state.tower.sawRecoveries[0] < GAME_CONFIG.upgrades.sawLaunch.baseRecovery * 0.7);
+});
+
+test("弹射飞刃分支禁用晶刃炮膛弹幕", () => {
+  const state = createGameState(815);
+  state.threat = 10; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  state.tower.upgrades.saw = 3;
+  state.tower.upgrades.sawGun = 3;
+  state.tower.upgrades.sawLaunch = 1;
+  spawnEnemy(state, "brute", { x: 650, y: 360 }).speed = 0;
+  updateGame(state, 1 / 60);
+  assert.equal(state.projectiles.filter((projectile) => projectile.source === "sawGun").length, 0);
+  assert.equal(state.launchedSaws.length, 1);
 });
 
 test("威胁等级持续提高怪物生命", () => {

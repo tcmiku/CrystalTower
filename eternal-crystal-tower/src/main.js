@@ -11,7 +11,11 @@ const UPGRADE_META = {
   rate: { icon: "⌁", name: "加速咏唱", description: "每级攻速 +15%", max: 8 },
   ascend: { icon: "◇", name: "唤醒塔阶", description: "三元素共鸣后融合万象", max: 3 },
   saw: { icon: "✺", name: "环绕晶刃", description: "增加一枚近身晶刃", max: 5 },
-  sawGun: { icon: "➶", name: "晶刃炮膛", description: "晶刃自动发射金色弹丸", max: 3 },
+  sawOverdrive: { icon: "◌", name: "疾旋锻刃", description: "专精：提高环速与接触伤害", max: 3 },
+  sawGun: { icon: "➶", name: "晶刃炮膛", description: "疾旋分支：保留并强化金色弹幕", max: 3 },
+  sawLaunch: { icon: "➤", name: "弹射飞刃", description: "专精：发射晶刃并禁用晶刃弹幕", max: 1 },
+  sawRicochet: { icon: "⌁", name: "折跃棱面", description: "飞刃命中后增加一次弹射", max: 3 },
+  sawRecovery: { icon: "↻", name: "快速重铸", description: "缩短飞刃返回前的恢复时间", max: 3 },
   drone: { icon: "⌁", name: "拾荒无人机", description: "逐级增加自动拾币无人机", max: 3 },
   autoCollect: { icon: "◎", name: "晶塔磁吸核心", description: "每5秒回收一枚金币", max: 1 },
   droneScavenge: { icon: "¤", name: "拾荒协议", description: "快速拾币并使无人机金币 +25%", max: 1 },
@@ -23,7 +27,7 @@ const UPGRADE_META = {
 };
 const BRANCH_META = {
   power: { name: "晶塔火力", keys: ["damage", "rate", "ascend"] },
-  blade: { name: "环刃工事", keys: ["saw", "sawGun"] },
+  blade: { name: "环刃工事 · 二选一专精", keys: ["saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery"] },
   economy: { name: "无人机协议", keys: ["drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt"] },
   element: { name: "元素共鸣", keys: ["frost", "fire", "lightning"] }
 };
@@ -61,8 +65,9 @@ const dom = Object.fromEntries([
   "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
-  "scoreText", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
-  "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton"
+  "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
+  "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
+  "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss"
 ].map((id) => [id, document.getElementById(id)]));
 
 let save = loadSave();
@@ -93,6 +98,7 @@ if (previewMode === "tech") {
   for (let index = 0; index < 3; index += 1) purchaseUpgrade(state, "rate");
   purchaseUpgrade(state, "ascend"); purchaseUpgrade(state, "ascend");
   purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw");
+  purchaseUpgrade(state, "sawOverdrive");
   purchaseUpgrade(state, "sawGun");
   purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
 }
@@ -274,8 +280,37 @@ let toastTimer = 0;
 let announcementTimer = 0;
 let techTreeOpen = false;
 let resumeAfterTechTree = false;
-const renderer = new Renderer(dom.gameCanvas);
+let leaderboardModalOpen = false;
+let resumeAfterLeaderboard = false;
+const firstRunTutorial = save.records.totalKills === 0 && !previewMode;
+let tutorialStep = 0;
+const loadingStartedAt = performance.now();
+const renderer = new Renderer(dom.gameCanvas, updateLoadingProgress);
 const audio = new AudioSynth(save.settings.muted);
+
+function updateLoadingProgress({ completed = 0, total = 1, failed = 0 } = {}) {
+  const percent = Math.round(completed / Math.max(1, total) * 100);
+  dom.loadingProgress.style.width = `${percent}%`;
+  dom.loadingPercent.textContent = `${percent}%`;
+  dom.loadingStatus.textContent = failed > 0
+    ? `正在启用备用光谱 · ${completed} / ${total}`
+    : `正在唤醒晶塔核心 · ${completed} / ${total}`;
+}
+
+async function revealGameWhenReady() {
+  const results = await renderer.whenAssetsReady();
+  const minimumDelay = Math.max(0, 700 - (performance.now() - loadingStartedAt));
+  if (minimumDelay > 0) await new Promise((resolve) => setTimeout(resolve, minimumDelay));
+  const failures = results.filter((result) => !result.ok).length;
+  updateLoadingProgress({ completed: results.length, total: results.length, failed: failures });
+  dom.loadingStatus.textContent = failures > 0 ? "备用渲染已就绪" : "晶塔共鸣完成";
+  if (previewMode === "loading") return;
+  document.body.classList.remove("is-loading");
+  dom.loadingScreen.classList.add("leaving");
+  setTimeout(() => { dom.loadingScreen.hidden = true; }, 700);
+  lastFrame = performance.now();
+  requestAnimationFrame(loop);
+}
 
 function formatNumber(value) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
@@ -322,6 +357,38 @@ function cycleProtocol() {
   updateUi();
 }
 
+function clearTutorialHighlights() {
+  for (const node of dom.upgradeList.querySelectorAll(".tutorial-focus")) node.classList.remove("tutorial-focus");
+}
+
+function showFirstRunTutorial(step, force = false) {
+  if ((!firstRunTutorial && !force) || step <= tutorialStep) return;
+  tutorialStep = step;
+  clearTutorialHighlights();
+  dom.tutorialGuide.classList.remove("hidden", "compare");
+  dom.tutorialChoices.replaceChildren();
+  if (step === 1) {
+    dom.tutorialTitle.textContent = "战利品已经掉落";
+    dom.tutorialText.textContent = "点击战场上的发光金币，把它送回晶塔。未拾取的金币会在 10 秒后消失。";
+    dom.tutorialDismiss.textContent = "我看见了";
+  } else if (step === 2) {
+    setTechTreeOpen(true);
+    dom.tutorialTitle.textContent = "第一笔金币已到手";
+    dom.tutorialText.textContent = "继续拾取并攒够 20 金币。“淬亮晶矢”是所有路线的起点：提高基础伤害，并解锁晶刃与无人机科技。";
+    dom.tutorialDismiss.textContent = "稍后研究";
+    dom.upgradeList.querySelector('[data-upgrade="damage"]')?.classList.add("tutorial-focus");
+  } else if (step === 3) {
+    setTechTreeOpen(true);
+    dom.tutorialGuide.classList.add("compare");
+    dom.tutorialTitle.textContent = "威胁 II · 选择第一条防线";
+    dom.tutorialText.textContent = "两条路线可以并行研究；先选哪条，取决于你现在更缺近身火力还是金币回收。";
+    dom.tutorialChoices.innerHTML = `<div class="tutorial-choice blade"><strong>✺ 晶刃 · 近身防御</strong><span>环绕晶塔切割靠近的敌人，后续可升级晶刃炮膛补充火力。</span></div><div class="tutorial-choice drone"><strong>⌁ 无人机 · 经济自动化</strong><span>护航时自动回收金币，后续可切换攻击模式并发展战术协议。</span></div>`;
+    dom.tutorialDismiss.textContent = "开始选择";
+    dom.upgradeList.querySelector('[data-upgrade="saw"]')?.classList.add("tutorial-focus");
+    dom.upgradeList.querySelector('[data-upgrade="drone"]')?.classList.add("tutorial-focus");
+  }
+}
+
 function createUpgradeUi() {
   dom.upgradeList.replaceChildren();
   for (const [branchKey, branch] of Object.entries(BRANCH_META)) {
@@ -329,6 +396,15 @@ function createUpgradeUi() {
     section.className = `tech-branch ${branchKey}`;
     section.innerHTML = `<h3>${branch.name}</h3>`;
     for (const key of branch.keys) {
+      if (branchKey === "blade" && (key === "sawOverdrive" || key === "sawLaunch")) {
+        const route = document.createElement("div");
+        route.className = `blade-route-label ${key === "sawOverdrive" ? "orbit" : "launch"}`;
+        route.dataset.route = key === "sawOverdrive" ? "orbit" : "launch";
+        route.innerHTML = key === "sawOverdrive"
+          ? `<strong>路线 A · 疾旋炮刃</strong><span>持续环绕 · 加速增伤 · 保留弹幕</span>`
+          : `<strong>路线 B · 弹射飞刃</strong><span>离塔弹射 · 恢复重铸 · 禁用弹幕</span>`;
+        section.append(route);
+      }
       const index = TECH_ORDER.indexOf(key);
       const meta = UPGRADE_META[key];
       const button = document.createElement("button");
@@ -359,6 +435,29 @@ function setTechTreeOpen(open, restoreFocus = false) {
   if (techTreeOpen) dom.closeTechTreeButton.focus({ preventScroll: true });
   else if (restoreFocus) dom.openTechTreeButton.focus({ preventScroll: true });
   updateUi();
+}
+
+function setLeaderboardOpen(open, restoreFocus = false) {
+  const nextOpen = Boolean(open);
+  if (nextOpen && !leaderboardModalOpen) {
+    resumeAfterLeaderboard = !state.paused && !state.over;
+    state.paused = true;
+    leaderboardModalOpen = true;
+    dom.leaderboardModal.classList.remove("hidden");
+    dom.openLeaderboardButton.setAttribute("aria-expanded", "true");
+    dom.pauseOverlay.classList.add("hidden");
+    refreshLeaderboard();
+    dom.closeLeaderboardButton.focus({ preventScroll: true });
+  } else if (!nextOpen && leaderboardModalOpen) {
+    leaderboardModalOpen = false;
+    dom.leaderboardModal.classList.add("hidden");
+    dom.openLeaderboardButton.setAttribute("aria-expanded", "false");
+    if (resumeAfterLeaderboard && !state.over && !techTreeOpen) state.paused = false;
+    resumeAfterLeaderboard = false;
+    dom.pauseOverlay.classList.toggle("hidden", !state.paused || techTreeOpen);
+    if (restoreFocus) dom.openLeaderboardButton.focus({ preventScroll: true });
+    updateUi();
+  }
 }
 
 function createSkillUi() {
@@ -445,10 +544,11 @@ function handleEvents(events) {
   for (const event of events) {
     if (event.type === "shoot") audio.play("shoot");
     else if (event.type === "sawShoot") audio.play("sawShoot");
+    else if (event.type === "sawLaunch" || event.type === "sawBounce") audio.play("sawShoot");
     else if (event.type === "hit") audio.play("hit");
-    else if (event.type === "kill") audio.play("kill");
-    else if (event.type === "coin") audio.play("coin");
-    else if (event.type === "purchase") audio.play("purchase");
+    else if (event.type === "kill") { audio.play("kill"); showFirstRunTutorial(1); }
+    else if (event.type === "coin") { audio.play("coin"); showFirstRunTutorial(2); }
+    else if (event.type === "purchase") { audio.play("purchase"); if (event.key === "damage" && tutorialStep === 2) { clearTutorialHighlights(); dom.tutorialGuide.classList.add("hidden"); } }
     else if (event.type === "ascend") { audio.play("ascend"); renderer.trigger("ascend"); announce(`塔阶苏醒 · ${getTowerStats(state).name}`); }
     else if (event.type === "towerHit") { audio.play("towerHit"); renderer.trigger("towerHit", event.heavy ? 1.7 : 1); }
     else if (event.type === "bossSpawn") { audio.play("boss"); renderer.trigger("bossSpawn"); announce("腐化王冠踏入战场"); }
@@ -459,7 +559,7 @@ function handleEvents(events) {
     else if (event.type === "droneDepleted") { renderer.trigger("droneDepleted"); announce("无人机电量耗尽 · 强制返航"); }
     else if (event.type === "droneIntercept") { renderer.trigger("droneIntercept"); announce("拦截协议 · 重击无效"); }
     else if (event.type === "eliteMarked") renderer.trigger("eliteMarked");
-    else if (event.type === "threat") { announce(event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); }
+    else if (event.type === "threat") { announce(event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
     else if (event.type === "phase") { audio.play("phase"); announce(event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场"); }
     else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce("侦测到大规模怪潮"); }
     else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(`第 ${event.index} 次怪潮抵达`); }
@@ -510,7 +610,7 @@ function updateUi() {
   dom.droneModeText.textContent = droneModeUnlocked ? (droneAttacking ? "战术节点 · 攻击模式" : "战术节点 · 护航模式") : "战术节点 · 攻击模式未解锁";
   const interceptText = state.tower.upgrades.droneIntercept > 0 ? ` · 拦截${state.tower.interceptCharge > 0 ? "就绪" : `${state.tower.interceptRecharge.toFixed(1)}s`}` : "";
   dom.droneModeHint.textContent = droneModeUnlocked
-    ? (droneAttacking ? `停止拾币 · 撞击耗电${state.tower.upgrades.droneHunt > 0 ? " · 猎杀标记" : ""}` : `拾币充能 · 磁吸 ${Math.max(0, state.tower.autoCollectCooldown).toFixed(1)}s${interceptText}`)
+    ? (droneAttacking ? `暂停自动回收 · 手动拾币可用 · 撞击耗电${state.tower.upgrades.droneHunt > 0 ? " · 猎杀标记" : ""}` : `自动拾币充能 · 手动可用 · 磁吸 ${Math.max(0, state.tower.autoCollectCooldown).toFixed(1)}s${interceptText}`)
     : "研究晶塔磁吸核心后开放";
   dom.droneEnergyFill.style.width = `${Math.max(0, Math.min(100, state.tower.droneEnergy / GAME_CONFIG.drones.energyMax * 100))}%`;
   for (const button of dom.targetProtocolList.children) {
@@ -533,6 +633,8 @@ function updateUi() {
     button.querySelector(".tech-gate").textContent = status.maxed ? "科技完成" : status.unlocked ? `威胁 ${status.requiredThreat}${towerGate} · 可研究` : status.reason;
     button.querySelector(".level-pips").innerHTML = Array.from({ length: Math.min(max, 12) }, (_, index) => `<i class="${index < level ? "on" : ""}"></i>`).join("");
   }
+  dom.upgradeList.querySelector('[data-route="orbit"]')?.classList.toggle("chosen", state.tower.upgrades.sawOverdrive > 0 || state.tower.upgrades.sawGun > 0);
+  dom.upgradeList.querySelector('[data-route="launch"]')?.classList.toggle("chosen", state.tower.upgrades.sawLaunch > 0);
 
   for (const button of dom.skillList.children) {
     const key = button.dataset.skill;
@@ -569,14 +671,14 @@ function updateUi() {
   dom.muteButton.textContent = save.settings.muted ? "静" : "声";
 }
 
-function renderLeaderboard(highlightDate = currentEntryDate) {
-  dom.leaderboardList.replaceChildren();
-  dom.leaderboardCount.textContent = leaderboardEntries.length > 0 ? `${leaderboardEntries.length} 条` : "全服";
+function renderLeaderboardInto(list, count, highlightDate) {
+  list.replaceChildren();
+  count.textContent = leaderboardEntries.length > 0 ? `${leaderboardEntries.length} 条` : "全服";
   if (leaderboardEntries.length === 0) {
     const empty = document.createElement("li");
     empty.className = "empty";
     empty.textContent = leaderboardLoading ? "正在读取全服排行榜…" : leaderboardError || "尚无记录 · 成为第一位守望者";
-    dom.leaderboardList.append(empty);
+    list.append(empty);
     return;
   }
   for (const entry of leaderboardEntries) {
@@ -591,8 +693,13 @@ function renderLeaderboard(highlightDate = currentEntryDate) {
     threat.textContent = `威胁 ${formatThreat(entry.threat)}`;
     kills.textContent = `${entry.kills} 击杀`;
     item.append(name, score, threat, kills);
-    dom.leaderboardList.append(item);
+    list.append(item);
   }
+}
+
+function renderLeaderboard(highlightDate = currentEntryDate) {
+  renderLeaderboardInto(dom.leaderboardList, dom.leaderboardCount, highlightDate);
+  renderLeaderboardInto(dom.globalLeaderboardList, dom.globalLeaderboardCount, highlightDate);
 }
 
 async function refreshLeaderboard() {
@@ -676,6 +783,11 @@ function settleRun(stardust) {
 
 function togglePause(force) {
   if (state.over) return;
+  if (leaderboardModalOpen) {
+    if (force === true) resumeAfterLeaderboard = false;
+    state.paused = true;
+    return;
+  }
   if (techTreeOpen) {
     if (force === true) resumeAfterTechTree = false;
     state.paused = true;
@@ -727,6 +839,9 @@ createSkillUi();
 dom.droneModeButton.addEventListener("click", switchDroneMode);
 for (const button of dom.targetProtocolList.children) button.addEventListener("click", () => switchTargetProtocol(button.dataset.protocol));
 updateUi();
+if (previewMode === "tutorial-coin") showFirstRunTutorial(1, true);
+if (previewMode === "tutorial-upgrade") showFirstRunTutorial(2, true);
+if (previewMode === "tutorial-branches") showFirstRunTutorial(3, true);
 if (previewMode === "tech" || previewMode === "drones" || previewMode === "element-tech" || previewMode === "drone-energy") setTechTreeOpen(true);
 announce("守住中央晶塔");
 refreshLeaderboard();
@@ -740,6 +855,10 @@ document.addEventListener("keydown", (event) => {
   audio.unlock();
   const tag = event.target?.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA") return;
+  if (leaderboardModalOpen) {
+    if (event.key === "Escape") setLeaderboardOpen(false, true);
+    return;
+  }
   if (event.key >= "1" && event.key <= "9") buyUpgrade(TECH_ORDER[Number(event.key) - 1]);
   else if (event.key.toLowerCase() === "q") activateSkill("heal");
   else if (event.key.toLowerCase() === "w") activateSkill("overload");
@@ -749,6 +868,11 @@ document.addEventListener("keydown", (event) => {
   else if (event.key.toLowerCase() === "t") setTechTreeOpen(!techTreeOpen, techTreeOpen);
   else if (event.key === "Escape" && techTreeOpen) setTechTreeOpen(false, true);
   else if (event.key.toLowerCase() === "p" || event.key === "Escape") togglePause();
+});
+dom.openLeaderboardButton.addEventListener("click", () => setLeaderboardOpen(true));
+dom.closeLeaderboardButton.addEventListener("click", () => setLeaderboardOpen(false, true));
+dom.leaderboardModal.addEventListener("pointerdown", (event) => {
+  if (event.target === dom.leaderboardModal) setLeaderboardOpen(false, true);
 });
 dom.openTechTreeButton.addEventListener("click", () => setTechTreeOpen(true));
 dom.closeTechTreeButton.addEventListener("click", () => setTechTreeOpen(false, true));
@@ -776,6 +900,10 @@ dom.muteButton.addEventListener("click", () => {
   updateUi();
 });
 dom.scoreEntryForm.addEventListener("submit", submitCurrentScore);
+dom.tutorialDismiss.addEventListener("click", () => {
+  dom.tutorialGuide.classList.add("hidden");
+  clearTutorialHighlights();
+});
 dom.restartButton.addEventListener("click", restart);
 dom.clearSaveButton.addEventListener("click", () => {
   if (!confirm("清除全部星尘、永久研究和纪录？此操作无法撤销。")) return;
@@ -788,7 +916,7 @@ dom.clearSaveButton.addEventListener("click", () => {
 });
 window.addEventListener("blur", () => togglePause(true));
 document.addEventListener("pointerdown", () => audio.unlock(), { once: true });
-requestAnimationFrame(loop);
+revealGameWhenReady();
 
 globalThis.__ETERNAL_CRYSTAL_TOWER__ = {
   getState: () => state,

@@ -214,3 +214,21 @@ Lighting/mood: transcendent endgame guardian, cyan frost on the left, ember oran
 Constraints: genuine alpha transparency; exactly one complete tower; all element structures must be fused into the architecture; no detachable shoulder cannon; no separate side module; no extra tower variants; no projectile; no characters; no enemy; no terrain; no cast shadow; no text; no UI; no logo; no watermark; no baked checkerboard
 Avoid: three towers side by side, generic rainbow tower, chaotic multicolor noise, modern machinery, giant gun barrels, flat vector icon, photorealism, cropped base, black or white background
 ```
+
+## 启动加载插画
+
+参考图依次为 `arena-bg.png` 与 `tower-ultimate-ai.png`，使用 OpenAI 内置生图模型生成。
+
+```text
+Use case: stylized-concept
+Asset type: full-screen game loading splash background
+Primary request: create an original cinematic loading-screen illustration for the fantasy crystal tower defense game shown in the reference images, faithfully matching their visual language.
+Input images: Image 1 is a style and environment reference for the dark indigo crystalline arena; Image 2 is a style and subject reference for the ornate elemental crystal tower. Generate a new scene, do not simply paste the references.
+Scene/backdrop: vast shadowy crystal cavern arena fading into deep navy mist, subtle concentric rune architecture and distant violet crystal formations.
+Subject: one majestic luminous crystal tower centered slightly above the vertical middle, built from dark engraved metal, gold trim, cyan and violet crystal energy, with restrained orange fire accents; a soft circular wave of energy radiates from its base.
+Style/medium: premium polished fantasy tower-defense game key art, painterly 3D concept render, sharp readable silhouette, detailed but not cluttered.
+Composition/framing: wide 16:9 landscape splash; centered symmetrical hero composition; dark uncluttered lower third reserved for HTML title, loading bar, and status copy; important content safe within center 70% for responsive cropping.
+Lighting/mood: dramatic cyan-violet rim light, gentle volumetric rays, mysterious and hopeful before battle, high contrast focal glow.
+Color palette: midnight navy, deep indigo, amethyst violet, electric cyan, small warm gold and ember-orange highlights.
+Constraints: absolutely no text, letters, numbers, UI elements, logos, borders, loading bars, watermark, characters, enemies, or checkerboard background. Fill the entire canvas with finished artwork.
+```

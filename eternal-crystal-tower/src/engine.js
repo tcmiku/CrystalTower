@@ -2,7 +2,7 @@ import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, UPGRADE_ORDER } from "./config.js";
 import { SeededRng } from "./rng.js";
 
 const ASCEND_NAMES = ["晶芽", "晶柱", "晶冠", "万象晶塔"];
-const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", saw: "环绕晶刃", sawGun: "晶刃炮膛", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
+const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
 
 export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }) {
   const rng = new SeededRng(seed);
@@ -23,6 +23,8 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       shield: 0,
       fireCooldown: 0,
       sawFireCooldown: 0,
+      sawLaunchCooldown: 0,
+      sawRecoveries: [],
       droneCooldown: 0,
       autoCollectCooldown: GAME_CONFIG.coins.towerInterval,
       droneMode: "collect",
@@ -34,7 +36,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       anchorLockTimer: 0,
       priorityTargetIds: [],
       sawAngle: 0,
-      upgrades: { damage: 0, rate: 0, ascend: 0, saw: 0, sawGun: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
+      upgrades: { damage: 0, rate: 0, ascend: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
     },
     skills: {
       heal: { cooldown: 0, active: 0, burst: 0, shieldBurstArmed: false },
@@ -49,6 +51,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     },
     enemies: [],
     drones: [],
+    launchedSaws: [],
     projectiles: [],
     coinOrbs: [],
     particles: [],
@@ -99,6 +102,8 @@ export function getTechStatus(state, key) {
   const level = state.tower.upgrades[key];
   if (!cfg || level == null) return { unlocked: false, maxed: true, cost: Infinity, reason: "未知科技" };
   if (level >= cfg.maxLevel) return { unlocked: false, maxed: true, cost: Infinity, reason: "研究完成" };
+  const excluded = cfg.excludes?.find((excludedKey) => (state.tower.upgrades[excludedKey] ?? 0) > 0);
+  if (excluded) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), reason: `已选择${TECH_NAMES[excluded]}分支` };
   const requiredThreat = cfg.threat[level] ?? cfg.threat.at(-1);
   if (state.threat < requiredThreat) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, reason: `威胁 ${requiredThreat} 解锁` };
   if (cfg.towerLevel && state.tower.upgrades.ascend + 1 < cfg.towerLevel) {
@@ -599,11 +604,16 @@ function updateEnemies(state, dt) {
 function updateSaws(state, dt) {
   const count = state.tower.upgrades.saw;
   if (!count) return;
-  state.tower.sawAngle += dt * (1.8 + count * 0.06);
+  while (state.tower.sawRecoveries.length < count) state.tower.sawRecoveries.push(0);
+  for (let index = 0; index < count; index += 1) state.tower.sawRecoveries[index] = Math.max(0, state.tower.sawRecoveries[index] - dt);
+  const launchedIndexes = new Set(state.launchedSaws.map((saw) => saw.bladeIndex));
+  const overdrive = state.tower.upgrades.sawOverdrive;
+  state.tower.sawAngle += dt * (1.8 + count * 0.06) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.speedPerLevel);
   const { centerX, centerY } = GAME_CONFIG.arena;
   const cfg = GAME_CONFIG.upgrades.saw;
-  const damage = cfg.damage * (1 + (count - 1) * cfg.growthDamage);
+  const damage = cfg.damage * (1 + (count - 1) * cfg.growthDamage) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.damagePerLevel);
   for (let index = 0; index < count; index += 1) {
+    if (launchedIndexes.has(index) || state.tower.sawRecoveries[index] > 0) continue;
     const angle = state.tower.sawAngle + index * Math.PI * 2 / count;
     const x = centerX + Math.cos(angle) * cfg.radius;
     const y = centerY + Math.sin(angle) * cfg.radius;
@@ -617,10 +627,74 @@ function updateSaws(state, dt) {
   }
 }
 
+function finishLaunchedSaw(state, saw) {
+  const cfg = GAME_CONFIG.upgrades.sawLaunch;
+  const recoveryLevel = state.tower.upgrades.sawRecovery;
+  state.tower.sawRecoveries[saw.bladeIndex] = cfg.baseRecovery * (cfg.recoveryMultiplier ** recoveryLevel);
+  saw.done = true;
+  state.events.push({ type: "sawRecover", bladeIndex: saw.bladeIndex, recovery: state.tower.sawRecoveries[saw.bladeIndex] });
+}
+
+function updateLaunchedSaws(state, dt) {
+  if (!state.tower.upgrades.sawLaunch) return;
+  const cfg = GAME_CONFIG.upgrades.sawLaunch;
+  const { width, height, centerX, centerY } = GAME_CONFIG.arena;
+  for (const saw of state.launchedSaws) {
+    saw.x += saw.vx * dt;
+    saw.y += saw.vy * dt;
+    saw.life -= dt;
+    for (const enemy of state.enemies) {
+      if (enemy.hp <= 0 || saw.hitIds.includes(enemy.id)) continue;
+      if (Math.hypot(saw.x - enemy.x, saw.y - enemy.y) > cfg.radius + enemy.radius) continue;
+      saw.hitIds.push(enemy.id);
+      damageEnemy(state, enemy, saw.damage, "launchedSaw");
+      const nextTarget = saw.bouncesRemaining > 0
+        ? rankTargets(state, state.enemies.filter((candidate) => candidate.hp > 0 && !saw.hitIds.includes(candidate.id) && Math.hypot(candidate.x - saw.x, candidate.y - saw.y) <= cfg.bounceRange))[0]
+        : null;
+      if (nextTarget) {
+        const angle = Math.atan2(nextTarget.y - saw.y, nextTarget.x - saw.x);
+        saw.vx = Math.cos(angle) * cfg.projectileSpeed;
+        saw.vy = Math.sin(angle) * cfg.projectileSpeed;
+        saw.bouncesRemaining -= 1;
+        state.events.push({ type: "sawBounce", bladeIndex: saw.bladeIndex, targetId: nextTarget.id, remaining: saw.bouncesRemaining });
+      } else finishLaunchedSaw(state, saw);
+      break;
+    }
+    if (!saw.done && (saw.life <= 0 || saw.x < -40 || saw.x > width + 40 || saw.y < -40 || saw.y > height + 40)) finishLaunchedSaw(state, saw);
+  }
+  state.launchedSaws = state.launchedSaws.filter((saw) => !saw.done);
+
+  state.tower.sawLaunchCooldown = Math.max(0, state.tower.sawLaunchCooldown - dt);
+  if (state.tower.sawLaunchCooldown > 0) return;
+  const count = state.tower.upgrades.saw;
+  const launchedIndexes = new Set(state.launchedSaws.map((saw) => saw.bladeIndex));
+  const bladeIndex = Array.from({ length: count }, (_, index) => index)
+    .find((index) => !launchedIndexes.has(index) && state.tower.sawRecoveries[index] <= 0);
+  if (bladeIndex == null) return;
+  const angle = state.tower.sawAngle + bladeIndex * Math.PI * 2 / count;
+  const x = centerX + Math.cos(angle) * GAME_CONFIG.upgrades.saw.radius;
+  const y = centerY + Math.sin(angle) * GAME_CONFIG.upgrades.saw.radius;
+  const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range))[0];
+  if (!target) return;
+  const launchAngle = Math.atan2(target.y - y, target.x - x);
+  const sawCfg = GAME_CONFIG.upgrades.saw;
+  const damage = sawCfg.damage * (1 + (count - 1) * sawCfg.growthDamage) * cfg.damageMultiplier;
+  state.launchedSaws.push({
+    id: state.nextId++, bladeIndex, x, y,
+    vx: Math.cos(launchAngle) * cfg.projectileSpeed,
+    vy: Math.sin(launchAngle) * cfg.projectileSpeed,
+    damage, life: cfg.flightLife,
+    bouncesRemaining: cfg.baseBounces + state.tower.upgrades.sawRicochet,
+    hitIds: [], done: false
+  });
+  state.tower.sawLaunchCooldown = cfg.launchInterval;
+  state.events.push({ type: "sawLaunch", bladeIndex, targetId: target.id });
+}
+
 function updateSawGuns(state, dt) {
   const level = state.tower.upgrades.sawGun;
   const count = state.tower.upgrades.saw;
-  if (!level || !count) return;
+  if (!level || !count || state.tower.upgrades.sawLaunch > 0) return;
   state.tower.sawFireCooldown -= dt;
   if (state.tower.sawFireCooldown > 0) return;
   const cfg = GAME_CONFIG.upgrades.sawGun;
@@ -776,7 +850,7 @@ function beginCoinCollection(orb, collector, droneIndex = 0) {
 }
 
 export function collectCoinAt(state, x, y) {
-  if (state.over || state.tower.upgrades.autoCollect > 0) return false;
+  if (state.over) return false;
   let best = null;
   let bestDistance = GAME_CONFIG.coins.clickRadius;
   for (const orb of state.coinOrbs) {
@@ -1060,6 +1134,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   updateEnemies(state, dt);
   updateDrones(state, dt);
   updateSaws(state, dt);
+  updateLaunchedSaws(state, dt);
   updateSawGuns(state, dt);
   updateProjectiles(state, dt);
   resolveDeaths(state);
@@ -1077,8 +1152,9 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 export function snapshotState(state) {
   return {
     time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins,
-    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), upgrades: { ...state.tower.upgrades }, droneMode: state.tower.droneMode, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)),
+    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), upgrades: { ...state.tower.upgrades }, droneMode: state.tower.droneMode, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId]),
+    launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
     enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null]),
     kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over
   };

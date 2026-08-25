@@ -4,6 +4,10 @@
 
 统一风格锚点：`premium top-down fantasy tower-defense game asset, hand-painted 2D with faceted crystal hard edges, restrained painterly texture, deep indigo shadows, cyan-violet guardian light and ember-red corruption, crisp readable silhouettes at small scale, no text, no logo, no watermark, no photorealism.`
 
+## loading-splash.png
+
+用途：1672×941、16:9 全屏启动加载插画。参考夜间战场与万象晶塔素材生成，以居中的元素晶塔、深靛蓝洞窟、紫色晶簇和青紫能量环延续游戏美术语言；画面不含烘焙文字或 UI，标题、状态和真实加载进度由 HTML/CSS 覆盖绘制。
+
 ## arena-bg.png
 
 用途：1448×1086 战场底图。提示词要求垂直俯视、4:3、中央 35% 低细节留白、深靛蓝玄武岩地面、外围紫色晶簇与符文、无单位与界面，并使用统一风格锚点。
@@ -25,6 +29,7 @@
 - 所有生成资产均为原创项目素材，不依赖外部 URL。
 - 原生透明素材经 RGBA 通道检查，alpha 范围为 0–255；两张元素弹的模型输出例外及运行时透明化处理见下方说明。
 - 渲染器异步加载图片；加载失败时继续使用原有 Canvas 程序图形。
+- 启动界面会等待全部生成素材完成或失败后再进入游戏，并对失败素材沿用程序图形回退。
 - 背景额外覆盖深色遮罩，保持弹道、血条和金币反馈的对比度。
 
 ## arena-day.png

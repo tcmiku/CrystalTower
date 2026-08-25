@@ -6,9 +6,28 @@
     <meta name="theme-color" content="#08091c" />
     <title>永耀晶塔</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%237be7ff' d='M32 3 48 23 40 55 32 62 24 55 16 23z'/%3E%3Cpath fill='%238a6cff' d='m32 3 8 25-8 34-8-34z'/%3E%3C/svg%3E" />
+    <link rel="preload" as="image" href="./assets/generated/loading-splash.png" fetchpriority="high" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
+  <body class="is-loading">
+    <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite" aria-label="游戏素材加载中">
+      <div class="loading-vignette" aria-hidden="true"></div>
+      <div class="loading-content">
+        <span class="loading-eyebrow">ETERNAL CRYSTAL TOWER</span>
+        <div class="loading-mark" aria-hidden="true"><i></i></div>
+        <h1>永耀晶塔</h1>
+        <p>守住光，直到最后一击</p>
+        <div class="loading-track" aria-hidden="true"><i id="loadingProgress"></i></div>
+        <div class="loading-meta"><span id="loadingStatus">正在探测晶塔共鸣…</span><strong id="loadingPercent">0%</strong></div>
+      </div>
+    </div>
+    <aside id="tutorialGuide" class="tutorial-guide hidden" aria-live="polite" aria-labelledby="tutorialTitle">
+      <span class="tutorial-step">首次守望引导</span>
+      <h2 id="tutorialTitle"></h2>
+      <p id="tutorialText"></p>
+      <div id="tutorialChoices" class="tutorial-choices"></div>
+      <button id="tutorialDismiss" type="button">继续守望</button>
+    </aside>
     <main class="game-shell">
       <header class="topbar">
         <div class="brand">
@@ -30,7 +49,7 @@
       <section class="play-layout">
         <div class="arena-wrap">
           <canvas id="gameCanvas" width="960" height="720" aria-label="永耀晶塔战场"></canvas>
-          <div class="score-hud" aria-label="当前积分"><span>SCORE</span><strong id="scoreText">000000</strong></div>
+          <button id="openLeaderboardButton" class="score-hud" type="button" aria-label="查看全服积分排行榜" aria-haspopup="dialog" aria-controls="leaderboardModal" aria-expanded="false" title="查看全服积分排行榜"><span>SCORE · RANKING</span><strong id="scoreText">000000</strong></button>
           <div id="announcement" class="announcement" aria-live="polite"></div>
           <div id="toast" class="toast" aria-live="polite"></div>
           <div id="pauseOverlay" class="pause-overlay hidden"><strong>战场凝固</strong><span>按 P 或 Esc 继续</span></div>
@@ -98,6 +117,21 @@
           <span>锁定节点会显示威胁、晶塔等级或前置科技</span>
           <span class="live-combat"><i></i> 战斗已自动暂停</span>
         </footer>
+      </div>
+    </section>
+
+    <section id="leaderboardModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="globalLeaderboardTitle">
+      <div class="modal-card standalone-leaderboard-card">
+        <header class="standalone-leaderboard-header">
+          <div>
+            <span class="leaderboard-eyebrow">GLOBAL RANKING</span>
+            <h2 id="globalLeaderboardTitle">全服积分排行榜</h2>
+            <p>所有守望者的已登记成绩</p>
+          </div>
+          <button id="closeLeaderboardButton" class="leaderboard-close" type="button" aria-label="关闭排行榜">关闭</button>
+        </header>
+        <div class="leaderboard-heading standalone-count"><span>按积分、威胁、击杀与坚守时间排序</span><strong id="globalLeaderboardCount">全服</strong></div>
+        <ol id="globalLeaderboardList" class="leaderboard-list standalone-leaderboard-list" aria-label="全服积分排行榜"></ol>
       </div>
     </section>
 

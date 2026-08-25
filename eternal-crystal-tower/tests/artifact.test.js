@@ -11,20 +11,30 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
     "gameCanvas", "healthText", "coinsText", "threatText", "timeText", "upgradeList", "skillList",
     "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText",
     "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
-    "pauseButton", "muteButton", "scoreText", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput",
-    "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton"
+    "pauseButton", "muteButton", "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput",
+    "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
+    "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
+    "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss"
   ];
   for (const id of requiredIds) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.doesNotMatch(html, /(?:src|href)=["']https?:\/\//i);
   assert.match(html, /src=["']\.\/src\/main\.js["']/);
   assert.match(html, /打开后自动暂停战斗/);
+  assert.match(html, /SCORE · RANKING/);
+  const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.match(main, /战利品已经掉落/);
+  assert.match(main, /第一笔金币已到手/);
+  assert.match(main, /晶刃 · 近身防御/);
+  assert.match(main, /无人机 · 经济自动化/);
+  assert.match(main, /路线 A · 疾旋炮刃/);
+  assert.match(main, /路线 B · 弹射飞刃/);
 });
 
 test("设计、构建与入口产物齐全", async () => {
   const paths = [
     "design/GAME_DESIGN.md", "design/ART_DIRECTION.md", "build/BUILD_BRIEF.md", "qa/ASSET_QA.md", "qa/TECH_TREE_QA.md",
     "index.html", "styles.css", "src/main.js", "src/engine.js",
-    "assets/generated/arena-bg.png", "assets/generated/tower-atlas.png",
+    "assets/generated/arena-bg.png", "assets/generated/loading-splash.png", "assets/generated/tower-atlas.png",
     "assets/generated/enemy-atlas.png", "assets/generated/crystal-saw.png",
     "assets/generated/arena-day.png", "assets/generated/enemy-wave-atlas.png",
     "assets/generated/boss-overlord.png",

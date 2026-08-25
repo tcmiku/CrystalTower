@@ -12,6 +12,9 @@ npm.cmd start
 
 浏览器打开 [http://127.0.0.1:4173](http://127.0.0.1:4173)。可通过 `?seed=20260824` 指定可复现种子。
 
+使用 `?preview=loading` 可以固定显示素材加载界面，便于视觉检查。
+使用 `?preview=tutorial-coin`、`?preview=tutorial-upgrade` 和 `?preview=tutorial-branches` 可以分别检查首局三步引导。
+
 排行榜由同一个 Node.js 进程提供，所有连接该服务器的玩家共享排名。成绩默认持久化到 `data/leaderboard.json`；部署时可用 `LEADERBOARD_FILE=/持久化磁盘/leaderboard.json` 指定数据文件位置，并确保该目录可写。服务器默认监听 `0.0.0.0`，可通过 `HOST` 和 `PORT` 覆盖。
 
 ## 操作
@@ -31,4 +34,4 @@ npm.cmd start
 npm.cmd test
 ```
 
-测试覆盖策划数值、目标选择、科技门槛、金币回收、晶刃炮膛、技能、永久研究、存档容错、种子复现、十级首领与十五分钟压力模拟。
+测试覆盖策划数值、目标选择、科技门槛、金币回收、晶刃疾旋/弹射互斥专精、弹射与恢复、技能、永久研究、存档容错、种子复现、十级首领与十五分钟压力模拟。

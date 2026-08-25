@@ -21,7 +21,9 @@ export const GAME_CONFIG = Object.freeze({
     rate: { baseCost: 25, growth: 1.65, multiplier: 1.15, cap: 5 },
     ascend: { costs: [180, 900, 2400], damage: [1, 1.5, 2.25, 3.35], rate: [1, 1.15, 1.3, 1.55], rangePerLevel: 40, hpPerLevel: 200, maxLevel: 3 },
     saw: { baseCost: 70, growth: 1.75, maxLevel: 5, damage: 16, growthDamage: 0.1, radius: 104, hitInterval: 0.24 },
-    sawGun: { damage: 0.28, damagePerLevel: 0.12, fireRate: 0.5, fireRatePerLevel: 0.22, range: 330, projectileSpeed: 430 }
+    sawOverdrive: { speedPerLevel: 0.28, damagePerLevel: 0.22 },
+    sawGun: { damage: 0.28, damagePerLevel: 0.12, fireRate: 0.5, fireRatePerLevel: 0.22, range: 330, projectileSpeed: 430 },
+    sawLaunch: { projectileSpeed: 420, range: 410, damageMultiplier: 1.6, baseBounces: 1, bounceRange: 270, flightLife: 3, radius: 18, launchInterval: 0.35, baseRecovery: 3.4, recoveryMultiplier: 0.76 }
   },
   elements: {
     frost: { chance: 0.18, freezeDuration: 1.2, bossEffectMultiplier: 0.25 },
@@ -33,7 +35,11 @@ export const GAME_CONFIG = Object.freeze({
     rate: { branch: "power", baseCost: 25, growth: 1.65, maxLevel: 8, threat: [1, 2, 2, 3, 4, 5, 7, 9], requires: { damage: 1 } },
     ascend: { branch: "power", costs: [180, 900, 2400], maxLevel: 3, threat: [3, 7, 8], requiresByLevel: [{ damage: 2, rate: 1 }, { damage: 5, rate: 3 }, { frost: 1, fire: 1, lightning: 1 }] },
     saw: { branch: "blade", baseCost: 70, growth: 1.75, maxLevel: 5, threat: [2, 3, 4, 6, 8], requires: { damage: 1 } },
-    sawGun: { branch: "blade", baseCost: 180, growth: 2, maxLevel: 3, threat: [5, 7, 9], requires: { saw: 3 } },
+    sawOverdrive: { branch: "blade", baseCost: 190, growth: 1.9, maxLevel: 3, threat: [5, 7, 9], requires: { saw: 3 }, excludes: ["sawLaunch"] },
+    sawGun: { branch: "blade", baseCost: 220, growth: 2, maxLevel: 3, threat: [6, 8, 10], requires: { sawOverdrive: 1 }, excludes: ["sawLaunch"] },
+    sawLaunch: { branch: "blade", costs: [210], maxLevel: 1, threat: [5], requires: { saw: 3 }, excludes: ["sawOverdrive", "sawGun"] },
+    sawRicochet: { branch: "blade", baseCost: 230, growth: 1.8, maxLevel: 3, threat: [6, 8, 10], requires: { sawLaunch: 1 } },
+    sawRecovery: { branch: "blade", baseCost: 180, growth: 1.75, maxLevel: 3, threat: [6, 7, 9], requires: { sawLaunch: 1 } },
     drone: { branch: "economy", baseCost: 55, growth: 1.8, maxLevel: 3, threat: [2, 3, 4], requires: { damage: 1 } },
     autoCollect: { branch: "economy", costs: [520], maxLevel: 1, threat: [6], requires: { drone: 3 } },
     droneScavenge: { branch: "economy", costs: [300], maxLevel: 1, threat: [5], requires: { drone: 2 } },
@@ -78,7 +84,7 @@ export const GAME_CONFIG = Object.freeze({
   combat: { enemyAttackInterval: 0.7, maxEnemies: 420 }
 });
 
-export const TECH_ORDER = ["damage", "rate", "ascend", "saw", "sawGun", "drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
+export const TECH_ORDER = ["damage", "rate", "ascend", "saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
 export const UPGRADE_ORDER = TECH_ORDER;
 export const SKILL_ORDER = ["heal", "overload", "starfall", "coinVacuum"];
 export const TARGET_PROTOCOL_ORDER = ["guard", "hunter", "breach", "radar"];

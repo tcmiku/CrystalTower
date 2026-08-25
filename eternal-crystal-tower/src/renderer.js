@@ -84,9 +84,13 @@ function removeConnectedLightBackground(image, clearCenter = false) {
   return canvas;
 }
 
-function loadGeneratedAssets() {
-  if (typeof Image === "undefined") return {};
-  return Object.fromEntries(Object.entries(GENERATED_ASSETS).map(([key, src]) => {
+function loadGeneratedAssets(onProgress = () => {}) {
+  if (typeof Image === "undefined") return { assets: {}, ready: Promise.resolve([]) };
+  const entries = Object.entries(GENERATED_ASSETS);
+  const assets = {};
+  let completed = 0;
+  let failed = 0;
+  const promises = entries.map(([key, src]) => new Promise((resolve) => {
     const image = new Image();
     image.decoding = "async";
     if (CUTOUT_ASSETS.has(key)) {
@@ -94,9 +98,18 @@ function loadGeneratedAssets() {
         image.cutout = removeConnectedLightBackground(image, key === "effectFrost" || key === "effectFire");
       }, { once: true });
     }
+    const settle = (ok) => {
+      completed += 1;
+      if (!ok) failed += 1;
+      onProgress({ completed, total: entries.length, failed });
+      resolve({ key, ok });
+    };
+    image.addEventListener("load", () => settle(true), { once: true });
+    image.addEventListener("error", () => settle(false), { once: true });
     image.src = src;
-    return [key, image];
+    assets[key] = image;
   }));
+  return { assets, ready: Promise.all(promises) };
 }
 
 function imageReady(image) {
@@ -104,7 +117,7 @@ function imageReady(image) {
 }
 
 export class Renderer {
-  constructor(canvas) {
+  constructor(canvas, onAssetProgress) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.shake = 0;
@@ -112,13 +125,19 @@ export class Renderer {
     this.flashColor = "#ffffff";
     this.time = 0;
     this.dayMix = 1;
-    this.assets = loadGeneratedAssets();
+    const loading = loadGeneratedAssets(onAssetProgress);
+    this.assets = loading.assets;
+    this.assetsReady = loading.ready;
     this.stars = Array.from({ length: 74 }, (_, index) => ({
       x: (index * 137.31) % GAME_CONFIG.arena.width,
       y: (index * 83.77) % GAME_CONFIG.arena.height,
       size: 0.5 + (index % 4) * 0.35,
       phase: index * 0.71
     }));
+  }
+
+  whenAssetsReady() {
+    return this.assetsReady;
   }
 
   trigger(type, strength = 1) {
@@ -378,7 +397,7 @@ export class Renderer {
       ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#9e5f24";
       ctx.fillRect(x - 1, y - 3, 2, 6);
-      if (!orb.collector && state.tower.upgrades.autoCollect === 0) {
+      if (!orb.collector) {
         ctx.globalAlpha = 0.5 + Math.sin(this.time * 5 + orb.age) * 0.25;
         ctx.strokeStyle = "#ffe09a";
         ctx.lineWidth = 1;
@@ -744,11 +763,10 @@ export class Renderer {
     if (!count) return;
     const { centerX, centerY } = GAME_CONFIG.arena;
     const radius = GAME_CONFIG.upgrades.saw.radius;
-    for (let index = 0; index < count; index += 1) {
-      const angle = state.tower.sawAngle + index * Math.PI * 2 / count;
-      const x = centerX + Math.cos(angle) * radius;
-      const y = centerY + Math.sin(angle) * radius;
-      ctx.save(); ctx.translate(x, y); ctx.rotate(-this.time * 8);
+    const launchedIndexes = new Set(state.launchedSaws.map((saw) => saw.bladeIndex));
+    const overdrive = state.tower.upgrades.sawOverdrive;
+    const drawSaw = (x, y, rotation, scale = 1) => {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(rotation); ctx.scale(scale, scale);
       ctx.shadowColor = "#ffd47c"; ctx.shadowBlur = 11;
       if (imageReady(this.assets.saw)) {
         ctx.drawImage(this.assets.saw, -23, -23, 46, 46);
@@ -765,6 +783,20 @@ export class Renderer {
         ctx.fillStyle = "#313653"; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
+    };
+    for (let index = 0; index < count; index += 1) {
+      if (launchedIndexes.has(index) || (state.tower.sawRecoveries[index] ?? 0) > 0) continue;
+      const angle = state.tower.sawAngle + index * Math.PI * 2 / count;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+      drawSaw(x, y, -this.time * (8 + overdrive * 2));
+    }
+    for (const saw of state.launchedSaws) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,211,108,.38)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(saw.x - saw.vx * .045, saw.y - saw.vy * .045); ctx.lineTo(saw.x, saw.y); ctx.stroke();
+      ctx.restore();
+      drawSaw(saw.x, saw.y, this.time * 18, 1.08);
     }
   }
 
