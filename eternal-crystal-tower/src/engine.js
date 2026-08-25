@@ -1,0 +1,1085 @@
+import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, UPGRADE_ORDER } from "./config.js";
+import { SeededRng } from "./rng.js";
+
+const ASCEND_NAMES = ["晶芽", "晶柱", "晶冠", "万象晶塔"];
+const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", saw: "环绕晶刃", sawGun: "晶刃炮膛", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
+
+export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }) {
+  const rng = new SeededRng(seed);
+  const state = {
+    seed: seed >>> 0 || 1,
+    rng,
+    nextId: 1,
+    time: 0,
+    threat: 1,
+    phase: "day",
+    coins: 0,
+    over: false,
+    paused: false,
+    spawnTimer: 0.65,
+    wave: { index: 0, nextAt: GAME_CONFIG.waves.firstAt, warningStarted: false, active: false, remaining: 0, spawnTimer: 0, direction: null, elitePending: false },
+    tower: {
+      hp: 0,
+      shield: 0,
+      fireCooldown: 0,
+      sawFireCooldown: 0,
+      droneCooldown: 0,
+      autoCollectCooldown: GAME_CONFIG.coins.towerInterval,
+      droneMode: "collect",
+      droneEnergy: GAME_CONFIG.drones.energyMax,
+      interceptCharge: 0,
+      interceptRecharge: 0,
+      targetProtocol: "guard",
+      anchorLockId: null,
+      anchorLockTimer: 0,
+      priorityTargetIds: [],
+      sawAngle: 0,
+      upgrades: { damage: 0, rate: 0, ascend: 0, saw: 0, sawGun: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
+    },
+    skills: {
+      heal: { cooldown: 0, active: 0, burst: 0, shieldBurstArmed: false },
+      overload: { cooldown: 0, active: 0, heat: 0, slow: 0, pulse: 0, overheated: false },
+      starfall: { cooldown: 0, active: 0, angle: 0, protocol: "guard" },
+      coinVacuum: { cooldown: 0, active: 0, trails: [], collected: 0, value: 0 }
+    },
+    research: {
+      damage: Number(research.damage) || 0,
+      health: Number(research.health) || 0,
+      income: Number(research.income) || 0
+    },
+    enemies: [],
+    drones: [],
+    projectiles: [],
+    coinOrbs: [],
+    particles: [],
+    elementFx: [],
+    floaters: [],
+    events: [],
+    stats: { kills: 0, bossKills: 0, highestThreat: 1, score: 0 }
+  };
+  state.tower.hp = getTowerStats(state).maxHp;
+  return state;
+}
+
+export function getDayPhase(threat) {
+  const { dayWaves, nightWaves } = GAME_CONFIG.threat;
+  return ((Math.max(1, threat) - 1) % (dayWaves + nightWaves)) < dayWaves ? "day" : "night";
+}
+
+export function getTowerStats(state) {
+  const { tower, research } = state;
+  const level = tower.upgrades.ascend;
+  const cfg = GAME_CONFIG;
+  const permanentDamage = 1 + research.damage * cfg.research.bonusPerLevel;
+  const permanentHealth = 1 + research.health * cfg.research.bonusPerLevel;
+  const damage = cfg.tower.damage * (cfg.upgrades.damage.multiplier ** tower.upgrades.damage) * cfg.upgrades.ascend.damage[level] * permanentDamage;
+  const rawRate = cfg.tower.fireRate * (cfg.upgrades.rate.multiplier ** tower.upgrades.rate) * cfg.upgrades.ascend.rate[level];
+  return {
+    damage,
+    fireRate: Math.min(cfg.upgrades.rate.cap, rawRate),
+    range: cfg.tower.range + cfg.upgrades.ascend.rangePerLevel * level,
+    maxHp: (cfg.tower.maxHp + cfg.upgrades.ascend.hpPerLevel * level) * permanentHealth,
+    projectileCount: level >= 3 ? 3 : level >= 2 ? 2 : 1,
+    pierce: 0,
+    name: ASCEND_NAMES[level]
+  };
+}
+
+export function getUpgradeCost(state, key) {
+  const level = state.tower.upgrades[key];
+  const cfg = GAME_CONFIG.techTree[key];
+  if (!cfg) return Infinity;
+  if (level >= cfg.maxLevel) return Infinity;
+  if (cfg.costs) return cfg.costs[level] ?? Infinity;
+  return Math.floor(cfg.baseCost * (cfg.growth ** level));
+}
+
+export function getTechStatus(state, key) {
+  const cfg = GAME_CONFIG.techTree[key];
+  const level = state.tower.upgrades[key];
+  if (!cfg || level == null) return { unlocked: false, maxed: true, cost: Infinity, reason: "未知科技" };
+  if (level >= cfg.maxLevel) return { unlocked: false, maxed: true, cost: Infinity, reason: "研究完成" };
+  const requiredThreat = cfg.threat[level] ?? cfg.threat.at(-1);
+  if (state.threat < requiredThreat) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, reason: `威胁 ${requiredThreat} 解锁` };
+  if (cfg.towerLevel && state.tower.upgrades.ascend + 1 < cfg.towerLevel) {
+    return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, requiredTowerLevel: cfg.towerLevel, reason: `需要晶塔等级 ${cfg.towerLevel}` };
+  }
+  const requirements = cfg.requiresByLevel?.[level] ?? cfg.requires ?? {};
+  for (const [requiredKey, requiredLevel] of Object.entries(requirements)) {
+    if ((state.tower.upgrades[requiredKey] ?? 0) < requiredLevel) {
+      return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, reason: `需要${TECH_NAMES[requiredKey]} ${requiredLevel} 级` };
+    }
+  }
+  return { unlocked: true, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, reason: "可以研究" };
+}
+
+export function purchaseUpgrade(state, key) {
+  if (!UPGRADE_ORDER.includes(key) || state.over) return false;
+  const status = getTechStatus(state, key);
+  const cost = status.cost;
+  if (!status.unlocked || !Number.isFinite(cost) || state.coins < cost) return false;
+  const oldStats = getTowerStats(state);
+  state.coins -= cost;
+  state.tower.upgrades[key] += 1;
+  if (key === "autoCollect") state.tower.autoCollectCooldown = GAME_CONFIG.coins.towerInterval;
+  if (key === "droneIntercept") state.tower.interceptCharge = 1;
+  if (key === "ascend") {
+    const nextStats = getTowerStats(state);
+    state.tower.hp = Math.min(nextStats.maxHp, state.tower.hp + (nextStats.maxHp - oldStats.maxHp) + nextStats.maxHp * 0.2);
+    state.events.push({ type: "ascend", level: state.tower.upgrades.ascend });
+  } else {
+    state.events.push({ type: "purchase", key });
+  }
+  return true;
+}
+
+export function toggleDroneMode(state) {
+  if (state.over || state.tower.upgrades.autoCollect < 1 || state.tower.upgrades.drone < 1) return false;
+  if (state.tower.droneMode === "collect" && state.tower.droneEnergy < GAME_CONFIG.drones.minAttackEnergy) return false;
+  state.tower.droneMode = state.tower.droneMode === "attack" ? "collect" : "attack";
+  state.events.push({ type: "droneMode", mode: state.tower.droneMode });
+  return true;
+}
+
+export function setTargetProtocol(state, protocol) {
+  if (state.over || !TARGET_PROTOCOL_ORDER.includes(protocol)) return false;
+  state.tower.targetProtocol = protocol;
+  state.events.push({ type: "targetProtocol", protocol });
+  return true;
+}
+
+export function cycleTargetProtocol(state) {
+  const index = TARGET_PROTOCOL_ORDER.indexOf(state.tower.targetProtocol);
+  return setTargetProtocol(state, TARGET_PROTOCOL_ORDER[(index + 1) % TARGET_PROTOCOL_ORDER.length]);
+}
+
+export function lockAnchorAt(state, x, y) {
+  if (state.over) return false;
+  const padding = GAME_CONFIG.boss.anchorClickPadding;
+  const anchor = state.enemies
+    .filter((enemy) => enemy.type === "anchor" && enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= enemy.radius + padding)
+    .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y) || a.id - b.id)[0];
+  if (!anchor) return false;
+  state.tower.anchorLockId = anchor.id;
+  state.tower.anchorLockTimer = GAME_CONFIG.boss.anchorLockDuration;
+  state.events.push({ type: "anchorLocked", anchorId: anchor.id, role: anchor.anchorRole, duration: state.tower.anchorLockTimer, x: anchor.x, y: anchor.y });
+  return true;
+}
+
+export function chooseEnemyType(state) {
+  const roll = state.rng.next();
+  if (state.threat < 2) return "wisp";
+  if (state.threat < 3) return roll < 0.72 ? "wisp" : "runner";
+  if (state.threat < 4) return roll < 0.52 ? "wisp" : roll < 0.8 ? "runner" : "brute";
+  if (state.threat < 5) return roll < 0.38 ? "wisp" : roll < 0.62 ? "runner" : roll < 0.82 ? "crawler" : "brute";
+  if (state.threat < 6) return roll < 0.3 ? "wisp" : roll < 0.5 ? "runner" : roll < 0.7 ? "crawler" : roll < 0.88 ? "brute" : "hexer";
+  if (state.threat < 8) return roll < 0.2 ? "wisp" : roll < 0.35 ? "runner" : roll < 0.53 ? "crawler" : roll < 0.7 ? "brute" : roll < 0.86 ? "sentinel" : "hexer";
+  if (roll < 0.14) return "wisp";
+  if (roll < 0.26) return "runner";
+  if (roll < 0.4) return "crawler";
+  if (roll < 0.55) return "brute";
+  if (roll < 0.7) return "sentinel";
+  if (roll < 0.84) return "hexer";
+  return "rammer";
+}
+
+function spawnPosition(rng, forcedSide = null) {
+  const { width, height } = GAME_CONFIG.arena;
+  const side = forcedSide ?? Math.floor(rng.next() * 4);
+  const margin = 34;
+  if (side === 0) return { x: rng.next() * width, y: -margin };
+  if (side === 1) return { x: width + margin, y: rng.next() * height };
+  if (side === 2) return { x: rng.next() * width, y: height + margin };
+  return { x: -margin, y: rng.next() * height };
+}
+
+export function spawnEnemy(state, type = chooseEnemyType(state), position, options = {}) {
+  const elite = Boolean(options.elite) && type !== "boss";
+  if (state.enemies.length >= GAME_CONFIG.combat.maxEnemies) {
+    if (type !== "boss" && !elite) return null;
+    const replaceIndex = state.enemies.findIndex((enemy) => enemy.type !== "boss" && !enemy.elite);
+    if (replaceIndex < 0) return null;
+    state.enemies.splice(replaceIndex, 1);
+  }
+  const base = GAME_CONFIG.enemies[type];
+  if (!base) return null;
+  const pos = position ?? spawnPosition(state.rng);
+  const hpScale = GAME_CONFIG.threat.hpGrowth ** (state.threat - 1);
+  const damageScale = GAME_CONFIG.threat.damageGrowth ** (state.threat - 1);
+  const rewardScale = GAME_CONFIG.threat.rewardGrowth ** (state.threat - 1);
+  const hpMultiplier = elite ? GAME_CONFIG.waves.eliteHpMultiplier : 1;
+  const damageMultiplier = elite ? GAME_CONFIG.waves.eliteDamageMultiplier : 1;
+  const rewardMultiplier = elite ? GAME_CONFIG.waves.eliteRewardMultiplier : 1;
+  const enemy = {
+    id: state.nextId++, type, x: pos.x, y: pos.y,
+    hp: base.hp * hpScale * hpMultiplier, maxHp: base.hp * hpScale * hpMultiplier,
+    speed: base.speed, damage: base.damage * damageScale * damageMultiplier,
+    reward: Math.max(1, Math.round(base.reward * rewardScale * rewardMultiplier)),
+    radius: base.radius, attackCooldown: 0, sawCooldown: 0, hitFlash: 0,
+    attackRange: base.attackRange ?? 0, rangedFlash: 0,
+    freezeTimer: 0, burnTimer: 0, burnTickCooldown: 0, burnDamagePerTick: 0,
+    markTimer: 0,
+    elite,
+    splitChild: Boolean(options.splitChild)
+  };
+  if (elite) {
+    const affixes = GAME_CONFIG.eliteAffixes.order;
+    enemy.affix = options.affix && affixes.includes(options.affix) ? options.affix : affixes[Math.floor(state.rng.next() * affixes.length)];
+    if (enemy.affix === "shield") enemy.affixShield = enemy.affixShieldMax = enemy.maxHp * GAME_CONFIG.eliteAffixes.shield.shieldFraction;
+    if (enemy.affix === "sprint") enemy.speed *= GAME_CONFIG.eliteAffixes.sprint.speedMultiplier;
+    if (enemy.affix === "devour") enemy.devourCooldown = GAME_CONFIG.eliteAffixes.devour.interval;
+  }
+  if (type === "boss") {
+    enemy.bossPhase = 0;
+    enemy.resistance = GAME_CONFIG.boss.resistances[0];
+  }
+  if (type === "anchor") {
+    enemy.anchorBossId = options.anchorBossId ?? null;
+    enemy.anchorRole = GAME_CONFIG.boss.anchorRoles.includes(options.anchorRole) ? options.anchorRole : GAME_CONFIG.boss.anchorRoles[0];
+    enemy.effectCooldown = enemy.anchorRole === "summon" ? GAME_CONFIG.boss.summonInterval * 0.5 : 0;
+    enemy.effectPulse = 0;
+  }
+  state.enemies.push(enemy);
+  if (type === "boss") {
+    spawnBossAnchors(state, enemy);
+    state.events.push({ type: "bossSpawn", resistance: enemy.resistance });
+  }
+  if (elite) state.events.push({ type: "eliteSpawn", enemyType: type, affix: enemy.affix, x: enemy.x, y: enemy.y });
+  return enemy;
+}
+
+function bossAnchors(state, boss) {
+  return state.enemies.filter((enemy) => enemy.type === "anchor" && enemy.anchorBossId === boss.id && enemy.hp > 0);
+}
+
+function spawnBossAnchors(state, boss) {
+  state.enemies = state.enemies.filter((enemy) => enemy.type !== "anchor" || enemy.anchorBossId !== boss.id);
+  state.tower.anchorLockId = null;
+  state.tower.anchorLockTimer = 0;
+  const { centerX, centerY } = GAME_CONFIG.arena;
+  const count = GAME_CONFIG.boss.anchorCount;
+  for (let index = 0; index < count; index += 1) {
+    const angle = index * Math.PI * 2 / count;
+    spawnEnemy(state, "anchor", {
+      x: centerX + Math.cos(angle) * GAME_CONFIG.boss.anchorRadius,
+      y: centerY + Math.sin(angle) * GAME_CONFIG.boss.anchorRadius
+    }, { anchorBossId: boss.id, anchorRole: GAME_CONFIG.boss.anchorRoles[index] });
+  }
+  state.events.push({ type: "bossAnchors", bossId: boss.id, count, phase: boss.bossPhase });
+}
+
+export function findTargets(state, count = 1) {
+  const { centerX, centerY } = GAME_CONFIG.arena;
+  const range = getTowerStats(state).range;
+  const candidates = state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - centerX, enemy.y - centerY) <= range);
+  return rankTargets(state, candidates).slice(0, count);
+}
+
+function rankTargets(state, candidates) {
+  const { centerX, centerY } = GAME_CONFIG.arena;
+  const towerRadius = GAME_CONFIG.tower.radius + state.tower.upgrades.ascend * 5;
+  const distance = (enemy) => Math.hypot(enemy.x - centerX, enemy.y - centerY);
+  const lockedPriority = (enemy) => Number(state.tower.anchorLockTimer > 0 && enemy.id === state.tower.anchorLockId);
+  const hunterPriority = (enemy) => enemy.type === "boss" ? 3 : enemy.elite ? 2 : enemy.type === "hexer" ? 1 : 0;
+  const contactTime = (enemy) => Math.max(0, distance(enemy) - towerRadius - enemy.radius - (enemy.attackRange ?? 0)) / Math.max(1, enemy.speed);
+  const radarPriority = (enemy) => Number((enemy.attackRange ?? 0) > 0);
+  return [...candidates].sort((a, b) => {
+    const locked = lockedPriority(b) - lockedPriority(a);
+    if (locked) return locked;
+    if (state.tower.targetProtocol === "hunter") {
+      const threat = hunterPriority(b) - hunterPriority(a);
+      if (threat) return threat;
+    } else if (state.tower.targetProtocol === "breach") {
+      const breach = contactTime(a) - contactTime(b);
+      if (Math.abs(breach) > 0.0001) return breach;
+    } else if (state.tower.targetProtocol === "radar") {
+      const ranged = radarPriority(b) - radarPriority(a);
+      if (ranged) return ranged;
+    }
+    return distance(a) - distance(b) || a.id - b.id;
+  });
+}
+
+function fireTower(state) {
+  const stats = getTowerStats(state);
+  const targets = findTargets(state, stats.projectileCount);
+  state.tower.priorityTargetIds = targets.map((target) => target.id);
+  if (!targets.length) return false;
+  const { centerX, centerY } = GAME_CONFIG.arena;
+  for (const target of targets) {
+    const angle = Math.atan2(target.y - centerY, target.x - centerX);
+    const element = rollProjectileElement(state);
+    state.projectiles.push({
+      id: state.nextId++, x: centerX, y: centerY,
+      vx: Math.cos(angle) * GAME_CONFIG.tower.projectileSpeed,
+      vy: Math.sin(angle) * GAME_CONFIG.tower.projectileSpeed,
+      damage: stats.damage, radius: 5 + state.tower.upgrades.ascend * 1.5,
+      pierce: stats.pierce, life: 1.2, tier: state.tower.upgrades.ascend, element
+    });
+  }
+  if (state.skills.overload.active > 0) {
+    const config = GAME_CONFIG.skills.overload;
+    state.skills.overload.heat = Math.min(config.heatCap, state.skills.overload.heat + config.heatPerVolley);
+  }
+  state.events.push({ type: "shoot", tier: state.tower.upgrades.ascend });
+  return true;
+}
+
+function rollProjectileElement(state) {
+  const enabled = ["frost", "fire", "lightning"].filter((key) => state.tower.upgrades[key] > 0);
+  if (!enabled.length) return null;
+  const roll = state.rng.next();
+  let cursor = 0;
+  for (const key of enabled) {
+    cursor += GAME_CONFIG.elements[key].chance;
+    if (roll < cursor) return key;
+  }
+  return null;
+}
+
+export function damageEnemy(state, enemy, damage, source = "shot") {
+  if (enemy.hp <= 0) return;
+  let appliedDamage = damage;
+  if (enemy.type === "boss") {
+    if (bossAnchors(state, enemy).some((anchor) => anchor.anchorRole === "shield")) appliedDamage *= GAME_CONFIG.boss.shieldDamageMultiplier;
+    if (source === enemy.resistance) appliedDamage *= GAME_CONFIG.boss.elementDamageMultiplier;
+  }
+  if ((enemy.affixShield ?? 0) > 0) {
+    const absorbed = Math.min(enemy.affixShield, appliedDamage);
+    enemy.affixShield -= absorbed;
+    appliedDamage -= absorbed;
+  }
+  enemy.hp -= appliedDamage;
+  enemy.hitFlash = 0.09;
+  const color = source === "starfall" ? "#fff1a8" : source === "drone" ? "#ffd36d" : source === "fire" ? "#ff9c5c" : source === "lightning" ? "#d9c5ff" : "#d9faff";
+  state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius, text: appliedDamage > 0.5 ? `${Math.round(appliedDamage)}` : "格挡", life: 0.55, color });
+  state.events.push({ type: "hit", source });
+  if (enemy.type === "boss" && enemy.hp > 0) {
+    const ratio = enemy.hp / enemy.maxHp;
+    const nextPhase = ratio <= GAME_CONFIG.boss.phaseThresholds[1] ? 2 : ratio <= GAME_CONFIG.boss.phaseThresholds[0] ? 1 : 0;
+    if (nextPhase > enemy.bossPhase) {
+      enemy.bossPhase = nextPhase;
+      enemy.resistance = GAME_CONFIG.boss.resistances[nextPhase];
+      spawnBossAnchors(state, enemy);
+      state.events.push({ type: "bossPhase", phase: nextPhase, resistance: enemy.resistance });
+    }
+  }
+}
+
+export function applyElementalHit(state, enemy, element, baseDamage) {
+  const cfg = GAME_CONFIG.elements[element];
+  if (!cfg || !enemy || enemy.hp <= 0) return false;
+  const bossScale = enemy.type === "boss" ? cfg.bossEffectMultiplier : 1;
+  if (element === "frost") {
+    enemy.freezeTimer = Math.max(enemy.freezeTimer ?? 0, cfg.freezeDuration * bossScale);
+    state.events.push({ type: "elementHit", element, x: enemy.x, y: enemy.y, bossReduced: enemy.type === "boss" });
+    return true;
+  }
+  if (element === "fire") {
+    const ticks = Math.max(1, Math.round(cfg.burnDuration / cfg.burnTick));
+    enemy.burnTimer = Math.max(enemy.burnTimer ?? 0, cfg.burnDuration * (enemy.type === "boss" ? 0.7 : 1));
+    enemy.burnTickCooldown = Math.min(enemy.burnTickCooldown || cfg.burnTick, cfg.burnTick);
+    enemy.burnDamagePerTick = Math.max(enemy.burnDamagePerTick ?? 0, baseDamage * cfg.burnDamageMultiplier * bossScale / ticks);
+    state.events.push({ type: "elementHit", element, x: enemy.x, y: enemy.y, bossReduced: enemy.type === "boss" });
+    return true;
+  }
+  const nearby = state.enemies
+    .filter((candidate) => candidate !== enemy && candidate.hp > 0 && Math.hypot(candidate.x - enemy.x, candidate.y - enemy.y) <= cfg.chainRange)
+    .sort((a, b) => Math.hypot(a.x - enemy.x, a.y - enemy.y) - Math.hypot(b.x - enemy.x, b.y - enemy.y) || a.id - b.id)
+    .slice(0, cfg.chainCount);
+  let from = enemy;
+  const sourceScale = enemy.type === "boss" ? cfg.bossEffectMultiplier : 1;
+  nearby.forEach((target, index) => {
+    const targetScale = target.type === "boss" ? cfg.bossEffectMultiplier : 1;
+    const damage = baseDamage * (cfg.chainMultiplier ** (index + 1)) * sourceScale * targetScale;
+    damageEnemy(state, target, damage, "lightning");
+    state.elementFx.push({ element: "lightning", x1: from.x, y1: from.y, x2: target.x, y2: target.y, life: 0.16, maxLife: 0.16 });
+    from = target;
+  });
+  state.events.push({ type: "elementHit", element, x: enemy.x, y: enemy.y, chains: nearby.length, bossReduced: enemy.type === "boss" });
+  return true;
+}
+
+function resolveDeaths(state) {
+  for (const enemy of state.enemies) {
+    if (enemy.hp > 0 || enemy.deadHandled) continue;
+    enemy.deadHandled = true;
+    if (enemy.type === "anchor") {
+      if (state.tower.anchorLockId === enemy.id) {
+        state.tower.anchorLockId = null;
+        state.tower.anchorLockTimer = 0;
+      }
+      state.events.push({ type: "anchorDestroyed", bossId: enemy.anchorBossId, role: enemy.anchorRole, x: enemy.x, y: enemy.y });
+      continue;
+    }
+    state.stats.kills += 1;
+    const baseScore = GAME_CONFIG.score.enemy[enemy.type] ?? 100;
+    const killScore = Math.round(baseScore * (enemy.elite ? GAME_CONFIG.score.eliteMultiplier : 1));
+    state.stats.score += killScore;
+    state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius - 12, text: `+${killScore} 分`, life: 0.85, color: enemy.elite || enemy.type === "boss" ? "#ffe07a" : "#ffd7a0" });
+    if (enemy.type === "boss") {
+      state.stats.bossKills += 1;
+      for (const anchor of bossAnchors(state, enemy)) anchor.deadHandled = true;
+    }
+    if (state.coinOrbs.length >= GAME_CONFIG.coins.maxOrbs) {
+      const merged = state.coinOrbs.find((orb) => !orb.collector) ?? state.coinOrbs[0];
+      if (merged) merged.value += enemy.reward;
+    } else {
+      state.coinOrbs.push({ x: enemy.x, y: enemy.y, renderX: enemy.x, renderY: enemy.y, value: enemy.reward, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+    }
+    state.events.push({ type: "kill", enemyType: enemy.type, elite: enemy.elite, score: killScore, x: enemy.x, y: enemy.y });
+    if (enemy.elite && enemy.affix === "split") {
+      const cfg = GAME_CONFIG.eliteAffixes.split;
+      for (let index = 0; index < cfg.count; index += 1) {
+        const angle = index * Math.PI * 2 / cfg.count + state.rng.next() * 0.35;
+        const child = spawnEnemy(state, enemy.type, { x: enemy.x + Math.cos(angle) * enemy.radius, y: enemy.y + Math.sin(angle) * enemy.radius }, { splitChild: true });
+        if (!child) continue;
+        child.maxHp *= cfg.hpMultiplier;
+        child.hp = child.maxHp;
+        child.damage *= cfg.damageMultiplier;
+        child.reward = Math.max(1, Math.round(child.reward * cfg.rewardMultiplier));
+        child.radius *= cfg.radiusMultiplier;
+        child.speed *= cfg.speedMultiplier;
+      }
+      state.events.push({ type: "eliteSplit", x: enemy.x, y: enemy.y, count: cfg.count });
+    }
+  }
+  state.enemies = state.enemies.filter((enemy) => !enemy.deadHandled);
+}
+
+function updateThreat(state) {
+  const nextThreat = Math.floor(state.time / GAME_CONFIG.threat.duration) + 1;
+  if (nextThreat === state.threat) return;
+  state.threat = nextThreat;
+  const nextPhase = getDayPhase(nextThreat);
+  if (nextPhase !== state.phase) state.events.push({ type: "phase", phase: nextPhase });
+  state.phase = nextPhase;
+  state.stats.highestThreat = Math.max(state.stats.highestThreat, nextThreat);
+  state.events.push({ type: "threat", level: nextThreat });
+  if (nextThreat % GAME_CONFIG.threat.bossEvery === 0) spawnEnemy(state, "boss");
+}
+
+function updateWave(state, dt) {
+  const cfg = GAME_CONFIG.waves;
+  const wave = state.wave;
+  if (!wave.warningStarted && state.time >= wave.nextAt - cfg.warning) {
+    wave.warningStarted = true;
+    wave.direction = Math.floor(state.rng.next() * 4);
+    state.events.push({ type: "waveWarning", index: wave.index + 1, direction: wave.direction });
+  }
+  if (!wave.active && state.time >= wave.nextAt) {
+    wave.active = true;
+    wave.remaining = cfg.baseCount + state.threat * cfg.countPerThreat;
+    wave.spawnTimer = 0;
+    wave.index += 1;
+    wave.nextAt += cfg.interval;
+    wave.warningStarted = false;
+    wave.elitePending = true;
+    state.events.push({ type: "waveStart", index: wave.index, count: wave.remaining, direction: wave.direction });
+  }
+  if (!wave.active) return;
+  wave.spawnTimer -= dt;
+  while (wave.remaining > 0 && wave.spawnTimer <= 0) {
+    const side = state.rng.next() < 0.78 ? wave.direction : null;
+    const elite = wave.elitePending;
+    const spawned = spawnEnemy(state, chooseEnemyType(state), spawnPosition(state.rng, side), { elite });
+    if (elite && spawned) wave.elitePending = false;
+    wave.remaining -= 1;
+    wave.spawnTimer += cfg.spawnInterval;
+  }
+  if (wave.remaining <= 0) {
+    wave.active = false;
+    wave.direction = null;
+    state.events.push({ type: "waveEnd", index: wave.index });
+  }
+}
+
+function updateSpawning(state, dt) {
+  state.spawnTimer -= dt;
+  if (state.spawnTimer > 0) return;
+  const pack = Math.min(GAME_CONFIG.threat.maxPack, 1 + Math.floor((state.threat - 1) / GAME_CONFIG.threat.packGrowthEvery));
+  for (let index = 0; index < pack; index += 1) spawnEnemy(state);
+  const interval = Math.max(GAME_CONFIG.threat.spawnMin, GAME_CONFIG.threat.spawnBase * (GAME_CONFIG.threat.spawnDecay ** (state.threat - 1)));
+  state.spawnTimer += interval * (0.82 + state.rng.next() * 0.36);
+}
+
+function updateBossAnchor(state, anchor, dt) {
+  const boss = state.enemies.find((enemy) => enemy.id === anchor.anchorBossId && enemy.type === "boss" && enemy.hp > 0);
+  if (!boss) return;
+  anchor.effectPulse = Math.max(0, (anchor.effectPulse ?? 0) - dt);
+  if (anchor.anchorRole === "repair") {
+    const before = boss.hp;
+    boss.hp = Math.min(boss.maxHp, boss.hp + boss.maxHp * GAME_CONFIG.boss.repairPerSecond * dt);
+    if (boss.hp > before) anchor.effectPulse = Math.max(anchor.effectPulse, 0.12);
+  } else if (anchor.anchorRole === "summon") {
+    anchor.effectCooldown -= dt;
+    if (anchor.effectCooldown <= 0 && state.enemies.length < GAME_CONFIG.combat.maxEnemies) {
+      const types = GAME_CONFIG.boss.summonTypes;
+      const type = types[Math.min(boss.bossPhase, types.length - 1)];
+      const angle = state.rng.next() * Math.PI * 2;
+      const summoned = spawnEnemy(state, type, { x: anchor.x + Math.cos(angle) * 24, y: anchor.y + Math.sin(angle) * 24 });
+      if (summoned) state.events.push({ type: "anchorSummon", anchorId: anchor.id, enemyId: summoned.id, enemyType: type, x: anchor.x, y: anchor.y });
+      anchor.effectCooldown += GAME_CONFIG.boss.summonInterval;
+      anchor.effectPulse = 0.5;
+    }
+  }
+}
+
+function updateEnemies(state, dt) {
+  const { centerX, centerY } = GAME_CONFIG.arena;
+  const towerRadius = GAME_CONFIG.tower.radius + state.tower.upgrades.ascend * 5;
+  for (const enemy of state.enemies) {
+    enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+    enemy.rangedFlash = Math.max(0, (enemy.rangedFlash ?? 0) - dt);
+    enemy.sawCooldown = Math.max(0, enemy.sawCooldown - dt);
+    enemy.freezeTimer = Math.max(0, (enemy.freezeTimer ?? 0) - dt);
+    enemy.markTimer = Math.max(0, (enemy.markTimer ?? 0) - dt);
+    if (enemy.elite && enemy.affix === "devour") {
+      enemy.devourCooldown -= dt;
+      if (enemy.devourCooldown <= 0) {
+        const cfg = GAME_CONFIG.eliteAffixes.devour;
+        const orb = state.coinOrbs
+          .filter((item) => !item.collector && !item.expired && Math.hypot(item.x - enemy.x, item.y - enemy.y) <= cfg.radius)
+          .sort((a, b) => Math.hypot(a.x - enemy.x, a.y - enemy.y) - Math.hypot(b.x - enemy.x, b.y - enemy.y))[0];
+        if (orb) {
+          orb.expired = true;
+          enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.maxHp * cfg.healFraction);
+          state.events.push({ type: "eliteDevour", x: enemy.x, y: enemy.y, value: orb.value });
+        }
+        enemy.devourCooldown += cfg.interval;
+      }
+    }
+    if ((enemy.burnTimer ?? 0) > 0) {
+      enemy.burnTimer = Math.max(0, enemy.burnTimer - dt);
+      enemy.burnTickCooldown -= dt;
+      if (enemy.burnTickCooldown <= 0) {
+        damageEnemy(state, enemy, enemy.burnDamagePerTick, "fire");
+        enemy.burnTickCooldown += GAME_CONFIG.elements.fire.burnTick;
+      }
+    }
+    if (enemy.hp <= 0) continue;
+    if (enemy.type === "anchor") {
+      updateBossAnchor(state, enemy, dt);
+      continue;
+    }
+    const dx = centerX - enemy.x;
+    const dy = centerY - enemy.y;
+    const distance = Math.hypot(dx, dy) || 1;
+    if (distance > towerRadius + enemy.radius + 3 + (enemy.attackRange ?? 0)) {
+      const moveSpeed = enemy.freezeTimer > 0 ? 0 : enemy.speed;
+      enemy.x += dx / distance * moveSpeed * dt;
+      enemy.y += dy / distance * moveSpeed * dt;
+      enemy.attackCooldown = 0;
+    } else {
+      enemy.attackCooldown -= dt;
+      if (enemy.attackCooldown <= 0) {
+        const overloadedBoss = enemy.type === "boss" && bossAnchors(state, enemy).some((anchor) => anchor.anchorRole === "overload");
+        const attackInterval = GAME_CONFIG.combat.enemyAttackInterval * (overloadedBoss ? GAME_CONFIG.boss.overloadAttackIntervalMultiplier : 1);
+        const damage = enemy.damage * GAME_CONFIG.combat.enemyAttackInterval;
+        const heavy = enemy.type === "boss" || enemy.type === "brute" || enemy.type === "rammer";
+        if (heavy && state.tower.droneMode === "collect" && state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge > 0) {
+          state.tower.interceptCharge = 0;
+          state.tower.interceptRecharge = GAME_CONFIG.drones.interceptRecharge;
+          enemy.attackCooldown += attackInterval;
+          state.events.push({ type: "droneIntercept", x: enemy.x, y: enemy.y, enemyType: enemy.type });
+          continue;
+        }
+        if (state.skills.heal.shieldBurstArmed) releaseShieldBurst(state);
+        const absorbed = Math.min(state.tower.shield, damage);
+        state.tower.shield -= absorbed;
+        state.tower.hp = Math.max(0, state.tower.hp - (damage - absorbed));
+        enemy.attackCooldown += attackInterval;
+        if (enemy.attackRange > 0) enemy.rangedFlash = 0.16;
+        state.events.push({ type: "towerHit", damage: damage - absorbed, absorbed, heavy });
+      }
+    }
+  }
+}
+
+function updateSaws(state, dt) {
+  const count = state.tower.upgrades.saw;
+  if (!count) return;
+  state.tower.sawAngle += dt * (1.8 + count * 0.06);
+  const { centerX, centerY } = GAME_CONFIG.arena;
+  const cfg = GAME_CONFIG.upgrades.saw;
+  const damage = cfg.damage * (1 + (count - 1) * cfg.growthDamage);
+  for (let index = 0; index < count; index += 1) {
+    const angle = state.tower.sawAngle + index * Math.PI * 2 / count;
+    const x = centerX + Math.cos(angle) * cfg.radius;
+    const y = centerY + Math.sin(angle) * cfg.radius;
+    for (const enemy of state.enemies) {
+      if (enemy.sawCooldown > 0 || enemy.hp <= 0) continue;
+      if (Math.hypot(enemy.x - x, enemy.y - y) <= enemy.radius + 17) {
+        damageEnemy(state, enemy, damage, "saw");
+        enemy.sawCooldown = cfg.hitInterval;
+      }
+    }
+  }
+}
+
+function updateSawGuns(state, dt) {
+  const level = state.tower.upgrades.sawGun;
+  const count = state.tower.upgrades.saw;
+  if (!level || !count) return;
+  state.tower.sawFireCooldown -= dt;
+  if (state.tower.sawFireCooldown > 0) return;
+  const cfg = GAME_CONFIG.upgrades.sawGun;
+  const stats = getTowerStats(state);
+  const { centerX, centerY } = GAME_CONFIG.arena;
+  let fired = false;
+  for (let index = 0; index < count; index += 1) {
+    const sawAngle = state.tower.sawAngle + index * Math.PI * 2 / count;
+    const x = centerX + Math.cos(sawAngle) * GAME_CONFIG.upgrades.saw.radius;
+    const y = centerY + Math.sin(sawAngle) * GAME_CONFIG.upgrades.saw.radius;
+    const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range))[0];
+    if (!target) continue;
+    const angle = Math.atan2(target.y - y, target.x - x);
+    state.projectiles.push({
+      id: state.nextId++, x, y,
+      vx: Math.cos(angle) * cfg.projectileSpeed,
+      vy: Math.sin(angle) * cfg.projectileSpeed,
+      damage: stats.damage * (cfg.damage + level * cfg.damagePerLevel), radius: 7,
+      pierce: 0, life: 1, tier: state.tower.upgrades.ascend, source: "sawGun"
+    });
+    fired = true;
+  }
+  if (fired) state.events.push({ type: "sawShoot", level });
+  state.tower.sawFireCooldown += 1 / (cfg.fireRate + level * cfg.fireRatePerLevel);
+}
+
+function updateProjectiles(state, dt) {
+  const { width, height } = GAME_CONFIG.arena;
+  for (const projectile of state.projectiles) {
+    projectile.x += projectile.vx * dt;
+    projectile.y += projectile.vy * dt;
+    projectile.life -= dt;
+    for (const enemy of state.enemies) {
+      if (enemy.hp <= 0 || projectile.hitIds?.has(enemy.id)) continue;
+      if (Math.hypot(projectile.x - enemy.x, projectile.y - enemy.y) <= projectile.radius + enemy.radius) {
+        projectile.hitIds ??= new Set();
+        projectile.hitIds.add(enemy.id);
+        const markedMultiplier = enemy.markTimer > 0 ? GAME_CONFIG.drones.huntDamageMultiplier : 1;
+        const damage = projectile.damage * markedMultiplier;
+        damageEnemy(state, enemy, damage, projectile.element ?? "shot");
+        if (projectile.element) applyElementalHit(state, enemy, projectile.element, damage);
+        projectile.life = 0;
+        break;
+      }
+    }
+  }
+  state.projectiles = state.projectiles.filter((projectile) => projectile.life > 0 && projectile.x > -30 && projectile.x < width + 30 && projectile.y > -30 && projectile.y < height + 30);
+}
+
+function getDroneOrbitPosition(state, index) {
+  const count = Math.max(1, state.tower.upgrades.drone);
+  const angle = state.time * (1.25 + count * 0.08) + index * Math.PI * 2 / count;
+  return {
+    x: GAME_CONFIG.arena.centerX + Math.cos(angle) * GAME_CONFIG.coins.droneOrbitRadius,
+    y: GAME_CONFIG.arena.centerY + Math.sin(angle) * GAME_CONFIG.coins.droneOrbitRadius
+  };
+}
+
+export function getDronePosition(state, index) {
+  const drone = state.drones[index];
+  return drone ? { x: drone.x, y: drone.y } : getDroneOrbitPosition(state, index);
+}
+
+function moveDroneTowards(drone, target, speed, dt) {
+  const dx = target.x - drone.x;
+  const dy = target.y - drone.y;
+  const distance = Math.hypot(dx, dy) || 1;
+  const travel = Math.min(distance, speed * dt);
+  drone.x += dx / distance * travel;
+  drone.y += dy / distance * travel;
+  drone.angle = Math.atan2(dy, dx);
+  return distance;
+}
+
+function updateDrones(state, dt) {
+  const count = state.tower.upgrades.drone;
+  while (state.drones.length < count) {
+    const index = state.drones.length;
+    const position = getDroneOrbitPosition(state, index);
+    state.drones.push({ x: position.x, y: position.y, angle: 0, hitCooldown: 0, targetId: null });
+  }
+  if (state.drones.length > count) state.drones.length = count;
+  const cfg = GAME_CONFIG.drones;
+  if (state.tower.droneMode === "attack" && state.tower.upgrades.autoCollect > 0) {
+    state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - cfg.attackDrainPerSecond * dt);
+    if (state.tower.droneEnergy <= 0) {
+      state.tower.droneMode = "collect";
+      state.events.push({ type: "droneDepleted" });
+    }
+  } else {
+    state.tower.droneEnergy = Math.min(cfg.energyMax, state.tower.droneEnergy + cfg.guardRegenPerSecond * dt);
+    if (state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge < 1) {
+      state.tower.interceptRecharge = Math.max(0, state.tower.interceptRecharge - dt);
+      if (state.tower.interceptRecharge <= 0) {
+        state.tower.interceptCharge = 1;
+        state.events.push({ type: "interceptReady" });
+      }
+    }
+  }
+  const attackMode = state.tower.droneMode === "attack" && state.tower.upgrades.autoCollect > 0;
+  const damage = getTowerStats(state).damage * cfg.damageMultiplier;
+  for (let index = 0; index < state.drones.length; index += 1) {
+    const drone = state.drones[index];
+    drone.hitCooldown = Math.max(0, drone.hitCooldown - dt);
+    if (!attackMode) {
+      drone.targetId = null;
+      moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed, dt);
+      continue;
+    }
+    const living = state.enemies.filter((enemy) => enemy.hp > 0);
+    const huntTargets = state.tower.upgrades.droneHunt > 0 ? living.filter((enemy) => enemy.elite) : [];
+    const lockedAnchor = state.tower.anchorLockTimer > 0 ? living.find((enemy) => enemy.id === state.tower.anchorLockId && enemy.type === "anchor") : null;
+    const target = lockedAnchor
+      ?? (huntTargets.length
+        ? [...huntTargets].sort((a, b) => Number(a.markTimer > 0) - Number(b.markTimer > 0) || Math.hypot(a.x - drone.x, a.y - drone.y) - Math.hypot(b.x - drone.x, b.y - drone.y) || a.id - b.id)[0]
+        : rankTargets(state, living)[0]);
+    if (!target) {
+      drone.targetId = null;
+      moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed, dt);
+      continue;
+    }
+    drone.targetId = target.id;
+    const distance = moveDroneTowards(drone, target, cfg.attackSpeed, dt);
+    if (distance <= target.radius + cfg.contactRadius && drone.hitCooldown <= 0) {
+      damageEnemy(state, target, damage, "drone");
+      state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - cfg.hitEnergyCost);
+      if (state.tower.upgrades.droneHunt > 0 && target.elite) {
+        target.markTimer = Math.max(target.markTimer, cfg.huntMarkDuration);
+        state.events.push({ type: "eliteMarked", x: target.x, y: target.y, enemyId: target.id });
+      }
+      drone.hitCooldown = cfg.hitInterval;
+      const recoilX = Math.cos(drone.angle) * 16;
+      const recoilY = Math.sin(drone.angle) * 16;
+      drone.x -= recoilX;
+      drone.y -= recoilY;
+      state.events.push({ type: "droneHit", x: target.x, y: target.y, droneIndex: index });
+      if (state.tower.droneEnergy <= 0) {
+        state.tower.droneMode = "collect";
+        state.events.push({ type: "droneDepleted" });
+      }
+    }
+  }
+}
+
+function beginCoinCollection(orb, collector, droneIndex = 0) {
+  if (orb.collector) return false;
+  orb.collector = collector;
+  orb.droneIndex = droneIndex;
+  orb.collectAge = 0;
+  orb.collectStartX = orb.renderX ?? orb.x;
+  orb.collectStartY = orb.renderY ?? orb.y;
+  return true;
+}
+
+export function collectCoinAt(state, x, y) {
+  if (state.over || state.tower.upgrades.autoCollect > 0) return false;
+  let best = null;
+  let bestDistance = GAME_CONFIG.coins.clickRadius;
+  for (const orb of state.coinOrbs) {
+    if (orb.collector) continue;
+    const distance = Math.hypot((orb.renderX ?? orb.x) - x, (orb.renderY ?? orb.y) - y);
+    if (distance <= bestDistance) { best = orb; bestDistance = distance; }
+  }
+  return best ? beginCoinCollection(best, "manual") : false;
+}
+
+function updateCoinOrbs(state, dt) {
+  const { centerX, centerY } = GAME_CONFIG.arena;
+  const incomeMultiplier = 1 + state.research.income * GAME_CONFIG.research.bonusPerLevel;
+  const droneCount = state.tower.upgrades.drone;
+  const guardMode = state.tower.droneMode === "collect";
+  if (guardMode && state.tower.upgrades.autoCollect > 0) {
+    state.tower.autoCollectCooldown -= dt;
+    if (state.tower.autoCollectCooldown <= 0) {
+      const target = state.coinOrbs
+        .filter((orb) => !orb.collector && !orb.expired)
+        .sort((a, b) => b.age - a.age)[0];
+      const collected = target && beginCoinCollection(target, "tower") ? 1 : 0;
+      state.tower.autoCollectCooldown += GAME_CONFIG.coins.towerInterval;
+      state.events.push({ type: "towerCollectPulse", count: collected });
+    }
+  }
+  if (guardMode && droneCount > 0) {
+    state.tower.droneCooldown -= dt;
+    if (state.tower.droneCooldown <= 0) {
+      const orb = state.coinOrbs.find((item) => !item.collector);
+      if (orb) {
+        const droneIndex = state.nextId % droneCount;
+        beginCoinCollection(orb, "drone", droneIndex);
+        const scavengeMultiplier = state.tower.upgrades.droneScavenge > 0 ? GAME_CONFIG.drones.scavengeIntervalMultiplier : 1;
+        state.tower.droneCooldown += GAME_CONFIG.coins.droneInterval * scavengeMultiplier / droneCount;
+      } else state.tower.droneCooldown = 0;
+    }
+  }
+  for (const orb of state.coinOrbs) {
+    orb.age += dt;
+    if (!orb.collector) {
+      if (orb.age >= GAME_CONFIG.coins.lifetime) {
+        orb.expired = true;
+        state.events.push({ type: "coinExpire", x: orb.x, y: orb.y, value: orb.value });
+        continue;
+      }
+      orb.renderX = orb.x;
+      orb.renderY = orb.y - 4 - Math.sin(orb.age * 4) * 3;
+      continue;
+    }
+    orb.collectAge += dt;
+    const progress = Math.min(1, orb.collectAge / GAME_CONFIG.coins.collectDuration);
+    const ease = progress * progress * (3 - 2 * progress);
+    const target = orb.collector === "drone" ? getDronePosition(state, orb.droneIndex) : { x: centerX, y: centerY };
+    orb.renderX = orb.collectStartX + (target.x - orb.collectStartX) * ease;
+    orb.renderY = orb.collectStartY + (target.y - orb.collectStartY) * ease - Math.sin(progress * Math.PI) * 28;
+    if (progress >= 1 && !orb.collected) {
+      orb.collected = true;
+      const scavengeValue = orb.collector === "drone" && state.tower.upgrades.droneScavenge > 0 ? GAME_CONFIG.drones.scavengeValueMultiplier : 1;
+      const value = Math.max(1, Math.round(orb.value * incomeMultiplier * scavengeValue));
+      state.coins += value;
+      if (orb.collector === "drone" && state.tower.droneMode === "collect") state.tower.droneEnergy = Math.min(GAME_CONFIG.drones.energyMax, state.tower.droneEnergy + GAME_CONFIG.drones.coinEnergy);
+      state.events.push({ type: "coin", value });
+    }
+  }
+  state.coinOrbs = state.coinOrbs.filter((orb) => !orb.collected && !orb.expired);
+}
+
+function updateTransient(state, dt) {
+  state.floaters.forEach((item) => { item.life -= dt; item.y -= 24 * dt; });
+  state.floaters = state.floaters.filter((item) => item.life > 0);
+  state.particles.forEach((item) => { item.life -= dt; item.x += item.vx * dt; item.y += item.vy * dt; item.vx *= 0.97; item.vy *= 0.97; });
+  state.particles = state.particles.filter((item) => item.life > 0);
+  state.elementFx.forEach((item) => { item.life -= dt; });
+  state.elementFx = state.elementFx.filter((item) => item.life > 0);
+}
+
+function spawnEventParticles(state) {
+  const newEvents = state.events.slice(state._eventParticleCursor ?? 0);
+  state._eventParticleCursor = state.events.length;
+  for (const event of newEvents) {
+    if (event.type !== "kill") continue;
+    for (let i = 0; i < (event.elite ? 16 : 9); i += 1) {
+      const angle = state.rng.next() * Math.PI * 2;
+      const speed = 28 + state.rng.next() * 70;
+      state.particles.push({ x: event.x, y: event.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.35 + state.rng.next() * 0.35, maxLife: 0.7, color: event.enemyType === "boss" || event.elite ? "#ffd35f" : "#ff756f", size: 2 + state.rng.next() * 3 });
+    }
+  }
+}
+
+function angleDistance(first, second) {
+  return Math.abs(Math.atan2(Math.sin(first - second), Math.cos(first - second)));
+}
+
+export function chooseStarfallAngle(state) {
+  const living = state.enemies.filter((enemy) => enemy.hp > 0);
+  if (!living.length) return null;
+  const { centerX, centerY } = GAME_CONFIG.arena;
+  const halfAngle = GAME_CONFIG.skills.starfall.coneHalfAngle;
+  const distance = (enemy) => Math.hypot(enemy.x - centerX, enemy.y - centerY);
+  const ranged = living.filter((enemy) => (enemy.attackRange ?? 0) > 0);
+  const candidates = state.tower.targetProtocol === "guard"
+    ? [[...living].sort((a, b) => distance(a) - distance(b) || a.id - b.id)[0]]
+    : state.tower.targetProtocol === "radar" && ranged.length ? ranged : living;
+  let best = null;
+  for (const candidate of candidates) {
+    const angle = Math.atan2(candidate.y - centerY, candidate.x - centerX);
+    let score = 0;
+    for (const enemy of living) {
+      const enemyAngle = Math.atan2(enemy.y - centerY, enemy.x - centerX);
+      if (angleDistance(enemyAngle, angle) <= halfAngle) {
+        const base = enemy.type === "boss" ? 2 : enemy.elite ? 1.5 : 1;
+        score += state.tower.targetProtocol === "radar" ? base * ((enemy.attackRange ?? 0) > 0 ? 4 : 0.35) : base;
+      }
+    }
+    if (!best || score > best.score) best = { angle, score };
+  }
+  return best.angle;
+}
+
+function releaseShieldBurst(state) {
+  const skill = state.skills.heal;
+  if (!skill.shieldBurstArmed) return false;
+  const config = GAME_CONFIG.skills.heal;
+  const { centerX, centerY } = GAME_CONFIG.arena;
+  const damage = getTowerStats(state).damage * config.burstDamageMultiplier;
+  let hits = 0;
+  skill.shieldBurstArmed = false;
+  skill.burst = config.burstDuration;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || Math.hypot(enemy.x - centerX, enemy.y - centerY) > config.burstRadius + enemy.radius) continue;
+    damageEnemy(state, enemy, damage, "shieldBurst");
+    hits += 1;
+  }
+  state.events.push({ type: "shieldBurst", damage, hits });
+  return true;
+}
+
+function releaseOverloadPulse(state, early = false) {
+  const config = GAME_CONFIG.skills.overload;
+  const skill = state.skills.overload;
+  const { centerX, centerY, width, height } = GAME_CONFIG.arena;
+  let hits = 0;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0) continue;
+    let dx = enemy.x - centerX;
+    let dy = enemy.y - centerY;
+    let distance = Math.hypot(dx, dy);
+    if (distance > config.knockbackRadius) continue;
+    if (distance < 0.001) {
+      const angle = (enemy.id * 2.399963) % (Math.PI * 2);
+      dx = Math.cos(angle); dy = Math.sin(angle); distance = 1;
+    }
+    const scale = enemy.type === "boss" ? config.bossKnockbackMultiplier : 1;
+    const falloff = 0.55 + 0.45 * (1 - distance / config.knockbackRadius);
+    const push = config.knockbackDistance * scale * falloff;
+    enemy.x = Math.max(-34, Math.min(width + 34, enemy.x + dx / distance * push));
+    enemy.y = Math.max(-34, Math.min(height + 34, enemy.y + dy / distance * push));
+    hits += 1;
+  }
+  skill.overheated = skill.heat >= config.overheatThreshold;
+  skill.slow = skill.overheated ? config.slowDuration : 0;
+  skill.pulse = config.pulseDuration;
+  state.events.push({ type: "overloadRelease", overheated: skill.overheated, heat: skill.heat, hits, early });
+}
+
+export function useSkill(state, key) {
+  if (state.over) return false;
+  const skill = state.skills[key];
+  const config = GAME_CONFIG.skills[key];
+  if (!skill || !config) return false;
+  if (key === "overload" && skill.active > 0) {
+    skill.active = 0;
+    releaseOverloadPulse(state, true);
+    return true;
+  }
+  if (skill.cooldown > 0) return false;
+  if (key === "heal") {
+    const stats = getTowerStats(state);
+    const amount = stats.maxHp * config.fraction;
+    const missing = Math.max(0, stats.maxHp - state.tower.hp);
+    const healed = Math.min(missing, amount);
+    const shieldCap = stats.maxHp * config.shieldCapFraction;
+    const shieldGain = Math.min(Math.max(0, shieldCap - state.tower.shield), amount - healed);
+    if (healed <= 0 && shieldGain <= 0) return false;
+    state.tower.hp = Math.min(stats.maxHp, state.tower.hp + healed);
+    state.tower.shield += shieldGain;
+    skill.shieldBurstArmed = state.tower.shield >= shieldCap - 0.01;
+  } else if (key === "overload") {
+    skill.active = config.duration;
+    skill.heat = 0;
+    skill.slow = 0;
+    skill.pulse = 0;
+    skill.overheated = false;
+  } else if (key === "starfall") {
+    const angle = chooseStarfallAngle(state);
+    if (angle == null) return false;
+    const damage = getTowerStats(state).damage * config.damageMultiplier;
+    const { centerX, centerY } = GAME_CONFIG.arena;
+    for (const enemy of state.enemies) {
+      const enemyAngle = Math.atan2(enemy.y - centerY, enemy.x - centerX);
+      if (angleDistance(enemyAngle, angle) <= config.coneHalfAngle) damageEnemy(state, enemy, damage, "starfall");
+    }
+    skill.angle = angle;
+    skill.protocol = state.tower.targetProtocol;
+    skill.active = config.activeDuration;
+    resolveDeaths(state);
+  } else if (key === "coinVacuum") {
+    const targets = state.coinOrbs.filter((orb) => !orb.expired && !orb.collected);
+    if (!targets.length) return false;
+    const incomeMultiplier = 1 + state.research.income * GAME_CONFIG.research.bonusPerLevel;
+    const absorbed = new Set(targets);
+    const value = targets.reduce((sum, orb) => sum + Math.max(1, Math.round(orb.value * incomeMultiplier)), 0);
+    skill.trails = targets.map((orb) => ({ x: orb.renderX ?? orb.x, y: orb.renderY ?? orb.y }));
+    skill.collected = targets.length;
+    skill.value = value;
+    skill.active = config.activeDuration;
+    state.coins += value;
+    state.coinOrbs = state.coinOrbs.filter((orb) => !absorbed.has(orb));
+    state.events.push({ type: "coinVacuum", count: targets.length, value });
+  }
+  skill.cooldown = config.cooldown;
+  state.events.push({ type: "skill", key, angle: skill.angle });
+  return true;
+}
+
+export function calculateStardust(state) {
+  return Math.max(1, Math.floor(state.stats.kills / 25) + state.stats.bossKills * 3);
+}
+
+export function calculateRunScore(state) {
+  const combat = Math.max(0, Math.floor(state.stats.score));
+  const coinBonus = Math.max(0, Math.floor(state.coins)) * GAME_CONFIG.score.coinMultiplier;
+  return { combat, coinBonus, total: combat + coinBonus };
+}
+
+export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
+  if (state.over || state.paused || dt <= 0) return state;
+  state.events.length = 0;
+  state._eventParticleCursor = 0;
+  state.time += dt;
+  updateThreat(state);
+  updateWave(state, dt);
+  updateSpawning(state, dt);
+
+  for (const skill of Object.values(state.skills)) skill.cooldown = Math.max(0, skill.cooldown - dt);
+  state.skills.heal.active = Math.max(0, state.skills.heal.active - dt);
+  state.skills.heal.burst = Math.max(0, state.skills.heal.burst - dt);
+  state.skills.starfall.active = Math.max(0, state.skills.starfall.active - dt);
+  state.skills.coinVacuum.active = Math.max(0, state.skills.coinVacuum.active - dt);
+  if (state.skills.coinVacuum.active <= 0) state.skills.coinVacuum.trails = [];
+  if (state.tower.anchorLockTimer > 0) {
+    state.tower.anchorLockTimer = Math.max(0, state.tower.anchorLockTimer - dt);
+    const locked = state.enemies.find((enemy) => enemy.id === state.tower.anchorLockId && enemy.type === "anchor" && enemy.hp > 0);
+    if (!locked || state.tower.anchorLockTimer <= 0) {
+      state.tower.anchorLockId = null;
+      state.tower.anchorLockTimer = 0;
+    }
+  }
+  const overloadSkill = state.skills.overload;
+  overloadSkill.pulse = Math.max(0, overloadSkill.pulse - dt);
+  if (overloadSkill.active > 0) {
+    overloadSkill.active = Math.max(0, overloadSkill.active - dt);
+    overloadSkill.heat = Math.min(GAME_CONFIG.skills.overload.heatCap, overloadSkill.heat + GAME_CONFIG.skills.overload.passiveHeatPerSecond * dt);
+    if (overloadSkill.active <= 0) releaseOverloadPulse(state);
+  } else {
+    overloadSkill.slow = Math.max(0, overloadSkill.slow - dt);
+    overloadSkill.heat = Math.max(0, overloadSkill.heat - GAME_CONFIG.skills.overload.coolPerSecond * dt);
+    if (overloadSkill.heat < GAME_CONFIG.skills.overload.overheatThreshold * 0.45) overloadSkill.overheated = false;
+  }
+
+  const stats = getTowerStats(state);
+  state.tower.fireCooldown -= dt;
+  if (state.tower.fireCooldown <= 0 && fireTower(state)) {
+    const rateMultiplier = overloadSkill.active > 0
+      ? GAME_CONFIG.skills.overload.rateMultiplier
+      : overloadSkill.slow > 0 ? GAME_CONFIG.skills.overload.slowRateMultiplier : 1;
+    state.tower.fireCooldown += 1 / (stats.fireRate * rateMultiplier);
+  }
+
+  updateEnemies(state, dt);
+  updateDrones(state, dt);
+  updateSaws(state, dt);
+  updateSawGuns(state, dt);
+  updateProjectiles(state, dt);
+  resolveDeaths(state);
+  updateCoinOrbs(state, dt);
+  updateTransient(state, dt);
+  spawnEventParticles(state);
+
+  if (state.tower.hp <= 0) {
+    state.over = true;
+    state.events.push({ type: "gameOver", stardust: calculateStardust(state), score: calculateRunScore(state) });
+  }
+  return state;
+}
+
+export function snapshotState(state) {
+  return {
+    time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins,
+    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), upgrades: { ...state.tower.upgrades }, droneMode: state.tower.droneMode, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)),
+    drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId]),
+    enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null]),
+    kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over
+  };
+}

@@ -1,0 +1,12 @@
+{
+  "name": "eternal-crystal-tower",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test",
+    "test:sim": "node tests/simulation.test.js"
+  }
+}
+

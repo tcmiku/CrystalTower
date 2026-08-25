@@ -1,0 +1,4 @@
+interface:
+  display_name: "Game Animation Frames"
+  short_description: "Generate and validate 2D game animation frames"
+  default_prompt: "Use $game-animation-frames to create a production-ready 2D game animation frame set from this character concept."

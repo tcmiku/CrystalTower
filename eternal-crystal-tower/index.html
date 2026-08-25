@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#08091c" />
+    <title>永耀晶塔</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%237be7ff' d='M32 3 48 23 40 55 32 62 24 55 16 23z'/%3E%3Cpath fill='%238a6cff' d='m32 3 8 25-8 34-8-34z'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div><h1>永耀晶塔</h1><p>守住光，直到最后一击</p></div>
+        </div>
+        <div class="status-strip" aria-label="战斗状态">
+          <div class="status health-status"><span>晶塔</span><strong id="healthText">600 / 600</strong><div class="health-track"><i id="healthFill"></i></div></div>
+          <div class="status"><span>金币</span><strong id="coinsText">0</strong></div>
+          <div class="status"><span>威胁</span><strong id="threatText">Ⅰ</strong></div>
+          <div class="status"><span>坚守</span><strong id="timeText">00:00</strong></div>
+        </div>
+        <div class="top-actions">
+          <button id="muteButton" class="icon-button" type="button" aria-label="静音">声</button>
+          <button id="pauseButton" class="icon-button" type="button" aria-label="暂停">Ⅱ</button>
+        </div>
+      </header>
+
+      <section class="play-layout">
+        <div class="arena-wrap">
+          <canvas id="gameCanvas" width="960" height="720" aria-label="永耀晶塔战场"></canvas>
+          <div class="score-hud" aria-label="当前积分"><span>SCORE</span><strong id="scoreText">000000</strong></div>
+          <div id="announcement" class="announcement" aria-live="polite"></div>
+          <div id="toast" class="toast" aria-live="polite"></div>
+          <div id="pauseOverlay" class="pause-overlay hidden"><strong>战场凝固</strong><span>按 P 或 Esc 继续</span></div>
+        </div>
+
+        <aside class="upgrade-panel">
+          <div class="panel-heading"><div><span>防线中枢</span><h2>科技树</h2></div><span class="key-hint">T</span></div>
+          <p class="tech-summary-copy">展开独立面板，查看完整分支、前置科技与威胁门槛。</p>
+          <button id="openTechTreeButton" class="tech-tree-launch" type="button" aria-haspopup="dialog" aria-controls="techTreePanel">
+            <span><b>打开科技树</b><small>打开后自动暂停战斗</small></span><kbd>T</kbd>
+          </button>
+          <div class="tech-overview" aria-label="科技树概况">
+            <div><span>已研究</span><strong id="techResearchedText">0 / 10</strong></div>
+            <div><span>可研究</span><strong id="techAvailableText">1</strong></div>
+            <div><span>当前威胁</span><strong id="techThreatText">Ⅰ</strong></div>
+          </div>
+          <section class="target-protocol" aria-labelledby="targetProtocolTitle">
+            <header><span id="targetProtocolTitle">目标协议</span><kbd>R</kbd></header>
+            <div id="targetProtocolList" class="protocol-grid">
+              <button type="button" data-protocol="guard" aria-pressed="true"><b>近卫</b><small>最近目标</small></button>
+              <button type="button" data-protocol="hunter" aria-pressed="false"><b>猎杀号</b><small>高价值目标</small></button>
+              <button type="button" data-protocol="breach" aria-pressed="false"><b>破阵</b><small>最快接触</small></button>
+              <button type="button" data-protocol="radar" aria-pressed="false"><b>雷达</b><small>远程单位</small></button>
+            </div>
+            <p id="targetProtocolHint">优先锁定距离晶塔最近的敌人。</p>
+          </section>
+          <button id="droneModeButton" class="drone-mode-button side-drone-mode" type="button" aria-pressed="false" disabled>
+            <span class="drone-mode-icon" aria-hidden="true">⌁</span>
+            <span><b id="droneModeText">战术节点 · 攻击模式未解锁</b><small id="droneModeHint">需要晶塔磁吸核心</small><span class="drone-energy-track"><i id="droneEnergyFill"></i></span></span>
+          </button>
+          <div class="build-summary">
+            <span>当前构筑</span>
+            <div><b id="damageStat">12</b><small>伤害</small></div>
+            <div><b id="rateStat">1.2</b><small>每秒</small></div>
+            <div><b id="rangeStat">360</b><small>射程</small></div>
+            <div><b id="droneEnergyStat">--</b><small>电量</small></div>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="skill-bar">
+        <div class="objective"><span class="pulse-dot"></span><div><strong id="objectiveTitle">怪潮已至</strong><small id="objectiveText">晶塔会自动攻击。用金币加固防线。</small></div></div>
+        <div id="skillList" class="skill-list"></div>
+        <div class="seed-label">种子 <span id="seedText"></span></div>
+      </footer>
+    </main>
+
+    <section id="techTreePanel" class="tech-tree-panel hidden" role="dialog" aria-modal="true" aria-labelledby="techTreeTitle">
+      <div class="tech-tree-shell">
+        <header class="tech-tree-header">
+          <div>
+            <span class="tech-tree-eyebrow">战中研究中枢</span>
+            <h2 id="techTreeTitle">防线科技树</h2>
+            <p>沿四条分支强化晶塔。高阶科技同时检查威胁、金币与晶塔等级。</p>
+          </div>
+          <div class="tech-tree-resources">
+            <div><span>可用金币</span><strong id="techCoinsText">0</strong></div>
+            <div><span>威胁等级</span><strong id="techPanelThreatText">Ⅰ</strong></div>
+            <button id="closeTechTreeButton" class="tech-tree-close" type="button" aria-label="关闭科技树">关闭 <kbd>T</kbd></button>
+          </div>
+        </header>
+        <div id="upgradeList" class="upgrade-list" aria-live="polite"></div>
+        <footer class="tech-tree-footer">
+          <span>数字键 1–9 可直接研究前九项</span>
+          <span>锁定节点会显示威胁、晶塔等级或前置科技</span>
+          <span class="live-combat"><i></i> 战斗已自动暂停</span>
+        </footer>
+      </div>
+    </section>
+
+    <section id="gameOverModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
+      <div class="modal-card arcade-score-card">
+        <span class="eyebrow">本轮守望结束</span>
+        <h2 id="gameOverTitle">晶光熄灭</h2>
+        <p id="gameOverLine">裂隙吞没了最后一道光。</p>
+        <div class="run-results">
+          <div><strong id="resultTime">00:00</strong><span>坚守时间</span></div>
+          <div><strong id="resultKills">0</strong><span>击杀</span></div>
+          <div><strong id="resultThreat">Ⅰ</strong><span>最高威胁</span></div>
+          <div class="stardust-result"><strong id="resultStardust">+1</strong><span>星尘</span></div>
+        </div>
+        <section class="score-summary" aria-labelledby="scoreSummaryTitle">
+          <div><span id="scoreSummaryTitle">FINAL SCORE</span><strong id="resultScore">000000</strong></div>
+          <p>战斗积分 <b id="resultCombatScore">0</b><i>+</i>金币奖励 <b id="resultCoinScore">0</b></p>
+        </section>
+        <section class="leaderboard-panel" aria-labelledby="leaderboardTitle">
+          <div class="leaderboard-heading"><div><span>LOCAL RANKING</span><h3 id="leaderboardTitle">永耀名人榜</h3></div><strong>TOP 10</strong></div>
+          <form id="scoreEntryForm" class="score-entry-form">
+            <label for="playerNameInput">输入守望者姓名</label>
+            <div><input id="playerNameInput" name="playerName" maxlength="12" autocomplete="nickname" placeholder="PLAYER" aria-describedby="scoreEntryHint"><button id="submitScoreButton" type="submit">登记成绩</button></div>
+            <small id="scoreEntryHint">中文、字母或数字，最多 12 个字符</small>
+          </form>
+          <p id="scoreEntryStatus" class="score-entry-status" aria-live="polite"></p>
+          <ol id="leaderboardList" class="leaderboard-list" aria-label="本地高分榜"></ol>
+        </section>
+        <div class="research-heading"><div><span>永久研究</span><strong>星尘 <b id="stardustText">0</b></strong></div><small>每一级都让下一座晶塔更强</small></div>
+        <div id="researchList" class="research-list"></div>
+        <div class="modal-actions">
+          <button id="restartButton" class="primary-button" type="button">再燃晶塔</button>
+          <button id="clearSaveButton" class="danger-button" type="button">清除存档</button>
+        </div>
+      </div>
+    </section>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
