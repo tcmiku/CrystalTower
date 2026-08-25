@@ -7,7 +7,7 @@ export function defaultSave() {
     version: 1,
     stardust: 0,
     research: { damage: 0, health: 0, income: 0 },
-    settings: { muted: false },
+    settings: { muted: false, playerName: "PLAYER" },
     records: { highestThreat: 1, longestTime: 0, totalKills: 0 },
     leaderboard: []
   };
@@ -26,6 +26,7 @@ export function sanitizeSave(candidate) {
     safe.research[key] = boundedInt(candidate.research?.[key], 0, GAME_CONFIG.research.maxLevel);
   }
   safe.settings.muted = Boolean(candidate.settings?.muted);
+  safe.settings.playerName = sanitizePlayerName(candidate.settings?.playerName ?? "PLAYER");
   safe.records.highestThreat = boundedInt(candidate.records?.highestThreat, 1, 1_000_000);
   safe.records.longestTime = Math.max(0, Number(candidate.records?.longestTime) || 0);
   safe.records.totalKills = boundedInt(candidate.records?.totalKills, 0, 1_000_000_000);

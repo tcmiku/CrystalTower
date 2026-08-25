@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
-import { calculateStardust, collectCoinAt, createGameState, cycleTargetProtocol, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, purchaseUpgrade, setTargetProtocol, spawnEnemy, toggleDroneMode, updateGame, useSkill } from "./engine.js";
+import { calculateRunScore, calculateStardust, collectCoinAt, createGameState, cycleTargetProtocol, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, purchaseUpgrade, setTargetProtocol, spawnEnemy, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyResearch, defaultSave, loadSave, researchCost, SAVE_KEY, writeSave } from "./storage.js";
+import { buyResearch, defaultSave, loadSave, researchCost, SAVE_KEY, sanitizePlayerName, submitLeaderboardEntry, writeSave } from "./storage.js";
 import { AudioSynth } from "./audio.js";
 import { Renderer } from "./renderer.js";
 
@@ -60,7 +60,8 @@ const dom = Object.fromEntries([
   "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
-  "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "stardustText", "researchList", "restartButton", "clearSaveButton"
+  "scoreText", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
+  "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "stardustText", "researchList", "restartButton", "clearSaveButton"
 ].map((id) => [id, document.getElementById(id)]));
 
 let save = loadSave();
@@ -249,7 +250,19 @@ if (previewMode === "skill-risk") {
   for (const enemy of state.enemies) enemy.speed = 0;
   state.paused = true;
 }
+if (previewMode === "leaderboard") {
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.time = 367;
+  state.threat = 9;
+  state.stats = { kills: 128, bossKills: 2, highestThreat: 9, score: 38_450 };
+  state.coins = 237;
+  state.tower.hp = 0;
+}
 let runSettled = false;
+let scoreSubmitted = false;
+let currentRunScore = null;
+let currentEntryDate = null;
 let lastFrame = performance.now();
 let accumulator = 0;
 let toastTimer = 0;
@@ -263,6 +276,10 @@ function formatNumber(value) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
   if (value >= 10_000) return `${(value / 1000).toFixed(1)}k`;
   return Math.floor(value).toLocaleString("zh-CN");
+}
+
+function formatScore(value) {
+  return Math.max(0, Math.floor(value)).toString().padStart(6, "0");
 }
 
 function formatTime(seconds) {
@@ -446,7 +463,7 @@ function handleEvents(events) {
     else if (event.type === "anchorLocked") { audio.play("purchase"); renderer.trigger("anchorLocked"); announce(`锁定 ${ANCHOR_ROLE_NAMES[event.role]} · ${event.duration.toFixed(0)} 秒`); }
     else if (event.type === "coinVacuum") { audio.play("coin"); renderer.trigger("coinVacuum"); announce(`金潮归塔 · ${event.count} 枚 · +${event.value}`); }
     else if (event.type === "skill") { audio.play(event.key); renderer.trigger(event.key); }
-    else if (event.type === "gameOver") { audio.play("gameOver"); renderer.trigger("gameOver"); settleRun(event.stardust); }
+    else if (event.type === "gameOver") { audio.play("gameOver"); renderer.trigger("gameOver"); settleRun(event.stardust, event.score); }
   }
   events.length = 0;
 }
@@ -458,6 +475,7 @@ function updateUi() {
   dom.healthFill.style.width = `${hpRatio * 100}%`;
   dom.healthFill.style.background = state.tower.shield > 0.5 ? "linear-gradient(90deg,#e9ffff,#68dfff)" : hpRatio < 0.3 ? "linear-gradient(90deg,#ff4f70,#ff9a72)" : "linear-gradient(90deg,#7ee8ff,#b48cff)";
   dom.coinsText.textContent = formatNumber(state.coins);
+  dom.scoreText.textContent = formatScore(state.stats.score);
   dom.threatText.textContent = formatThreat(state.threat);
   dom.timeText.textContent = formatTime(state.time);
   dom.phaseText.textContent = state.phase === "day" ? "白昼" : "长夜";
@@ -546,9 +564,52 @@ function updateUi() {
   dom.muteButton.textContent = save.settings.muted ? "静" : "声";
 }
 
+function renderLeaderboard(highlightDate = currentEntryDate) {
+  dom.leaderboardList.replaceChildren();
+  if (save.leaderboard.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "empty";
+    empty.textContent = "尚无记录 · 成为第一位守望者";
+    dom.leaderboardList.append(empty);
+    return;
+  }
+  for (const entry of save.leaderboard) {
+    const item = document.createElement("li");
+    item.classList.toggle("current", highlightDate !== null && entry.date === highlightDate);
+    item.innerHTML = `<b>${entry.name}</b><strong>${formatScore(entry.score)}</strong><span>威胁 ${formatThreat(entry.threat)}</span><span>${entry.kills} 击杀</span>`;
+    dom.leaderboardList.append(item);
+  }
+}
+
+function submitCurrentScore(event) {
+  event.preventDefault();
+  if (!currentRunScore || scoreSubmitted) return;
+  const date = Date.now();
+  const result = submitLeaderboardEntry(save, {
+    name: dom.playerNameInput.value,
+    score: currentRunScore.total,
+    kills: state.stats.kills,
+    threat: state.stats.highestThreat,
+    time: state.time,
+    coins: Math.floor(state.coins),
+    date
+  });
+  save.settings.playerName = result.entry.name;
+  save = writeSave(save);
+  scoreSubmitted = true;
+  currentEntryDate = date;
+  dom.playerNameInput.disabled = true;
+  dom.submitScoreButton.disabled = true;
+  dom.scoreEntryStatus.textContent = result.rank > 0 ? `成绩登记完成 · RANK ${String(result.rank).padStart(2, "0")}` : "成绩登记完成 · 未进入 TOP 10";
+  renderLeaderboard();
+}
+
 function settleRun(stardust) {
   if (runSettled) return;
   runSettled = true;
+  currentRunScore = calculateRunScore(state);
+  scoreSubmitted = false;
+  currentEntryDate = null;
   save.stardust += stardust;
   save.records.highestThreat = Math.max(save.records.highestThreat, state.stats.highestThreat);
   save.records.longestTime = Math.max(save.records.longestTime, state.time);
@@ -558,9 +619,20 @@ function settleRun(stardust) {
   dom.resultKills.textContent = formatNumber(state.stats.kills);
   dom.resultThreat.textContent = formatThreat(state.stats.highestThreat);
   dom.resultStardust.textContent = `+${stardust}`;
+  dom.resultScore.textContent = formatScore(currentRunScore.total);
+  dom.resultCombatScore.textContent = formatNumber(currentRunScore.combat);
+  dom.resultCoinScore.textContent = `${Math.floor(state.coins)} × ${GAME_CONFIG.score.coinMultiplier} = ${formatNumber(currentRunScore.coinBonus)}`;
+  dom.playerNameInput.value = save.settings.playerName ?? "PLAYER";
+  dom.playerNameInput.disabled = false;
+  dom.submitScoreButton.disabled = false;
+  dom.scoreEntryStatus.textContent = "";
   setTechTreeOpen(false);
   renderResearch();
-  setTimeout(() => dom.gameOverModal.classList.remove("hidden"), 650);
+  renderLeaderboard();
+  setTimeout(() => {
+    dom.gameOverModal.classList.remove("hidden");
+    dom.playerNameInput.focus({ preventScroll: true });
+  }, 650);
 }
 
 function togglePause(force) {
@@ -579,6 +651,9 @@ function restart() {
   runIndex += 1;
   state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research);
   runSettled = false;
+  scoreSubmitted = false;
+  currentRunScore = null;
+  currentEntryDate = null;
   accumulator = 0;
   lastFrame = performance.now();
   dom.gameOverModal.classList.add("hidden");
@@ -615,6 +690,10 @@ for (const button of dom.targetProtocolList.children) button.addEventListener("c
 updateUi();
 if (previewMode === "tech" || previewMode === "drones" || previewMode === "element-tech" || previewMode === "drone-energy") setTechTreeOpen(true);
 announce("守住中央晶塔");
+if (previewMode === "leaderboard") {
+  updateGame(state, GAME_CONFIG.fixedStep);
+  handleEvents(state.events);
+}
 
 document.addEventListener("keydown", (event) => {
   if (event.repeat) return;
@@ -656,6 +735,7 @@ dom.muteButton.addEventListener("click", () => {
   save = writeSave(save);
   updateUi();
 });
+dom.scoreEntryForm.addEventListener("submit", submitCurrentScore);
 dom.restartButton.addEventListener("click", restart);
 dom.clearSaveButton.addEventListener("click", () => {
   if (!confirm("清除全部星尘、永久研究和纪录？此操作无法撤销。")) return;
@@ -663,6 +743,7 @@ dom.clearSaveButton.addEventListener("click", () => {
   save = defaultSave();
   audio.setMuted(false);
   renderResearch();
+  renderLeaderboard(null);
   showToast("存档已清除");
 });
 window.addEventListener("blur", () => togglePause(true));

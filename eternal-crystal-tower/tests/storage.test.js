@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyResearch, defaultSave, loadSave, sanitizeSave, SAVE_KEY, writeSave } from "../src/storage.js";
+import { buyResearch, defaultSave, loadSave, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -54,3 +54,30 @@ test("写入后能够无损读回有效存档", () => {
   assert.deepEqual(loadSave(storage), save);
 });
 
+
+test("排行榜清理姓名、按积分排序并只保留前十名", () => {
+  const save = defaultSave();
+  assert.equal(sanitizePlayerName("  <ACE> 王!  "), "ACE 王");
+  for (let index = 0; index < 12; index += 1) {
+    submitLeaderboardEntry(save, {
+      name: `P${index}`,
+      score: index * 100,
+      kills: index,
+      threat: Math.max(1, index),
+      time: index * 10,
+      coins: index,
+      date: index + 1
+    });
+  }
+  assert.equal(save.leaderboard.length, 10);
+  assert.equal(save.leaderboard[0].score, 1100);
+  assert.equal(save.leaderboard[9].score, 200);
+});
+
+test("排行榜随存档写入并安全读回", () => {
+  const storage = memoryStorage();
+  const save = defaultSave();
+  submitLeaderboardEntry(save, { name: "晶刃王", score: 9876, kills: 42, threat: 8, time: 300, coins: 17, date: 123 });
+  writeSave(save, storage);
+  assert.deepEqual(loadSave(storage).leaderboard, save.leaderboard);
+});

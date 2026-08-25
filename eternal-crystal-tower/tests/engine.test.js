@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyElementalHit, calculateStardust, chooseEnemyType, collectCoinAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, purchaseUpgrade, setTargetProtocol, spawnEnemy, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, collectCoinAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, purchaseUpgrade, setTargetProtocol, spawnEnemy, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG } from "../src/config.js";
 
 test("基础塔属性符合策划", () => {
@@ -270,6 +270,28 @@ test("星尘结算至少一枚，并计入击杀和首领", () => {
   state.stats.kills = 74;
   state.stats.bossKills = 2;
   assert.equal(calculateStardust(state), 8);
+});
+
+test("普通怪、精英和首领使用统一街机积分规则", () => {
+  const state = createGameState(101);
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.hp = 1_000_000;
+  const wisp = spawnEnemy(state, "wisp", { x: 700, y: 300 });
+  const elite = spawnEnemy(state, "brute", { x: 720, y: 400 }, { elite: true, affix: "shield" });
+  wisp.hp = 0;
+  elite.hp = 0;
+  updateGame(state, GAME_CONFIG.fixedStep);
+  assert.equal(state.stats.score, 100 + 300 * 4);
+  assert.deepEqual(state.events.filter((event) => event.type === "kill").map((event) => event.score), [100, 1200]);
+});
+
+test("最终积分加入剩余金币奖励且不改变战斗积分", () => {
+  const state = createGameState(102);
+  state.stats.score = 4321;
+  state.coins = 27.9;
+  assert.deepEqual(calculateRunScore(state), { combat: 4321, coinBonus: 270, total: 4591 });
+  assert.equal(state.stats.score, 4321);
 });
 
 test("昼夜按四个威胁波次循环", () => {
