@@ -1,6 +1,24 @@
 # 生图提示词原文
 
-以下为本轮使用的完整提示词。四次生成均使用 OpenAI 内置生图模型。
+以下记录项目生成素材使用的完整提示词，均使用 OpenAI 内置生图模型。
+
+## 虚环吞星兽
+
+```text
+Use case: stylized-concept
+Asset type: single transparent production sprite for a top-down 2D crystal tower-defense game
+Primary request: create an original colossal perimeter boss named “Void-Ring Devourer”, designed to circle around the outer edge of a rectangular battlefield while attacking a central crystal tower
+Subject: one gigantic serpentine abyssal crystal leviathan, facing directly right, with a broad armored skull, six massive crescent crown horns swept backward, a long segmented ring-like body, four short stabilizer claws, a blazing exposed red-violet reactor core in its chest, artillery crystal pylons embedded along its spine, and a tail ending in a three-pronged summoning beacon; silhouette must communicate ranged artillery, summoning power, and enormous scale without adding separate creatures
+View/pose: orthographic top-down game sprite with a restrained elevated angle matching an existing tower-defense battlefield; neutral curved stalking pose that still reads cleanly when the whole sprite is rotated by the game; no perspective background
+Style/medium: premium hand-painted 2D game sprite, faceted crystal hard edges, dark fantasy crystal technology, restrained painterly texture, production-ready cutout
+Composition/framing: one creature only, centered on a square canvas, body about 1.75 times wider than tall, generous transparent padding, every horn claw pylon and tail fully visible, no crop; readable at approximately 180–260 in-game pixels
+Lighting/mood: ominous internal ember-red and ultraviolet light, deep near-black indigo shadows, hot orange fissures, restrained magenta rim light, sharp local contrast, controlled glow
+Color palette: near-black indigo armor, obsidian purple plates, ember red and hot orange cracks, sparse toxic magenta crystals; avoid guardian cyan as a dominant color
+Materials/textures: layered hexagonal crystal armor, cracked volcanic glass, polished dark metal braces, bright furnace core
+Constraints: genuine transparent background with alpha; no backdrop, no checkerboard, no ground plane, no cast shadow, no UI, no health bar, no projectiles, no summoned minions, no particles outside the silhouette, no text, no logo, no watermark
+Avoid: humanoid form, wings, conventional dragon, cute proportions, gore, scenery, side-view camera, excessive bloom, blur, multiple creatures
+Style anchor: premium top-down fantasy tower-defense game asset, hand-painted 2D with faceted crystal hard edges, restrained painterly texture, deep indigo shadows, cyan-violet guardian light and ember-red corruption, crisp readable silhouettes at small scale, no text, no logo, no watermark, no photorealism.
+```
 
 ## 战场底图
 

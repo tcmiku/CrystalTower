@@ -37,7 +37,7 @@ test("设计、构建与入口产物齐全", async () => {
     "assets/generated/arena-bg.png", "assets/generated/loading-splash.png", "assets/generated/tower-atlas.png",
     "assets/generated/enemy-atlas.png", "assets/generated/crystal-saw.png",
     "assets/generated/arena-day.png", "assets/generated/enemy-wave-atlas.png",
-    "assets/generated/boss-overlord.png",
+    "assets/generated/boss-overlord.png", "assets/generated/boss-void-ring-colossus.png",
     "assets/generated/projectile-frost-ai-v2.png",
     "assets/generated/projectile-fire-ai.png",
     "assets/generated/projectile-lightning-ai-v2.png",

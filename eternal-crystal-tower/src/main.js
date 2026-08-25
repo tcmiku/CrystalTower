@@ -34,10 +34,12 @@ const BRANCH_META = {
 const SKILL_META = {
   heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片" },
   overload: { key: "W", name: "超载", description: "再按 W 提前释放冲击" },
-  starfall: { key: "E", name: "星落", description: "扇区随目标协议改变" },
+  starfall: { key: "E", name: "星落", description: "手动选择轰击方向" },
   coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币" }
 };
 const ELITE_AFFIX_NAMES = { shield: "护盾", sprint: "狂奔", devour: "吞金", split: "分裂" };
+const COLOSSUS_AFFIX_NAMES = { siege: "灾厄炮膛", brood: "裂殖母巢", prism: "噬光棱镜", carapace: "不灭甲壳" };
+const COLOSSUS_SKILL_NAMES = { artillery: "陨晶炮击", summon: "裂隙召唤", beam: "噬光射线", bulwark: "环界堡垒" };
 const ELEMENT_NAMES = { frost: "冰霜", fire: "火焰", lightning: "雷电" };
 const ANCHOR_ROLE_NAMES = { shield: "护盾锚点", repair: "修复锚点", summon: "召唤锚点", overload: "过载锚点" };
 const TARGET_PROTOCOL_META = {
@@ -182,6 +184,23 @@ if (previewMode === "boss-mechanics") {
   const boss = spawnEnemy(state, "boss", { x: 775, y: 165 });
   boss.hp = boss.maxHp * 0.36; boss.bossPhase = 2; boss.resistance = "lightning";
 }
+if (previewMode === "colossus") {
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = 15; state.time = 630; state.phase = "night";
+  const colossus = spawnEnemy(state, "colossus", undefined, { orbitAngle: -0.72, colossusAffix: "siege" });
+  colossus.activeSkill = "artillery"; colossus.skillTimer = 3.2; colossus.skillTick = 0; colossus.skillSequence = 1;
+  state.tower.upgrades.ascend = 3; state.tower.upgrades.damage = 8; state.tower.upgrades.rate = 5;
+  state.tower.hp = getTowerStats(state).maxHp;
+  updateGame(state, 0.05);
+  state.paused = true;
+}
+if (previewMode === "colossus-enrage") {
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = 15; state.time = 630; state.phase = "night";
+  const colossus = spawnEnemy(state, "colossus", undefined, { orbitAngle: -0.72, colossusAffix: "prism" });
+  colossus.hp = colossus.maxHp * 0.46; colossus.enraged = true; colossus.intentSkill = "beam"; colossus.intentTimer = 0.8; colossus.skillSequence = 3;
+  state.tower.upgrades.ascend = 3; state.tower.upgrades.damage = 8; state.tower.upgrades.rate = 5;
+  state.tower.hp = getTowerStats(state).maxHp;
+  state.paused = true;
+}
 if (previewMode === "protocols") {
   state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = 8;
   spawnEnemy(state, "brute", { x: 580, y: 360 });
@@ -282,6 +301,7 @@ let techTreeOpen = false;
 let resumeAfterTechTree = false;
 let leaderboardModalOpen = false;
 let resumeAfterLeaderboard = false;
+let starfallAiming = false;
 const firstRunTutorial = save.records.totalKills === 0 && !previewMode;
 let tutorialStep = 0;
 const loadingStartedAt = performance.now();
@@ -421,6 +441,7 @@ function createUpgradeUi() {
 
 function setTechTreeOpen(open, restoreFocus = false) {
   const nextOpen = Boolean(open) && !state.over;
+  if (nextOpen && starfallAiming) cancelStarfallAim(false);
   if (nextOpen && !techTreeOpen) {
     resumeAfterTechTree = !state.paused;
     state.paused = true;
@@ -439,6 +460,7 @@ function setTechTreeOpen(open, restoreFocus = false) {
 
 function setLeaderboardOpen(open, restoreFocus = false) {
   const nextOpen = Boolean(open);
+  if (nextOpen && starfallAiming) cancelStarfallAim(false);
   if (nextOpen && !leaderboardModalOpen) {
     resumeAfterLeaderboard = !state.paused && !state.over;
     state.paused = true;
@@ -510,19 +532,76 @@ function buyUpgrade(key) {
 
 function activateSkill(key) {
   audio.ensureContext()?.resume();
+  if (key === "starfall") {
+    if (starfallAiming) {
+      cancelStarfallAim();
+      return;
+    }
+    if (state.over) return;
+    if (state.skills.starfall.cooldown > 0) {
+      showToast(`${SKILL_META.starfall.name}还需 ${Math.ceil(state.skills.starfall.cooldown)} 秒`);
+      return;
+    }
+    if (!state.enemies.some((enemy) => enemy.hp > 0)) {
+      showToast("没有可轰击目标");
+      return;
+    }
+    starfallAiming = true;
+    state.skills.starfall.aiming = true;
+    state.skills.starfall.aimAngle = state.skills.starfall.angle;
+    dom.gameCanvas.classList.add("starfall-aiming");
+    showToast("移动鼠标选择方向 · 点击战场释放 · Esc 取消");
+    updateUi();
+    return;
+  }
   const endingOverloadEarly = key === "overload" && state.skills.overload.active > 0;
   if (useSkill(state, key)) {
     handleEvents(state.events);
     showToast(endingOverloadEarly ? "超载提前结束 · 冲击释放" : `${SKILL_META[key].name}已释放`);
   } else if (key === "heal" && state.tower.hp >= getTowerStats(state).maxHp) {
     showToast("生命与护盾均已充盈");
-  } else if (key === "starfall" && !state.enemies.some((enemy) => enemy.hp > 0)) {
-    showToast("没有可轰击目标");
   } else if (key === "coinVacuum" && !state.coinOrbs.some((orb) => !orb.expired && !orb.collected)) {
     showToast("战场上没有金币");
   } else if (state.skills[key].cooldown > 0) {
     showToast(`${SKILL_META[key].name}还需 ${Math.ceil(state.skills[key].cooldown)} 秒`);
   }
+}
+
+function cancelStarfallAim(showMessage = true) {
+  if (!starfallAiming) return false;
+  starfallAiming = false;
+  state.skills.starfall.aiming = false;
+  dom.gameCanvas.classList.remove("starfall-aiming");
+  if (showMessage) showToast("已取消星落瞄准");
+  updateUi();
+  return true;
+}
+
+function releaseStarfall(angle) {
+  if (!starfallAiming) return false;
+  state.skills.starfall.aimAngle = angle;
+  if (!useSkill(state, "starfall", { angle })) return false;
+  starfallAiming = false;
+  dom.gameCanvas.classList.remove("starfall-aiming");
+  handleEvents(state.events);
+  showToast("星落已释放");
+  updateUi();
+  return true;
+}
+
+function canvasPoint(event) {
+  const rect = dom.gameCanvas.getBoundingClientRect();
+  const scale = Math.min(rect.width / GAME_CONFIG.arena.width, rect.height / GAME_CONFIG.arena.height);
+  const offsetX = (rect.width - GAME_CONFIG.arena.width * scale) / 2;
+  const offsetY = (rect.height - GAME_CONFIG.arena.height * scale) / 2;
+  return {
+    x: (event.clientX - rect.left - offsetX) / scale,
+    y: (event.clientY - rect.top - offsetY) / scale
+  };
+}
+
+function starfallAngleAt(x, y) {
+  return Math.atan2(y - GAME_CONFIG.arena.centerY, x - GAME_CONFIG.arena.centerX);
 }
 
 function switchDroneMode() {
@@ -552,6 +631,18 @@ function handleEvents(events) {
     else if (event.type === "ascend") { audio.play("ascend"); renderer.trigger("ascend"); announce(`塔阶苏醒 · ${getTowerStats(state).name}`); }
     else if (event.type === "towerHit") { audio.play("towerHit"); renderer.trigger("towerHit", event.heavy ? 1.7 : 1); }
     else if (event.type === "bossSpawn") { audio.play("boss"); renderer.trigger("bossSpawn"); announce("腐化王冠踏入战场"); }
+    else if (event.type === "colossusSpawn") { audio.play("boss"); renderer.trigger("bossSpawn", 1.5); announce(`威胁 XV · 虚环吞星兽 · ${COLOSSUS_AFFIX_NAMES[event.affix] ?? "未知异变"}`); }
+    else if (event.type === "colossusIntent") {
+      audio.play("waveWarning"); renderer.trigger("waveWarning");
+      announce(`攻击预兆 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知异变"} · ${event.duration.toFixed(1)} 秒`);
+    }
+    else if (event.type === "colossusSkill") {
+      audio.play(event.skill === "summon" ? "waveStart" : "boss");
+      announce(`巨兽技能 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知异变"}${event.enraged ? " · 狂化强化" : ""}`);
+    }
+    else if (event.type === "colossusEnrage") { audio.play("boss"); renderer.trigger("bossSpawn", 1.8); announce("生命过半 · 巨兽狂化 · 冰冻状态无效"); }
+    else if (event.type === "colossusFreezeImmune") showToast("狂化巨兽免疫冰冻");
+    else if (event.type === "colossusDefeated") { audio.play("ascend"); renderer.trigger("ascend"); announce("虚环崩解 · 常规怪群恢复活动"); }
     else if (event.type === "eliteSpawn") { audio.play("waveStart"); renderer.trigger("eliteSpawn"); announce(`精英怪 · ${ELITE_AFFIX_NAMES[event.affix] ?? "异变"}`); }
     else if (event.type === "bossPhase") { audio.play("boss"); renderer.trigger("bossSpawn", 0.7); announce(`首领转化为${ELEMENT_NAMES[event.resistance]}抗性 · 锚点重生`); }
     else if (event.type === "towerCollectPulse" && event.count > 0) renderer.trigger("collectPulse");
@@ -559,7 +650,7 @@ function handleEvents(events) {
     else if (event.type === "droneDepleted") { renderer.trigger("droneDepleted"); announce("无人机电量耗尽 · 强制返航"); }
     else if (event.type === "droneIntercept") { renderer.trigger("droneIntercept"); announce("拦截协议 · 重击无效"); }
     else if (event.type === "eliteMarked") renderer.trigger("eliteMarked");
-    else if (event.type === "threat") { announce(event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
+    else if (event.type === "threat") { announce(event.level === GAME_CONFIG.colossus.spawnThreat ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
     else if (event.type === "phase") { audio.play("phase"); announce(event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场"); }
     else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce("侦测到大规模怪潮"); }
     else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(`第 ${event.index} 次怪潮抵达`); }
@@ -642,7 +733,11 @@ function updateUi() {
     const total = GAME_CONFIG.skills[key].cooldown;
     const shieldFull = state.tower.shield >= stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction - 0.01;
     const overloadCanEnd = key === "overload" && state.skills.overload.active > 0;
-    button.disabled = state.over || (cooldown > 0 && !overloadCanEnd) || (key === "heal" && hpRatio >= 0.999 && shieldFull) || (key === "starfall" && !state.enemies.some((enemy) => enemy.hp > 0)) || (key === "coinVacuum" && !state.coinOrbs.some((orb) => !orb.expired && !orb.collected));
+    button.disabled = state.over || (cooldown > 0 && !overloadCanEnd) || (key === "heal" && hpRatio >= 0.999 && shieldFull) || (key === "starfall" && !starfallAiming && !state.enemies.some((enemy) => enemy.hp > 0)) || (key === "coinVacuum" && !state.coinOrbs.some((orb) => !orb.expired && !orb.collected));
+    if (key === "starfall") {
+      button.classList.toggle("aiming", starfallAiming);
+      button.setAttribute("aria-pressed", String(starfallAiming));
+    }
     button.querySelector(".cooldown-mask").style.height = `${Math.min(100, cooldown / total * 100)}%`;
     button.querySelector(".cooldown-text").textContent = cooldown > 0 ? `${cooldown.toFixed(1)}s` : "";
     const description = button.querySelector("small");
@@ -650,11 +745,17 @@ function updateUi() {
     else if (key === "overload") description.textContent = state.skills.overload.active > 0
       ? `再按 W 释放 · 热量 ${Math.round(state.skills.overload.heat)}`
       : state.skills.overload.slow > 0 ? `过热降速 ${state.skills.overload.slow.toFixed(1)}s` : SKILL_META[key].description;
-    else if (key === "starfall") description.textContent = state.tower.targetProtocol === "guard" ? "近卫 · 塔前扇区" : state.tower.targetProtocol === "radar" ? "雷达 · 远程扇区" : SKILL_META[key].description;
+    else if (key === "starfall") description.textContent = starfallAiming ? "瞄准中 · 点击战场确认" : SKILL_META[key].description;
     else description.textContent = state.skills.coinVacuum.active > 0 ? `${state.skills.coinVacuum.collected} 枚 · +${state.skills.coinVacuum.value}` : SKILL_META[key].description;
   }
 
-  if (state.wave.warningStarted || state.wave.active) {
+  const colossus = state.enemies.find((enemy) => enemy.type === "colossus" && enemy.hp > 0);
+  if (colossus) {
+    dom.objectiveTitle.textContent = colossus.enraged ? "巨兽狂化 · 冰冻无效" : `巨兽词条 · ${COLOSSUS_AFFIX_NAMES[colossus.colossusAffix] ?? "未知异变"}`;
+    dom.objectiveText.textContent = colossus.intentSkill
+      ? `攻击预兆：${COLOSSUS_SKILL_NAMES[colossus.intentSkill]}将在 ${Math.max(0, colossus.intentTimer).toFixed(1)} 秒后发动。`
+      : colossus.activeSkill ? `正在施放${COLOSSUS_SKILL_NAMES[colossus.activeSkill]} · 常规怪群已暂停。` : "技能间隙 · 集中全部火力攻击外圈巨兽。";
+  } else if (state.wave.warningStarted || state.wave.active) {
     dom.objectiveTitle.textContent = state.wave.active ? "怪潮压境" : "怪潮预警";
     dom.objectiveText.textContent = state.wave.active ? "敌群正在集中涌入，使用技能清开塔下空间。" : "地图红光标出了主攻方向，准备星落与超载。";
   } else if (state.threat < 2) {
@@ -752,6 +853,7 @@ async function submitCurrentScore(event) {
 
 function settleRun(stardust) {
   if (runSettled) return;
+  cancelStarfallAim(false);
   runSettled = true;
   currentRunScore = calculateRunScore(state);
   scoreSubmitted = false;
@@ -799,6 +901,7 @@ function togglePause(force) {
 }
 
 function restart() {
+  cancelStarfallAim(false);
   runIndex += 1;
   state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research);
   runSettled = false;
@@ -859,6 +962,10 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") setLeaderboardOpen(false, true);
     return;
   }
+  if (starfallAiming) {
+    if (event.key === "Escape" || event.key.toLowerCase() === "e") cancelStarfallAim();
+    return;
+  }
   if (event.key >= "1" && event.key <= "9") buyUpgrade(TECH_ORDER[Number(event.key) - 1]);
   else if (event.key.toLowerCase() === "q") activateSkill("heal");
   else if (event.key.toLowerCase() === "w") activateSkill("overload");
@@ -880,18 +987,28 @@ dom.techTreePanel.addEventListener("pointerdown", (event) => {
   if (event.target === dom.techTreePanel) setTechTreeOpen(false, true);
 });
 dom.pauseButton.addEventListener("click", () => togglePause());
+dom.gameCanvas.addEventListener("pointermove", (event) => {
+  if (!starfallAiming) return;
+  const { x, y } = canvasPoint(event);
+  state.skills.starfall.aimAngle = starfallAngleAt(x, y);
+});
 dom.gameCanvas.addEventListener("pointerdown", (event) => {
-  const rect = dom.gameCanvas.getBoundingClientRect();
-  const scale = Math.min(rect.width / GAME_CONFIG.arena.width, rect.height / GAME_CONFIG.arena.height);
-  const offsetX = (rect.width - GAME_CONFIG.arena.width * scale) / 2;
-  const offsetY = (rect.height - GAME_CONFIG.arena.height * scale) / 2;
-  const x = (event.clientX - rect.left - offsetX) / scale;
-  const y = (event.clientY - rect.top - offsetY) / scale;
+  const { x, y } = canvasPoint(event);
+  if (starfallAiming) {
+    if (event.button === 0) releaseStarfall(starfallAngleAt(x, y));
+    else if (event.button === 2) event.preventDefault();
+    return;
+  }
   if (lockAnchorAt(state, x, y)) {
     handleEvents(state.events);
     return;
   }
   if (collectCoinAt(state, x, y)) audio.play("coinPick");
+});
+dom.gameCanvas.addEventListener("contextmenu", (event) => {
+  if (!starfallAiming) return;
+  event.preventDefault();
+  cancelStarfallAim();
 });
 dom.muteButton.addEventListener("click", () => {
   save.settings.muted = !save.settings.muted;

@@ -10,6 +10,7 @@ const ENEMY_COLORS = {
   hexer: ["#c28cff", "#4d286f"],
   rammer: ["#ffc95d", "#6b3429"],
   boss: ["#ffd078", "#6f1f4b"],
+  colossus: ["#ff5b72", "#251136"],
   anchor: ["#d9c8ff", "#38255d"]
 };
 const ANCHOR_VISUALS = {
@@ -17,6 +18,18 @@ const ANCHOR_VISUALS = {
   repair: { name: "修复", color: "#79ffad", dark: "#22684b", symbol: "+" },
   summon: { name: "召唤", color: "#d39aff", dark: "#623782", symbol: "△" },
   overload: { name: "过载", color: "#ff9b59", dark: "#8a3b31", symbol: "ϟ" }
+};
+const COLOSSUS_SKILLS = {
+  artillery: { name: "陨晶炮击", color: "#ff824d" },
+  summon: { name: "裂隙召唤", color: "#d67cff" },
+  beam: { name: "噬光射线", color: "#ff477c" },
+  bulwark: { name: "环界堡垒", color: "#ffd06c" }
+};
+const COLOSSUS_AFFIXES = {
+  siege: { name: "灾厄炮膛", color: "#ff8a4d" },
+  brood: { name: "裂殖母巢", color: "#d97cff" },
+  prism: { name: "噬光棱镜", color: "#ff4f9a" },
+  carapace: { name: "不灭甲壳", color: "#ffd36b" }
 };
 
 const GENERATED_ASSETS = {
@@ -27,6 +40,7 @@ const GENERATED_ASSETS = {
   enemies: "./assets/generated/enemy-atlas.png",
   waveEnemies: "./assets/generated/enemy-wave-atlas.png",
   boss: "./assets/generated/boss-overlord.png",
+  colossus: "./assets/generated/boss-void-ring-colossus.png",
   saw: "./assets/generated/crystal-saw.png",
   projectileFrost: "./assets/generated/projectile-frost-ai-v2.png",
   projectileFire: "./assets/generated/projectile-fire-ai.png",
@@ -228,6 +242,7 @@ export class Renderer {
     this.drawRange(ctx, state);
     this.drawCoins(ctx, state);
     this.drawProjectiles(ctx, state);
+    this.drawHostileProjectiles(ctx, state);
     this.drawElementFx(ctx, state);
     this.drawEnemies(ctx, state);
     this.drawSaws(ctx, state);
@@ -281,26 +296,32 @@ export class Renderer {
       ctx.beginPath(); ctx.arc(centerX, centerY, 55 + progress * 95, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     }
 
-    if (state.skills.starfall.active > 0) {
+    if (state.skills.starfall.active > 0 || state.skills.starfall.aiming) {
       ctx.save();
       const config = GAME_CONFIG.skills.starfall;
-      const alpha = state.skills.starfall.active / config.activeDuration;
+      const aiming = state.skills.starfall.aiming;
+      const alpha = aiming ? 0.48 + Math.sin(this.time * 6) * 0.08 : state.skills.starfall.active / config.activeDuration;
       ctx.globalAlpha = alpha;
       ctx.translate(centerX, centerY);
-      ctx.rotate(state.skills.starfall.angle);
+      ctx.rotate(aiming ? state.skills.starfall.aimAngle : state.skills.starfall.angle);
       const radius = 670;
       const wedge = ctx.createRadialGradient(0, 0, 30, 0, 0, radius);
-      const radar = state.skills.starfall.protocol === "radar";
-      wedge.addColorStop(0, radar ? "rgba(218,201,255,.55)" : "rgba(255,244,178,.5)"); wedge.addColorStop(.42, radar ? "rgba(143,106,255,.3)" : "rgba(188,156,255,.22)"); wedge.addColorStop(1, "rgba(188,156,255,0)");
+      wedge.addColorStop(0, aiming ? "rgba(255,231,137,.58)" : "rgba(255,244,178,.5)"); wedge.addColorStop(.42, aiming ? "rgba(255,173,80,.26)" : "rgba(188,156,255,.22)"); wedge.addColorStop(1, "rgba(188,156,255,0)");
       ctx.fillStyle = wedge;
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius, -config.coneHalfAngle, config.coneHalfAngle); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = radar ? "#dfd0ff" : "#fff1b0"; ctx.lineWidth = 2.3; ctx.shadowColor = radar ? "#9f7aff" : "#d7b4ff"; ctx.shadowBlur = 10;
+      ctx.strokeStyle = aiming ? "#ffd476" : "#fff1b0"; ctx.lineWidth = aiming ? 2.8 : 2.3; ctx.shadowColor = aiming ? "#ff9f45" : "#d7b4ff"; ctx.shadowBlur = 10;
+      if (aiming) ctx.setLineDash([14, 9]);
       for (let lane = -3; lane <= 3; lane += 1) {
         const spread = lane * 26;
         const travel = 370 + (lane + 3) * 38;
         ctx.beginPath(); ctx.moveTo(95, spread * .35); ctx.lineTo(travel, spread); ctx.stroke();
       }
+      ctx.setLineDash([]);
       ctx.restore();
+      if (aiming) {
+        ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = "#ffe7a0"; ctx.font = "900 13px 'Microsoft YaHei UI', sans-serif"; ctx.shadowColor = "#3b1424"; ctx.shadowBlur = 8;
+        ctx.fillText("移动鼠标选择方向 · 点击释放 · Esc 取消", centerX, height - 34); ctx.restore();
+      }
     }
     if (state.skills.heal.burst > 0) {
       const config = GAME_CONFIG.skills.heal;
@@ -516,6 +537,32 @@ export class Renderer {
     }
   }
 
+  drawHostileProjectiles(ctx, state) {
+    for (const projectile of state.hostileProjectiles ?? []) {
+      const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
+      const ux = projectile.vx / speed;
+      const uy = projectile.vy / speed;
+      ctx.save();
+      const trail = ctx.createLinearGradient(projectile.x - ux * 42, projectile.y - uy * 42, projectile.x, projectile.y);
+      trail.addColorStop(0, "rgba(137,35,178,0)");
+      trail.addColorStop(.55, "rgba(230,55,120,.55)");
+      trail.addColorStop(1, "#ffb04d");
+      ctx.strokeStyle = trail; ctx.lineWidth = 9; ctx.shadowColor = "#ff3f69"; ctx.shadowBlur = 18;
+      ctx.beginPath(); ctx.moveTo(projectile.x - ux * 42, projectile.y - uy * 42); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
+      ctx.translate(projectile.x, projectile.y); ctx.rotate(this.time * 7 + projectile.id);
+      ctx.fillStyle = "#391348"; ctx.strokeStyle = "#ff8158"; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let point = 0; point < 8; point += 1) {
+        const angle = point * Math.PI / 4;
+        const radius = point % 2 ? projectile.radius * .62 : projectile.radius;
+        point ? ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius) : ctx.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#fff0a3"; ctx.beginPath(); ctx.arc(0, 0, projectile.radius * .3, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
   drawElementFx(ctx, state) {
     for (const effect of state.elementFx) {
       if (effect.element !== "lightning") continue;
@@ -572,12 +619,13 @@ export class Renderer {
       }
       ctx.save();
       ctx.translate(enemy.x, enemy.y);
-      const angle = Math.atan2(GAME_CONFIG.arena.centerY - enemy.y, GAME_CONFIG.arena.centerX - enemy.x);
+      const angle = enemy.type === "colossus" ? (enemy.orbitAngle ?? 0) + Math.PI / 2 : Math.atan2(GAME_CONFIG.arena.centerY - enemy.y, GAME_CONFIG.arena.centerX - enemy.x);
       ctx.rotate(angle);
       const resistanceColor = { frost: "#7de8ff", fire: "#ff754d", lightning: "#c6a2ff" }[enemy.resistance];
       ctx.shadowColor = enemy.type === "boss" ? resistanceColor ?? bright : bright;
-      ctx.shadowBlur = enemy.type === "boss" ? 18 : 7;
+      ctx.shadowBlur = enemy.type === "colossus" ? 24 : enemy.type === "boss" ? 18 : 7;
       const isBoss = enemy.type === "boss";
+      const isColossus = enemy.type === "colossus";
       const isAnchor = enemy.type === "anchor";
       const isWaveType = enemy.type === "crawler" || enemy.type === "sentinel";
       const atlas = isWaveType ? this.assets.waveEnemies : this.assets.enemies;
@@ -587,6 +635,16 @@ export class Renderer {
         ctx.fillStyle = enemy.hitFlash > 0 ? "#ffffff" : visual.dark; ctx.strokeStyle = visual.color; ctx.lineWidth = 2; ctx.shadowColor = visual.color; ctx.shadowBlur = 16;
         ctx.beginPath(); ctx.moveTo(0, -enemy.radius); ctx.lineTo(enemy.radius * .72, 0); ctx.lineTo(0, enemy.radius); ctx.lineTo(-enemy.radius * .72, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.rotate(-this.time * 1.7); ctx.fillStyle = "#fff"; ctx.font = "900 14px 'Microsoft YaHei UI',sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(visual.symbol, 0, 0);
+      } else if (isColossus && imageReady(this.assets.colossus)) {
+        const width = enemy.radius * 3.5;
+        const height = width * .572;
+        ctx.globalAlpha = enemy.hitFlash > 0 ? 0.72 : 1;
+        ctx.drawImage(this.assets.colossus, -width / 2, -height / 2, width, height);
+        if (enemy.hitFlash > 0) {
+          ctx.globalCompositeOperation = "screen";
+          ctx.globalAlpha = Math.min(0.72, enemy.hitFlash * 7);
+          ctx.drawImage(this.assets.colossus, -width / 2, -height / 2, width, height);
+        }
       } else if (isBoss && imageReady(this.assets.boss)) {
         const size = enemy.radius * 4.45;
         ctx.globalAlpha = enemy.hitFlash > 0 ? 0.72 : 1;
@@ -623,12 +681,12 @@ export class Renderer {
       } else {
         ctx.fillStyle = enemy.hitFlash > 0 ? "#fff7ef" : dark;
         ctx.strokeStyle = bright;
-        ctx.lineWidth = enemy.type === "boss" ? 3 : 1.5;
+        ctx.lineWidth = isBoss || isColossus ? 3 : 1.5;
         ctx.beginPath();
         if (enemy.type === "runner") {
           ctx.moveTo(enemy.radius, 0); ctx.lineTo(-enemy.radius, -enemy.radius * .72); ctx.lineTo(-enemy.radius * .55, 0); ctx.lineTo(-enemy.radius, enemy.radius * .72);
         } else {
-          const points = enemy.type === "boss" ? 12 : enemy.type === "brute" ? 8 : 0;
+          const points = isBoss || isColossus ? 12 : enemy.type === "brute" ? 8 : 0;
           if (points) for (let i = 0; i < points; i += 1) { const a = i * Math.PI * 2 / points; const r = i % 2 ? enemy.radius * .75 : enemy.radius; i ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
           else { ctx.moveTo(enemy.radius, 0); ctx.quadraticCurveTo(0, -enemy.radius * 1.1, -enemy.radius, 0); ctx.quadraticCurveTo(0, enemy.radius * 1.1, enemy.radius, 0); }
         }
@@ -650,6 +708,34 @@ export class Renderer {
         ctx.beginPath(); ctx.arc(0, 0, enemy.radius + 22, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
         for (let index = 0; index < 3; index += 1) { const a = index * Math.PI * 2 / 3; ctx.fillStyle = phaseColor; ctx.beginPath(); ctx.arc(Math.cos(a) * (enemy.radius + 22), Math.sin(a) * (enemy.radius + 22), 3.5, 0, Math.PI * 2); ctx.fill(); }
         ctx.restore();
+      }
+      if (enemy.type === "colossus") {
+        const announcedSkill = enemy.intentSkill ?? enemy.activeSkill;
+        const skillVisual = COLOSSUS_SKILLS[announcedSkill];
+        const affixVisual = COLOSSUS_AFFIXES[enemy.colossusAffix] ?? { name: "未知异变", color: "#b865ff" };
+        const color = skillVisual?.color ?? affixVisual.color;
+        if (enemy.intentSkill) {
+          const pulse = 0.5 + Math.sin(this.time * 9) * 0.5;
+          ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = `${color}22`; ctx.shadowColor = color; ctx.shadowBlur = 20; ctx.lineWidth = 3 + pulse * 3; ctx.setLineDash([11, 8]);
+          if (enemy.intentSkill === "beam" || enemy.intentSkill === "artillery") {
+            ctx.beginPath(); ctx.moveTo(enemy.x, enemy.y); ctx.lineTo(GAME_CONFIG.arena.centerX, GAME_CONFIG.arena.centerY); ctx.stroke();
+            ctx.beginPath(); ctx.arc(GAME_CONFIG.arena.centerX, GAME_CONFIG.arena.centerY, 42 + pulse * 16, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          } else {
+            ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius + 35 + pulse * 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          }
+          ctx.setLineDash([]); ctx.restore();
+        }
+        ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(-this.time * (enemy.enraged ? .7 : .32)); ctx.strokeStyle = color; ctx.shadowColor = color; ctx.shadowBlur = enemy.enraged ? 26 : 18; ctx.lineWidth = enemy.activeSkill === "bulwark" ? 5 : enemy.enraged ? 4 : 2.5;
+        ctx.setLineDash(announcedSkill ? [16, 8] : [5, 12]); ctx.beginPath(); ctx.ellipse(0, 0, enemy.radius + 58, enemy.radius + 27, 0, 0, Math.PI * 2); ctx.stroke();
+        if (enemy.enraged) { ctx.strokeStyle = "#ff5a36"; ctx.beginPath(); ctx.ellipse(0, 0, enemy.radius + 68, enemy.radius + 37, 0, 0, Math.PI * 2); ctx.stroke(); }
+        ctx.setLineDash([]); ctx.restore();
+        if (announcedSkill) {
+          ctx.save(); ctx.textAlign = "center"; ctx.font = "900 12px 'Microsoft YaHei UI',sans-serif"; ctx.fillStyle = color; ctx.shadowColor = "#16051f"; ctx.shadowBlur = 8;
+          const label = enemy.intentSkill ? `蓄势 · ${skillVisual.name} ${Math.max(0, enemy.intentTimer).toFixed(1)}s` : skillVisual.name;
+          ctx.fillText(label, enemy.x, enemy.y + enemy.radius + 38);
+          ctx.fillStyle = enemy.enraged ? "#ff9a68" : affixVisual.color;
+          ctx.fillText(`${affixVisual.name}${enemy.enraged ? " · 狂化 / 冰冻免疫" : ""}`, enemy.x, enemy.y + enemy.radius + 54); ctx.restore();
+        }
       }
 
       if (enemy.type === "hexer") {
@@ -750,10 +836,10 @@ export class Renderer {
       }
 
       const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
-      if (hpRatio < 0.999 || enemy.type === "boss" || enemy.elite) {
-        const width = enemy.type === "boss" ? 92 : enemy.elite ? Math.max(48, enemy.radius * 2.5) : enemy.radius * 2;
+      if (hpRatio < 0.999 || isBoss || isColossus || enemy.elite) {
+        const width = isColossus ? 150 : isBoss ? 92 : enemy.elite ? Math.max(48, enemy.radius * 2.5) : enemy.radius * 2;
         ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(enemy.x - width / 2, enemy.y - enemy.radius - 12, width, 4);
-        ctx.fillStyle = enemy.type === "boss" ? "#ffc66d" : enemy.elite ? "#ffd35f" : "#ff7076"; ctx.fillRect(enemy.x - width / 2, enemy.y - enemy.radius - 12, width * hpRatio, 4);
+        ctx.fillStyle = isColossus ? "#ff5477" : isBoss ? "#ffc66d" : enemy.elite ? "#ffd35f" : "#ff7076"; ctx.fillRect(enemy.x - width / 2, enemy.y - enemy.radius - 12, width * hpRatio, 4);
       }
     }
   }
@@ -981,25 +1067,34 @@ export class Renderer {
   }
 
   drawBossBar(ctx, state) {
-    const boss = state.enemies.find((enemy) => enemy.type === "boss" && enemy.hp > 0);
+    const boss = state.enemies.find((enemy) => enemy.type === "colossus" && enemy.hp > 0)
+      ?? state.enemies.find((enemy) => enemy.type === "boss" && enemy.hp > 0);
     if (!boss) return;
     const { width } = GAME_CONFIG.arena;
-    const shifted = state.wave.warningStarted || state.wave.active;
+    const isColossus = boss.type === "colossus";
+    const shifted = !isColossus && (state.wave.warningStarted || state.wave.active);
     const y = shifted ? 92 : 20;
     const barWidth = 390;
     const ratio = Math.max(0, boss.hp / boss.maxHp);
     ctx.save();
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(18,4,20,.9)";
-    ctx.strokeStyle = "rgba(255,180,95,.55)";
+    ctx.strokeStyle = isColossus ? "rgba(255,74,132,.68)" : "rgba(255,180,95,.55)";
     ctx.beginPath(); ctx.roundRect(width / 2 - barWidth / 2 - 12, y - 9, barWidth + 24, 49, 12); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#ffd18a"; ctx.font = "800 12px 'Microsoft YaHei UI', sans-serif";
     const resistanceNames = { frost: "冰霜", fire: "火焰", lightning: "雷电" };
     const anchors = state.enemies.filter((enemy) => enemy.type === "anchor" && enemy.anchorBossId === boss.id && enemy.hp > 0);
     const anchorSummary = anchors.map((anchor) => ANCHOR_VISUALS[anchor.anchorRole]?.name ?? "未知").join("/") || "全毁";
-    ctx.fillText(`腐化晶核领主 · ${resistanceNames[boss.resistance] ?? "未知"}抗性 · ${anchorSummary}`, width / 2, y + 5);
+    const colossusAffix = COLOSSUS_AFFIXES[boss.colossusAffix] ?? { name: "未知异变" };
+    const colossusAction = boss.intentSkill
+      ? `预兆:${COLOSSUS_SKILLS[boss.intentSkill]?.name} ${Math.max(0, boss.intentTimer).toFixed(1)}s`
+      : COLOSSUS_SKILLS[boss.activeSkill]?.name ?? "技能间隙";
+    const title = isColossus
+      ? `虚环吞星兽 · ${colossusAffix.name} · ${boss.enraged ? "狂化/冰冻免疫" : colossusAction}`
+      : `腐化晶核领主 · ${resistanceNames[boss.resistance] ?? "未知"}抗性 · ${anchorSummary}`;
+    ctx.fillText(title, width / 2, y + 5);
     ctx.fillStyle = "rgba(255,255,255,.1)"; ctx.fillRect(width / 2 - barWidth / 2, y + 14, barWidth, 10);
-    const phaseColor = { frost: "#62dfff", fire: "#ff6749", lightning: "#aa83ff" }[boss.resistance] ?? "#ff4d67";
+    const phaseColor = isColossus ? (boss.enraged ? "#ff4a2f" : COLOSSUS_AFFIXES[boss.colossusAffix]?.color ?? "#ff477c") : { frost: "#62dfff", fire: "#ff6749", lightning: "#aa83ff" }[boss.resistance] ?? "#ff4d67";
     const gradient = ctx.createLinearGradient(width / 2 - barWidth / 2, 0, width / 2 + barWidth / 2, 0);
     gradient.addColorStop(0, phaseColor); gradient.addColorStop(1, "#ffc45f");
     ctx.fillStyle = gradient; ctx.fillRect(width / 2 - barWidth / 2, y + 14, barWidth * ratio, 10);

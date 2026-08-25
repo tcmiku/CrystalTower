@@ -226,14 +226,16 @@ test("晶愈护盾达到上限后下一次受击只释放一次晶片爆炸", ()
   assert.equal(state.events.filter((event) => event.type === "shieldBurst").length, 1);
 });
 
-test("星落只集中轰击敌人最密集的方向", () => {
+test("星落只轰击玩家手动指定的方向", () => {
   const state = createGameState(9);
   state.threat = 4;
   const eastA = spawnEnemy(state, "brute", { x: 620, y: 350 });
   const eastB = spawnEnemy(state, "brute", { x: 650, y: 375 });
   const west = spawnEnemy(state, "brute", { x: 330, y: 360 });
   const before = new Map(state.enemies.map((enemy) => [enemy.id, enemy.hp]));
-  assert.equal(useSkill(state, "starfall"), true);
+  assert.equal(useSkill(state, "starfall"), false);
+  assert.equal(state.skills.starfall.cooldown, 0);
+  assert.equal(useSkill(state, "starfall", { angle: 0 }), true);
   assert.equal(Number((before.get(eastA.id) - eastA.hp).toFixed(2)), 72);
   assert.equal(Number((before.get(eastB.id) - eastB.hp).toFixed(2)), 72);
   assert.equal(west.hp, before.get(west.id));
@@ -241,27 +243,16 @@ test("星落只集中轰击敌人最密集的方向", () => {
   assert.equal(state.skills.starfall.cooldown, 45);
 });
 
-test("星落在近卫协议瞄准塔前最近威胁，在雷达协议偏向远程单位", () => {
-  const guardState = createGameState(83);
-  const nearWest = spawnEnemy(guardState, "brute", { x: 400, y: 360 });
-  const eastA = spawnEnemy(guardState, "brute", { x: 650, y: 340 });
-  spawnEnemy(guardState, "brute", { x: 660, y: 370 });
-  const eastHp = eastA.hp;
-  assert.equal(useSkill(guardState, "starfall"), true);
-  assert.ok(nearWest.hp < nearWest.maxHp);
-  assert.equal(eastA.hp, eastHp);
-  assert.equal(guardState.skills.starfall.protocol, "guard");
-
-  const radarState = createGameState(84);
-  setTargetProtocol(radarState, "radar");
-  const ranged = spawnEnemy(radarState, "hexer", { x: 480, y: 150 });
-  const melee = spawnEnemy(radarState, "brute", { x: 650, y: 350 });
-  spawnEnemy(radarState, "brute", { x: 660, y: 375 });
-  const meleeHp = melee.hp;
-  assert.equal(useSkill(radarState, "starfall"), true);
-  assert.ok(ranged.hp < ranged.maxHp);
-  assert.equal(melee.hp, meleeHp);
-  assert.equal(radarState.skills.starfall.protocol, "radar");
+test("星落手动方向不再受目标协议改写", () => {
+  const state = createGameState(84);
+  setTargetProtocol(state, "radar");
+  const ranged = spawnEnemy(state, "hexer", { x: 480, y: 150 });
+  const melee = spawnEnemy(state, "brute", { x: 650, y: 350 });
+  const rangedHp = ranged.hp;
+  assert.equal(useSkill(state, "starfall", { angle: 0 }), true);
+  assert.equal(ranged.hp, rangedHp);
+  assert.ok(melee.hp < melee.maxHp);
+  assert.equal(state.skills.starfall.protocol, "manual");
 });
 
 test("星尘结算至少一枚，并计入击杀和首领", () => {
@@ -837,4 +828,164 @@ test("解锁元素科技后晶塔会实际发射元素晶矢", () => {
     for (const projectile of state.projectiles) if (projectile.element) seen.add(projectile.element);
   }
   assert.ok(seen.size >= 2);
+});
+
+test("威胁十五触发虚环吞星兽并冻结常规刷怪与怪潮", () => {
+  const state = createGameState(115);
+  state.time = GAME_CONFIG.threat.duration * 14 - 0.05;
+  state.spawnTimer = 0;
+  state.wave.nextAt = GAME_CONFIG.threat.duration * 14;
+  state.tower.hp = 1_000_000;
+  updateGame(state, 0.1);
+  const colossus = state.enemies.find((enemy) => enemy.type === "colossus");
+  assert.ok(colossus);
+  assert.equal(state.threat, 15);
+  assert.deepEqual(state.enemies.map((enemy) => enemy.type), ["colossus"]);
+  assert.equal(state.wave.active, false);
+  assert.ok(state.wave.nextAt > GAME_CONFIG.threat.duration * 14);
+});
+
+test("巨型首领沿地图外圈运动而不会逼近中央晶塔", () => {
+  const state = createGameState(116);
+  state.threat = 15;
+  state.spawnTimer = 0;
+  state.wave.nextAt = 0;
+  const colossus = spawnEnemy(state, "colossus", undefined, { orbitAngle: 0 });
+  colossus.skillCooldown = 999;
+  const beforeAngle = colossus.orbitAngle;
+  updateGame(state, 1);
+  const normalizedOrbit = ((colossus.x - GAME_CONFIG.arena.centerX) / GAME_CONFIG.colossus.orbitRadiusX) ** 2
+    + ((colossus.y - GAME_CONFIG.arena.centerY) / GAME_CONFIG.colossus.orbitRadiusY) ** 2;
+  assert.ok(colossus.orbitAngle > beforeAngle);
+  assert.ok(Math.abs(normalizedOrbit - 1) < 0.0001);
+  assert.deepEqual(state.enemies.map((enemy) => enemy.type), ["colossus"]);
+});
+
+test("巨型首领四项技能按互斥状态依次施放", () => {
+  const state = createGameState(117);
+  state.threat = 15;
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.hp = 1_000_000;
+  state.tower.fireCooldown = 999;
+  const colossus = spawnEnemy(state, "colossus");
+  const seen = [];
+  for (const expected of GAME_CONFIG.colossus.skillOrder) {
+    colossus.skillCooldown = 0;
+    updateGame(state, 0.01);
+    assert.equal(colossus.intentSkill, expected);
+    assert.equal(colossus.activeSkill, null);
+    colossus.intentTimer = 0;
+    updateGame(state, 0.01);
+    seen.push(colossus.activeSkill);
+    assert.equal(colossus.activeSkill, expected);
+    assert.equal(typeof colossus.activeSkill, "string");
+    colossus.skillTimer = 0;
+    if (expected === "summon") colossus.summonsRemaining = 0;
+    updateGame(state, 0.01);
+    assert.equal(colossus.activeSkill, null);
+  }
+  assert.deepEqual(seen, ["artillery", "summon", "beam", "bulwark"]);
+});
+
+test("陨晶炮击产生敌方弹体且巨兽死亡后恢复常规刷怪", () => {
+  const state = createGameState(118);
+  state.threat = 15;
+  state.spawnTimer = 0;
+  state.wave.nextAt = 999;
+  state.tower.hp = 1_000_000;
+  state.tower.fireCooldown = 999;
+  const colossus = spawnEnemy(state, "colossus");
+  colossus.skillCooldown = 0;
+  updateGame(state, 0.01);
+  assert.equal(colossus.intentSkill, "artillery");
+  assert.equal(state.hostileProjectiles.length, 0);
+  colossus.intentTimer = 0;
+  updateGame(state, 0.01);
+  assert.equal(colossus.activeSkill, "artillery");
+  updateGame(state, 0.01);
+  assert.equal(state.hostileProjectiles[0]?.kind, "colossusMortar");
+  damageEnemy(state, colossus, colossus.maxHp * 2, "shot");
+  updateGame(state, 0.01);
+  assert.equal(state.colossusEncounter.defeated, true);
+  assert.equal(state.hostileProjectiles.length, 0);
+  assert.ok(state.enemies.some((enemy) => enemy.type !== "colossus"));
+});
+
+test("召唤、射线与堡垒技能各自生效且不会串招", () => {
+  const summonState = createGameState(119);
+  summonState.threat = 15; summonState.spawnTimer = 999; summonState.wave.nextAt = 999; summonState.tower.fireCooldown = 999;
+  const summoner = spawnEnemy(summonState, "colossus");
+  summoner.activeSkill = "summon"; summoner.skillTimer = 2; summoner.skillTick = 0; summoner.summonsRemaining = 2;
+  updateGame(summonState, 0.01);
+  assert.ok(summonState.enemies.some((enemy) => enemy.type !== "colossus"));
+  assert.equal(summonState.hostileProjectiles.length, 0);
+
+  const beamState = createGameState(120);
+  beamState.threat = 15; beamState.spawnTimer = 999; beamState.wave.nextAt = 999; beamState.tower.fireCooldown = 999;
+  const beamer = spawnEnemy(beamState, "colossus");
+  beamer.activeSkill = "beam"; beamer.skillTimer = 2; beamer.skillTick = 0;
+  const hpBefore = beamState.tower.hp;
+  updateGame(beamState, 0.01);
+  assert.ok(beamState.tower.hp < hpBefore);
+  assert.equal(beamState.hostileProjectiles.length, 0);
+
+  const openState = createGameState(121);
+  const shieldState = createGameState(121);
+  openState.threat = shieldState.threat = 15;
+  const openBoss = spawnEnemy(openState, "colossus", undefined, { colossusAffix: "siege" });
+  const shieldBoss = spawnEnemy(shieldState, "colossus", undefined, { colossusAffix: "siege" });
+  shieldBoss.activeSkill = "bulwark";
+  damageEnemy(openState, openBoss, 100, "shot");
+  damageEnemy(shieldState, shieldBoss, 100, "shot");
+  assert.ok(openBoss.maxHp - openBoss.hp > (shieldBoss.maxHp - shieldBoss.hp) * 2);
+});
+
+test("巨型首领血量强化并携带可复现的随机词条", () => {
+  const first = createGameState(122);
+  const second = createGameState(122);
+  first.threat = second.threat = 15;
+  const firstBoss = spawnEnemy(first, "colossus");
+  const secondBoss = spawnEnemy(second, "colossus");
+  assert.ok(firstBoss.maxHp > 40_000);
+  assert.equal(firstBoss.colossusAffix, secondBoss.colossusAffix);
+  assert.ok(GAME_CONFIG.colossus.affixOrder.includes(firstBoss.colossusAffix));
+
+  const carapaceState = createGameState(123);
+  const normalState = createGameState(123);
+  carapaceState.threat = normalState.threat = 15;
+  const normal = spawnEnemy(normalState, "colossus", undefined, { colossusAffix: "siege" });
+  const carapace = spawnEnemy(carapaceState, "colossus", undefined, { colossusAffix: "carapace" });
+  assert.ok(carapace.maxHp > normal.maxHp);
+});
+
+test("巨型首领半血狂化后清除并免疫冰冻", () => {
+  const state = createGameState(124);
+  state.threat = 15;
+  const colossus = spawnEnemy(state, "colossus", undefined, { colossusAffix: "siege" });
+  colossus.hp = colossus.maxHp * 0.51;
+  colossus.freezeTimer = 2;
+  damageEnemy(state, colossus, colossus.maxHp * 0.02, "shot");
+  assert.equal(colossus.enraged, true);
+  assert.equal(colossus.freezeTimer, 0);
+  assert.ok(state.events.some((event) => event.type === "colossusEnrage"));
+  assert.equal(applyElementalHit(state, colossus, "frost", 100), false);
+  assert.equal(colossus.freezeTimer, 0);
+  assert.ok(state.events.some((event) => event.type === "colossusFreezeImmune"));
+});
+
+test("巨型首领攻击先显示预兆且狂化会缩短预兆", () => {
+  const state = createGameState(125);
+  state.threat = 15; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  const colossus = spawnEnemy(state, "colossus", undefined, { colossusAffix: "prism" });
+  colossus.skillCooldown = 0;
+  updateGame(state, 0.01);
+  assert.equal(colossus.intentSkill, "artillery");
+  assert.equal(colossus.activeSkill, null);
+  assert.equal(state.hostileProjectiles.length, 0);
+  const normalIntent = colossus.intentTimer;
+  colossus.enraged = true;
+  colossus.intentSkill = null; colossus.skillCooldown = 0;
+  updateGame(state, 0.01);
+  assert.ok(colossus.intentTimer < normalIntent);
 });

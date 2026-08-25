@@ -16,6 +16,31 @@ export const GAME_CONFIG = Object.freeze({
     anchorRoles: ["shield", "repair", "summon", "overload"], anchorCount: 4, anchorRadius: 210, anchorLockDuration: 5, anchorClickPadding: 14,
     shieldDamageMultiplier: 0.45, repairPerSecond: 0.012, summonInterval: 3.5, summonTypes: ["wisp", "runner", "crawler"], overloadAttackIntervalMultiplier: 0.55
   },
+  colossus: {
+    spawnThreat: 15,
+    orbitRadiusX: 390,
+    orbitRadiusY: 278,
+    orbitSpeed: 0.12,
+    intentDuration: 1.25,
+    skillCooldown: 3.2,
+    skillOrder: ["artillery", "summon", "beam", "bulwark"],
+    enrageThreshold: 0.5,
+    enrageDamageMultiplier: 1.35,
+    enrageOrbitSpeedMultiplier: 1.55,
+    enrageCooldownMultiplier: 0.62,
+    enrageIntentMultiplier: 0.58,
+    affixOrder: ["siege", "brood", "prism", "carapace"],
+    affixes: {
+      siege: { artilleryIntervalMultiplier: 0.7, artilleryDamageMultiplier: 1.22 },
+      brood: { summonCountBonus: 3, summonIntervalMultiplier: 0.72 },
+      prism: { beamTickMultiplier: 0.68, beamDamageMultiplier: 1.22 },
+      carapace: { healthMultiplier: 1.28, passiveDamageMultiplier: 0.88 }
+    },
+    artillery: { duration: 3.2, interval: 0.52, projectileSpeed: 245, projectileLife: 3, damageMultiplier: 0.34, radius: 13 },
+    summon: { duration: 3.4, interval: 0.72, count: 5, types: ["runner", "crawler", "hexer", "rammer"] },
+    beam: { duration: 2.8, tickInterval: 0.42, damageMultiplier: 0.22 },
+    bulwark: { duration: 3.6, damageMultiplier: 0.38, orbitSpeedMultiplier: 2.25 }
+  },
   upgrades: {
     damage: { baseCost: 20, growth: 1.55, multiplier: 1.25 },
     rate: { baseCost: 25, growth: 1.65, multiplier: 1.15, cap: 5 },
@@ -51,7 +76,7 @@ export const GAME_CONFIG = Object.freeze({
   },
   coins: { clickRadius: 24, maxOrbs: 240, collectDuration: 0.42, lifetime: 10, blinkStart: 7, droneInterval: 1.25, droneOrbitRadius: 148, towerInterval: 5 },
   score: {
-    enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, boss: 5000 },
+    enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, boss: 5000, colossus: 20000 },
     eliteMultiplier: 4,
     coinMultiplier: 10,
     leaderboardSize: 10
@@ -78,6 +103,7 @@ export const GAME_CONFIG = Object.freeze({
     hexer: { hp: 58, speed: 31, damage: 13, reward: 11, radius: 17, attackRange: 145 },
     rammer: { hp: 118, speed: 49, damage: 31, reward: 25, radius: 25 },
     boss: { hp: 900, speed: 16, damage: 42, reward: 180, radius: 48 },
+    colossus: { hp: 5000, speed: 0, damage: 58, reward: 620, radius: 76 },
     anchor: { hp: 115, speed: 0, damage: 0, reward: 0, radius: 17 }
   },
   research: { bonusPerLevel: 0.05, maxLevel: 10 },
