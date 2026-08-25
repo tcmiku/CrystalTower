@@ -160,9 +160,8 @@ export function cycleTargetProtocol(state) {
   return setTargetProtocol(state, TARGET_PROTOCOL_ORDER[(index + 1) % TARGET_PROTOCOL_ORDER.length]);
 }
 
-export function lockAnchorAt(state, x, y) {
+export function lockAnchorAt(state, x, y, padding = GAME_CONFIG.boss.anchorClickPadding) {
   if (state.over) return false;
-  const padding = GAME_CONFIG.boss.anchorClickPadding;
   const anchor = state.enemies
     .filter((enemy) => enemy.type === "anchor" && enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= enemy.radius + padding)
     .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y) || a.id - b.id)[0];
@@ -1038,10 +1037,10 @@ function beginCoinCollection(orb, collector, droneIndex = 0) {
   return true;
 }
 
-export function collectCoinAt(state, x, y) {
+export function collectCoinAt(state, x, y, clickRadius = GAME_CONFIG.coins.clickRadius) {
   if (state.over) return false;
   let best = null;
-  let bestDistance = GAME_CONFIG.coins.clickRadius;
+  let bestDistance = clickRadius;
   for (const orb of state.coinOrbs) {
     if (orb.collector) continue;
     const distance = Math.hypot((orb.renderX ?? orb.x) - x, (orb.renderY ?? orb.y) - y);

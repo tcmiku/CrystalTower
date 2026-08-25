@@ -21,6 +21,11 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(html, /src=["']\.\/src\/main\.js["']/);
   assert.match(html, /打开后自动暂停战斗/);
   assert.match(html, /SCORE · RANKING/);
+  assert.match(html, /viewport-fit=cover/);
+  const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+  assert.match(styles, /@media \(max-width: 1024px\)/);
+  assert.match(styles, /env\(safe-area-inset-top\)/);
+  assert.match(styles, /#gameCanvas[^}]*touch-action:\s*none/s);
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(main, /战利品已经掉落/);
   assert.match(main, /第一笔金币已到手/);
@@ -28,6 +33,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /无人机 · 经济自动化/);
   assert.match(main, /路线 A · 疾旋炮刃/);
   assert.match(main, /路线 B · 弹射飞刃/);
+  assert.match(main, /pointerType === "touch"/);
 });
 
 test("设计、构建与入口产物齐全", async () => {

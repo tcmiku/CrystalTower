@@ -989,21 +989,24 @@ dom.techTreePanel.addEventListener("pointerdown", (event) => {
 dom.pauseButton.addEventListener("click", () => togglePause());
 dom.gameCanvas.addEventListener("pointermove", (event) => {
   if (!starfallAiming) return;
+  if (event.pointerType === "touch") event.preventDefault();
   const { x, y } = canvasPoint(event);
   state.skills.starfall.aimAngle = starfallAngleAt(x, y);
 });
 dom.gameCanvas.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "touch") event.preventDefault();
   const { x, y } = canvasPoint(event);
   if (starfallAiming) {
     if (event.button === 0) releaseStarfall(starfallAngleAt(x, y));
     else if (event.button === 2) event.preventDefault();
     return;
   }
-  if (lockAnchorAt(state, x, y)) {
+  const touchScale = event.pointerType === "touch" ? 1.8 : 1;
+  if (lockAnchorAt(state, x, y, GAME_CONFIG.boss.anchorClickPadding * touchScale)) {
     handleEvents(state.events);
     return;
   }
-  if (collectCoinAt(state, x, y)) audio.play("coinPick");
+  if (collectCoinAt(state, x, y, GAME_CONFIG.coins.clickRadius * touchScale)) audio.play("coinPick");
 });
 dom.gameCanvas.addEventListener("contextmenu", (event) => {
   if (!starfallAiming) return;

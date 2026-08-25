@@ -475,6 +475,16 @@ test("金币初始需要点击，点击后才飞向晶塔结算", () => {
   assert.equal(state.coins, 9);
 });
 
+test("移动端可以使用扩大的触控半径拾取金币", () => {
+  const preciseState = createGameState(611);
+  preciseState.coinOrbs.push({ x: 200, y: 180, renderX: 200, renderY: 180, value: 9, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  assert.equal(collectCoinAt(preciseState, 238, 180), false);
+
+  const touchState = createGameState(611);
+  touchState.coinOrbs.push({ x: 200, y: 180, renderX: 200, renderY: 180, value: 9, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  assert.equal(collectCoinAt(touchState, 238, 180, GAME_CONFIG.coins.clickRadius * 1.8), true);
+});
+
 test("未收集金币十秒后消失且不会结算", () => {
   const state = createGameState(62);
   state.spawnTimer = 999;

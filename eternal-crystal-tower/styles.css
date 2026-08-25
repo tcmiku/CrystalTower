@@ -13,7 +13,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; min-width: 1024px; min-height: 720px; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); }
+html, body { margin: 0; min-width: 0; min-height: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); }
 button { font: inherit; }
 button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 body {
@@ -81,7 +81,7 @@ h1, h2, p { margin: 0; }
 
 .play-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; min-height: 0; }
 .arena-wrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid rgba(130,116,232,.2); border-radius: 22px; background: #08091c; box-shadow: 0 22px 55px rgba(0,0,0,.3); }
-#gameCanvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+#gameCanvas { width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
 #gameCanvas.starfall-aiming { cursor: cell; }
 .announcement { position: absolute; top: 15%; left: 50%; transform: translate(-50%,-10px); opacity: 0; pointer-events: none; padding: 10px 24px; border: 1px solid rgba(255,143,117,.35); border-radius: 999px; background: rgba(38,12,31,.82); color: #ffd7c7; font-size: 13px; letter-spacing: .12em; transition: .25s; }
 .announcement.show { opacity: 1; transform: translate(-50%,0); }
@@ -324,6 +324,145 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .skill-bar { gap: 10px; }
   .brand { min-width: 205px; }
   .status { padding: 2px 11px; }
+}
+
+@media (max-width: 1024px) {
+  html, body { height: auto; min-height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior: none; }
+  body { min-height: 100dvh; }
+  button { min-height: 44px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  kbd, .key-hint { display: none; }
+  .game-shell {
+    width: 100%; min-height: 100dvh; height: auto; max-width: none;
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    grid-template-rows: auto auto auto; gap: 8px;
+  }
+  .topbar { min-width: 0; padding: 7px 8px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; border-radius: 14px; }
+  .brand { min-width: 0; gap: 8px; }
+  .brand-mark { width: 20px; height: 28px; }
+  .brand h1 { font-size: 15px; letter-spacing: .12em; }
+  .brand p { display: none; }
+  .top-actions { gap: 6px; }
+  .topbar > .top-actions { grid-column: 2; grid-row: 1; }
+  .icon-button { width: 44px; height: 44px; }
+  .status-strip { grid-column: 1 / -1; width: 100%; height: 43px; grid-template-columns: 1.55fr repeat(5, minmax(0, 1fr)); }
+  .status { min-width: 0; padding: 1px 5px; text-align: center; }
+  .status:first-child { border-left: 0; text-align: left; }
+  .status span { font-size: 7px; letter-spacing: .06em; }
+  .status strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .health-status strong { font-size: 11px; }
+  .cycle-status strong { font-size: 10px; }
+  .health-track { margin-top: 3px; }
+
+  .play-layout { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .arena-wrap { width: 100%; height: auto; min-height: 0; aspect-ratio: 4 / 3; flex: 0 0 auto; border-radius: 16px; }
+  .score-hud { top: 8px; right: 8px; min-width: 96px; padding: 6px 8px 5px; }
+  .score-hud span { font-size: 6px; }
+  .score-hud strong { font-size: 14px; }
+  .announcement { top: 12%; max-width: calc(100% - 24px); padding: 7px 12px; border-radius: 12px; font-size: 10px; letter-spacing: .05em; text-align: center; white-space: normal; }
+  .toast { bottom: 12px; width: max-content; max-width: calc(100% - 24px); padding: 7px 11px; font-size: 10px; text-align: center; }
+  .pause-overlay strong { font-size: 22px; }
+  .pause-overlay span { font-size: 11px; }
+
+  .upgrade-panel { padding: 9px; display: grid; grid-template-columns: .72fr 1.28fr; gap: 8px; overflow: visible; border-radius: 16px; }
+  .panel-heading { min-height: 52px; padding: 7px 8px; align-items: center; border: 1px solid rgba(255,255,255,.07); border-radius: 11px; }
+  .panel-heading span { font-size: 8px; }
+  .panel-heading h2 { margin-top: 2px; font-size: 15px; }
+  .tech-summary-copy, .build-summary { display: none; }
+  .tech-tree-launch { min-width: 0; min-height: 52px; margin: 0; padding: 8px 11px; }
+  .tech-tree-launch b { font-size: 12px; }
+  .tech-tree-launch small { font-size: 8px; }
+  .tech-overview { grid-column: 1 / -1; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); }
+  .tech-overview div { min-height: 39px; padding: 5px 7px; flex-direction: column; gap: 2px; border-top: 0; border-left: 1px solid rgba(255,255,255,.055); }
+  .tech-overview div:first-child { border-left: 0; }
+  .tech-overview span { font-size: 8px; }
+  .tech-overview strong { font-size: 11px; }
+  .target-protocol { grid-column: 1 / -1; margin: 0; padding: 0; border: 0; }
+  .target-protocol header, .target-protocol > p { display: none; }
+  .protocol-grid { margin: 0; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .protocol-grid button { min-height: 44px; padding: 5px; text-align: center; }
+  .protocol-grid b { font-size: 9px; }
+  .protocol-grid small { font-size: 7px; }
+  .side-drone-mode { grid-column: 1 / -1; min-height: 52px; margin: 0; padding: 7px 9px; }
+  .side-drone-mode .drone-mode-icon { width: 32px; height: 32px; }
+
+  .skill-bar { padding: 8px; display: grid; grid-template-columns: 1fr; gap: 7px; border-radius: 15px; }
+  .objective { min-height: 32px; padding: 0 4px; }
+  .objective strong { font-size: 11px; }
+  .objective small { margin-top: 2px; font-size: 8px; }
+  .pulse-dot { width: 7px; height: 7px; }
+  .skill-list { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .skill-button { width: 100%; min-width: 0; height: 58px; padding: 7px 5px 6px 31px; border-radius: 11px; }
+  .skill-key { left: 5px; top: 14px; width: 22px; height: 28px; font-size: 10px; }
+  .skill-button strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .skill-button small { margin-top: 3px; overflow: hidden; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+  .cooldown-text { top: 5px; right: 5px; font-size: 9px; }
+  .seed-label { display: none; }
+
+  .tutorial-guide { top: max(8px, env(safe-area-inset-top)); width: calc(100vw - 16px); padding: 13px 14px 12px; }
+  .tutorial-guide.compare { bottom: max(8px, env(safe-area-inset-bottom)); }
+  .tutorial-guide h2 { font-size: 16px; }
+  .tutorial-choices { gap: 6px; }
+
+  .tech-tree-panel { padding: 0; place-items: stretch; }
+  .tech-tree-shell { width: 100%; max-height: 100dvh; min-height: 100dvh; border-width: 0; border-radius: 0; }
+  .tech-tree-header { min-height: 0; padding: max(12px, env(safe-area-inset-top)) 12px 10px; display: grid; grid-template-columns: 1fr; gap: 9px; }
+  .tech-tree-header h2 { font-size: 20px; }
+  .tech-tree-header p { font-size: 9px; line-height: 1.45; }
+  .tech-tree-resources { width: 100%; display: grid; grid-template-columns: 1fr 1fr auto; gap: 5px; }
+  .tech-tree-resources > div { min-width: 0; padding: 6px 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 9px; }
+  .tech-tree-resources strong { font-size: 13px; }
+  .tech-tree-close { height: 44px; padding: 0 13px; }
+  .upgrade-list { padding: 12px 12px max(16px, env(safe-area-inset-bottom)); display: block; overflow-y: auto; }
+  .tech-branch { min-height: 0; margin-bottom: 18px; padding: 0 4px 2px 17px; }
+  .tech-branch h3 { margin-bottom: 10px; }
+  .tech-node, .upgrade-card { min-height: 88px; }
+  .tech-node { margin-bottom: 8px; }
+  .tech-tree-footer { display: none; }
+
+  .modal { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); place-items: stretch; }
+  .modal-card, .arcade-score-card, .standalone-leaderboard-card { width: 100%; max-height: calc(100dvh - 16px); padding: 18px 14px; border-radius: 17px; }
+  .standalone-leaderboard-header { gap: 10px; padding-bottom: 12px; }
+  .standalone-leaderboard-header h2 { font-size: 21px; }
+  .standalone-leaderboard-header p { font-size: 10px; }
+  .leaderboard-close { padding: 8px 12px; }
+  .leaderboard-list li { grid-template-columns: 24px minmax(58px, 1fr) 70px 56px 50px; gap: 3px; font-size: 8px; }
+  .run-results { grid-template-columns: repeat(2, 1fr); margin: 14px 0; }
+  .score-summary { padding: 11px 12px; align-items: flex-start; flex-direction: column; gap: 7px; }
+  .score-summary strong { font-size: 23px; }
+  .research-list { grid-template-columns: 1fr; }
+  .modal-actions { flex-direction: column; }
+}
+
+@media (max-width: 1024px) and (orientation: landscape) {
+  html, body { height: 100%; overflow: hidden; }
+  .game-shell { height: 100dvh; min-height: 0; grid-template-rows: 50px minmax(0, 1fr) 66px; gap: 5px; padding: max(4px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)); }
+  .topbar { display: flex; padding: 3px 6px; gap: 8px; }
+  .brand { flex: 0 0 auto; }
+  .brand-mark { width: 17px; height: 24px; }
+  .brand h1 { font-size: 12px; }
+  .status-strip { grid-column: auto; flex: 1; height: 39px; }
+  .icon-button { width: 40px; height: 40px; min-height: 40px; }
+  .play-layout { display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 5px; }
+  .arena-wrap { height: 100%; aspect-ratio: auto; }
+  .upgrade-panel { height: 100%; padding: 6px; display: flex; gap: 5px; overflow-y: auto; }
+  .panel-heading, .tech-overview { display: none; }
+  .tech-tree-launch { width: 100%; flex: 0 0 auto; min-height: 44px; }
+  .target-protocol { flex: 0 0 auto; }
+  .protocol-grid { grid-template-columns: 1fr 1fr; }
+  .protocol-grid button { min-height: 38px; }
+  .side-drone-mode { flex: 0 0 auto; min-height: 46px; }
+  .skill-bar { padding: 4px 6px; grid-template-columns: minmax(130px, .7fr) minmax(0, 2fr); gap: 6px; }
+  .objective { min-width: 0; }
+  .skill-button { height: 54px; min-height: 54px; }
+}
+
+@media (max-width: 390px) {
+  .status span { font-size: 6px; }
+  .status strong, .health-status strong { font-size: 10px; }
+  .skill-button { padding-left: 28px; }
+  .skill-key { width: 20px; }
+  .skill-button small { display: none; }
+  .leaderboard-list li { grid-template-columns: 20px minmax(52px, 1fr) 62px 48px 44px; font-size: 7px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
