@@ -93,8 +93,8 @@ const dom = Object.fromEntries([
   "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
   "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
-  "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "battleEmberShardText", "battleEmberCoreText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
-  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampEmberShardText", "baseCampEmberCoreText", "baseCampStardustText", "coreNexusRoom", "researchBayRoom", "nexusPanel", "relicResearchPanel", "relicResearchList", "relicResearchEmberText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "resultEmberShards", "resultEmberCores",
+  "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
+  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "coreNexusRoom", "researchBayRoom", "nexusPanel", "relicResearchPanel", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments",
   "relicRunHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList"
 ].map((id) => [id, document.getElementById(id)]));
 
@@ -185,8 +185,6 @@ if (previewMode === "resources") {
   state.wave.nextAt = 999;
   spawnPermanentResourceDrop(state, "echo", 3, 390, 300, { source: "elite" });
   spawnPermanentResourceDrop(state, "core", 1, 580, 315, { source: "boss" });
-  spawnPermanentResourceDrop(state, "ember", 4, 485, 410, { source: "boss" });
-  spawnPermanentResourceDrop(state, "emberCore", 1, 535, 420, { source: "boss" });
   state.paused = true;
 }
 if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "recovery") {
@@ -195,8 +193,8 @@ if (previewMode === "basecamp" || previewMode === "relic-research" || previewMod
   save.baseCamp.recoverySeen = previewMode === "basecamp" || previewMode === "relic-research";
   save.resources.echoShards = Math.max(save.resources.echoShards, 42);
   save.resources.coreFragments = Math.max(save.resources.coreFragments, 7);
-  save.resources.emberShards = Math.max(save.resources.emberShards, 28);
-  save.resources.emberCores = Math.max(save.resources.emberCores, 9);
+  save.resources.echoShards = Math.max(save.resources.echoShards, 28);
+  save.resources.coreFragments = Math.max(save.resources.coreFragments, 9);
 }
 if (previewMode === "elements" || previewMode === "element-tech") {
   state.threat = 9;
@@ -575,19 +573,13 @@ function setLeaderboardOpen(open, restoreFocus = false) {
 function updatePermanentResourceUi() {
   const echo = formatNumber(save.resources.echoShards);
   const core = formatNumber(save.resources.coreFragments);
-  const ember = formatNumber(save.resources.emberShards);
-  const emberCore = formatNumber(save.resources.emberCores);
   dom.battleEchoShardText.textContent = echo;
   dom.battleCoreFragmentText.textContent = core;
-  dom.battleEmberShardText.textContent = ember;
-  dom.battleEmberCoreText.textContent = emberCore;
   dom.baseCampEchoShardText.textContent = echo;
   dom.baseCampCoreFragmentText.textContent = core;
-  dom.baseCampEmberShardText.textContent = ember;
-  dom.baseCampEmberCoreText.textContent = emberCore;
   dom.baseCampStardustText.textContent = formatNumber(save.stardust);
-  dom.relicResearchEmberText.textContent = ember;
-  dom.relicResearchCoreText.textContent = emberCore;
+  dom.relicResearchEchoText.textContent = echo;
+  dom.relicResearchCoreText.textContent = core;
   dom.openBaseCampButton.classList.toggle("hidden", !save.baseCamp.unlocked);
 }
 
@@ -701,16 +693,16 @@ function renderResearch() {
 }
 
 function renderRelicResearch() {
-  dom.relicResearchEmberText.textContent = formatNumber(save.resources.emberShards);
-  dom.relicResearchCoreText.textContent = formatNumber(save.resources.emberCores);
+  dom.relicResearchEchoText.textContent = formatNumber(save.resources.echoShards);
+  dom.relicResearchCoreText.textContent = formatNumber(save.resources.coreFragments);
   dom.relicSlotResearch.replaceChildren();
   const slotButton = document.createElement("button");
   const maxSlots = save.relicSlots >= GAME_CONFIG.relics.maxSlots;
   const slotCost = maxSlots ? 0 : GAME_CONFIG.relicSlotResearch.costs[save.relicSlots - GAME_CONFIG.relics.initialSlots];
   slotButton.type = "button";
   slotButton.className = "relic-slot-button";
-  slotButton.disabled = maxSlots || save.resources.emberCores < slotCost;
-  slotButton.innerHTML = `<span><small>遗物栏位</small><strong>${save.relicSlots} / ${GAME_CONFIG.relics.maxSlots}</strong><p>增加一格本局机制遗物装配空间。</p></span><b>${maxSlots ? "栏位已满" : `扩展下一格 · ${slotCost} 余烬核心`}</b>`;
+  slotButton.disabled = maxSlots || save.resources.coreFragments < slotCost;
+  slotButton.innerHTML = `<span><small>遗物栏位</small><strong>${save.relicSlots} / ${GAME_CONFIG.relics.maxSlots}</strong><p>增加一格本局机制遗物装配空间。</p></span><b>${maxSlots ? "栏位已满" : `扩展下一格 · ${slotCost} 核心残片`}</b>`;
   slotButton.addEventListener("click", () => {
     if (!buyRelicSlot(save)) return;
     save = writeSave(save);
@@ -728,8 +720,8 @@ function renderRelicResearch() {
     button.type = "button";
     button.className = "relic-research-card";
     button.dataset.relic = key;
-    button.disabled = unlocked || save.resources.emberShards < cost;
-    button.innerHTML = `<img src="${meta.art}" alt="" aria-hidden="true"><span><small>${meta.type}</small><strong>${meta.name}</strong><p>${meta.description}</p><b>${unlocked ? "已解锁 · 已加入战局池" : `解锁 · ${cost} 余烬碎片`}</b></span>`;
+    button.disabled = unlocked || save.resources.echoShards < cost;
+    button.innerHTML = `<img src="${meta.art}" alt="" aria-hidden="true"><span><small>${meta.type}</small><strong>${meta.name}</strong><p>${meta.description}</p><b>${unlocked ? "已解锁 · 已加入战局池" : `解锁 · ${cost} 遗响碎片`}</b></span>`;
     button.addEventListener("click", () => {
       if (!buyRelicUnlock(save, key)) return;
       save = writeSave(save);
@@ -959,7 +951,7 @@ function handleEvents(events) {
     else if (event.type === "droneDepleted") { renderer.trigger("droneDepleted"); announce("无人机电量耗尽 · 强制返航"); }
     else if (event.type === "droneIntercept") { renderer.trigger("droneIntercept"); announce("拦截协议 · 重击无效"); }
     else if (event.type === "eliteMarked") renderer.trigger("eliteMarked");
-    else if (event.type === "permanentResourceCollected") { commitPermanentDrop(event); audio.play("coin"); showToast(`${event.resourceType === "core" ? "核心残片" : event.resourceType === "ember" ? "余烬碎片" : event.resourceType === "emberCore" ? "余烬核心" : "遗响碎片"} +${event.value}`); }
+    else if (event.type === "permanentResourceCollected") { commitPermanentDrop(event); audio.play("coin"); showToast(`${event.resourceType === "core" ? "核心残片" : "遗响碎片"} +${event.value}`); }
     else if (event.type === "relicWard") showToast(`棱镜护佑 · 护盾 +${Math.round(event.value)}`);
     else if (event.type === "relicFrostbloom") renderer.trigger("targetProtocol");
     else if (event.type === "relicGilded") showToast(`拾金脉冲 · 额外金币 +${event.value}`);
@@ -1234,8 +1226,6 @@ function settleRun(stardust) {
   dom.resultStardust.textContent = `+${stardust}`;
   dom.resultEchoShards.textContent = `+${state.stats.echoShards ?? 0}`;
   dom.resultCoreFragments.textContent = `+${(state.stats.coreFragments ?? 0) + firstFailureCoreGift}`;
-  dom.resultEmberShards.textContent = `+${state.stats.emberShards ?? 0}`;
-  dom.resultEmberCores.textContent = `+${state.stats.emberCores ?? 0}`;
   dom.resultScore.textContent = formatScore(currentRunScore.total);
   dom.resultCombatScore.textContent = formatNumber(currentRunScore.combat);
   dom.resultCoinScore.textContent = `${Math.floor(state.coins)} × ${GAME_CONFIG.score.coinMultiplier} = ${formatNumber(currentRunScore.coinBonus)}`;

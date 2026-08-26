@@ -449,32 +449,15 @@ export class Renderer {
       const x = drop.renderX ?? drop.x;
       const y = drop.renderY ?? drop.y;
       const core = drop.resourceType === "core";
-      const ember = drop.resourceType === "ember";
-      const emberCore = drop.resourceType === "emberCore";
-      const image = core ? this.assets.coreFragment : (ember || emberCore) ? null : this.assets.echoShard;
-      const size = core ? 52 : emberCore ? 48 : ember ? 39 : 43;
+      const image = core ? this.assets.coreFragment : this.assets.echoShard;
+      const size = core ? 52 : 43;
       ctx.save();
       ctx.translate(x, y);
-      const pulse = 1 + Math.sin(this.time * (core ? 3.2 : emberCore ? 3.7 : ember ? 5.1 : 4.2) + drop.phase) * .06;
+      const pulse = 1 + Math.sin(this.time * (core ? 3.2 : 4.2) + drop.phase) * .06;
       ctx.scale(pulse, pulse);
-      ctx.shadowColor = core ? "#ff85d8" : emberCore ? "#ffd76d" : ember ? "#ff7248" : "#79eaff";
-      ctx.shadowBlur = core || emberCore ? 22 : 15;
+      ctx.shadowColor = core ? "#ff85d8" : "#79eaff";
+      ctx.shadowBlur = core ? 22 : 15;
       if (imageReady(image)) ctx.drawImage(image, -size / 2, -size / 2, size, size);
-      else if (ember || emberCore) {
-        if (emberCore) {
-          ctx.rotate(Math.PI / 4);
-          ctx.fillStyle = "#6d203b";
-          ctx.fillRect(-15, -15, 30, 30);
-          ctx.fillStyle = "#ffb94f";
-          ctx.fillRect(-10, -10, 20, 20);
-          ctx.rotate(-Math.PI / 4);
-        }
-        ctx.fillStyle = emberCore ? "#fff2a4" : "#ffb04f";
-        ctx.beginPath();
-        ctx.moveTo(0, -18); ctx.lineTo(12, -4); ctx.lineTo(9, 14); ctx.lineTo(0, 19); ctx.lineTo(-11, 10); ctx.lineTo(-13, -5); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = emberCore ? "#ff753f" : "#fff0a2";
-        ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(6, 2); ctx.lineTo(1, 12); ctx.lineTo(-5, 4); ctx.closePath(); ctx.fill();
-      }
       else {
         ctx.fillStyle = core ? "#ffd3f5" : "#a8f6ff";
         ctx.rotate(Math.PI / 4);
@@ -482,8 +465,8 @@ export class Renderer {
       }
       ctx.rotate(-Math.PI / 4);
       ctx.globalAlpha = .55 + Math.sin(this.time * 4 + drop.phase) * .2;
-      ctx.strokeStyle = core ? "#ffc6ed" : emberCore ? "#ffe48f" : ember ? "#ffb071" : "#9af4ff";
-      ctx.lineWidth = core || emberCore ? 2 : 1.25;
+      ctx.strokeStyle = core ? "#ffc6ed" : "#9af4ff";
+      ctx.lineWidth = core ? 2 : 1.25;
       ctx.beginPath(); ctx.arc(0, 0, size * .55, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
       if (drop.value > 1) {

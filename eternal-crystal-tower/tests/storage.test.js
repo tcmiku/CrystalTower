@@ -109,36 +109,35 @@ test("首次失败只解锁一次核心残响并开启大本营", () => {
   assert.equal(save.baseCamp.recoverySeen, true);
 });
 
-test("四类永久资源按类型安全累积", () => {
+test("两类永久资源按类型安全累积", () => {
   const save = defaultSave();
   assert.equal(grantPermanentResource(save, "echo", 4), true);
   assert.equal(grantPermanentResource(save, "core", 2), true);
-  assert.equal(grantPermanentResource(save, "ember", 6), true);
-  assert.equal(grantPermanentResource(save, "emberCore", 3), true);
-  assert.deepEqual(save.resources, { echoShards: 4, coreFragments: 2, emberShards: 6, emberCores: 3 });
+  assert.equal(grantPermanentResource(save, "unknown", 6), false);
+  assert.deepEqual(save.resources, { echoShards: 4, coreFragments: 2 });
 });
 
-test("研究舱消耗余烬碎片并永久解锁临时遗物", () => {
+test("研究舱消耗遗响碎片并永久解锁临时遗物", () => {
   const save = defaultSave();
-  save.resources.emberShards = 5;
+  save.resources.echoShards = 5;
   assert.equal(save.relicUnlocks.ward, true);
   assert.equal(buyRelicUnlock(save, "ward"), false);
   assert.equal(buyRelicUnlock(save, "decoy"), true);
-  assert.equal(save.resources.emberShards, 2);
+  assert.equal(save.resources.echoShards, 2);
   assert.equal(save.relicUnlocks.decoy, true);
   assert.equal(buyRelicUnlock(save, "stormglass"), false);
   assert.equal(sanitizeSave(save).relicUnlocks.ward, true);
 });
 
-test("遗物栏位初始一格并消耗余烬核心逐步扩展至四格", () => {
+test("遗物栏位初始一格并消耗核心残片逐步扩展至四格", () => {
   const save = defaultSave();
   assert.equal(save.relicSlots, 1);
-  save.resources.emberCores = 13;
+  save.resources.coreFragments = 13;
   assert.equal(buyRelicSlot(save), true);
-  assert.deepEqual([save.relicSlots, save.resources.emberCores], [2, 11]);
+  assert.deepEqual([save.relicSlots, save.resources.coreFragments], [2, 11]);
   assert.equal(buyRelicSlot(save), true);
-  assert.deepEqual([save.relicSlots, save.resources.emberCores], [3, 7]);
+  assert.deepEqual([save.relicSlots, save.resources.coreFragments], [3, 7]);
   assert.equal(buyRelicSlot(save), true);
-  assert.deepEqual([save.relicSlots, save.resources.emberCores], [4, 0]);
+  assert.deepEqual([save.relicSlots, save.resources.coreFragments], [4, 0]);
   assert.equal(buyRelicSlot(save), false);
 });

@@ -77,7 +77,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     elementFx: [],
     floaters: [],
     events: [],
-    stats: { kills: 0, bossKills: 0, highestThreat: 1, score: 0, echoShards: 0, coreFragments: 0, emberShards: 0, emberCores: 0 }
+    stats: { kills: 0, bossKills: 0, highestThreat: 1, score: 0, echoShards: 0, coreFragments: 0 }
   };
   state.tower.hp = getTowerStats(state).maxHp;
   return state;
@@ -731,7 +731,8 @@ function updateEmberZones(state, dt) {
   state.emberZones = state.emberZones.filter((zone) => zone.life > 0);
 }
 export function spawnPermanentResourceDrop(state, resourceType, value = 1, x = GAME_CONFIG.arena.centerX, y = GAME_CONFIG.arena.centerY, metadata = {}) {
-  if (!(["echo", "core", "ember", "emberCore"].includes(resourceType)) || value <= 0) return null;
+  if (resourceType !== "echo" && resourceType !== "core") return null;
+  if (value <= 0) return null;
   const dropValue = Math.max(1, Math.floor(value));
   if (state.resourceDrops.length >= GAME_CONFIG.permanentResources.maxDrops) {
     const target = state.resourceDrops
@@ -775,16 +776,14 @@ export function collectPermanentResourceAt(state, x, y, clickRadius = GAME_CONFI
   if (bestIndex < 0) return null;
   const [drop] = state.resourceDrops.splice(bestIndex, 1);
   if (drop.resourceType === "echo") state.stats.echoShards += drop.value;
-  else if (drop.resourceType === "core") state.stats.coreFragments += drop.value;
-  else if (drop.resourceType === "ember") state.stats.emberShards += drop.value;
-  else state.stats.emberCores += drop.value;
-  const resourceName = drop.resourceType === "echo" ? "遗响碎片" : drop.resourceType === "core" ? "核心残片" : drop.resourceType === "ember" ? "余烬碎片" : "余烬核心";
+  else state.stats.coreFragments += drop.value;
+  const resourceName = drop.resourceType === "echo" ? "遗响碎片" : "核心残片";
   state.floaters.push({
     x: drop.x,
     y: drop.y - 18,
     text: `${resourceName} +${drop.value}`,
     life: 1.15,
-    color: drop.resourceType === "echo" ? "#8eefff" : drop.resourceType === "core" ? "#ffd477" : drop.resourceType === "ember" ? "#ff9b62" : "#fff0a4"
+    color: drop.resourceType === "echo" ? "#8eefff" : "#ffd477"
   });
   state.events.push({ type: "permanentResourceCollected", resourceType: drop.resourceType, value: drop.value, source: drop.source, threatLevel: drop.threatLevel });
   return drop;
@@ -851,14 +850,11 @@ function resolveDeaths(state) {
     }
     if (enemy.elite) {
       spawnPermanentResourceDrop(state, "echo", GAME_CONFIG.permanentResources.eliteEcho, enemy.x - 10, enemy.y, { source: "elite" });
-      spawnPermanentResourceDrop(state, "ember", GAME_CONFIG.permanentResources.eliteEmber, enemy.x + 14, enemy.y, { source: "elite" });
       if (enemy.waveElite) offerRelicChoice(state, "eliteWave");
     }
     if (isBossEnemy(enemy)) {
       state.stats.bossKills += 1;
       spawnPermanentResourceDrop(state, "core", enemy.type === "colossus" ? GAME_CONFIG.permanentResources.colossusCore : GAME_CONFIG.permanentResources.bossCore, enemy.x, enemy.y, { source: enemy.type });
-      spawnPermanentResourceDrop(state, "ember", enemy.type === "colossus" ? GAME_CONFIG.permanentResources.colossusEmber : GAME_CONFIG.permanentResources.bossEmber, enemy.x + 18, enemy.y + 8, { source: enemy.type });
-      spawnPermanentResourceDrop(state, "emberCore", enemy.type === "colossus" ? GAME_CONFIG.permanentResources.colossusEmberCore : GAME_CONFIG.permanentResources.bossEmberCore, enemy.x - 20, enemy.y + 12, { source: enemy.type });
       if (enemy.type === "boss") {
         for (const anchor of bossAnchors(state, enemy)) anchor.deadHandled = true;
         offerRelicChoice(state, "boss");
@@ -1903,6 +1899,6 @@ export function snapshotState(state) {
     relics: { owned: { ...state.relics.owned }, available: [...state.relics.available], slots: state.relics.slots, picks: state.relics.picks, damageBonus: Number(state.relics.damageBonus.toFixed(3)), rateBonus: Number(state.relics.rateBonus.toFixed(3)), mirrorShots: state.relics.mirrorShots, wardKills: state.relics.wardKills, phaseBuff: Number(state.relics.phaseBuff.toFixed(3)), choice: state.relicChoice?.choices ?? null },
     decoys: state.decoys.map((decoy) => [Number(decoy.x.toFixed(2)), Number(decoy.y.toFixed(2)), Number(decoy.hp.toFixed(2)), decoy.waveIndex]),
     emberZones: state.emberZones.map((zone) => [Number(zone.x.toFixed(2)), Number(zone.y.toFixed(2)), Number(zone.life.toFixed(2))]),
-    kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, permanentResources: [state.stats.echoShards, state.stats.coreFragments, state.stats.emberShards, state.stats.emberCores], wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over
+    kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, permanentResources: [state.stats.echoShards, state.stats.coreFragments], wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over
   };
 }

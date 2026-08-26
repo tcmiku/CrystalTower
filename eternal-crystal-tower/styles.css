@@ -628,22 +628,16 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .basecamp-button { color: #d6f8ff; border-color: rgba(115,233,255,.3); background: radial-gradient(circle at 50% 35%, rgba(91,224,255,.22), rgba(52,31,103,.18)); }
 .permanent-resource-hud { position: absolute; z-index: 7; top: 12px; left: 12px; display: flex; gap: 7px; pointer-events: none; }
 .permanent-resource-hud > span, .basecamp-wallet > span { min-width: 76px; min-height: 35px; padding: 5px 9px 5px 34px; position: relative; display: grid; grid-template-columns: 1fr; border: 1px solid rgba(255,255,255,.11); border-radius: 11px; background: rgba(5,7,25,.76); box-shadow: 0 8px 24px rgba(0,0,0,.22); }
-.permanent-resource-hud i, .basecamp-wallet .echo-resource i, .basecamp-wallet .core-resource i, .basecamp-wallet .ember-resource i, .basecamp-wallet .ember-core-resource i { position: absolute; left: 4px; top: 50%; width: 28px; height: 28px; transform: translateY(-50%); background: center / contain no-repeat; filter: drop-shadow(0 0 7px currentColor); }
+.permanent-resource-hud i, .basecamp-wallet .echo-resource i, .basecamp-wallet .core-resource i { position: absolute; left: 4px; top: 50%; width: 28px; height: 28px; transform: translateY(-50%); background: center / contain no-repeat; filter: drop-shadow(0 0 7px currentColor); }
 .echo-resource { color: #8eefff; }
 .core-resource { color: #ffd0ef; }
-.ember-resource { color: #ff9b62; }
-.ember-core-resource { color: #ffe28a; }
 .echo-resource i { background-image: url('./assets/generated/resource-echo-shard-ai.png') !important; }
 .core-resource i { background-image: url('./assets/generated/resource-core-fragment-ai.png') !important; }
-.ember-resource i { border-radius: 45% 55% 48% 52%; background: radial-gradient(circle at 45% 38%,#fff2ad 0 9%,#ff9b45 10% 30%,#a52b45 31% 55%,#351136 56% 100%) !important; clip-path: polygon(50% 0,78% 20%,93% 55%,65% 100%,30% 88%,5% 52%,22% 18%); }
-.ember-core-resource i { background: radial-gradient(circle,#fff6b2 0 13%,#ff9d45 14% 35%,#76233f 36% 58%,transparent 59%), conic-gradient(from 22.5deg,#ffe289,#6f2949,#ffb35d,#6f2949,#ffe289) !important; clip-path: polygon(50% 0,85% 15%,100% 50%,85% 85%,50% 100%,15% 85%,0 50%,15% 15%); }
 .permanent-resource-hud small, .basecamp-wallet small { color: rgba(231,235,255,.62); font-size: 7px; letter-spacing: .12em; }
 .permanent-resource-hud b, .basecamp-wallet b { color: currentColor; font: 800 11px ui-monospace, monospace; }
 .run-results { grid-template-columns: repeat(6, 1fr); }
 .echo-result strong { color: #8eefff !important; }
 .core-result strong { color: #ffd0ef !important; }
-.ember-result strong { color: #ff9b62 !important; }
-.ember-core-result strong { color: #ffe28a !important; }
 .basecamp-entry-button { flex: 1; border: 1px solid rgba(144,226,255,.34); border-radius: 12px; color: #dffaff; background: linear-gradient(120deg, rgba(51,170,207,.2), rgba(124,82,207,.22)); font-weight: 800; cursor: pointer; }
 
 .recovery-modal { background: radial-gradient(circle at 50% 50%, rgba(80,57,151,.3), rgba(1,2,12,.93)); }

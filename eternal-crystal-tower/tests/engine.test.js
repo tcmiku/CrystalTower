@@ -1382,7 +1382,7 @@ test("雷脉导体、断罪刻印和逆时沙漏分别强化雷链、斩杀与�
   assert.equal(Number(time.skills.starfall.cooldown.toFixed(2)), Number((10 - GAME_CONFIG.relics.hourglass.cooldownRateMultiplier).toFixed(2)));
 });
 
-test("拾金脉冲可复制金币价值，余烬碎片可在战场点击收集", () => {
+test("拾金脉冲可复制金币价值，遗响碎片可在战场点击收集", () => {
   const state = createGameState(9506, undefined, { gilded: true });
   state.relics.owned.gilded = true; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   state.rng.next = () => 0;
@@ -1391,14 +1391,7 @@ test("拾金脉冲可复制金币价值，余烬碎片可在战场点击收集",
   updateGame(state, GAME_CONFIG.coins.collectDuration + 0.01);
   assert.equal(state.coins, 35);
 
-  spawnPermanentResourceDrop(state, "ember", 3, 520, 300, { source: "elite" });
-  assert.equal(collectPermanentResourceAt(state, 520, 300)?.resourceType, "ember");
-  assert.equal(state.stats.emberShards, 3);
-});
-
-test("余烬核心可在战场点击收集并记入本轮统计", () => {
-  const state = createGameState(9507);
-  spawnPermanentResourceDrop(state, "emberCore", 2, 540, 320, { source: "boss" });
-  assert.equal(collectPermanentResourceAt(state, 540, 320)?.resourceType, "emberCore");
-  assert.equal(state.stats.emberCores, 2);
+  spawnPermanentResourceDrop(state, "echo", 3, 520, 300, { source: "elite" });
+  assert.equal(collectPermanentResourceAt(state, 520, 300)?.resourceType, "echo");
+  assert.equal(state.stats.echoShards, 3);
 });
