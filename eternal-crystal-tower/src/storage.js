@@ -6,8 +6,10 @@ export function defaultSave() {
   return {
     version: 1,
     stardust: 0,
-    resources: { echoShards: 0, coreFragments: 0 },
+    resources: { echoShards: 0, coreFragments: 0, emberShards: 0, emberCores: 0 },
     research: { damage: 0, health: 0, income: 0 },
+    relicUnlocks: Object.fromEntries(Object.keys(GAME_CONFIG.relicResearch).map((key) => [key, key === "ward"])),
+    relicSlots: GAME_CONFIG.relics.initialSlots,
     unlocks: { doubleSpeed: false },
     baseCamp: { unlocked: false, recoverySeen: false, coreEcho: false },
     settings: { muted: false, playerName: "PLAYER" },
@@ -27,9 +29,14 @@ export function sanitizeSave(candidate) {
   safe.stardust = boundedInt(candidate.stardust, 0, 1_000_000_000);
   safe.resources.echoShards = boundedInt(candidate.resources?.echoShards, 0, 1_000_000_000);
   safe.resources.coreFragments = boundedInt(candidate.resources?.coreFragments, 0, 1_000_000_000);
+  safe.resources.emberShards = boundedInt(candidate.resources?.emberShards, 0, 1_000_000_000);
+  safe.resources.emberCores = boundedInt(candidate.resources?.emberCores, 0, 1_000_000_000);
   for (const key of Object.keys(safe.research)) {
     safe.research[key] = boundedInt(candidate.research?.[key], 0, GAME_CONFIG.research.maxLevel);
   }
+  for (const key of Object.keys(safe.relicUnlocks)) safe.relicUnlocks[key] = candidate.relicUnlocks?.[key] === true;
+  safe.relicUnlocks.ward = true;
+  safe.relicSlots = boundedInt(candidate.relicSlots, GAME_CONFIG.relics.initialSlots, GAME_CONFIG.relics.maxSlots);
   safe.unlocks.doubleSpeed = candidate.unlocks?.doubleSpeed === true;
   safe.baseCamp.unlocked = candidate.baseCamp?.unlocked === true;
   safe.baseCamp.recoverySeen = safe.baseCamp.unlocked && candidate.baseCamp?.recoverySeen === true;
@@ -75,7 +82,7 @@ export function markBaseRecoverySeen(save) {
 }
 
 export function grantPermanentResource(save, type, value = 1) {
-  const key = type === "echo" ? "echoShards" : type === "core" ? "coreFragments" : null;
+  const key = type === "echo" ? "echoShards" : type === "core" ? "coreFragments" : type === "ember" ? "emberShards" : type === "emberCore" ? "emberCores" : null;
   if (!key) return false;
   save.resources[key] = boundedInt((save.resources[key] ?? 0) + value, 0, 1_000_000_000);
   return true;
@@ -135,5 +142,23 @@ export function buyResearch(save, key) {
   if (level >= GAME_CONFIG.research.maxLevel || save.stardust < cost) return false;
   save.stardust -= cost;
   save.research[key] += 1;
+  return true;
+}
+
+export function buyRelicUnlock(save, key) {
+  const cost = GAME_CONFIG.relicResearch[key];
+  if (!Number.isFinite(cost) || save.relicUnlocks?.[key] === true || save.resources.emberShards < cost) return false;
+  save.resources.emberShards -= cost;
+  save.relicUnlocks[key] = true;
+  return true;
+}
+
+export function buyRelicSlot(save) {
+  const slots = boundedInt(save.relicSlots, GAME_CONFIG.relics.initialSlots, GAME_CONFIG.relics.maxSlots);
+  if (slots >= GAME_CONFIG.relics.maxSlots) return false;
+  const cost = GAME_CONFIG.relicSlotResearch.costs[slots - GAME_CONFIG.relics.initialSlots];
+  if (!Number.isFinite(cost) || save.resources.emberCores < cost) return false;
+  save.resources.emberCores -= cost;
+  save.relicSlots = slots + 1;
   return true;
 }

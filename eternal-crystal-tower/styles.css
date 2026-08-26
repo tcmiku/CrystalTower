@@ -628,16 +628,22 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .basecamp-button { color: #d6f8ff; border-color: rgba(115,233,255,.3); background: radial-gradient(circle at 50% 35%, rgba(91,224,255,.22), rgba(52,31,103,.18)); }
 .permanent-resource-hud { position: absolute; z-index: 7; top: 12px; left: 12px; display: flex; gap: 7px; pointer-events: none; }
 .permanent-resource-hud > span, .basecamp-wallet > span { min-width: 76px; min-height: 35px; padding: 5px 9px 5px 34px; position: relative; display: grid; grid-template-columns: 1fr; border: 1px solid rgba(255,255,255,.11); border-radius: 11px; background: rgba(5,7,25,.76); box-shadow: 0 8px 24px rgba(0,0,0,.22); }
-.permanent-resource-hud i, .basecamp-wallet .echo-resource i, .basecamp-wallet .core-resource i { position: absolute; left: 4px; top: 50%; width: 28px; height: 28px; transform: translateY(-50%); background: center / contain no-repeat; filter: drop-shadow(0 0 7px currentColor); }
+.permanent-resource-hud i, .basecamp-wallet .echo-resource i, .basecamp-wallet .core-resource i, .basecamp-wallet .ember-resource i, .basecamp-wallet .ember-core-resource i { position: absolute; left: 4px; top: 50%; width: 28px; height: 28px; transform: translateY(-50%); background: center / contain no-repeat; filter: drop-shadow(0 0 7px currentColor); }
 .echo-resource { color: #8eefff; }
 .core-resource { color: #ffd0ef; }
+.ember-resource { color: #ff9b62; }
+.ember-core-resource { color: #ffe28a; }
 .echo-resource i { background-image: url('./assets/generated/resource-echo-shard-ai.png') !important; }
 .core-resource i { background-image: url('./assets/generated/resource-core-fragment-ai.png') !important; }
+.ember-resource i { border-radius: 45% 55% 48% 52%; background: radial-gradient(circle at 45% 38%,#fff2ad 0 9%,#ff9b45 10% 30%,#a52b45 31% 55%,#351136 56% 100%) !important; clip-path: polygon(50% 0,78% 20%,93% 55%,65% 100%,30% 88%,5% 52%,22% 18%); }
+.ember-core-resource i { background: radial-gradient(circle,#fff6b2 0 13%,#ff9d45 14% 35%,#76233f 36% 58%,transparent 59%), conic-gradient(from 22.5deg,#ffe289,#6f2949,#ffb35d,#6f2949,#ffe289) !important; clip-path: polygon(50% 0,85% 15%,100% 50%,85% 85%,50% 100%,15% 85%,0 50%,15% 15%); }
 .permanent-resource-hud small, .basecamp-wallet small { color: rgba(231,235,255,.62); font-size: 7px; letter-spacing: .12em; }
 .permanent-resource-hud b, .basecamp-wallet b { color: currentColor; font: 800 11px ui-monospace, monospace; }
 .run-results { grid-template-columns: repeat(6, 1fr); }
 .echo-result strong { color: #8eefff !important; }
 .core-result strong { color: #ffd0ef !important; }
+.ember-result strong { color: #ff9b62 !important; }
+.ember-core-result strong { color: #ffe28a !important; }
 .basecamp-entry-button { flex: 1; border: 1px solid rgba(144,226,255,.34); border-radius: 12px; color: #dffaff; background: linear-gradient(120deg, rgba(51,170,207,.2), rgba(124,82,207,.22)); font-weight: 800; cursor: pointer; }
 
 .recovery-modal { background: radial-gradient(circle at 50% 50%, rgba(80,57,151,.3), rgba(1,2,12,.93)); }
@@ -672,9 +678,12 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .base-room span { color: #7feaff; font-size: 8px; letter-spacing: .14em; }
 .base-room strong { margin: 4px 0; font-size: 15px; }
 .base-room small { color: #9298bb; font-size: 9px; }
-.base-room.active { left: 13%; bottom: 15%; border-color: rgba(117,232,255,.48); box-shadow: 0 0 30px rgba(70,204,255,.12); }
+.base-room.core-room { left:13%; bottom:15%; }
+.base-room.active { border-color: rgba(117,232,255,.48); box-shadow: 0 0 30px rgba(70,204,255,.12); }
 .base-room.active::before { content: ''; position: absolute; left: 20px; right: 20px; top: -5px; height: 2px; background: #82eeff; box-shadow: 0 0 12px #82eeff; }
 .base-room.research-room { right: 12%; bottom: 17%; opacity: .75; }
+.base-room.research-room.active { left:auto; opacity:1; border-color:rgba(255,145,82,.55); box-shadow:0 0 30px rgba(255,102,63,.15); }
+.base-room.research-room.active::before { background:#ff9b62; box-shadow:0 0 12px #ff6b48; }
 .future-room { position: absolute; z-index: 2; top: 8%; right: 4%; padding: 9px 13px; border: 1px dashed rgba(255,255,255,.14); border-radius: 9px; color: #69708f; background: rgba(3,4,16,.5); }
 .future-room span, .future-room b { display: block; font-size: 8px; }
 .future-room b { margin-top: 3px; font-size: 11px; }
@@ -684,6 +693,27 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .nexus-panel .research-heading h3 { margin: 3px 0 0; font-size: 18px; }
 .nexus-panel > p { margin: 0 0 10px; color: #7d83a5; font-size: 9px; }
 .nexus-panel .research-button { min-height: 74px; }
+.relic-research-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.relic-slot-research { margin-bottom:10px; }
+.relic-slot-button { width:100%; display:flex; align-items:center; justify-content:space-between; gap:18px; padding:13px 16px; border:1px solid rgba(255,220,118,.28); border-radius:14px; color:#eef6ff; background:linear-gradient(115deg,rgba(255,145,63,.1),rgba(104,69,186,.12)); text-align:left; cursor:pointer; }
+.relic-slot-button:hover:not(:disabled) { border-color:#ffe28a; transform:translateY(-1px); box-shadow:0 9px 25px rgba(255,137,54,.1); }
+.relic-slot-button:disabled { opacity:.55; cursor:not-allowed; }
+.relic-slot-button span { min-width:0; }
+.relic-slot-button small,.relic-slot-button strong,.relic-slot-button p { display:block; }
+.relic-slot-button small { color:#ffb66f; font:800 8px ui-monospace,monospace; letter-spacing:.14em; }
+.relic-slot-button strong { margin:2px 0; font-size:20px; }
+.relic-slot-button p { margin:0; color:#9299b8; font-size:9px; }
+.relic-slot-button > b { flex:none; color:#ffe28a; font-size:11px; }
+.relic-research-card { position:relative; min-height:104px; overflow:hidden; display:grid; grid-template-columns:82px minmax(0,1fr); padding:0; border:1px solid rgba(255,151,91,.18); border-radius:13px; color:#eef6ff; background:rgba(255,111,64,.035); text-align:left; cursor:pointer; }
+.relic-research-card:hover:not(:disabled) { border-color:#ff9b62; background:rgba(255,120,65,.09); transform:translateY(-2px); }
+.relic-research-card:disabled { opacity:.52; cursor:not-allowed; }
+.relic-research-card img { width:82px; height:100%; object-fit:cover; }
+.relic-research-card > span { min-width:0; padding:9px 10px; }
+.relic-research-card small,.relic-research-card strong,.relic-research-card p,.relic-research-card b { display:block; }
+.relic-research-card small { color:#ffad79; font:800 8px ui-monospace,monospace; letter-spacing:.12em; }
+.relic-research-card strong { margin:3px 0; font-size:14px; }
+.relic-research-card p { margin:0; color:#9299b8; font-size:9px; line-height:1.45; }
+.relic-research-card b { margin-top:6px; color:#ffd08c; font-size:9px; }
 
 @media (max-width: 1024px) {
   .permanent-resource-hud { top: 7px; left: 7px; gap: 4px; }
@@ -697,11 +727,12 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .basecamp-wallet > span { flex: 1; min-width: 88px; }
   .basecamp-stage { background-position: 42% center; }
   .base-room { min-width: 160px; padding: 9px 10px; }
-  .base-room.active { left: 5%; bottom: 9%; }
+  .base-room.core-room { left: 5%; bottom: 9%; }
   .base-room.research-room { right: 5%; bottom: 11%; }
   .future-room { display: none; }
   .nexus-panel { padding: 12px max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)); }
   .nexus-panel .research-list { grid-template-columns: 1fr; }
+  .relic-research-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .run-results { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -710,6 +741,8 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .base-room { min-width: 142px; }
   .base-room strong { font-size: 13px; }
   .base-room small { max-width: 128px; }
+  .relic-research-list { grid-template-columns:1fr; }
+  .relic-slot-button { align-items:flex-start; flex-direction:column; gap:8px; }
   .recovery-card { padding: 34px 20px 26px; }
 }
 /* Run relic draft */

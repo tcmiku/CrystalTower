@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { calculateRunScore, calculateStardust, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
+import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { AudioSynth } from "./audio.js";
 import { Renderer } from "./renderer.js";
@@ -42,9 +42,15 @@ const RELIC_META = {
   lunar: { icon: "◐", art: "./assets/generated/relic-lunar-ai.png", name: "月相调律", type: "昼夜回路", description: "白昼提高金币价值，长夜增强冰霜、灼烧与雷链效果。", effect: "昼夜切换时获得 6 秒火力强化" },
   mirror: { icon: "◇", art: "./assets/generated/relic-mirror-ai.png", name: "镜面裂片", type: "晶矢回路", description: "每 5 次普通攻击，下一枚晶矢折射至第二个目标。", effect: "首领作为当前目标时不会折射" },
   ember: { icon: "♨", art: "./assets/generated/relic-ember-ai.png", name: "余烬回收", type: "燃烧回路", description: "灼烧或爆炸击杀会留下伤害区域，持续烧灼经过的敌人。", effect: "代价：余烬区内金币更快消失" },
-  "boost:damage": { icon: "✦", art: "./assets/generated/relic-boost-ai.png", name: "晶矢增幅", type: "回路强化", description: "模块槽已满，将过载能量直接灌注主炮。", effect: "本局攻击力 +18% · 可重复" },
-  "boost:rate": { icon: "⌁", art: "./assets/generated/relic-boost-ai.png", name: "咏唱增幅", type: "回路强化", description: "模块槽已满，缩短自动攻击的咏唱间隔。", effect: "本局攻击速度 +12% · 可重复" },
-  "boost:hybrid": { icon: "✧", art: "./assets/generated/relic-boost-ai.png", name: "双相增幅", type: "回路强化", description: "模块槽已满，以均衡方式扩展晶塔输出。", effect: "本局攻击力 +9% · 攻速 +6%" }
+  ward: { icon: "⬡", art: "./assets/generated/relic-decoy-ai.png", name: "棱镜护佑", type: "防御回路", description: "每击杀 20 名敌人，晶塔获得一层可累积的棱镜护盾。", effect: "护盾最多达到生命上限的 50%" },
+  frostbloom: { icon: "❉", art: "./assets/generated/relic-mirror-ai.png", name: "霜葬花冠", type: "冰霜回路", description: "冻结敌人死亡时绽放霜爆，伤害并冻结附近敌人。", effect: "连锁冻结 · 范围 105" },
+  stormglass: { icon: "ϟ", art: "./assets/generated/relic-lunar-ai.png", name: "雷脉导体", type: "雷链回路", description: "雷电晶矢的连锁范围扩大，并额外寻找两个目标。", effect: "雷链距离 +20% · 额外 2 跳" },
+  gilded: { icon: "¤", art: "./assets/generated/relic-boost-ai.png", name: "拾金脉冲", type: "经济回路", description: "金币回到晶塔时有概率触发共振，额外复制部分价值。", effect: "24% 概率额外获得 75% 金币" },
+  execution: { icon: "✥", art: "./assets/generated/relic-ember-ai.png", name: "断罪刻印", type: "猎杀回路", description: "对生命低于 35% 的敌人造成更高伤害，包括首领。", effect: "残血目标伤害 +40%" },
+  hourglass: { icon: "⌛", art: "./assets/generated/relic-lunar-ai.png", name: "逆时沙漏", type: "时序回路", description: "战术技能的冷却时间以更快速度恢复。", effect: "Q / W / E / F 冷却恢复 +22%" },
+  "boost:damage": { icon: "✦", art: "./assets/generated/relic-boost-ai.png", name: "晶矢增幅", type: "缺口强化", description: "栏位多于已解锁遗物，将富余能量灌注主炮。", effect: "本局攻击力 +8% · 可重复" },
+  "boost:rate": { icon: "⌁", art: "./assets/generated/relic-boost-ai.png", name: "咏唱增幅", type: "缺口强化", description: "栏位多于已解锁遗物，以富余能量缩短咏唱。", effect: "本局攻击速度 +6% · 可重复" },
+  "boost:hybrid": { icon: "✧", art: "./assets/generated/relic-boost-ai.png", name: "双相增幅", type: "缺口强化", description: "栏位多于已解锁遗物，将富余能量均衡分配。", effect: "本局攻击力 +4% · 攻速 +3%" }
 };
 const RELIC_SOURCE_TEXT = {
   eliteWave: "怪潮精英已被肃清，选择一项回路继续守望。",
@@ -87,15 +93,15 @@ const dom = Object.fromEntries([
   "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
   "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
-  "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
-  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "coreNexusRoom", "researchBayRoom", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments",
+  "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "battleEmberShardText", "battleEmberCoreText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
+  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampEmberShardText", "baseCampEmberCoreText", "baseCampStardustText", "coreNexusRoom", "researchBayRoom", "nexusPanel", "relicResearchPanel", "relicResearchList", "relicResearchEmberText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "resultEmberShards", "resultEmberCores",
   "relicRunHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList"
 ].map((id) => [id, document.getElementById(id)]));
 
 let save = loadSave();
 let runIndex = 0;
 const baseSeed = seedFromUrl(location.search);
-let state = createGameState(baseSeed, save.research);
+let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots);
 const previewMode = new URLSearchParams(location.search).get("preview");
 if (previewMode === "wave-warning") state.time = GAME_CONFIG.waves.firstAt - GAME_CONFIG.waves.warning - 0.35;
 if (previewMode === "wave") state.time = GAME_CONFIG.waves.firstAt - 0.35;
@@ -179,14 +185,18 @@ if (previewMode === "resources") {
   state.wave.nextAt = 999;
   spawnPermanentResourceDrop(state, "echo", 3, 390, 300, { source: "elite" });
   spawnPermanentResourceDrop(state, "core", 1, 580, 315, { source: "boss" });
+  spawnPermanentResourceDrop(state, "ember", 4, 485, 410, { source: "boss" });
+  spawnPermanentResourceDrop(state, "emberCore", 1, 535, 420, { source: "boss" });
   state.paused = true;
 }
-if (previewMode === "basecamp" || previewMode === "recovery") {
+if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "recovery") {
   save.baseCamp.unlocked = true;
   save.baseCamp.coreEcho = true;
-  save.baseCamp.recoverySeen = previewMode === "basecamp";
+  save.baseCamp.recoverySeen = previewMode === "basecamp" || previewMode === "relic-research";
   save.resources.echoShards = Math.max(save.resources.echoShards, 42);
   save.resources.coreFragments = Math.max(save.resources.coreFragments, 7);
+  save.resources.emberShards = Math.max(save.resources.emberShards, 28);
+  save.resources.emberCores = Math.max(save.resources.emberCores, 9);
 }
 if (previewMode === "elements" || previewMode === "element-tech") {
   state.threat = 9;
@@ -373,6 +383,7 @@ let resumeAfterTechTree = false;
 let leaderboardModalOpen = false;
 let resumeAfterLeaderboard = false;
 let baseCampOpen = false;
+let baseCampRoom = "nexus";
 let resumeAfterBaseCamp = false;
 let relicChoiceOpen = false;
 let resumeAfterRelicChoice = false;
@@ -564,17 +575,36 @@ function setLeaderboardOpen(open, restoreFocus = false) {
 function updatePermanentResourceUi() {
   const echo = formatNumber(save.resources.echoShards);
   const core = formatNumber(save.resources.coreFragments);
+  const ember = formatNumber(save.resources.emberShards);
+  const emberCore = formatNumber(save.resources.emberCores);
   dom.battleEchoShardText.textContent = echo;
   dom.battleCoreFragmentText.textContent = core;
+  dom.battleEmberShardText.textContent = ember;
+  dom.battleEmberCoreText.textContent = emberCore;
   dom.baseCampEchoShardText.textContent = echo;
   dom.baseCampCoreFragmentText.textContent = core;
+  dom.baseCampEmberShardText.textContent = ember;
+  dom.baseCampEmberCoreText.textContent = emberCore;
   dom.baseCampStardustText.textContent = formatNumber(save.stardust);
+  dom.relicResearchEmberText.textContent = ember;
+  dom.relicResearchCoreText.textContent = emberCore;
   dom.openBaseCampButton.classList.toggle("hidden", !save.baseCamp.unlocked);
 }
 
 function renderBaseCamp() {
   updatePermanentResourceUi();
   renderResearch();
+  renderRelicResearch();
+  setBaseCampRoom(baseCampRoom);
+}
+
+function setBaseCampRoom(room) {
+  baseCampRoom = room === "relics" ? "relics" : "nexus";
+  const relicsOpen = baseCampRoom === "relics";
+  dom.nexusPanel.classList.toggle("hidden", relicsOpen);
+  dom.relicResearchPanel.classList.toggle("hidden", !relicsOpen);
+  dom.coreNexusRoom.classList.toggle("active", !relicsOpen);
+  dom.researchBayRoom.classList.toggle("active", relicsOpen);
 }
 
 function setBaseCampOpen(open, restoreFocus = false) {
@@ -667,6 +697,48 @@ function renderResearch() {
       renderResearch();
     });
     dom.researchList.append(button);
+  }
+}
+
+function renderRelicResearch() {
+  dom.relicResearchEmberText.textContent = formatNumber(save.resources.emberShards);
+  dom.relicResearchCoreText.textContent = formatNumber(save.resources.emberCores);
+  dom.relicSlotResearch.replaceChildren();
+  const slotButton = document.createElement("button");
+  const maxSlots = save.relicSlots >= GAME_CONFIG.relics.maxSlots;
+  const slotCost = maxSlots ? 0 : GAME_CONFIG.relicSlotResearch.costs[save.relicSlots - GAME_CONFIG.relics.initialSlots];
+  slotButton.type = "button";
+  slotButton.className = "relic-slot-button";
+  slotButton.disabled = maxSlots || save.resources.emberCores < slotCost;
+  slotButton.innerHTML = `<span><small>遗物栏位</small><strong>${save.relicSlots} / ${GAME_CONFIG.relics.maxSlots}</strong><p>增加一格本局机制遗物装配空间。</p></span><b>${maxSlots ? "栏位已满" : `扩展下一格 · ${slotCost} 余烬核心`}</b>`;
+  slotButton.addEventListener("click", () => {
+    if (!buyRelicSlot(save)) return;
+    save = writeSave(save);
+    state.relics.slots = save.relicSlots;
+    audio.play("purchase");
+    showToast(`临时遗物栏位扩展至 ${save.relicSlots} 格`);
+    renderBaseCamp();
+  });
+  dom.relicSlotResearch.append(slotButton);
+  dom.relicResearchList.replaceChildren();
+  for (const [key, cost] of Object.entries(GAME_CONFIG.relicResearch)) {
+    const meta = RELIC_META[key];
+    const unlocked = save.relicUnlocks[key] === true;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "relic-research-card";
+    button.dataset.relic = key;
+    button.disabled = unlocked || save.resources.emberShards < cost;
+    button.innerHTML = `<img src="${meta.art}" alt="" aria-hidden="true"><span><small>${meta.type}</small><strong>${meta.name}</strong><p>${meta.description}</p><b>${unlocked ? "已解锁 · 已加入战局池" : `解锁 · ${cost} 余烬碎片`}</b></span>`;
+    button.addEventListener("click", () => {
+      if (!buyRelicUnlock(save, key)) return;
+      save = writeSave(save);
+      state.relics.available = Object.entries(save.relicUnlocks).filter(([, active]) => active).map(([id]) => id);
+      audio.play("purchase");
+      showToast(`${meta.name} · 已加入临时遗物池`);
+      renderBaseCamp();
+    });
+    dom.relicResearchList.append(button);
   }
 }
 
@@ -795,9 +867,10 @@ function renderRelicHud() {
 function renderRelicChoice() {
   if (!state.relicChoice) return;
   dom.relicChoiceSource.textContent = RELIC_SOURCE_TEXT[state.relicChoice.source] ?? "回收一项战场模块。";
-  dom.relicChoiceSlots.textContent = state.relics.picks >= GAME_CONFIG.relics.maxModules
-    ? "模块已满 · 强化回路"
-    : `模块 ${state.relics.picks} / ${GAME_CONFIG.relics.maxModules}`;
+  const numericOnly = state.relicChoice.choices.every((id) => id.startsWith("boost:"));
+  dom.relicChoiceSlots.textContent = numericOnly
+    ? `栏位缺口 · 数值强化`
+    : `模块 ${state.relics.picks} / ${state.relics.slots}`;
   dom.relicChoiceList.replaceChildren();
   state.relicChoice.choices.forEach((id, index) => {
     const meta = RELIC_META[id];
@@ -886,7 +959,10 @@ function handleEvents(events) {
     else if (event.type === "droneDepleted") { renderer.trigger("droneDepleted"); announce("无人机电量耗尽 · 强制返航"); }
     else if (event.type === "droneIntercept") { renderer.trigger("droneIntercept"); announce("拦截协议 · 重击无效"); }
     else if (event.type === "eliteMarked") renderer.trigger("eliteMarked");
-    else if (event.type === "permanentResourceCollected") { commitPermanentDrop(event); audio.play("coin"); showToast(`${event.resourceType === "core" ? "核心残片" : "遗响碎片"} +${event.value}`); }
+    else if (event.type === "permanentResourceCollected") { commitPermanentDrop(event); audio.play("coin"); showToast(`${event.resourceType === "core" ? "核心残片" : event.resourceType === "ember" ? "余烬碎片" : event.resourceType === "emberCore" ? "余烬核心" : "遗响碎片"} +${event.value}`); }
+    else if (event.type === "relicWard") showToast(`棱镜护佑 · 护盾 +${Math.round(event.value)}`);
+    else if (event.type === "relicFrostbloom") renderer.trigger("targetProtocol");
+    else if (event.type === "relicGilded") showToast(`拾金脉冲 · 额外金币 +${event.value}`);
     else if (event.type === "threat") { announce(event.level === GAME_CONFIG.colossus.spawnThreat ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
     else if (event.type === "phase") { audio.play("phase"); announce(event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场"); }
     else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce("侦测到大规模怪潮"); }
@@ -1158,6 +1234,8 @@ function settleRun(stardust) {
   dom.resultStardust.textContent = `+${stardust}`;
   dom.resultEchoShards.textContent = `+${state.stats.echoShards ?? 0}`;
   dom.resultCoreFragments.textContent = `+${(state.stats.coreFragments ?? 0) + firstFailureCoreGift}`;
+  dom.resultEmberShards.textContent = `+${state.stats.emberShards ?? 0}`;
+  dom.resultEmberCores.textContent = `+${state.stats.emberCores ?? 0}`;
   dom.resultScore.textContent = formatScore(currentRunScore.total);
   dom.resultCombatScore.textContent = formatNumber(currentRunScore.combat);
   dom.resultCoinScore.textContent = `${Math.floor(state.coins)} × ${GAME_CONFIG.score.coinMultiplier} = ${formatNumber(currentRunScore.coinBonus)}`;
@@ -1221,7 +1299,7 @@ function restart() {
   relicHudSignature = "";
   dom.relicChoiceModal.classList.add("hidden");
   runIndex += 1;
-  state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research);
+  state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots);
   runSettled = false;
   scoreSubmitted = false;
   currentRunScore = null;
@@ -1314,6 +1392,8 @@ document.addEventListener("keydown", (event) => {
 });
 dom.openBaseCampButton.addEventListener("click", () => setBaseCampOpen(true));
 dom.openBaseCampFromGameOver.addEventListener("click", () => setBaseCampOpen(true));
+dom.coreNexusRoom.addEventListener("click", () => setBaseCampRoom("nexus"));
+dom.researchBayRoom.addEventListener("click", () => setBaseCampRoom("relics"));
 dom.closeBaseCampButton.addEventListener("click", () => setBaseCampOpen(false, true));
 dom.baseCampModal.addEventListener("pointerdown", (event) => { if (event.target === dom.baseCampModal) setBaseCampOpen(false, true); });
 dom.recoveryContinueButton.addEventListener("click", advanceBaseRecoveryEvent);
@@ -1395,7 +1475,10 @@ dom.clearSaveButton.addEventListener("click", () => {
 
 document.addEventListener("pointerdown", () => audio.unlock(), { once: true });
 revealGameWhenReady().then(() => {
-  if (previewMode === "basecamp") setBaseCampOpen(true);
+  if (previewMode === "basecamp" || previewMode === "relic-research") {
+    if (previewMode === "relic-research") baseCampRoom = "relics";
+    setBaseCampOpen(true);
+  }
   else if (previewMode === "recovery" || (save.baseCamp.unlocked && !save.baseCamp.recoverySeen)) showBaseRecoveryEvent();
 });
 

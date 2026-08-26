@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
+import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -109,9 +109,36 @@ test("首次失败只解锁一次核心残响并开启大本营", () => {
   assert.equal(save.baseCamp.recoverySeen, true);
 });
 
-test("两类永久资源按类型安全累积", () => {
+test("四类永久资源按类型安全累积", () => {
   const save = defaultSave();
   assert.equal(grantPermanentResource(save, "echo", 4), true);
   assert.equal(grantPermanentResource(save, "core", 2), true);
-  assert.deepEqual(save.resources, { echoShards: 4, coreFragments: 2 });
+  assert.equal(grantPermanentResource(save, "ember", 6), true);
+  assert.equal(grantPermanentResource(save, "emberCore", 3), true);
+  assert.deepEqual(save.resources, { echoShards: 4, coreFragments: 2, emberShards: 6, emberCores: 3 });
+});
+
+test("研究舱消耗余烬碎片并永久解锁临时遗物", () => {
+  const save = defaultSave();
+  save.resources.emberShards = 5;
+  assert.equal(save.relicUnlocks.ward, true);
+  assert.equal(buyRelicUnlock(save, "ward"), false);
+  assert.equal(buyRelicUnlock(save, "decoy"), true);
+  assert.equal(save.resources.emberShards, 2);
+  assert.equal(save.relicUnlocks.decoy, true);
+  assert.equal(buyRelicUnlock(save, "stormglass"), false);
+  assert.equal(sanitizeSave(save).relicUnlocks.ward, true);
+});
+
+test("遗物栏位初始一格并消耗余烬核心逐步扩展至四格", () => {
+  const save = defaultSave();
+  assert.equal(save.relicSlots, 1);
+  save.resources.emberCores = 13;
+  assert.equal(buyRelicSlot(save), true);
+  assert.deepEqual([save.relicSlots, save.resources.emberCores], [2, 11]);
+  assert.equal(buyRelicSlot(save), true);
+  assert.deepEqual([save.relicSlots, save.resources.emberCores], [3, 7]);
+  assert.equal(buyRelicSlot(save), true);
+  assert.deepEqual([save.relicSlots, save.resources.emberCores], [4, 0]);
+  assert.equal(buyRelicSlot(save), false);
 });

@@ -15,7 +15,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
     "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
     "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
     "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
-    "openBaseCampButton", "baseRecoveryModal", "recoveryContinueButton", "baseCampModal", "closeBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseCampEchoShardText", "baseCampCoreFragmentText", "openBaseCampFromGameOver"
+    "openBaseCampButton", "baseRecoveryModal", "recoveryContinueButton", "baseCampModal", "closeBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "battleEmberShardText", "battleEmberCoreText", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampEmberShardText", "baseCampEmberCoreText", "researchBayRoom", "relicResearchPanel", "relicResearchList", "relicResearchEmberText", "relicResearchCoreText", "relicSlotResearch", "resultEmberShards", "resultEmberCores", "openBaseCampFromGameOver"
   ];
   for (const id of requiredIds) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.doesNotMatch(html, /(?:src|href)=["']https?:\/\//i);

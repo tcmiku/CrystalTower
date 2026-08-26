@@ -1175,21 +1175,32 @@ test("堡垒状态期间启动超载会提前破盾并增加热量", () => {
   assert.equal(state.skills.overload.heat, GAME_CONFIG.colossus.counters.bulwarkHeat);
   assert.ok(state.events.some((event) => event.type === "colossusCounter" && event.counter === "bulwark"));
 });
-test("临时遗物最多持有三件，之后奖励只提供数值强化", () => {
+test("临时遗物初始一槽且只开放棱镜护佑", () => {
   const state = createGameState(9401);
-  for (let pick = 0; pick < GAME_CONFIG.relics.maxModules; pick += 1) {
-    assert.equal(offerRelicChoice(state, "eliteWave"), true);
-    assert.equal(state.relicChoice.choices.length, 3);
-    const moduleId = state.relicChoice.choices.find((id) => !id.startsWith("boost:"));
-    assert.ok(moduleId);
-    assert.equal(chooseRelic(state, moduleId), true);
-  }
-  assert.equal(state.relics.picks, 3);
-  assert.equal(offerRelicChoice(state, "boss"), true);
-  assert.ok(state.relicChoice.choices.every((id) => id.startsWith("boost:")));
-  const damageBefore = getTowerStats(state).damage;
-  assert.equal(chooseRelic(state, "boost:damage"), true);
-  assert.ok(getTowerStats(state).damage > damageBefore);
+  assert.equal(state.relics.slots, 1);
+  assert.deepEqual(state.relics.available, ["ward"]);
+  assert.equal(offerRelicChoice(state, "eliteWave"), true);
+  assert.deepEqual(state.relicChoice.choices, ["ward"]);
+  assert.equal(chooseRelic(state, "ward"), true);
+  assert.equal(state.relics.picks, 1);
+  assert.equal(offerRelicChoice(state, "boss"), false);
+});
+
+test("栏位多于已解锁遗物时才出现低幅数值强化", () => {
+  const gap = createGameState(94011, undefined, { ward: true }, 2);
+  assert.equal(offerRelicChoice(gap), true);
+  assert.ok(gap.relicChoice.choices.includes("ward"));
+  assert.ok(gap.relicChoice.choices.some((id) => id.startsWith("boost:")));
+  assert.equal(chooseRelic(gap, "ward"), true);
+  assert.equal(offerRelicChoice(gap), true);
+  assert.ok(gap.relicChoice.choices.every((id) => id.startsWith("boost:")));
+  const damageBefore = getTowerStats(gap).damage;
+  assert.equal(chooseRelic(gap, "boost:damage"), true);
+  assert.equal(Number((getTowerStats(gap).damage / damageBefore).toFixed(2)), 1.08);
+
+  const filledPool = createGameState(94012, undefined, { ward: true, decoy: true }, 2);
+  assert.equal(offerRelicChoice(filledPool), true);
+  assert.equal(filledPool.relicChoice.choices.some((id) => id.startsWith("boost:")), false);
 });
 
 test("怪潮精英、普通首领与巨兽阶段会触发临时遗物奖励", () => {
@@ -1308,4 +1319,86 @@ test("余烬回收由灼烧或爆炸击杀生成区域并加速区内金币消�
   const ageBefore = orb.age;
   updateGame(state, 0.5);
   assert.ok(orb.age - ageBefore > 0.5);
+});
+
+test("未研究遗物不会进入随机池，研究后才会出现", () => {
+  const lockedIds = new Set(["decoy", "lunar", "mirror", "ember", "frostbloom", "stormglass", "gilded", "execution", "hourglass"]);
+  for (let seed = 1; seed <= 12; seed += 1) {
+    const state = createGameState(seed);
+    offerRelicChoice(state);
+    assert.deepEqual(state.relicChoice.choices, ["ward"]);
+    assert.equal(state.relicChoice.choices.some((id) => lockedIds.has(id)), false);
+  }
+  let decoySeen = false;
+  for (let seed = 1; seed <= 30; seed += 1) {
+    const state = createGameState(seed, undefined, { ward: true, decoy: true }, 2);
+    offerRelicChoice(state);
+    assert.equal(state.relicChoice.choices.some((id) => lockedIds.has(id) && id !== "decoy"), false);
+    decoySeen ||= state.relicChoice.choices.includes("decoy");
+  }
+  assert.equal(decoySeen, true);
+});
+
+test("棱镜护佑按击杀数补充护盾，霜葬花冠让冻结死亡扩散", () => {
+  const ward = createGameState(9501, undefined, { ward: true });
+  ward.relics.owned.ward = true; ward.spawnTimer = 999; ward.wave.nextAt = 999; ward.tower.fireCooldown = 999;
+  const pack = spawnEnemy(ward, "wisp", { x: 700, y: 360 });
+  pack.unitCount = GAME_CONFIG.relics.ward.kills;
+  pack.hp = 0;
+  updateGame(ward, 0.01);
+  assert.ok(ward.tower.shield > 0);
+
+  const frost = createGameState(9502, undefined, { frostbloom: true });
+  frost.relics.owned.frostbloom = true; frost.spawnTimer = 999; frost.wave.nextAt = 999; frost.tower.fireCooldown = 999;
+  const frozen = spawnEnemy(frost, "wisp", { x: 650, y: 360 });
+  const nearby = spawnEnemy(frost, "sentinel", { x: 700, y: 360 });
+  frozen.freezeTimer = 1; frozen.hp = 0;
+  const hpBefore = nearby.hp;
+  updateGame(frost, 0.01);
+  assert.ok(nearby.hp < hpBefore);
+  assert.ok(nearby.freezeTimer > 0);
+});
+
+test("雷脉导体、断罪刻印和逆时沙漏分别强化雷链、斩杀与冷却", () => {
+  const storm = createGameState(9503, undefined, { stormglass: true });
+  storm.relics.owned.stormglass = true;
+  const origin = spawnEnemy(storm, "sentinel", { x: 480, y: 360 });
+  for (let index = 0; index < 6; index += 1) spawnEnemy(storm, "sentinel", { x: 520 + index * 22, y: 360 });
+  applyElementalHit(storm, origin, "lightning", 100);
+  assert.equal(storm.events.find((event) => event.type === "elementHit")?.chains, GAME_CONFIG.elements.lightning.chainCount + GAME_CONFIG.relics.stormglass.extraChains);
+
+  const execute = createGameState(9504, undefined, { execution: true });
+  execute.relics.owned.execution = true;
+  const target = spawnEnemy(execute, "sentinel", { x: 650, y: 360 });
+  target.hp = target.maxHp * 0.3;
+  const before = target.hp;
+  damageEnemy(execute, target, 10, "shot");
+  assert.equal(Number((before - target.hp).toFixed(2)), 10 * GAME_CONFIG.relics.execution.damageMultiplier);
+
+  const time = createGameState(9505, undefined, { hourglass: true });
+  time.relics.owned.hourglass = true; time.spawnTimer = 999; time.wave.nextAt = 999; time.tower.fireCooldown = 999;
+  time.skills.starfall.cooldown = 10;
+  updateGame(time, 1);
+  assert.equal(Number(time.skills.starfall.cooldown.toFixed(2)), Number((10 - GAME_CONFIG.relics.hourglass.cooldownRateMultiplier).toFixed(2)));
+});
+
+test("拾金脉冲可复制金币价值，余烬碎片可在战场点击收集", () => {
+  const state = createGameState(9506, undefined, { gilded: true });
+  state.relics.owned.gilded = true; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  state.rng.next = () => 0;
+  state.coinOrbs.push({ x: 480, y: 360, renderX: 480, renderY: 360, value: 20, pileCount: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  collectCoinAt(state, 480, 360);
+  updateGame(state, GAME_CONFIG.coins.collectDuration + 0.01);
+  assert.equal(state.coins, 35);
+
+  spawnPermanentResourceDrop(state, "ember", 3, 520, 300, { source: "elite" });
+  assert.equal(collectPermanentResourceAt(state, 520, 300)?.resourceType, "ember");
+  assert.equal(state.stats.emberShards, 3);
+});
+
+test("余烬核心可在战场点击收集并记入本轮统计", () => {
+  const state = createGameState(9507);
+  spawnPermanentResourceDrop(state, "emberCore", 2, 540, 320, { source: "boss" });
+  assert.equal(collectPermanentResourceAt(state, 540, 320)?.resourceType, "emberCore");
+  assert.equal(state.stats.emberCores, 2);
 });

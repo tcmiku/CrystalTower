@@ -51,7 +51,7 @@
       <section class="play-layout">
         <div class="arena-wrap">
           <canvas id="gameCanvas" width="960" height="720" aria-label="永耀晶塔战场"></canvas>
-          <div class="permanent-resource-hud" aria-label="永久资源"><span class="echo-resource"><i></i><small>遗响</small><b id="battleEchoShardText">0</b></span><span class="core-resource"><i></i><small>核心</small><b id="battleCoreFragmentText">0</b></span></div>
+          <div class="permanent-resource-hud" aria-label="永久资源"><span class="echo-resource"><i></i><small>遗响</small><b id="battleEchoShardText">0</b></span><span class="core-resource"><i></i><small>核心</small><b id="battleCoreFragmentText">0</b></span><span class="ember-resource"><i></i><small>余烬</small><b id="battleEmberShardText">0</b></span><span class="ember-core-resource"><i></i><small>烬核</small><b id="battleEmberCoreText">0</b></span></div>
           <div id="relicRunHud" class="relic-run-hud" aria-label="本局临时遗物"></div>
           <button id="openLeaderboardButton" class="score-hud" type="button" aria-label="查看全服积分排行榜" aria-haspopup="dialog" aria-controls="leaderboardModal" aria-expanded="false" title="查看全服积分排行榜"><span>SCORE · RANKING</span><strong id="scoreText">000000</strong></button>
           <div id="announcement" class="announcement" aria-live="polite"></div>
@@ -167,6 +167,8 @@
           <div class="basecamp-wallet" aria-label="大本营资源">
             <span class="echo-resource"><i></i><small>遗响碎片</small><b id="baseCampEchoShardText">0</b></span>
             <span class="core-resource"><i></i><small>核心残片</small><b id="baseCampCoreFragmentText">0</b></span>
+            <span class="ember-resource"><i></i><small>余烬碎片</small><b id="baseCampEmberShardText">0</b></span>
+            <span class="ember-core-resource"><i></i><small>余烬核心</small><b id="baseCampEmberCoreText">0</b></span>
             <span class="stardust-resource"><i>✦</i><small>星尘</small><b id="baseCampStardustText">0</b></span>
           </div>
           <button id="closeBaseCampButton" class="leaderboard-close" type="button">返回战场</button>
@@ -174,13 +176,19 @@
         <div class="basecamp-stage">
           <div class="basecamp-recovery-beam" aria-hidden="true"></div>
           <button id="coreNexusRoom" class="base-room core-room active" type="button"><span>01 · 初始开放</span><strong>晶核中枢</strong><small>永久研究与核心档案</small></button>
-          <button id="researchBayRoom" class="base-room research-room" type="button" disabled><span>02 · 初始开放</span><strong>研究舱</strong><small>设备校准中 · 功能暂未开放</small></button>
+          <button id="researchBayRoom" class="base-room research-room" type="button"><span>02 · 余烬研究</span><strong>研究舱</strong><small>解锁临时遗物并加入战局池</small></button>
           <div class="future-room"><span>预留扩建接口</span><b>未来建筑</b></div>
         </div>
-        <section class="nexus-panel" aria-labelledby="nexusResearchTitle">
+        <section id="nexusPanel" class="nexus-panel" aria-labelledby="nexusResearchTitle">
           <div class="research-heading"><div><span>晶核中枢</span><h3 id="nexusResearchTitle">永久研究</h3></div><strong>可用星尘 <b id="stardustText">0</b></strong></div>
           <p>研究结果会应用到下一轮守望。大本营后续建筑将在这里继续接入。</p>
           <div id="researchList" class="research-list"></div>
+        </section>
+        <section id="relicResearchPanel" class="nexus-panel relic-research-panel hidden" aria-labelledby="relicResearchTitle">
+          <div class="research-heading"><div><span>研究舱</span><h3 id="relicResearchTitle">临时遗物解锁</h3></div><strong>余烬碎片 <b id="relicResearchEmberText">0</b> · 余烬核心 <b id="relicResearchCoreText">0</b></strong></div>
+          <p>余烬碎片解锁遗物，余烬核心扩展栏位。初始仅开放棱镜护佑与 1 个槽位。</p>
+          <div id="relicSlotResearch" class="relic-slot-research"></div>
+          <div id="relicResearchList" class="relic-research-list"></div>
         </section>
       </div>
     </section>
@@ -196,6 +204,8 @@
           <div class="stardust-result"><strong id="resultStardust">+1</strong><span>星尘</span></div>
           <div class="echo-result"><strong id="resultEchoShards">+0</strong><span>遗响碎片</span></div>
           <div class="core-result"><strong id="resultCoreFragments">+0</strong><span>核心残片</span></div>
+          <div class="ember-result"><strong id="resultEmberShards">+0</strong><span>余烬碎片</span></div>
+          <div class="ember-core-result"><strong id="resultEmberCores">+0</strong><span>余烬核心</span></div>
         </div>
         <section class="score-summary" aria-labelledby="scoreSummaryTitle">
           <div><span id="scoreSummaryTitle">FINAL SCORE</span><strong id="resultScore">000000</strong></div>

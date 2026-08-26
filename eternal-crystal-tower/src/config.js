@@ -82,14 +82,23 @@ export const GAME_CONFIG = Object.freeze({
   },
   coins: { clickRadius: 24, maxOrbs: 80, collectDuration: 0.42, lifetime: 10, blinkStart: 7, droneInterval: 1.25, droneOrbitRadius: 148, towerInterval: 5 },
   relics: {
-    maxModules: 3,
+    initialSlots: 1,
+    maxSlots: 4,
     decoy: { hp: 240, radius: 27, distance: 270, explosionRadius: 155, explosionDamageMultiplier: 5, survivalCoins: 42 },
     lunar: { dayCoinMultiplier: 1.25, nightElementMultiplier: 1.4, transitionDuration: 6, transitionDamageMultiplier: 1.2, transitionRateMultiplier: 1.15 },
     mirror: { everyShots: 5, refractRange: 280, refractDamageMultiplier: 0.65 },
     ember: { duration: 4.2, radius: 72, tickInterval: 0.45, damageMultiplier: 0.55, coinLifetimeMultiplier: 0.55, maxZones: 12 },
-    numeric: { damage: 0.18, rate: 0.12, hybridDamage: 0.09, hybridRate: 0.06 }
+    ward: { kills: 20, shieldFraction: 0.12, maxShieldFraction: 0.5 },
+    frostbloom: { radius: 105, damageMultiplier: 1.5, freezeDuration: 0.8 },
+    stormglass: { extraChains: 2, rangeMultiplier: 1.2, chainMultiplier: 0.72 },
+    gilded: { chance: 0.24, bonusMultiplier: 0.75 },
+    execution: { hpThreshold: 0.35, damageMultiplier: 1.4 },
+    hourglass: { cooldownRateMultiplier: 1.22 },
+    numeric: { damage: 0.08, rate: 0.06, hybridDamage: 0.04, hybridRate: 0.03 }
   },
-  permanentResources: { clickRadius: 30, maxDrops: 48, eliteEcho: 2, bossCore: 3, colossusCore: 8 },
+  relicResearch: { ward: 0, decoy: 3, lunar: 4, mirror: 5, ember: 6, frostbloom: 7, stormglass: 9, gilded: 11, execution: 13, hourglass: 15 },
+  relicSlotResearch: { costs: [2, 4, 7] },
+  permanentResources: { clickRadius: 30, maxDrops: 72, eliteEcho: 2, eliteEmber: 1, bossCore: 3, bossEmber: 4, bossEmberCore: 1, colossusCore: 8, colossusEmber: 10, colossusEmberCore: 3 },
   score: {
     enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, boss: 5000, colossus: 20000 },
     eliteMultiplier: 4,
