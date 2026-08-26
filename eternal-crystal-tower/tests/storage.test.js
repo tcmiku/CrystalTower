@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyResearch, defaultSave, loadSave, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
+import { buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -30,7 +30,7 @@ test("存档值被限制在安全范围", () => {
   assert.equal(safe.stardust, 0);
   assert.deepEqual(safe.research, { damage: 10, health: 0, income: 3 });
   assert.equal(safe.settings.muted, true);
-  assert.deepEqual(safe.records, { highestThreat: 1, longestTime: 0, totalKills: 0 });
+  assert.deepEqual(safe.records, { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 });
 });
 
 test("永久研究花费为当前等级加一", () => {
@@ -95,4 +95,23 @@ test("排行榜随存档写入并安全读回", () => {
   submitLeaderboardEntry(save, { name: "晶刃王", score: 9876, kills: 42, threat: 8, time: 300, coins: 17, date: 123 });
   writeSave(save, storage);
   assert.deepEqual(loadSave(storage).leaderboard, save.leaderboard);
+});
+
+test("首次失败只解锁一次核心残响并开启大本营", () => {
+  const save = defaultSave();
+  assert.equal(registerFailure(save), true);
+  assert.equal(save.baseCamp.unlocked, true);
+  assert.equal(save.baseCamp.coreEcho, true);
+  assert.equal(save.records.failures, 1);
+  assert.equal(registerFailure(save), false);
+  assert.equal(save.records.failures, 2);
+  assert.equal(markBaseRecoverySeen(save), true);
+  assert.equal(save.baseCamp.recoverySeen, true);
+});
+
+test("两类永久资源按类型安全累积", () => {
+  const save = defaultSave();
+  assert.equal(grantPermanentResource(save, "echo", 4), true);
+  assert.equal(grantPermanentResource(save, "core", 2), true);
+  assert.deepEqual(save.resources, { echoShards: 4, coreFragments: 2 });
 });

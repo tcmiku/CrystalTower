@@ -14,7 +14,8 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
     "pauseButton", "muteButton", "speedButton", "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput",
     "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
     "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
-    "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss"
+    "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
+    "openBaseCampButton", "baseRecoveryModal", "recoveryContinueButton", "baseCampModal", "closeBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseCampEchoShardText", "baseCampCoreFragmentText", "openBaseCampFromGameOver"
   ];
   for (const id of requiredIds) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.doesNotMatch(html, /(?:src|href)=["']https?:\/\//i);
@@ -49,6 +50,16 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(renderer, /pileCount/);
   assert.match(main, /renderLeaderboardPodium/);
   assert.match(main, /globalLeaderboardPodium/);
+  assert.match(main, /collectPermanentResourceAt/);
+  assert.match(main, /showBaseRecoveryEvent/);
+  assert.match(main, /firstFailureCoreGift = firstFailure \? 1 : 0/);
+  assert.doesNotMatch(await readFile(new URL("../src/engine.js", import.meta.url), "utf8"), /source: "(?:wave|protocol)"/);
+  assert.match(renderer, /resource-echo-shard-ai\.png/);
+  assert.match(main, /COLOSSUS_COUNTER_HINTS/);
+  assert.match(main, /炮击锚点出现/);
+  assert.match(renderer, /可摧毁裂隙/);
+  assert.match(renderer, /弱点暴露/);
+  assert.match(styles, /basecamp-core-room-ai\.png/);
 });
 
 test("设计、构建与入口产物齐全", async () => {
@@ -71,6 +82,7 @@ test("设计、构建与入口产物齐全", async () => {
     "assets/generated/effect-fire-ember-ring-ai.png",
     "assets/generated/effect-lightning-chain-ai.png",
     "assets/generated/leaderboard-podium-ai.png",
+    "assets/generated/resource-echo-shard-ai.png", "assets/generated/resource-core-fragment-ai.png", "assets/generated/basecamp-core-room-ai.png",
     "assets/generated/ASSET_MANIFEST.md", "assets/generated/PROMPTS.md"
   ];
   await Promise.all(paths.map((path) => access(new URL(`../${path}`, import.meta.url))));

@@ -79,3 +79,11 @@
 ## leaderboard-podium-ai.png
 
 用途：全服排行榜前三名领奖台装饰，透明宽幅 PNG。中央金白晶冠代表榜一，左侧银蓝晶台代表榜二，右侧铜玫晶台代表榜三；HTML 动态名次卡片叠加在晶台前方。由 OpenAI 内置生图模型生成，无文字、无徽标、无角色。
+
+## 大本营与永久资源（2026-08-26）
+
+- `resource-echo-shard-ai.png`：透明背景的常见“遗响碎片”战场掉落，青蓝/淡紫碎晶簇、断裂记忆符文环；Canvas 显示约 43×43，必须点击收集。源文件：`C:\Users\0000\.codex\generated_images\01a03309-5076-7283-ba91-198f67b990cc\exec-b54982e1-6952-46cc-9436-ea9212336b83.png`。
+- `resource-core-fragment-ai.png`：透明背景的稀有“核心残片”，白金心核、紫红晶壳和断裂金属轨道；Canvas 显示约 52×52，与普通资源在尺寸、色彩和轮廓上区分。源文件：`C:\Users\0000\.codex\generated_images\01a03309-5076-7283-ba91-198f67b990cc\exec-de29a087-a951-4d88-943c-8f6519c3eb1c.png`。
+- `basecamp-core-room-ai.png`：16:9 地下永耀大本营核心室背景；左侧晶核中枢亮起、右侧研究舱待机、中央恢复光束与远处封闭扩建位构成可继续增加建筑的空间骨架。源文件：`C:\Users\0000\.codex\generated_images\01a03309-5076-7283-ba91-198f67b990cc\exec-7ee70b55-1ee7-4777-9b91-d9e30bfa7ccb.png`。
+
+三张均由 OpenAI 内置生图模型生成，无文字、徽标或外部素材依赖。资源图使用原生透明通道；基地背景由响应式 CSS 裁切，交互标签与研究内容始终由 HTML 叠加。

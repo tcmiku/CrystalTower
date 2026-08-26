@@ -41,6 +41,7 @@
           <div class="status"><span>坚守</span><strong id="timeText">00:00</strong></div>
         </div>
         <div class="top-actions">
+          <button id="openBaseCampButton" class="icon-button basecamp-button hidden" type="button" aria-label="打开大本营核心室" title="大本营">营</button>
           <button id="speedButton" class="icon-button speed-button locked" type="button" aria-label="2倍速未解锁" aria-disabled="true" aria-pressed="false" title="击败威胁 XV 首领后永久解锁 2× 倍速">1×</button>
           <button id="muteButton" class="icon-button" type="button" aria-label="静音">声</button>
           <button id="pauseButton" class="icon-button" type="button" aria-label="暂停">Ⅱ</button>
@@ -50,6 +51,8 @@
       <section class="play-layout">
         <div class="arena-wrap">
           <canvas id="gameCanvas" width="960" height="720" aria-label="永耀晶塔战场"></canvas>
+          <div class="permanent-resource-hud" aria-label="永久资源"><span class="echo-resource"><i></i><small>遗响</small><b id="battleEchoShardText">0</b></span><span class="core-resource"><i></i><small>核心</small><b id="battleCoreFragmentText">0</b></span></div>
+          <div id="relicRunHud" class="relic-run-hud" aria-label="本局临时遗物"></div>
           <button id="openLeaderboardButton" class="score-hud" type="button" aria-label="查看全服积分排行榜" aria-haspopup="dialog" aria-controls="leaderboardModal" aria-expanded="false" title="查看全服积分排行榜"><span>SCORE · RANKING</span><strong id="scoreText">000000</strong></button>
           <div id="announcement" class="announcement" aria-live="polite"></div>
           <div id="toast" class="toast" aria-live="polite"></div>
@@ -121,6 +124,16 @@
       </div>
     </section>
 
+    <section id="relicChoiceModal" class="relic-choice-modal hidden" role="dialog" aria-modal="true" aria-labelledby="relicChoiceTitle">
+      <div class="relic-choice-shell">
+        <header class="relic-choice-header">
+          <div><span>RUN MODULE ACQUIRED</span><h2 id="relicChoiceTitle">选择本局临时模块</h2><p id="relicChoiceSource">怪潮精英已被肃清，选择一项回路继续守望。</p></div>
+          <strong id="relicChoiceSlots">模块 0 / 3</strong>
+        </header>
+        <div id="relicChoiceList" class="relic-choice-list" aria-live="polite"></div>
+        <footer><span>按数字键 1 / 2 / 3 选择</span><b>选择期间战斗已暂停</b></footer>
+      </div>
+    </section>
     <section id="leaderboardModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="globalLeaderboardTitle">
       <div class="modal-card standalone-leaderboard-card">
         <header class="standalone-leaderboard-header">
@@ -137,6 +150,40 @@
       </div>
     </section>
 
+    <section id="baseRecoveryModal" class="modal recovery-modal hidden" role="dialog" aria-modal="true" aria-labelledby="recoveryEventTitle">
+      <div class="recovery-card">
+        <span class="recovery-eyebrow">CORE ECHO DETECTED</span>
+        <div class="recovery-core" aria-hidden="true"><i></i></div>
+        <h2 id="recoveryEventTitle">核心残响</h2>
+        <p id="recoveryEventText">熄灭的晶核仍在黑暗中回应。</p>
+        <button id="recoveryContinueButton" class="primary-button" type="button">聆听残响</button>
+      </div>
+    </section>
+
+    <section id="baseCampModal" class="basecamp-modal hidden" role="dialog" aria-modal="true" aria-labelledby="baseCampTitle">
+      <div class="basecamp-shell">
+        <header class="basecamp-header">
+          <div><span>ETERNAL BASTION</span><h2 id="baseCampTitle">永耀大本营 · 核心室</h2><p>每一次熄灭，都会留下可用于重建的光。</p></div>
+          <div class="basecamp-wallet" aria-label="大本营资源">
+            <span class="echo-resource"><i></i><small>遗响碎片</small><b id="baseCampEchoShardText">0</b></span>
+            <span class="core-resource"><i></i><small>核心残片</small><b id="baseCampCoreFragmentText">0</b></span>
+            <span class="stardust-resource"><i>✦</i><small>星尘</small><b id="baseCampStardustText">0</b></span>
+          </div>
+          <button id="closeBaseCampButton" class="leaderboard-close" type="button">返回战场</button>
+        </header>
+        <div class="basecamp-stage">
+          <div class="basecamp-recovery-beam" aria-hidden="true"></div>
+          <button id="coreNexusRoom" class="base-room core-room active" type="button"><span>01 · 初始开放</span><strong>晶核中枢</strong><small>永久研究与核心档案</small></button>
+          <button id="researchBayRoom" class="base-room research-room" type="button" disabled><span>02 · 初始开放</span><strong>研究舱</strong><small>设备校准中 · 功能暂未开放</small></button>
+          <div class="future-room"><span>预留扩建接口</span><b>未来建筑</b></div>
+        </div>
+        <section class="nexus-panel" aria-labelledby="nexusResearchTitle">
+          <div class="research-heading"><div><span>晶核中枢</span><h3 id="nexusResearchTitle">永久研究</h3></div><strong>可用星尘 <b id="stardustText">0</b></strong></div>
+          <p>研究结果会应用到下一轮守望。大本营后续建筑将在这里继续接入。</p>
+          <div id="researchList" class="research-list"></div>
+        </section>
+      </div>
+    </section>
     <section id="gameOverModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
       <div class="modal-card arcade-score-card">
         <span class="eyebrow">本轮守望结束</span>
@@ -147,6 +194,8 @@
           <div><strong id="resultKills">0</strong><span>击杀</span></div>
           <div><strong id="resultThreat">Ⅰ</strong><span>最高威胁</span></div>
           <div class="stardust-result"><strong id="resultStardust">+1</strong><span>星尘</span></div>
+          <div class="echo-result"><strong id="resultEchoShards">+0</strong><span>遗响碎片</span></div>
+          <div class="core-result"><strong id="resultCoreFragments">+0</strong><span>核心残片</span></div>
         </div>
         <section class="score-summary" aria-labelledby="scoreSummaryTitle">
           <div><span id="scoreSummaryTitle">FINAL SCORE</span><strong id="resultScore">000000</strong></div>
@@ -162,9 +211,8 @@
           <p id="scoreEntryStatus" class="score-entry-status" aria-live="polite"></p>
           <ol id="leaderboardList" class="leaderboard-list" aria-label="全服排行榜"></ol>
         </section>
-        <div class="research-heading"><div><span>永久研究</span><strong>星尘 <b id="stardustText">0</b></strong></div><small>每一级都让下一座晶塔更强</small></div>
-        <div id="researchList" class="research-list"></div>
         <div class="modal-actions">
+          <button id="openBaseCampFromGameOver" class="basecamp-entry-button" type="button">返回大本营</button>
           <button id="restartButton" class="primary-button" type="button">再燃晶塔</button>
           <button id="clearSaveButton" class="danger-button" type="button">清除存档</button>
         </div>

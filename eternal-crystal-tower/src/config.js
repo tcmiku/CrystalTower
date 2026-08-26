@@ -44,7 +44,8 @@ export const GAME_CONFIG = Object.freeze({
     artillery: { duration: 3.2, interval: 0.52, projectileSpeed: 285, projectileLife: 3, damageMultiplier: 0.34, radius: 11 },
     summon: { duration: 3.4, interval: 0.72, count: 5, telegraphDuration: 0.62, types: ["runner", "crawler", "hexer", "rammer"] },
     beam: { duration: 2.8, tickInterval: 0.42, damageMultiplier: 0.22 },
-    bulwark: { duration: 3.6, damageMultiplier: 0.38, orbitSpeedMultiplier: 2.25 }
+    bulwark: { duration: 3.6, damageMultiplier: 0.38, orbitSpeedMultiplier: 2.25 },
+    counters: { artilleryAnchorHp: 260, artilleryShotMultiplier: 0.45, exposedDuration: 4.5, exposedDamageMultiplier: 1.5, riftHp: 150, bulwarkHeat: 55 }
   },
   upgrades: {
     damage: { baseCost: 20, growth: 1.55, multiplier: 1.25 },
@@ -80,6 +81,15 @@ export const GAME_CONFIG = Object.freeze({
     lightning: { branch: "element", costs: [760], maxLevel: 1, threat: [8], towerLevel: 3, requires: { rate: 3 } }
   },
   coins: { clickRadius: 24, maxOrbs: 80, collectDuration: 0.42, lifetime: 10, blinkStart: 7, droneInterval: 1.25, droneOrbitRadius: 148, towerInterval: 5 },
+  relics: {
+    maxModules: 3,
+    decoy: { hp: 240, radius: 27, distance: 270, explosionRadius: 155, explosionDamageMultiplier: 5, survivalCoins: 42 },
+    lunar: { dayCoinMultiplier: 1.25, nightElementMultiplier: 1.4, transitionDuration: 6, transitionDamageMultiplier: 1.2, transitionRateMultiplier: 1.15 },
+    mirror: { everyShots: 5, refractRange: 280, refractDamageMultiplier: 0.65 },
+    ember: { duration: 4.2, radius: 72, tickInterval: 0.45, damageMultiplier: 0.55, coinLifetimeMultiplier: 0.55, maxZones: 12 },
+    numeric: { damage: 0.18, rate: 0.12, hybridDamage: 0.09, hybridRate: 0.06 }
+  },
+  permanentResources: { clickRadius: 30, maxDrops: 48, eliteEcho: 2, bossCore: 3, colossusCore: 8 },
   score: {
     enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, boss: 5000, colossus: 20000 },
     eliteMultiplier: 4,

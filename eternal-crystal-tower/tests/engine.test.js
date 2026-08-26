@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, collectCoinAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, purchaseUpgrade, setTargetProtocol, spawnEnemy, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG } from "../src/config.js";
 
 test("基础塔属性符合策划", () => {
@@ -1079,4 +1079,233 @@ test("巨型首领第一阶段保留预兆且狂暴阶段可同时发动四项�
   assert.ok(state.hostileProjectiles.length > 0);
   assert.ok(state.summonRifts.length > 0);
   assert.ok(state.tower.hp < towerHp);
+});
+
+test("永久资源不会被滑过拾取且点击后才记入本轮统计", () => {
+  const state = createGameState(9101);
+  spawnPermanentResourceDrop(state, "echo", 3, 320, 280, { source: "elite" });
+  spawnPermanentResourceDrop(state, "core", 1, 520, 280, { source: "boss" });
+  updateGame(state, GAME_CONFIG.fixedStep);
+  assert.equal(state.stats.echoShards, 0);
+  assert.equal(state.stats.coreFragments, 0);
+  assert.equal(collectPermanentResourceAt(state, 320, 280)?.value, 3);
+  assert.equal(state.stats.echoShards, 3);
+  assert.equal(state.resourceDrops.length, 1);
+  assert.equal(collectPermanentResourceAt(state, 520, 280)?.resourceType, "core");
+  assert.equal(state.stats.coreFragments, 1);
+});
+
+test("精英只掉遗响碎片而核心残片只由首领掉落", () => {
+  const state = createGameState(9102);
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  const elite = spawnEnemy(state, "sentinel", { x: 300, y: 300 }, { elite: true, affix: "shield" });
+  const boss = spawnEnemy(state, "boss", { x: 700, y: 300 });
+  elite.hp = 0;
+  boss.hp = 0;
+  updateGame(state, GAME_CONFIG.fixedStep);
+  assert.ok(state.resourceDrops.some((drop) => drop.resourceType === "echo" && drop.source === "elite"));
+  assert.equal(state.resourceDrops.some((drop) => drop.resourceType === "core" && drop.source === "specialElite"), false);
+  assert.ok(state.resourceDrops.some((drop) => drop.resourceType === "core" && drop.source === "boss"));
+});
+test("炮击预兆锚点被摧毁后会削减炮弹预算", () => {
+  const state = createGameState(9301);
+  state.threat = 15; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  const boss = spawnEnemy(state, "colossus", undefined, { colossusAffix: "siege" });
+  boss.spawnShield = 0; boss.skillCooldown = 0; boss.skillSequence = 0;
+  updateGame(state, 0.01);
+  const anchor = state.enemies.find((enemy) => enemy.counterSkill === "artillery" && enemy.anchorBossId === boss.id);
+  assert.ok(anchor);
+  damageEnemy(state, anchor, anchor.maxHp * 2, "shot");
+  updateGame(state, 0.01);
+  assert.equal(boss.artilleryCountered, true);
+  boss.intentTimer = 0;
+  updateGame(state, 0.01);
+  const fullBudget = Math.ceil(GAME_CONFIG.colossus.artillery.duration / (GAME_CONFIG.colossus.artillery.interval * GAME_CONFIG.colossus.affixes.siege.artilleryIntervalMultiplier));
+  assert.equal(boss.activeSkill, "artillery");
+  assert.ok(boss.artilleryShotsRemaining < fullBudget);
+  assert.equal(boss.artilleryShotsRemaining, Math.max(1, Math.floor(fullBudget * GAME_CONFIG.colossus.counters.artilleryShotMultiplier)));
+});
+
+test("射线预兆期间用星落命中巨兽会切断技能并暴露弱点", () => {
+  const state = createGameState(9302);
+  state.threat = 15; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  const boss = spawnEnemy(state, "colossus", undefined, { colossusAffix: "siege" });
+  boss.spawnShield = 0; boss.skillCooldown = 0; boss.skillSequence = 2;
+  updateGame(state, 0.01);
+  assert.equal(boss.intentSkill, "beam");
+  const angle = Math.atan2(boss.y - GAME_CONFIG.arena.centerY, boss.x - GAME_CONFIG.arena.centerX);
+  const hpBefore = boss.hp;
+  assert.equal(useSkill(state, "starfall", { angle }), true);
+  assert.equal(boss.intentSkill, null);
+  assert.equal(boss.exposedTimer, GAME_CONFIG.colossus.counters.exposedDuration);
+  assert.ok(hpBefore - boss.hp > getTowerStats(state).damage * GAME_CONFIG.skills.starfall.damageMultiplier);
+  assert.ok(state.events.some((event) => event.type === "colossusCounter" && event.counter === "beam"));
+});
+
+test("召唤预兆期间切换猎杀协议会让裂隙可攻击并可阻止召唤", () => {
+  const state = createGameState(9303);
+  state.threat = 15; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  const boss = spawnEnemy(state, "colossus", undefined, { colossusAffix: "siege" });
+  boss.spawnShield = 0; boss.skillCooldown = 0; boss.skillSequence = 1;
+  updateGame(state, 0.01);
+  assert.equal(boss.intentSkill, "summon");
+  assert.equal(setTargetProtocol(state, "hunter"), true);
+  assert.equal(boss.summonCountered, true);
+  boss.intentTimer = 0;
+  updateGame(state, 0.01);
+  updateGame(state, 0.01);
+  const rift = state.summonRifts[0];
+  assert.equal(rift.attackable, true);
+  const target = state.enemies.find((enemy) => enemy.id === rift.targetId);
+  assert.ok(target?.riftAnchor);
+  damageEnemy(state, target, target.maxHp * 2, "shot");
+  updateGame(state, 0.01);
+  assert.equal(state.summonRifts.some((candidate) => candidate.id === rift.id), false);
+  assert.equal(state.enemies.some((enemy) => enemy.summonedByColossus), false);
+});
+
+test("堡垒状态期间启动超载会提前破盾并增加热量", () => {
+  const state = createGameState(9304);
+  state.threat = 15; state.spawnTimer = 999; state.wave.nextAt = 999;
+  const boss = spawnEnemy(state, "colossus", undefined, { colossusAffix: "siege" });
+  boss.spawnShield = 0; boss.activeSkill = "bulwark"; boss.skillTimer = 3;
+  assert.equal(useSkill(state, "overload"), true);
+  assert.equal(boss.activeSkill, null);
+  assert.equal(state.skills.overload.heat, GAME_CONFIG.colossus.counters.bulwarkHeat);
+  assert.ok(state.events.some((event) => event.type === "colossusCounter" && event.counter === "bulwark"));
+});
+test("临时遗物最多持有三件，之后奖励只提供数值强化", () => {
+  const state = createGameState(9401);
+  for (let pick = 0; pick < GAME_CONFIG.relics.maxModules; pick += 1) {
+    assert.equal(offerRelicChoice(state, "eliteWave"), true);
+    assert.equal(state.relicChoice.choices.length, 3);
+    const moduleId = state.relicChoice.choices.find((id) => !id.startsWith("boost:"));
+    assert.ok(moduleId);
+    assert.equal(chooseRelic(state, moduleId), true);
+  }
+  assert.equal(state.relics.picks, 3);
+  assert.equal(offerRelicChoice(state, "boss"), true);
+  assert.ok(state.relicChoice.choices.every((id) => id.startsWith("boost:")));
+  const damageBefore = getTowerStats(state).damage;
+  assert.equal(chooseRelic(state, "boost:damage"), true);
+  assert.ok(getTowerStats(state).damage > damageBefore);
+});
+
+test("怪潮精英、普通首领与巨兽阶段会触发临时遗物奖励", () => {
+  const eliteState = createGameState(9402);
+  eliteState.spawnTimer = 999; eliteState.wave.nextAt = 999; eliteState.tower.fireCooldown = 999;
+  const elite = spawnEnemy(eliteState, "wisp", { x: 650, y: 360 }, { elite: true, waveElite: true, waveIndex: 1 });
+  damageEnemy(eliteState, elite, elite.maxHp * 2, "shot");
+  updateGame(eliteState, 0.01);
+  assert.equal(eliteState.relicChoice?.source, "eliteWave");
+
+  const bossState = createGameState(9403);
+  bossState.spawnTimer = 999; bossState.wave.nextAt = 999; bossState.tower.fireCooldown = 999;
+  const boss = spawnEnemy(bossState, "boss", { x: 650, y: 360 });
+  damageEnemy(bossState, boss, boss.maxHp * 20, "shot");
+  updateGame(bossState, 0.01);
+  assert.equal(bossState.relicChoice?.source, "boss");
+
+  const giantState = createGameState(9404);
+  giantState.threat = 15; giantState.spawnTimer = 999; giantState.wave.nextAt = 999; giantState.tower.fireCooldown = 999;
+  const giant = spawnEnemy(giantState, "colossus", undefined, { colossusAffix: "siege" });
+  giant.spawnShield = 0;
+  damageEnemy(giantState, giant, giant.maxHp * 2, "shot");
+  assert.equal(giantState.relicChoice?.source, "colossusPhase");
+});
+
+test("诡光诱饵在怪潮方向生成、吸引敌人并在摧毁时爆炸", () => {
+  const state = createGameState(9405);
+  state.relics.owned.decoy = true; state.relics.picks = 1;
+  state.spawnTimer = 999; state.tower.fireCooldown = 999;
+  state.time = GAME_CONFIG.waves.firstAt - 0.01;
+  updateGame(state, 0.02);
+  const decoy = state.decoys[0];
+  assert.ok(decoy);
+  const waveEnemy = state.enemies.find((enemy) => enemy.waveIndex === state.wave.index);
+  assert.ok(waveEnemy);
+  const before = Math.hypot(waveEnemy.x - decoy.x, waveEnemy.y - decoy.y);
+  updateGame(state, 0.1);
+  assert.ok(Math.hypot(waveEnemy.x - decoy.x, waveEnemy.y - decoy.y) < before);
+  const victim = spawnEnemy(state, "brute", { x: decoy.x + 20, y: decoy.y });
+  const hpBefore = victim.hp;
+  decoy.hp = 0;
+  updateGame(state, 0.01);
+  assert.equal(state.decoys.length, 0);
+  assert.ok(victim.hp < hpBefore);
+});
+
+test("月相调律提高白昼金币、长夜元素效果并在昼夜切换时强化", () => {
+  const day = createGameState(9406);
+  day.relics.owned.lunar = true; day.relics.picks = 1;
+  day.spawnTimer = 999; day.wave.nextAt = 999; day.tower.fireCooldown = 999;
+  const target = spawnEnemy(day, "wisp", { x: 650, y: 360 });
+  const reward = target.reward;
+  damageEnemy(day, target, target.maxHp * 2, "shot");
+  updateGame(day, 0.01);
+  assert.equal(day.coinOrbs[0].value, Math.round(reward * GAME_CONFIG.relics.lunar.dayCoinMultiplier));
+
+  const night = createGameState(9407);
+  night.relics.owned.lunar = true; night.relics.picks = 1; night.phase = "night";
+  const frozen = spawnEnemy(night, "wisp", { x: 650, y: 360 });
+  applyElementalHit(night, frozen, "frost", 20);
+  assert.equal(frozen.freezeTimer, GAME_CONFIG.elements.frost.freezeDuration * GAME_CONFIG.relics.lunar.nightElementMultiplier);
+
+  const transition = createGameState(9408);
+  transition.relics.owned.lunar = true; transition.relics.picks = 1;
+  transition.spawnTimer = 999; transition.wave.nextAt = 999; transition.tower.fireCooldown = 999;
+  transition.time = GAME_CONFIG.threat.duration * GAME_CONFIG.threat.dayWaves - 0.01;
+  updateGame(transition, 0.02);
+  assert.ok(transition.relics.phaseBuff > 0);
+});
+
+test("镜面裂片每五次普通攻击折射且首领目标不会触发", () => {
+  const state = createGameState(9409);
+  state.relics.owned.mirror = true; state.relics.picks = 1;
+  state.spawnTimer = 999; state.wave.nextAt = 999;
+  const first = spawnEnemy(state, "sentinel", { x: 590, y: 360 });
+  const second = spawnEnemy(state, "sentinel", { x: 640, y: 360 });
+  for (let volley = 0; volley < GAME_CONFIG.relics.mirror.everyShots; volley += 1) {
+    state.tower.fireCooldown = 0;
+    updateGame(state, 0.001);
+    if (volley < GAME_CONFIG.relics.mirror.everyShots - 1) state.projectiles.length = 0;
+  }
+  state.tower.fireCooldown = 999;
+  const secondHp = second.hp;
+  let refracted = false;
+  for (let step = 0; step < 24 && second.hp === secondHp; step += 1) {
+    updateGame(state, GAME_CONFIG.fixedStep);
+    refracted ||= state.events.some((event) => event.type === "relicMirror");
+  }
+  assert.equal(refracted, true);
+  assert.ok(second.hp < secondHp);
+
+  const bossState = createGameState(9410);
+  bossState.relics.owned.mirror = true; bossState.relics.picks = 1;
+  bossState.relics.mirrorShots = GAME_CONFIG.relics.mirror.everyShots - 1;
+  bossState.spawnTimer = 999; bossState.wave.nextAt = 999;
+  spawnEnemy(bossState, "boss", { x: 590, y: 360 });
+  spawnEnemy(bossState, "sentinel", { x: 640, y: 360 });
+  bossState.tower.targetProtocol = "hunter";
+  let bossRefracted = false;
+  for (let step = 0; step < 24; step += 1) {
+    updateGame(bossState, GAME_CONFIG.fixedStep);
+    bossRefracted ||= bossState.events.some((event) => event.type === "relicMirror");
+  }
+  assert.equal(bossRefracted, false);
+});
+
+test("余烬回收由灼烧或爆炸击杀生成区域并加速区内金币消失", () => {
+  const state = createGameState(9411);
+  state.relics.owned.ember = true; state.relics.picks = 1;
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  const target = spawnEnemy(state, "wisp", { x: 650, y: 360 });
+  damageEnemy(state, target, target.maxHp * 2, "fire");
+  updateGame(state, 0.01);
+  assert.equal(state.emberZones.length, 1);
+  const orb = state.coinOrbs[0];
+  const ageBefore = orb.age;
+  updateGame(state, 0.5);
+  assert.ok(orb.age - ageBefore > 0.5);
 });

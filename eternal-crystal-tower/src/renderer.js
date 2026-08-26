@@ -51,7 +51,9 @@ const GENERATED_ASSETS = {
   moduleLightning: "./assets/generated/module-lightning-orb-ai.png",
   effectFrost: "./assets/generated/effect-frost-hex-ai.png",
   effectFire: "./assets/generated/effect-fire-ember-ring-ai.png",
-  effectLightning: "./assets/generated/effect-lightning-chain-ai.png"
+  effectLightning: "./assets/generated/effect-lightning-chain-ai.png",
+  echoShard: "./assets/generated/resource-echo-shard-ai.png",
+  coreFragment: "./assets/generated/resource-core-fragment-ai.png"
 };
 
 const CUTOUT_ASSETS = new Set([
@@ -241,7 +243,10 @@ export class Renderer {
     this.drawGround(ctx, state);
     this.drawWaveWarning(ctx, state);
     this.drawRange(ctx, state);
+    this.drawEmberZones(ctx, state);
+    this.drawRelicDecoys(ctx, state);
     this.drawCoins(ctx, state);
+    this.drawPermanentResources(ctx, state);
     this.drawSummonRifts(ctx, state);
     this.drawProjectiles(ctx, state);
     this.drawHostileProjectiles(ctx, state);
@@ -439,8 +444,123 @@ export class Renderer {
     }
   }
 
+  drawPermanentResources(ctx, state) {
+    for (const drop of state.resourceDrops ?? []) {
+      const x = drop.renderX ?? drop.x;
+      const y = drop.renderY ?? drop.y;
+      const core = drop.resourceType === "core";
+      const image = core ? this.assets.coreFragment : this.assets.echoShard;
+      const size = core ? 52 : 43;
+      ctx.save();
+      ctx.translate(x, y);
+      const pulse = 1 + Math.sin(this.time * (core ? 3.2 : 4.2) + drop.phase) * .06;
+      ctx.scale(pulse, pulse);
+      ctx.shadowColor = core ? "#ff85d8" : "#79eaff";
+      ctx.shadowBlur = core ? 22 : 15;
+      if (imageReady(image)) ctx.drawImage(image, -size / 2, -size / 2, size, size);
+      else {
+        ctx.fillStyle = core ? "#ffd3f5" : "#a8f6ff";
+        ctx.rotate(Math.PI / 4);
+        ctx.fillRect(-9, -9, 18, 18);
+      }
+      ctx.rotate(-Math.PI / 4);
+      ctx.globalAlpha = .55 + Math.sin(this.time * 4 + drop.phase) * .2;
+      ctx.strokeStyle = core ? "#ffc6ed" : "#9af4ff";
+      ctx.lineWidth = core ? 2 : 1.25;
+      ctx.beginPath(); ctx.arc(0, 0, size * .55, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+      if (drop.value > 1) {
+        ctx.font = "800 11px ui-monospace, monospace";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#fff7cf";
+        ctx.fillText(`×${drop.value}`, 0, -size * .58);
+      }
+      ctx.restore();
+    }
+  }
+  drawEmberZones(ctx, state) {
+    for (const zone of state.emberZones ?? []) {
+      const ratio = Math.max(0, zone.life / zone.maxLife);
+      ctx.save();
+      ctx.translate(zone.x, zone.y);
+      ctx.globalAlpha = Math.min(1, ratio * 1.6);
+      const glow = ctx.createRadialGradient(0, 0, 4, 0, 0, zone.radius);
+      glow.addColorStop(0, "rgba(255,214,111,.36)");
+      glow.addColorStop(.45, "rgba(255,92,43,.2)");
+      glow.addColorStop(1, "rgba(97,16,32,0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(0, 0, zone.radius, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(255,126,61,.7)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 9]);
+      ctx.rotate(this.time * .8 + zone.id);
+      ctx.beginPath(); ctx.arc(0, 0, zone.radius * .72, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      for (let ember = 0; ember < 8; ember += 1) {
+        const angle = ember * Math.PI / 4 + this.time * .5;
+        const distance = zone.radius * (.22 + (ember % 3) * .18);
+        const lift = Math.sin(this.time * 5 + ember) * 5;
+        ctx.fillStyle = ember % 2 ? "#ff6a38" : "#ffd16e";
+        ctx.beginPath(); ctx.arc(Math.cos(angle) * distance, Math.sin(angle) * distance + lift, 1.5 + ember % 2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  drawRelicDecoys(ctx, state) {
+    for (const decoy of state.decoys ?? []) {
+      const pulse = 1 + Math.sin(this.time * 6 + decoy.id) * .08;
+      ctx.save();
+      ctx.translate(decoy.x, decoy.y);
+      ctx.scale(pulse, pulse);
+      ctx.shadowColor = "#d58cff";
+      ctx.shadowBlur = 28;
+      ctx.fillStyle = "rgba(31,13,69,.85)";
+      ctx.strokeStyle = "#a9f5ff";
+      ctx.lineWidth = 2;
+      ctx.rotate(this.time * .45);
+      ctx.beginPath();
+      ctx.moveTo(0, -decoy.radius); ctx.lineTo(decoy.radius * .72, 0); ctx.lineTo(0, decoy.radius); ctx.lineTo(-decoy.radius * .72, 0); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.rotate(-this.time * 1.4);
+      ctx.strokeStyle = "rgba(221,161,255,.72)";
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath(); ctx.arc(0, 0, decoy.radius * 1.35, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#fff1bc";
+      ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      const hpRatio = Math.max(0, decoy.hp / decoy.maxHp);
+      ctx.fillStyle = "rgba(3,4,17,.8)"; ctx.fillRect(decoy.x - 30, decoy.y + decoy.radius + 10, 60, 5);
+      ctx.fillStyle = "#b78cff"; ctx.fillRect(decoy.x - 30, decoy.y + decoy.radius + 10, 60 * hpRatio, 5);
+      ctx.fillStyle = "#eefcff"; ctx.font = "800 9px Microsoft YaHei UI,sans-serif"; ctx.textAlign = "center"; ctx.fillText("诡光诱饵", decoy.x, decoy.y - decoy.radius - 10);
+    }
+  }
   drawProjectiles(ctx, state) {
     for (const projectile of state.projectiles) {
+      if (projectile.mirrorRefraction) {
+        const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
+        const ux = projectile.vx / speed;
+        const uy = projectile.vy / speed;
+        ctx.save();
+        ctx.strokeStyle = "rgba(141,255,235,.88)";
+        ctx.shadowColor = "#8dffeb";
+        ctx.shadowBlur = 14;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([7, 4]);
+        ctx.beginPath();
+        ctx.moveTo(projectile.x - ux * 28 - uy * 4, projectile.y - uy * 28 + ux * 4);
+        ctx.lineTo(projectile.x - ux * 13 + uy * 5, projectile.y - uy * 13 - ux * 5);
+        ctx.lineTo(projectile.x, projectile.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.translate(projectile.x, projectile.y);
+        ctx.rotate(Math.atan2(projectile.vy, projectile.vx) + Math.PI / 4);
+        ctx.fillStyle = "#dffff8";
+        ctx.fillRect(-4, -4, 8, 8);
+        ctx.restore();
+        continue;
+      }
       if (projectile.source === "sawGun") {
         const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
         const tx = projectile.x - projectile.vx / speed * 9;
@@ -572,6 +692,15 @@ export class Renderer {
         ctx.moveTo(radius * .55, -5); ctx.lineTo(radius * .78, 0); ctx.lineTo(radius * .55, 5);
         ctx.stroke();
       }
+      if (rift.attackable) {
+        const target = state.enemies.find((enemy) => enemy.id === rift.targetId && enemy.hp > 0);
+        const hpRatio = target ? Math.max(0, target.hp / target.maxHp) : 0;
+        ctx.rotate(-this.time * 2.8 - rift.id);
+        ctx.fillStyle = "rgba(0,0,0,.7)"; ctx.fillRect(-28, radius + 9, 56, 5);
+        ctx.fillStyle = "#ff8fe4"; ctx.fillRect(-28, radius + 9, 56 * hpRatio, 5);
+        ctx.fillStyle = "#fff1ff"; ctx.font = "800 9px Microsoft YaHei UI,sans-serif"; ctx.textAlign = "center"; ctx.fillText("可摧毁裂隙", 0, radius + 27);
+        ctx.rotate(this.time * 2.8 + rift.id);
+      }
       ctx.rotate(-this.time * 5.6);
       ctx.strokeStyle = "#fff0ff"; ctx.lineWidth = 1.4;
       ctx.beginPath();
@@ -662,7 +791,7 @@ export class Renderer {
   }
 
   drawEnemies(ctx, state) {
-    for (const anchor of state.enemies.filter((enemy) => enemy.type === "anchor" && enemy.hp > 0)) {
+    for (const anchor of state.enemies.filter((enemy) => enemy.type === "anchor" && enemy.hp > 0 && !enemy.riftAnchor)) {
       const boss = state.enemies.find((enemy) => enemy.id === anchor.anchorBossId && enemy.hp > 0);
       if (!boss) continue;
       const visual = ANCHOR_VISUALS[anchor.anchorRole] ?? ANCHOR_VISUALS.shield;
@@ -670,6 +799,7 @@ export class Renderer {
       ctx.beginPath(); ctx.moveTo(anchor.x, anchor.y); ctx.lineTo(boss.x, boss.y); ctx.stroke(); ctx.restore();
     }
     for (const enemy of state.enemies) {
+      if (enemy.riftAnchor) continue;
       const [bright, dark] = ENEMY_COLORS[enemy.type];
       if (enemy.rangedFlash > 0) {
         ctx.save();
@@ -764,7 +894,7 @@ export class Renderer {
       if (isAnchor) {
         const visual = ANCHOR_VISUALS[enemy.anchorRole] ?? ANCHOR_VISUALS.shield;
         ctx.save(); ctx.textAlign = "center"; ctx.font = "800 11px 'Microsoft YaHei UI',sans-serif"; ctx.fillStyle = visual.color; ctx.shadowColor = "#120a2d"; ctx.shadowBlur = 6;
-        ctx.fillText(`${visual.name}锚点`, enemy.x, enemy.y + enemy.radius + 22); ctx.restore();
+        ctx.fillText(enemy.counterSkill === "artillery" ? "炮击锚点" : `${visual.name}锚点`, enemy.x, enemy.y + enemy.radius + 22); ctx.restore();
       }
 
       if (enemy.type === "boss") {
@@ -786,6 +916,9 @@ export class Renderer {
           ctx.rotate(-this.time * 1.1); ctx.strokeStyle = "#c6f8ff"; ctx.lineWidth = 1.5; ctx.setLineDash([4, 11]);
           ctx.beginPath(); ctx.ellipse(0, 0, enemy.radius + 66, enemy.radius + 34, 0, 0, Math.PI * 2); ctx.stroke();
           ctx.restore();
+        }
+        if ((enemy.exposedTimer ?? 0) > 0) {
+          ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(-this.time * 1.2); ctx.strokeStyle = "#fff1a8"; ctx.shadowColor = "#ffcf5b"; ctx.shadowBlur = 24; ctx.lineWidth = 4; ctx.setLineDash([16, 7]); ctx.beginPath(); ctx.ellipse(0, 0, enemy.radius + 92, enemy.radius + 54, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = "#fff4ba"; ctx.font = "900 11px Microsoft YaHei UI,sans-serif"; ctx.textAlign = "center"; ctx.fillText(`弱点暴露 ${enemy.exposedTimer.toFixed(1)}s`, 0, -enemy.radius - 69); ctx.restore();
         }
         if ((enemy.phaseBreakInvulnerability ?? 0) > 0) {
           const ratio = enemy.phaseBreakInvulnerability / GAME_CONFIG.colossus.phaseBreakInvulnerability;
@@ -1206,7 +1339,7 @@ export class Renderer {
       });
       ctx.textAlign = "center"; ctx.font = "700 10px 'Microsoft YaHei UI', sans-serif";
       ctx.fillStyle = shieldRatio > 0 ? "#a9f4ff" : boss.enraged ? "#ff9c71" : "#ddc6ff";
-      const status = shieldRatio > 0 ? `腐晶护盾 ${Math.ceil(shieldRatio * 100)}%` : boss.enraged ? `第二命核 · 冰冻免疫 · ${parallelSkills.length} 项技能并行` : "双生命核 · 第一阶段";
+      const status = shieldRatio > 0 ? `腐晶护盾 ${Math.ceil(shieldRatio * 100)}%` : (boss.exposedTimer ?? 0) > 0 ? `弱点暴露 · 承伤 +${Math.round((GAME_CONFIG.colossus.counters.exposedDamageMultiplier - 1) * 100)}% · ${boss.exposedTimer.toFixed(1)}s` : boss.enraged ? `第二命核 · 冰冻免疫 · ${parallelSkills.length} 项技能并行` : "双生命核 · 第一阶段";
       ctx.fillText(status, width / 2, y + 55);
     } else {
       ctx.fillStyle = "rgba(255,255,255,.1)"; ctx.fillRect(width / 2 - barWidth / 2, y + 14, barWidth, 10);

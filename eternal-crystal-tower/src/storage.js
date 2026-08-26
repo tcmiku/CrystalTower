@@ -6,10 +6,12 @@ export function defaultSave() {
   return {
     version: 1,
     stardust: 0,
+    resources: { echoShards: 0, coreFragments: 0 },
     research: { damage: 0, health: 0, income: 0 },
     unlocks: { doubleSpeed: false },
+    baseCamp: { unlocked: false, recoverySeen: false, coreEcho: false },
     settings: { muted: false, playerName: "PLAYER" },
-    records: { highestThreat: 1, longestTime: 0, totalKills: 0 },
+    records: { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 },
     leaderboard: []
   };
 }
@@ -23,15 +25,21 @@ export function sanitizeSave(candidate) {
   const safe = defaultSave();
   if (!candidate || typeof candidate !== "object" || candidate.version !== 1) return safe;
   safe.stardust = boundedInt(candidate.stardust, 0, 1_000_000_000);
+  safe.resources.echoShards = boundedInt(candidate.resources?.echoShards, 0, 1_000_000_000);
+  safe.resources.coreFragments = boundedInt(candidate.resources?.coreFragments, 0, 1_000_000_000);
   for (const key of Object.keys(safe.research)) {
     safe.research[key] = boundedInt(candidate.research?.[key], 0, GAME_CONFIG.research.maxLevel);
   }
   safe.unlocks.doubleSpeed = candidate.unlocks?.doubleSpeed === true;
+  safe.baseCamp.unlocked = candidate.baseCamp?.unlocked === true;
+  safe.baseCamp.recoverySeen = safe.baseCamp.unlocked && candidate.baseCamp?.recoverySeen === true;
+  safe.baseCamp.coreEcho = safe.baseCamp.unlocked && candidate.baseCamp?.coreEcho === true;
   safe.settings.muted = Boolean(candidate.settings?.muted);
   safe.settings.playerName = sanitizePlayerName(candidate.settings?.playerName ?? "PLAYER");
   safe.records.highestThreat = boundedInt(candidate.records?.highestThreat, 1, 1_000_000);
   safe.records.longestTime = Math.max(0, Number(candidate.records?.longestTime) || 0);
   safe.records.totalKills = boundedInt(candidate.records?.totalKills, 0, 1_000_000_000);
+  safe.records.failures = boundedInt(candidate.records?.failures, 0, 1_000_000_000);
   const entries = Array.isArray(candidate.leaderboard) ? candidate.leaderboard : [];
   safe.leaderboard = entries.map((entry) => ({
     name: sanitizePlayerName(entry?.name),
@@ -49,6 +57,27 @@ export function unlockDoubleSpeed(save) {
   if (!save.unlocks || typeof save.unlocks !== "object") save.unlocks = { doubleSpeed: false };
   if (save.unlocks.doubleSpeed === true) return false;
   save.unlocks.doubleSpeed = true;
+  return true;
+}
+
+export function registerFailure(save) {
+  save.records.failures = boundedInt((save.records.failures ?? 0) + 1, 0, 1_000_000_000);
+  if (save.baseCamp.unlocked) return false;
+  save.baseCamp.unlocked = true;
+  save.baseCamp.coreEcho = true;
+  return true;
+}
+
+export function markBaseRecoverySeen(save) {
+  if (!save.baseCamp.unlocked) return false;
+  save.baseCamp.recoverySeen = true;
+  return true;
+}
+
+export function grantPermanentResource(save, type, value = 1) {
+  const key = type === "echo" ? "echoShards" : type === "core" ? "coreFragments" : null;
+  if (!key) return false;
+  save.resources[key] = boundedInt((save.resources[key] ?? 0) + value, 0, 1_000_000_000);
   return true;
 }
 

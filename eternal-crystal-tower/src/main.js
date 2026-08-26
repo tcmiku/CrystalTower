@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
-import { calculateRunScore, calculateStardust, collectCoinAt, createGameState, cycleTargetProtocol, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, purchaseUpgrade, setTargetProtocol, spawnEnemy, toggleDroneMode, updateGame, useSkill } from "./engine.js";
+import { calculateRunScore, calculateStardust, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyResearch, defaultSave, loadSave, researchCost, SAVE_KEY, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
+import { buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { AudioSynth } from "./audio.js";
 import { Renderer } from "./renderer.js";
@@ -37,9 +37,26 @@ const SKILL_META = {
   starfall: { key: "E", name: "星落", description: "手动选择轰击方向" },
   coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币" }
 };
+const RELIC_META = {
+  decoy: { icon: "◈", name: "诡光诱饵", type: "战术造物", description: "每波开始时在来袭方向生成诱饵。敌人会优先追逐它。", effect: "摧毁：爆炸 · 存活：转化为金币" },
+  lunar: { icon: "◐", name: "月相调律", type: "昼夜回路", description: "白昼提高金币价值，长夜增强冰霜、灼烧与雷链效果。", effect: "昼夜切换时获得 6 秒火力强化" },
+  mirror: { icon: "◇", name: "镜面裂片", type: "晶矢回路", description: "每 5 次普通攻击，下一枚晶矢折射至第二个目标。", effect: "首领作为当前目标时不会折射" },
+  ember: { icon: "♨", name: "余烬回收", type: "燃烧回路", description: "灼烧或爆炸击杀会留下伤害区域，持续烧灼经过的敌人。", effect: "代价：余烬区内金币更快消失" },
+  "boost:damage": { icon: "✦", name: "晶矢增幅", type: "回路强化", description: "模块槽已满，将过载能量直接灌注主炮。", effect: "本局攻击力 +18% · 可重复" },
+  "boost:rate": { icon: "⌁", name: "咏唱增幅", type: "回路强化", description: "模块槽已满，缩短自动攻击的咏唱间隔。", effect: "本局攻击速度 +12% · 可重复" },
+  "boost:hybrid": { icon: "✧", name: "双相增幅", type: "回路强化", description: "模块槽已满，以均衡方式扩展晶塔输出。", effect: "本局攻击力 +9% · 攻速 +6%" }
+};
+const RELIC_SOURCE_TEXT = {
+  eliteWave: "怪潮精英已被肃清，选择一项回路继续守望。",
+  boss: "腐化首领已经倒下，回收一项战场模块。",
+  colossusPhase: "巨兽命核破碎，从暴露的回路中夺取一项模块。",
+  colossusDefeat: "虚环吞星兽崩解，选择最后一项战利品。"
+};
 const ELITE_AFFIX_NAMES = { shield: "护盾", sprint: "狂奔", devour: "吞金", split: "分裂" };
 const COLOSSUS_AFFIX_NAMES = { siege: "灾厄炮膛", brood: "裂殖母巢", prism: "噬光棱镜", carapace: "不灭甲壳" };
 const COLOSSUS_SKILL_NAMES = { artillery: "陨晶炮击", summon: "裂隙召唤", beam: "噬光射线", bulwark: "环界堡垒" };
+const COLOSSUS_COUNTER_HINTS = { artillery: "摧毁炮击锚点，减少炮弹", summon: "切换猎杀协议，让裂隙可攻击", beam: "用星落覆盖巨兽方向，切断射线", bulwark: "堡垒展开后使用超载，可强行破盾" };
+const COLOSSUS_COUNTER_RESULTS = { artillery: "炮击锚点崩毁 · 弹幕削减", summon: "猎杀协议接管 · 裂隙实体化", rift: "召唤裂隙已摧毁", beam: "星落截断射线 · 首领弱点暴露", bulwark: "超载击穿堡垒 · 热量激增" };
 const ELEMENT_NAMES = { frost: "冰霜", fire: "火焰", lightning: "雷电" };
 const ANCHOR_ROLE_NAMES = { shield: "护盾锚点", repair: "修复锚点", summon: "召唤锚点", overload: "过载锚点" };
 const TARGET_PROTOCOL_META = {
@@ -69,7 +86,10 @@ const dom = Object.fromEntries([
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
   "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
   "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
-  "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss"
+  "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
+  "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
+  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "coreNexusRoom", "researchBayRoom", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments",
+  "relicRunHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList"
 ].map((id) => [id, document.getElementById(id)]));
 
 let save = loadSave();
@@ -153,6 +173,20 @@ if (previewMode === "coins") {
     { x: 350, y: 280, renderX: 350, renderY: 280, value: 5, age: 0, collectAge: 0, collector: null, droneIndex: 0 },
     { x: 610, y: 300, renderX: 610, renderY: 300, value: 7, age: 0, collectAge: 0, collector: null, droneIndex: 0 }
   );
+}
+if (previewMode === "resources") {
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  spawnPermanentResourceDrop(state, "echo", 3, 390, 300, { source: "elite" });
+  spawnPermanentResourceDrop(state, "core", 1, 580, 315, { source: "boss" });
+  state.paused = true;
+}
+if (previewMode === "basecamp" || previewMode === "recovery") {
+  save.baseCamp.unlocked = true;
+  save.baseCamp.coreEcho = true;
+  save.baseCamp.recoverySeen = previewMode === "basecamp";
+  save.resources.echoShards = Math.max(save.resources.echoShards, 42);
+  save.resources.coreFragments = Math.max(save.resources.coreFragments, 7);
 }
 if (previewMode === "elements" || previewMode === "element-tech") {
   state.threat = 9;
@@ -313,6 +347,10 @@ if (previewMode === "skill-risk") {
   for (const enemy of state.enemies) enemy.speed = 0;
   state.paused = true;
 }
+if (previewMode === "relics") {
+  offerRelicChoice(state, "eliteWave");
+  handleEvents(state.events);
+}
 if (previewMode === "leaderboard") {
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
@@ -338,6 +376,13 @@ let techTreeOpen = false;
 let resumeAfterTechTree = false;
 let leaderboardModalOpen = false;
 let resumeAfterLeaderboard = false;
+let baseCampOpen = false;
+let resumeAfterBaseCamp = false;
+let relicChoiceOpen = false;
+let resumeAfterRelicChoice = false;
+let relicHudSignature = "";
+let recoveryEventStep = 0;
+let firstFailureFlow = false;
 let starfallAiming = false;
 let doubleSpeedActive = previewMode === "speed";
 const firstRunTutorial = save.records.totalKills === 0 && !previewMode;
@@ -520,6 +565,79 @@ function setLeaderboardOpen(open, restoreFocus = false) {
   }
 }
 
+function updatePermanentResourceUi() {
+  const echo = formatNumber(save.resources.echoShards);
+  const core = formatNumber(save.resources.coreFragments);
+  dom.battleEchoShardText.textContent = echo;
+  dom.battleCoreFragmentText.textContent = core;
+  dom.baseCampEchoShardText.textContent = echo;
+  dom.baseCampCoreFragmentText.textContent = core;
+  dom.baseCampStardustText.textContent = formatNumber(save.stardust);
+  dom.openBaseCampButton.classList.toggle("hidden", !save.baseCamp.unlocked);
+}
+
+function renderBaseCamp() {
+  updatePermanentResourceUi();
+  renderResearch();
+}
+
+function setBaseCampOpen(open, restoreFocus = false) {
+  const nextOpen = Boolean(open) && save.baseCamp.unlocked;
+  if (nextOpen && starfallAiming) cancelStarfallAim(false);
+  if (nextOpen && !baseCampOpen) {
+    resumeAfterBaseCamp = !state.paused && !state.over;
+    state.paused = true;
+    baseCampOpen = true;
+    dom.gameOverModal.classList.add("hidden");
+    dom.baseCampModal.classList.remove("hidden");
+    renderBaseCamp();
+    dom.closeBaseCampButton.textContent = state.over ? "返回结算" : "返回战场";
+    dom.closeBaseCampButton.focus({ preventScroll: true });
+  } else if (!nextOpen && baseCampOpen) {
+    baseCampOpen = false;
+    dom.baseCampModal.classList.add("hidden");
+    if (resumeAfterBaseCamp && !state.over && !techTreeOpen && !leaderboardModalOpen) state.paused = false;
+    resumeAfterBaseCamp = false;
+    if (state.over) dom.gameOverModal.classList.remove("hidden");
+    if (restoreFocus) (state.over ? dom.openBaseCampFromGameOver : dom.openBaseCampButton).focus({ preventScroll: true });
+    updateUi();
+  }
+}
+
+function showBaseRecoveryEvent() {
+  recoveryEventStep = 0;
+  firstFailureFlow = true;
+  state.paused = true;
+  dom.gameOverModal.classList.add("hidden");
+  dom.recoveryEventTitle.textContent = "核心残响";
+  dom.recoveryEventText.textContent = "熄灭的晶塔仍在黑暗中回应。你从第一次失败里带回了一枚不会消散的核心残响，并获得 1 枚核心残片用于启动大本营。";
+  dom.recoveryContinueButton.textContent = "聆听残响";
+  dom.baseRecoveryModal.classList.remove("hidden");
+  dom.recoveryContinueButton.focus({ preventScroll: true });
+}
+
+function advanceBaseRecoveryEvent() {
+  if (recoveryEventStep === 0) {
+    recoveryEventStep = 1;
+    dom.recoveryEventTitle.textContent = "基地恢复";
+    dom.recoveryEventText.textContent = "残响接通了地下避难所。晶核中枢重新供能，研究舱也从沉睡中亮起。";
+    dom.recoveryContinueButton.textContent = "进入核心室";
+    audio.play("ascend");
+    return;
+  }
+  markBaseRecoverySeen(save);
+  if (!previewMode) save = writeSave(save);
+  dom.baseRecoveryModal.classList.add("hidden");
+  firstFailureFlow = false;
+  setBaseCampOpen(true);
+}
+
+function commitPermanentDrop(drop) {
+  if (!drop) return;
+  grantPermanentResource(save, drop.resourceType, drop.value);
+  save = writeSave(save);
+  updatePermanentResourceUi();
+}
 function createSkillUi() {
   dom.skillList.replaceChildren();
   for (const key of SKILL_ORDER) {
@@ -657,9 +775,84 @@ function switchDroneMode() {
   showToast(state.tower.droneMode === "attack" ? "无人机切换为攻击模式" : "无人机返回护航模式");
 }
 
+function renderRelicHud() {
+  const owned = Object.entries(state.relics.owned).filter(([, active]) => active).map(([id]) => id);
+  const signature = [owned.join(","), state.relics.damageBonus.toFixed(3), state.relics.rateBonus.toFixed(3)].join("|");
+  if (signature === relicHudSignature) return;
+  relicHudSignature = signature;
+  dom.relicRunHud.replaceChildren();
+  for (const id of owned) {
+    const meta = RELIC_META[id];
+    const chip = document.createElement("span");
+    chip.className = "relic-run-chip";
+    chip.innerHTML = `<i>${meta.icon}</i>${meta.name}`;
+    dom.relicRunHud.append(chip);
+  }
+  if (state.relics.damageBonus > 0 || state.relics.rateBonus > 0) {
+    const chip = document.createElement("span");
+    chip.className = "relic-run-chip";
+    chip.innerHTML = `<i>✧</i>火力 +${Math.round(state.relics.damageBonus * 100)}% · 攻速 +${Math.round(state.relics.rateBonus * 100)}%`;
+    dom.relicRunHud.append(chip);
+  }
+}
+
+function renderRelicChoice() {
+  if (!state.relicChoice) return;
+  dom.relicChoiceSource.textContent = RELIC_SOURCE_TEXT[state.relicChoice.source] ?? "回收一项战场模块。";
+  dom.relicChoiceSlots.textContent = state.relics.picks >= GAME_CONFIG.relics.maxModules
+    ? "模块已满 · 强化回路"
+    : `模块 ${state.relics.picks} / ${GAME_CONFIG.relics.maxModules}`;
+  dom.relicChoiceList.replaceChildren();
+  state.relicChoice.choices.forEach((id, index) => {
+    const meta = RELIC_META[id];
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "relic-card";
+    button.dataset.relic = id;
+    button.innerHTML = `<span class="relic-card-index">0${index + 1}</span><span class="relic-card-icon">${meta.icon}</span><span class="relic-card-type">${meta.type}</span><h3>${meta.name}</h3><p>${meta.description}</p><span class="relic-card-effect">${meta.effect}</span>`;
+    button.addEventListener("click", () => selectRunRelic(id));
+    dom.relicChoiceList.append(button);
+  });
+  dom.relicChoiceList.firstElementChild?.focus({ preventScroll: true });
+}
+
+function setRelicChoiceOpen(open) {
+  const nextOpen = Boolean(open) && Boolean(state.relicChoice);
+  if (nextOpen && !relicChoiceOpen) {
+    if (starfallAiming) cancelStarfallAim(false);
+    resumeAfterRelicChoice = !state.paused;
+    state.paused = true;
+  }
+  relicChoiceOpen = nextOpen;
+  dom.relicChoiceModal.classList.toggle("hidden", !nextOpen);
+  dom.pauseOverlay.classList.add("hidden");
+  if (nextOpen) renderRelicChoice();
+  else {
+    if (resumeAfterRelicChoice && !state.over && !techTreeOpen && !leaderboardModalOpen && !baseCampOpen) state.paused = false;
+    resumeAfterRelicChoice = false;
+  }
+}
+
+function selectRunRelic(id) {
+  if (!chooseRelic(state, id)) return;
+  audio.play("ascend");
+  handleEvents(state.events);
+  renderRelicHud();
+  if (state.relicChoice) {
+    relicChoiceOpen = true;
+    dom.relicChoiceModal.classList.remove("hidden");
+    renderRelicChoice();
+  } else setRelicChoiceOpen(false);
+}
 function handleEvents(events) {
   for (const event of events) {
-    if (event.type === "shoot") audio.play("shoot");
+    if (event.type === "relicChoice") setRelicChoiceOpen(true);
+    else if (event.type === "relicChosen") announce(`${RELIC_META[event.id]?.name ?? "战场回路"} · 已接入本局构筑`);
+    else if (event.type === "relicDecoyExplode") { audio.play("overload"); renderer.trigger("overloadRelease", 0.7); announce("诡光诱饵崩解 · 爆炸清场"); }
+    else if (event.type === "relicDecoySurvived") { audio.play("coin"); showToast(`诡光诱饵存活 · 转化金币 ${event.value}`); }
+    else if (event.type === "relicPhaseBuff") { renderer.trigger("ascend", 0.45); showToast("月相调律 · 短暂火力强化"); }
+    else if (event.type === "relicMirror") renderer.trigger("targetProtocol");
+    else if (event.type === "shoot") audio.play("shoot");
     else if (event.type === "sawShoot") audio.play("sawShoot");
     else if (event.type === "sawLaunch" || event.type === "sawBounce") audio.play("sawShoot");
     else if (event.type === "hit") audio.play("hit");
@@ -672,8 +865,10 @@ function handleEvents(events) {
     else if (event.type === "colossusSpawn") { audio.play("boss"); renderer.trigger("bossSpawn", 1.5); announce(`威胁 XV · 虚环吞星兽 · ${COLOSSUS_AFFIX_NAMES[event.affix] ?? "未知异变"}`); }
     else if (event.type === "colossusIntent") {
       audio.play("waveWarning"); renderer.trigger("waveWarning");
-      announce(`攻击预兆 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知异变"} · ${event.duration.toFixed(1)} 秒`);
+      announce(`攻击预兆 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知异变"} · ${COLOSSUS_COUNTER_HINTS[event.skill] ?? "准备反制"}`);
     }
+    else if (event.type === "colossusCounterAnchor") { renderer.trigger("waveWarning"); showToast("炮击锚点出现 · 点击锁定或等待晶塔攻击"); }
+    else if (event.type === "colossusCounter") { audio.play("ascend"); renderer.trigger("ascend", 0.6); announce(COLOSSUS_COUNTER_RESULTS[event.counter] ?? "首领技能已反制"); }
     else if (event.type === "colossusSkill") {
       audio.play(event.skill === "summon" ? "waveStart" : "boss");
       announce(`巨兽技能 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知异变"}${event.enraged ? " · 狂化强化" : ""}`);
@@ -695,6 +890,7 @@ function handleEvents(events) {
     else if (event.type === "droneDepleted") { renderer.trigger("droneDepleted"); announce("无人机电量耗尽 · 强制返航"); }
     else if (event.type === "droneIntercept") { renderer.trigger("droneIntercept"); announce("拦截协议 · 重击无效"); }
     else if (event.type === "eliteMarked") renderer.trigger("eliteMarked");
+    else if (event.type === "permanentResourceCollected") { commitPermanentDrop(event); audio.play("coin"); showToast(`${event.resourceType === "core" ? "核心残片" : "遗响碎片"} +${event.value}`); }
     else if (event.type === "threat") { announce(event.level === GAME_CONFIG.colossus.spawnThreat ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
     else if (event.type === "phase") { audio.play("phase"); announce(event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场"); }
     else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce("侦测到大规模怪潮"); }
@@ -716,12 +912,14 @@ function updateUi() {
   dom.healthFill.style.width = `${hpRatio * 100}%`;
   dom.healthFill.style.background = state.tower.shield > 0.5 ? "linear-gradient(90deg,#e9ffff,#68dfff)" : hpRatio < 0.3 ? "linear-gradient(90deg,#ff4f70,#ff9a72)" : "linear-gradient(90deg,#7ee8ff,#b48cff)";
   dom.coinsText.textContent = formatNumber(state.coins);
+  updatePermanentResourceUi();
   dom.scoreText.textContent = formatScore(state.stats.score);
   dom.threatText.textContent = formatThreat(state.threat);
   dom.timeText.textContent = formatTime(state.time);
   dom.phaseText.textContent = state.phase === "day" ? "白昼" : "长夜";
   dom.phaseText.parentElement.classList.toggle("night", state.phase === "night");
   dom.waveText.textContent = state.wave.active ? "涌入中" : formatTime(Math.max(0, state.wave.nextAt - state.time));
+  renderRelicHud();
   dom.damageStat.textContent = Math.round(stats.damage);
   dom.rateStat.textContent = stats.fireRate.toFixed(1);
   dom.rangeStat.textContent = Math.round(stats.range);
@@ -799,8 +997,10 @@ function updateUi() {
     const activeColossusSkills = Object.keys(colossus.activeSkills ?? {}).map((skill) => COLOSSUS_SKILL_NAMES[skill]).filter(Boolean);
     dom.objectiveTitle.textContent = colossus.enraged ? `第二命核 · 狂暴并行 ${activeColossusSkills.length}/4` : colossus.spawnShield > 0 ? "首领护盾 · 优先击破" : `巨兽词条 · ${COLOSSUS_AFFIX_NAMES[colossus.colossusAffix] ?? "未知异变"}`;
     dom.objectiveText.textContent = colossus.intentSkill
-      ? `攻击预兆：${COLOSSUS_SKILL_NAMES[colossus.intentSkill]}将在 ${Math.max(0, colossus.intentTimer).toFixed(1)} 秒后发动。`
-      : activeColossusSkills.length ? `同时施放：${activeColossusSkills.join("、")} · 注意弹道与召唤法阵。`
+      ? `反制窗口 ${Math.max(0, colossus.intentTimer).toFixed(1)}s · ${COLOSSUS_COUNTER_HINTS[colossus.intentSkill]}`
+      : (colossus.exposedTimer ?? 0) > 0 ? `弱点暴露 ${colossus.exposedTimer.toFixed(1)} 秒 · 所有攻击伤害提高。`
+        : activeColossusSkills.length ? `同时施放：${activeColossusSkills.join("、")} · 注意弹道与召唤法阵。`
+        : colossus.activeSkill === "bulwark" ? "堡垒已展开 · 立即使用 W 超载强行击穿。"
         : colossus.activeSkill ? `正在施放${COLOSSUS_SKILL_NAMES[colossus.activeSkill]} · 常规怪群已暂停。` : "技能间隙 · 集中全部火力攻击外圈巨兽。";
   } else if (state.wave.warningStarted || state.wave.active) {
     dom.objectiveTitle.textContent = state.wave.active ? "怪潮压境" : "怪潮预警";
@@ -949,6 +1149,9 @@ function settleRun(stardust) {
   scoreSubmitted = false;
   currentEntryDate = null;
   save.stardust += stardust;
+  const firstFailure = previewMode ? false : registerFailure(save);
+  const firstFailureCoreGift = firstFailure ? 1 : 0;
+  if (firstFailureCoreGift) grantPermanentResource(save, "core", firstFailureCoreGift);
   save.records.highestThreat = Math.max(save.records.highestThreat, state.stats.highestThreat);
   save.records.longestTime = Math.max(save.records.longestTime, state.time);
   save.records.totalKills += state.stats.kills;
@@ -957,6 +1160,8 @@ function settleRun(stardust) {
   dom.resultKills.textContent = formatNumber(state.stats.kills);
   dom.resultThreat.textContent = formatThreat(state.stats.highestThreat);
   dom.resultStardust.textContent = `+${stardust}`;
+  dom.resultEchoShards.textContent = `+${state.stats.echoShards ?? 0}`;
+  dom.resultCoreFragments.textContent = `+${(state.stats.coreFragments ?? 0) + firstFailureCoreGift}`;
   dom.resultScore.textContent = formatScore(currentRunScore.total);
   dom.resultCombatScore.textContent = formatNumber(currentRunScore.combat);
   dom.resultCoinScore.textContent = `${Math.floor(state.coins)} × ${GAME_CONFIG.score.coinMultiplier} = ${formatNumber(currentRunScore.coinBonus)}`;
@@ -965,16 +1170,28 @@ function settleRun(stardust) {
   dom.submitScoreButton.disabled = false;
   dom.scoreEntryStatus.textContent = "";
   setTechTreeOpen(false);
-  renderResearch();
+  renderBaseCamp();
   refreshLeaderboard();
   setTimeout(() => {
-    dom.gameOverModal.classList.remove("hidden");
-    dom.playerNameInput.focus({ preventScroll: true });
+    if (firstFailure) showBaseRecoveryEvent();
+    else {
+      dom.gameOverModal.classList.remove("hidden");
+      dom.playerNameInput.focus({ preventScroll: true });
+    }
   }, 650);
 }
 
 function togglePause(force) {
   if (state.over) return;
+  if (relicChoiceOpen) {
+    state.paused = true;
+    return;
+  }
+  if (baseCampOpen || firstFailureFlow) {
+    if (force === true) resumeAfterBaseCamp = false;
+    state.paused = true;
+    return;
+  }
   if (leaderboardModalOpen) {
     if (force === true) resumeAfterLeaderboard = false;
     state.paused = true;
@@ -1003,6 +1220,10 @@ function toggleDoubleSpeed() {
 
 function restart() {
   cancelStarfallAim(false);
+  relicChoiceOpen = false;
+  resumeAfterRelicChoice = false;
+  relicHudSignature = "";
+  dom.relicChoiceModal.classList.add("hidden");
   runIndex += 1;
   state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research);
   runSettled = false;
@@ -1024,7 +1245,7 @@ function loop(now) {
   if (!state.paused && !state.over) {
     accumulator += frameDelta * (doubleSpeedActive ? 2 : 1);
     let steps = 0;
-    while (accumulator >= GAME_CONFIG.fixedStep && steps < 16) {
+    while (accumulator >= GAME_CONFIG.fixedStep && steps < 16 && !state.paused) {
       updateGame(state, GAME_CONFIG.fixedStep);
       handleEvents(state.events);
       accumulator -= GAME_CONFIG.fixedStep;
@@ -1049,6 +1270,10 @@ if (previewMode === "tutorial-branches") showFirstRunTutorial(3, true);
 if (previewMode === "tech" || previewMode === "drones" || previewMode === "element-tech" || previewMode === "drone-energy") setTechTreeOpen(true);
 announce("守住中央晶塔");
 refreshLeaderboard();
+if (previewMode === "relics") {
+  offerRelicChoice(state, "eliteWave");
+  handleEvents(state.events);
+}
 if (previewMode === "leaderboard") {
   updateGame(state, GAME_CONFIG.fixedStep);
   handleEvents(state.events);
@@ -1059,6 +1284,19 @@ document.addEventListener("keydown", (event) => {
   audio.unlock();
   const tag = event.target?.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA") return;
+  if (relicChoiceOpen) {
+    const index = Number(event.key) - 1;
+    if (index >= 0 && index < 3) selectRunRelic(state.relicChoice.choices[index]);
+    return;
+  }
+  if (firstFailureFlow) {
+    if (event.key === "Enter" || event.key === " ") advanceBaseRecoveryEvent();
+    return;
+  }
+  if (baseCampOpen) {
+    if (event.key === "Escape") setBaseCampOpen(false, true);
+    return;
+  }
   if (leaderboardModalOpen) {
     if (event.key === "Escape") setLeaderboardOpen(false, true);
     return;
@@ -1078,6 +1316,11 @@ document.addEventListener("keydown", (event) => {
   else if (event.key === "Escape" && techTreeOpen) setTechTreeOpen(false, true);
   else if (event.key.toLowerCase() === "p" || event.key === "Escape") togglePause();
 });
+dom.openBaseCampButton.addEventListener("click", () => setBaseCampOpen(true));
+dom.openBaseCampFromGameOver.addEventListener("click", () => setBaseCampOpen(true));
+dom.closeBaseCampButton.addEventListener("click", () => setBaseCampOpen(false, true));
+dom.baseCampModal.addEventListener("pointerdown", (event) => { if (event.target === dom.baseCampModal) setBaseCampOpen(false, true); });
+dom.recoveryContinueButton.addEventListener("click", advanceBaseRecoveryEvent);
 dom.openLeaderboardButton.addEventListener("click", () => setLeaderboardOpen(true));
 dom.closeLeaderboardButton.addEventListener("click", () => setLeaderboardOpen(false, true));
 dom.leaderboardModal.addEventListener("pointerdown", (event) => {
@@ -1113,6 +1356,11 @@ dom.gameCanvas.addEventListener("pointerdown", (event) => {
     return;
   }
   const touchScale = event.pointerType === "touch" ? 1.8 : 1;
+  const permanentDrop = collectPermanentResourceAt(state, x, y, GAME_CONFIG.permanentResources.clickRadius * touchScale);
+  if (permanentDrop) {
+    handleEvents(state.events);
+    return;
+  }
   if (lockAnchorAt(state, x, y, GAME_CONFIG.boss.anchorClickPadding * touchScale)) {
     handleEvents(state.events);
     return;
@@ -1137,19 +1385,23 @@ dom.tutorialDismiss.addEventListener("click", () => {
 });
 dom.restartButton.addEventListener("click", restart);
 dom.clearSaveButton.addEventListener("click", () => {
-  if (!confirm("清除全部星尘、永久研究和纪录？此操作无法撤销。")) return;
+  if (!confirm("清除全部永久资源、基地进度、研究和纪录？此操作无法撤销。")) return;
   localStorage.removeItem(SAVE_KEY);
   save = defaultSave();
   doubleSpeedActive = false;
   audio.setMuted(false);
-  renderResearch();
+  setBaseCampOpen(false);
+  renderBaseCamp();
   renderLeaderboard(null);
   showToast("存档已清除");
   updateUi();
 });
 
 document.addEventListener("pointerdown", () => audio.unlock(), { once: true });
-revealGameWhenReady();
+revealGameWhenReady().then(() => {
+  if (previewMode === "basecamp") setBaseCampOpen(true);
+  else if (previewMode === "recovery" || (save.baseCamp.unlocked && !save.baseCamp.recoverySeen)) showBaseRecoveryEvent();
+});
 
 globalThis.__ETERNAL_CRYSTAL_TOWER__ = {
   getState: () => state,
