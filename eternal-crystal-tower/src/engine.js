@@ -2,7 +2,7 @@ import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, UPGRADE_ORDER } from "./config.js";
 import { SeededRng } from "./rng.js";
 
 const ASCEND_NAMES = ["晶芽", "晶柱", "晶冠", "万象晶塔"];
-const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
+const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
 
 export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots) {
   const rng = new SeededRng(seed);
@@ -30,6 +30,9 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       autoCollectCooldown: GAME_CONFIG.coins.towerInterval,
       droneMode: "collect",
       droneEnergy: GAME_CONFIG.drones.energyMax,
+      droneDetonateActive: false,
+      droneGuardShield: 0,
+      droneGuardCooldown: 0,
       interceptCharge: 0,
       interceptRecharge: 0,
       targetProtocol: "guard",
@@ -37,7 +40,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       anchorLockTimer: 0,
       priorityTargetIds: [],
       sawAngle: 0,
-      upgrades: { damage: 0, rate: 0, ascend: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
+      upgrades: { damage: 0, rate: 0, ascend: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
     },
     skills: {
       heal: { cooldown: 0, active: 0, burst: 0, shieldBurstArmed: false },
@@ -79,6 +82,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     events: [],
     stats: { kills: 0, bossKills: 0, highestThreat: 1, score: 0, echoShards: 0, coreFragments: 0 }
   };
+  state.tower.droneEnergy = getDroneEnergyMax(state);
   state.tower.hp = getTowerStats(state).maxHp;
   return state;
 }
@@ -149,6 +153,7 @@ export function purchaseUpgrade(state, key) {
   state.coins -= cost;
   state.tower.upgrades[key] += 1;
   if (key === "autoCollect") state.tower.autoCollectCooldown = GAME_CONFIG.coins.towerInterval;
+  if (key === "droneBattery") state.tower.droneEnergy = getDroneEnergyMax(state);
   if (key === "droneIntercept") state.tower.interceptCharge = 1;
   if (key === "ascend") {
     const nextStats = getTowerStats(state);
@@ -161,10 +166,26 @@ export function purchaseUpgrade(state, key) {
 }
 
 export function toggleDroneMode(state) {
-  if (state.over || state.tower.upgrades.autoCollect < 1 || state.tower.upgrades.drone < 1) return false;
+  if (state.over || state.tower.droneDetonateActive || state.tower.upgrades.autoCollect < 1 || state.tower.upgrades.drone < 1) return false;
   if (state.tower.droneMode === "collect" && state.tower.droneEnergy < GAME_CONFIG.drones.minAttackEnergy) return false;
   state.tower.droneMode = state.tower.droneMode === "attack" ? "collect" : "attack";
   state.events.push({ type: "droneMode", mode: state.tower.droneMode });
+  return true;
+}
+
+export function toggleDroneDetonate(state) {
+  if (state.over || state.tower.upgrades.droneDetonate < 1) return false;
+  if (state.tower.droneDetonateActive) {
+    state.tower.droneDetonateActive = false;
+    state.tower.droneMode = "collect";
+    state.events.push({ type: "droneDetonateMode", active: false });
+    return true;
+  }
+  const cfg = GAME_CONFIG.drones.detonate;
+  if (state.tower.droneEnergy < cfg.energyCost) return false;
+  state.tower.droneDetonateActive = true;
+  state.tower.droneMode = "attack";
+  state.events.push({ type: "droneDetonateMode", active: true });
   return true;
 }
 
@@ -775,6 +796,32 @@ export function collectPermanentResourceAt(state, x, y, clickRadius = GAME_CONFI
   }
   if (bestIndex < 0) return null;
   const [drop] = state.resourceDrops.splice(bestIndex, 1);
+  return collectPermanentResource(state, drop);
+}
+
+export function getDroneEnergyMax(state) {
+  const batteryLevel = state?.tower?.upgrades?.droneBattery ?? 0;
+  return GAME_CONFIG.drones.energyMax + batteryLevel * GAME_CONFIG.drones.batteryCapacityPerLevel;
+}
+
+export function getDroneGuardShieldMax(state) {
+  const batteryLevel = state?.tower?.upgrades?.droneBattery ?? 0;
+  return GAME_CONFIG.drones.guard.shieldMax + batteryLevel * GAME_CONFIG.drones.guard.shieldPerBattery;
+}
+
+export function getDroneDetonateRecovery(state) {
+  const level = state?.tower?.upgrades?.droneDetonateRecovery ?? 0;
+  const cfg = GAME_CONFIG.drones.detonate;
+  return cfg.recoveryDuration * (cfg.recoveryMultiplier ** level);
+}
+
+export function getDroneGuardCooldown(state) {
+  const level = state?.tower?.upgrades?.droneGuardRecovery ?? 0;
+  const cfg = GAME_CONFIG.drones.guard;
+  return cfg.cooldown * (cfg.cooldownMultiplier ** level);
+}
+
+function collectPermanentResource(state, drop) {
   if (drop.resourceType === "echo") state.stats.echoShards += drop.value;
   else state.stats.coreFragments += drop.value;
   const resourceName = drop.resourceType === "echo" ? "遗响碎片" : "核心残片";
@@ -795,6 +842,14 @@ function updatePermanentResourceDrops(state, dt) {
     drop.renderX = drop.x + Math.sin(drop.age * 1.7 + drop.phase) * 2.2;
     drop.renderY = drop.y - 7 - Math.sin(drop.age * 3.4 + drop.phase) * 4.5;
   }
+  if (state.tower.droneMode !== "collect" || state.tower.upgrades.autoCollect <= 0) return;
+  state.tower.autoCollectCooldown -= dt;
+  if (state.tower.autoCollectCooldown > 0) return;
+
+  const drops = state.resourceDrops.splice(0);
+  for (const drop of drops) collectPermanentResource(state, drop);
+  state.tower.autoCollectCooldown = GAME_CONFIG.coins.towerInterval;
+  state.events.push({ type: "towerCollectPulse", count: drops.length });
 }
 
 function resolveDeaths(state) {
@@ -857,6 +912,7 @@ function resolveDeaths(state) {
       spawnPermanentResourceDrop(state, "core", enemy.type === "colossus" ? GAME_CONFIG.permanentResources.colossusCore : GAME_CONFIG.permanentResources.bossCore, enemy.x, enemy.y, { source: enemy.type });
       if (enemy.type === "boss") {
         for (const anchor of bossAnchors(state, enemy)) anchor.deadHandled = true;
+        state.events.push({ type: "bossDefeated", threat: state.threat, x: enemy.x, y: enemy.y });
         offerRelicChoice(state, "boss");
       }
       if (enemy.type === "colossus") {
@@ -984,10 +1040,15 @@ function damageTower(state, damage, heavy = false, source = "enemy") {
     return false;
   }
   if (state.skills.heal.shieldBurstArmed) releaseShieldBurst(state);
-  const absorbed = Math.min(state.tower.shield, damage);
-  state.tower.shield -= absorbed;
-  state.tower.hp = Math.max(0, state.tower.hp - (damage - absorbed));
-  state.events.push({ type: "towerHit", damage: damage - absorbed, absorbed, heavy, source });
+  let remainingDamage = damage;
+  const droneShieldAbsorbed = Math.min(state.tower.droneGuardShield, remainingDamage);
+  state.tower.droneGuardShield -= droneShieldAbsorbed;
+  remainingDamage -= droneShieldAbsorbed;
+  const towerShieldAbsorbed = Math.min(state.tower.shield, remainingDamage);
+  state.tower.shield -= towerShieldAbsorbed;
+  remainingDamage -= towerShieldAbsorbed;
+  state.tower.hp = Math.max(0, state.tower.hp - remainingDamage);
+  state.events.push({ type: "towerHit", damage: remainingDamage, absorbed: droneShieldAbsorbed + towerShieldAbsorbed, droneShieldAbsorbed, heavy, source });
   return true;
 }
 
@@ -1422,7 +1483,7 @@ function updateSawGuns(state, dt) {
   const level = state.tower.upgrades.sawGun;
   const count = state.tower.upgrades.saw;
   if (!level || !count || state.tower.upgrades.sawLaunch > 0) return;
-  state.tower.sawFireCooldown -= dt;
+  state.tower.sawFireCooldown = Math.max(0, state.tower.sawFireCooldown - dt);
   if (state.tower.sawFireCooldown > 0) return;
   const cfg = GAME_CONFIG.upgrades.sawGun;
   const stats = getTowerStats(state);
@@ -1444,8 +1505,10 @@ function updateSawGuns(state, dt) {
     });
     fired = true;
   }
-  if (fired) state.events.push({ type: "sawShoot", level });
-  state.tower.sawFireCooldown += 1 / (cfg.fireRate + level * cfg.fireRatePerLevel);
+  if (fired) {
+    state.events.push({ type: "sawShoot", level });
+    state.tower.sawFireCooldown = 1 / (cfg.fireRate + level * cfg.fireRatePerLevel);
+  }
 }
 
 function updateProjectiles(state, dt) {
@@ -1513,23 +1576,95 @@ function moveDroneTowards(drone, target, speed, dt) {
   return distance;
 }
 
+function rankDroneDetonationTargets(state, drone) {
+  const priority = (enemy) => enemy.type === "colossus" ? 0 : enemy.type === "boss" ? 1 : enemy.elite ? 2 : 3;
+  return state.enemies
+    .filter((enemy) => enemy.hp > 0)
+    .sort((a, b) => priority(a) - priority(b) || Math.hypot(a.x - drone.x, a.y - drone.y) - Math.hypot(b.x - drone.x, b.y - drone.y) || a.id - b.id);
+}
+
+function detonateDrone(state, drone, droneIndex, target) {
+  const cfg = GAME_CONFIG.drones.detonate;
+  if (state.tower.droneEnergy < cfg.energyCost) return false;
+  state.tower.droneEnergy -= cfg.energyCost;
+  const damage = getTowerStats(state).damage * cfg.damageMultiplier;
+  let hits = 0;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || Math.hypot(enemy.x - drone.x, enemy.y - drone.y) > cfg.radius + enemy.radius) continue;
+    damageEnemy(state, enemy, damage, "droneDetonate");
+    hits += 1;
+  }
+  drone.targetId = null;
+  drone.recoveryTimer = getDroneDetonateRecovery(state);
+  state.events.push({ type: "droneDetonate", x: drone.x, y: drone.y, droneIndex, targetId: target.id, hits, recovery: drone.recoveryTimer });
+  return true;
+}
+
+function updateDroneGuard(state, dt) {
+  const cfg = GAME_CONFIG.drones.guard;
+  if (state.tower.droneGuardCooldown > 0) {
+    state.tower.droneGuardCooldown = Math.max(0, state.tower.droneGuardCooldown - dt);
+    state.tower.droneGuardShield = 0;
+    if (state.tower.droneGuardCooldown <= 0) {
+      state.tower.droneEnergy = getDroneEnergyMax(state);
+      state.events.push({ type: "droneGuardReady" });
+    }
+    return;
+  }
+  if (state.tower.droneEnergy <= 0.001) {
+    state.tower.droneEnergy = 0;
+    state.tower.droneGuardShield = 0;
+    state.tower.droneGuardCooldown = getDroneGuardCooldown(state);
+    state.events.push({ type: "droneGuardDepleted", cooldown: state.tower.droneGuardCooldown });
+    return;
+  }
+  const used = Math.min(state.tower.droneEnergy, cfg.drainPerSecond * dt);
+  state.tower.droneEnergy -= used;
+  state.tower.droneGuardShield = Math.min(getDroneGuardShieldMax(state), state.tower.droneGuardShield + used * cfg.shieldPerEnergy);
+  if (state.tower.droneEnergy <= 0.001) {
+    state.tower.droneEnergy = 0;
+    state.tower.droneGuardShield = 0;
+    state.tower.droneGuardCooldown = getDroneGuardCooldown(state);
+    state.events.push({ type: "droneGuardDepleted", cooldown: state.tower.droneGuardCooldown });
+  }
+}
+
 function updateDrones(state, dt) {
   const count = state.tower.upgrades.drone;
   while (state.drones.length < count) {
     const index = state.drones.length;
     const position = getDroneOrbitPosition(state, index);
-    state.drones.push({ x: position.x, y: position.y, angle: 0, hitCooldown: 0, targetId: null });
+    state.drones.push({ x: position.x, y: position.y, angle: 0, hitCooldown: 0, targetId: null, recoveryTimer: 0 });
   }
   if (state.drones.length > count) state.drones.length = count;
   const cfg = GAME_CONFIG.drones;
-  if (state.tower.droneMode === "attack" && state.tower.upgrades.autoCollect > 0) {
+  for (const drone of state.drones) {
+    const wasRecovering = drone.recoveryTimer > 0;
+    drone.recoveryTimer = Math.max(0, (drone.recoveryTimer ?? 0) - dt);
+    if (wasRecovering && drone.recoveryTimer <= 0) state.events.push({ type: "droneRecovered", x: drone.x, y: drone.y });
+  }
+  const detonateMode = state.tower.droneDetonateActive && state.tower.upgrades.droneDetonate > 0;
+  const attackMode = !detonateMode && state.tower.droneMode === "attack" && state.tower.upgrades.autoCollect > 0;
+  const guardMode = !detonateMode && state.tower.droneMode === "collect" && state.tower.upgrades.droneGuard > 0;
+  const guardCooldownWasActive = state.tower.upgrades.droneGuard > 0 && state.tower.droneGuardCooldown > 0;
+  if (guardCooldownWasActive) updateDroneGuard(state, dt);
+  if (detonateMode && state.tower.droneEnergy < cfg.detonate.energyCost) {
+    state.tower.droneDetonateActive = false;
+    state.tower.droneMode = "collect";
+    state.events.push({ type: "droneDetonateDepleted" });
+  } else if (detonateMode) {
+    // Self-destruct drones spend a fixed battery charge per launch instead of
+    // draining continuously while they travel to their priority target.
+  } else if (attackMode) {
     state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - cfg.attackDrainPerSecond * dt);
     if (state.tower.droneEnergy <= 0) {
       state.tower.droneMode = "collect";
       state.events.push({ type: "droneDepleted" });
     }
-  } else {
-    state.tower.droneEnergy = Math.min(cfg.energyMax, state.tower.droneEnergy + cfg.guardRegenPerSecond * dt);
+  } else if (guardMode && !guardCooldownWasActive) {
+    updateDroneGuard(state, dt);
+  } else if (!guardCooldownWasActive) {
+    state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + cfg.guardRegenPerSecond * dt);
     if (state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge < 1) {
       state.tower.interceptRecharge = Math.max(0, state.tower.interceptRecharge - dt);
       if (state.tower.interceptRecharge <= 0) {
@@ -1538,11 +1673,26 @@ function updateDrones(state, dt) {
       }
     }
   }
-  const attackMode = state.tower.droneMode === "attack" && state.tower.upgrades.autoCollect > 0;
+  if (state.tower.upgrades.droneGuard > 0 && !guardMode && !state.tower.droneDetonateActive) {
+    state.tower.droneGuardShield = Math.max(0, state.tower.droneGuardShield - cfg.guard.shieldDecayPerSecond * dt);
+  }
   const damage = getTowerStats(state).damage * cfg.damageMultiplier;
   for (let index = 0; index < state.drones.length; index += 1) {
     const drone = state.drones[index];
     drone.hitCooldown = Math.max(0, drone.hitCooldown - dt);
+    if (drone.recoveryTimer > 0) continue;
+    if (detonateMode && state.tower.droneDetonateActive) {
+      const target = rankDroneDetonationTargets(state, drone)[0];
+      if (!target) {
+        drone.targetId = null;
+        moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed, dt);
+        continue;
+      }
+      drone.targetId = target.id;
+      const distance = moveDroneTowards(drone, target, cfg.attackSpeed, dt);
+      if (distance <= target.radius + cfg.detonate.triggerDistance) detonateDrone(state, drone, index, target);
+      continue;
+    }
     if (!attackMode) {
       drone.targetId = null;
       moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed, dt);
@@ -1610,17 +1760,6 @@ function updateCoinOrbs(state, dt) {
   const incomeMultiplier = 1 + state.research.income * GAME_CONFIG.research.bonusPerLevel;
   const droneCount = state.tower.upgrades.drone;
   const guardMode = state.tower.droneMode === "collect";
-  if (guardMode && state.tower.upgrades.autoCollect > 0) {
-    state.tower.autoCollectCooldown -= dt;
-    if (state.tower.autoCollectCooldown <= 0) {
-      const target = state.coinOrbs
-        .filter((orb) => !orb.collector && !orb.expired)
-        .sort((a, b) => b.age - a.age)[0];
-      const collected = target && beginCoinCollection(target, "tower") ? 1 : 0;
-      state.tower.autoCollectCooldown += GAME_CONFIG.coins.towerInterval;
-      state.events.push({ type: "towerCollectPulse", count: collected });
-    }
-  }
   if (guardMode && droneCount > 0) {
     state.tower.droneCooldown -= dt;
     if (state.tower.droneCooldown <= 0) {
@@ -1662,7 +1801,7 @@ function updateCoinOrbs(state, dt) {
         state.events.push({ type: "relicGilded", value: bonus });
       }
       state.coins += value;
-      if (orb.collector === "drone" && state.tower.droneMode === "collect") state.tower.droneEnergy = Math.min(GAME_CONFIG.drones.energyMax, state.tower.droneEnergy + GAME_CONFIG.drones.coinEnergy);
+      if (orb.collector === "drone" && state.tower.droneMode === "collect") state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + GAME_CONFIG.drones.coinEnergy);
       state.events.push({ type: "coin", value });
     }
   }
@@ -1855,12 +1994,15 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   }
 
   const stats = getTowerStats(state);
-  state.tower.fireCooldown -= dt;
+  // Do not carry cooldown debt across periods without a target. Otherwise a
+  // tower that has been idle for a while fires once per simulation frame when
+  // an enemy finally enters range.
+  state.tower.fireCooldown = Math.max(0, state.tower.fireCooldown - dt);
   if (state.tower.fireCooldown <= 0 && fireTower(state)) {
     const rateMultiplier = overloadSkill.active > 0
       ? GAME_CONFIG.skills.overload.rateMultiplier
       : overloadSkill.slow > 0 ? GAME_CONFIG.skills.overload.slowRateMultiplier : 1;
-    state.tower.fireCooldown += 1 / (stats.fireRate * rateMultiplier);
+    state.tower.fireCooldown = 1 / (stats.fireRate * rateMultiplier);
   }
 
   updateEnemies(state, dt);
@@ -1889,8 +2031,8 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 export function snapshotState(state) {
   return {
     time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins,
-    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), upgrades: { ...state.tower.upgrades }, droneMode: state.tower.droneMode, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
-    drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId]),
+    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
+    drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3))]),
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
     enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1]),
     hostileProjectiles: state.hostileProjectiles.map((projectile) => [projectile.kind, Number(projectile.x.toFixed(2)), Number(projectile.y.toFixed(2)), Number(projectile.life.toFixed(2))]),

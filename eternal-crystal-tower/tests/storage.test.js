@@ -28,7 +28,7 @@ test("存档值被限制在安全范围", () => {
     records: { highestThreat: 0, longestTime: -5, totalKills: -2 }
   });
   assert.equal(safe.stardust, 0);
-  assert.deepEqual(safe.research, { damage: 10, health: 0, income: 3 });
+  assert.deepEqual(safe.research, { damage: 20, health: 0, income: 3 });
   assert.equal(safe.settings.muted, true);
   assert.deepEqual(safe.records, { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 });
 });
@@ -55,7 +55,7 @@ test("写入后能够无损读回有效存档", () => {
 });
 
 
-test("威胁十五首领奖励会永久解锁二倍速且不能重复解锁", () => {
+test("威胁十首领奖励会永久解锁二倍速且不能重复解锁", () => {
   const storage = memoryStorage();
   const save = defaultSave();
   assert.equal(save.unlocks.doubleSpeed, false);

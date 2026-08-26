@@ -10,7 +10,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   const requiredIds = [
     "gameCanvas", "healthText", "coinsText", "threatText", "timeText", "upgradeList", "skillList",
     "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText", "globalLeaderboardPodium",
-    "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
+    "droneModeButton", "droneModeText", "droneModeHint", "droneProtocolButton", "droneProtocolText", "droneProtocolHint", "droneEnergyFill",
     "pauseButton", "muteButton", "speedButton", "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput",
     "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
     "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
@@ -29,6 +29,13 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(styles, /#gameCanvas[^}]*touch-action:\s*none/s);
   assert.match(styles, /text-size-adjust:\s*100%/);
   assert.match(styles, /Browser zoom reduces the CSS viewport/);
+  assert.match(styles, /\.basecamp-modal[\s\S]*overflow-y:\s*auto/);
+  assert.match(styles, /\.basecamp-shell[\s\S]*height:\s*auto[\s\S]*overflow:\s*visible/);
+  assert.match(styles, /\.upgrade-panel[^}]*overflow-y:\s*auto/);
+  assert.match(styles, /\.drone-protocol-button \{ grid-column:\s*1 \/ -1;/);
+  assert.match(styles, /\.relic-research-card p[\s\S]*font-size:\s*12px/);
+  assert.match(styles, /\.relic-run-chip:hover[\s\S]*\.relic-run-tooltip/);
+  assert.match(styles, /\.relic-run-chip[\s\S]*pointer-events:\s*auto/);
   assert.match(styles, /leaderboard-podium[\s\S]*leaderboard-podium-ai\.png/);
   assert.match(styles, /\.status span,[\s\S]*\.leaderboard-list li \{ font-size: 10px; \}/);
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
@@ -39,8 +46,13 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /无人机 · 经济自动化/);
   assert.match(main, /路线 A · 疾旋炮刃/);
   assert.match(main, /路线 B · 弹射飞刃/);
+  assert.match(main, /协议电池扩容/);
+  assert.match(main, /路线 A · 自爆猎杀/);
+  assert.match(main, /路线 B · 防御护盾/);
+  assert.match(main, /优先锁定 Boss \/ 精英/);
   assert.match(main, /pointerType === "touch"/);
-  assert.match(main, /colossusDefeated[\s\S]*unlockDoubleSpeed/);
+  assert.match(main, /bossDefeated[\s\S]*unlockDoubleSpeed/);
+  assert.match(main, /威胁 Ⅹ · 时流加速解锁/);
   assert.match(main, /accumulator \+= frameDelta \* \(doubleSpeedActive \? 2 : 1\)/);
   assert.match(main, /steps < 16/);
   assert.match(main, /pointermove[\s\S]*collectCoinAt/);
@@ -52,6 +64,10 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /globalLeaderboardPodium/);
   assert.match(main, /collectPermanentResourceAt/);
   assert.match(main, /showBaseRecoveryEvent/);
+  assert.match(main, /等级 \$\{level\}\/\$\{GAME_CONFIG\.research\.maxLevel\}/);
+  assert.match(main, /createRelicHudChip/);
+  assert.match(main, /setAttribute\("aria-label"/);
+  assert.match(main, /chip\.title = effect/);
   assert.match(main, /firstFailureCoreGift = firstFailure \? 1 : 0/);
   assert.doesNotMatch(await readFile(new URL("../src/engine.js", import.meta.url), "utf8"), /source: "(?:wave|protocol)"/);
   assert.match(renderer, /resource-echo-shard-ai\.png/);

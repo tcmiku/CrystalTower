@@ -1,5 +1,5 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
-import { calculateRunScore, calculateStardust, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneMode, updateGame, useSkill } from "./engine.js";
+import { calculateRunScore, calculateStardust, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
 import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
@@ -17,10 +17,15 @@ const UPGRADE_META = {
   sawRicochet: { icon: "⌁", name: "折跃棱面", description: "飞刃命中后增加一次弹射", max: 3 },
   sawRecovery: { icon: "↻", name: "快速重铸", description: "缩短飞刃返回前的恢复时间", max: 3 },
   drone: { icon: "⌁", name: "拾荒无人机", description: "逐级增加自动拾币无人机", max: 3 },
-  autoCollect: { icon: "◎", name: "晶塔磁吸核心", description: "每5秒回收一枚金币", max: 1 },
+  autoCollect: { icon: "◎", name: "晶塔磁吸核心", description: "每5秒吸收场上全部遗响碎片与核心残片", max: 1 },
   droneScavenge: { icon: "¤", name: "拾荒协议", description: "快速拾币并使无人机金币 +25%", max: 1 },
   droneIntercept: { icon: "⬡", name: "拦截协议", description: "护航时周期抵挡一次重击", max: 1 },
   droneHunt: { icon: "⌖", name: "猎杀协议", description: "标记精英，使炮弹伤害 +35%", max: 1 },
+  droneBattery: { icon: "▣", name: "协议电池扩容", description: "每级无人机电量上限 +25", max: 3 },
+  droneDetonate: { icon: "✹", name: "自爆协议", description: "主动开启，优先锁定 Boss 与精英并接近自爆", max: 1 },
+  droneDetonateRecovery: { icon: "↻", name: "快速重组", description: "自爆无人机恢复时间 -22%", max: 3 },
+  droneGuard: { icon: "⬡", name: "棱镜护盾协议", description: "护航时消耗电力生成护盾，抵挡敌人入侵", max: 1 },
+  droneGuardRecovery: { icon: "◌", name: "冷却优化", description: "防御电力耗尽后的冷却时间 -22%", max: 3 },
   frost: { icon: "❄", name: "霜棱炮口", description: "18% 概率冰冻敌人", max: 1 },
   fire: { icon: "♨", name: "烬火炉心", description: "16% 概率附加持续灼烧", max: 1 },
   lightning: { icon: "ϟ", name: "雷鸣天球", description: "14% 概率连锁附近三名敌人", max: 1 }
@@ -28,7 +33,7 @@ const UPGRADE_META = {
 const BRANCH_META = {
   power: { name: "晶塔火力", keys: ["damage", "rate", "ascend"] },
   blade: { name: "环刃工事 · 二选一专精", keys: ["saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery"] },
-  economy: { name: "无人机协议", keys: ["drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt"] },
+  economy: { name: "无人机协议", keys: ["drone", "droneScavenge", "autoCollect", "droneBattery", "droneIntercept", "droneHunt", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery"] },
   element: { name: "元素共鸣", keys: ["frost", "fire", "lightning"] }
 };
 const SKILL_META = {
@@ -89,7 +94,7 @@ const dom = Object.fromEntries([
   "gameCanvas", "healthText", "healthFill", "coinsText", "threatText", "timeText", "phaseText", "waveText", "upgradeList", "damageStat", "rateStat", "rangeStat", "droneEnergyStat",
   "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
-  "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
+  "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
   "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
   "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
@@ -287,6 +292,14 @@ if (previewMode === "protocols") {
   spawnEnemy(state, "hexer", { x: 750, y: 360 });
   spawnEnemy(state, "sentinel", { x: 700, y: 270 }, { elite: true, affix: "shield" });
   for (const enemy of state.enemies) { enemy.hp = enemy.maxHp = 100_000; enemy.freezeTimer = 999; }
+}
+if (previewMode === "drone-protocols") {
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = 8; state.phase = "night"; state.time = 315; state.coins = 100_000; state.tower.fireCooldown = 999;
+  purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneBattery"); purchaseUpgrade(state, "droneDetonate");
+  const boss = spawnEnemy(state, "boss", { x: 730, y: 360 });
+  boss.speed = 0; boss.hp = boss.maxHp = 100_000;
 }
 if (previewMode === "drone-energy") {
   state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = 8; state.coins = 100_000;
@@ -494,6 +507,10 @@ function showFirstRunTutorial(step, force = false) {
     dom.tutorialDismiss.textContent = "开始选择";
     dom.upgradeList.querySelector('[data-upgrade="saw"]')?.classList.add("tutorial-focus");
     dom.upgradeList.querySelector('[data-upgrade="drone"]')?.classList.add("tutorial-focus");
+  } else if (step === 4) {
+    dom.tutorialTitle.textContent = "威胁 Ⅹ · 时流加速解锁";
+    dom.tutorialText.textContent = "你已击败威胁 Ⅹ 首领，永久解锁 2× 时流。点击右上角的 1× / 2× 按钮，或按 X 切换战斗速度。";
+    dom.tutorialDismiss.textContent = "我知道了";
   }
 }
 
@@ -511,6 +528,15 @@ function createUpgradeUi() {
         route.innerHTML = key === "sawOverdrive"
           ? `<strong>路线 A · 疾旋炮刃</strong><span>持续环绕 · 加速增伤 · 保留弹幕</span>`
           : `<strong>路线 B · 弹射飞刃</strong><span>离塔弹射 · 恢复重铸 · 禁用弹幕</span>`;
+        section.append(route);
+      } else if (branchKey === "economy" && (key === "droneDetonate" || key === "droneGuard")) {
+        const route = document.createElement("div");
+        const detonateRoute = key === "droneDetonate";
+        route.className = `blade-route-label ${detonateRoute ? "detonate" : "guard"}`;
+        route.dataset.route = detonateRoute ? "detonate" : "guard";
+        route.innerHTML = detonateRoute
+          ? `<strong>路线 A · 自爆猎杀</strong><span>主动开启 · 优先 Boss / 精英 · 接近自爆</span>`
+          : `<strong>路线 B · 防御护盾</strong><span>护航耗电 · 自动护盾 · 耗尽冷却</span>`;
         section.append(route);
       }
       const index = TECH_ORDER.indexOf(key);
@@ -681,7 +707,7 @@ function renderResearch() {
     button.type = "button";
     button.className = "research-button";
     button.disabled = maxed || save.stardust < cost;
-    button.innerHTML = `<strong>${meta.name}</strong><span>等级 ${level}/10 · +${level * 5}%</span><small>${maxed ? "研究完成" : `${meta.description} +5% · 花费 ${cost}`}</small>`;
+    button.innerHTML = `<strong>${meta.name}</strong><span>等级 ${level}/${GAME_CONFIG.research.maxLevel} · +${level * 5}%</span><small>${maxed ? "研究完成" : `${meta.description} +5% · 花费 ${cost}`}</small>`;
     button.addEventListener("click", () => {
       if (!buyResearch(save, key)) return;
       save = writeSave(save);
@@ -835,6 +861,27 @@ function switchDroneMode() {
   showToast(state.tower.droneMode === "attack" ? "无人机切换为攻击模式" : "无人机返回护航模式");
 }
 
+function switchDroneProtocol() {
+  audio.ensureContext()?.resume();
+  if (!toggleDroneDetonate(state)) {
+    showToast(`自爆协议需要至少 ${GAME_CONFIG.drones.detonate.energyCost} 电量，且有可用无人机`);
+    return;
+  }
+  audio.play("purchase");
+  handleEvents(state.events);
+  updateUi();
+}
+
+function createRelicHudChip({ icon, name, label = name, description, effect }) {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "relic-run-chip";
+  chip.title = effect;
+  chip.setAttribute("aria-label", `${name}：${effect}`);
+  chip.innerHTML = `<i aria-hidden="true">${icon}</i><span class="relic-run-name">${label}</span><span class="relic-run-tooltip" role="tooltip"><strong>${name}</strong><small>${description}</small><b>${effect}</b></span>`;
+  return chip;
+}
+
 function renderRelicHud() {
   const owned = Object.entries(state.relics.owned).filter(([, active]) => active).map(([id]) => id);
   const signature = [owned.join(","), state.relics.damageBonus.toFixed(3), state.relics.rateBonus.toFixed(3)].join("|");
@@ -843,16 +890,18 @@ function renderRelicHud() {
   dom.relicRunHud.replaceChildren();
   for (const id of owned) {
     const meta = RELIC_META[id];
-    const chip = document.createElement("span");
-    chip.className = "relic-run-chip";
-    chip.innerHTML = `<i>${meta.icon}</i>${meta.name}`;
-    dom.relicRunHud.append(chip);
+    dom.relicRunHud.append(createRelicHudChip(meta));
   }
   if (state.relics.damageBonus > 0 || state.relics.rateBonus > 0) {
-    const chip = document.createElement("span");
-    chip.className = "relic-run-chip";
-    chip.innerHTML = `<i>✧</i>火力 +${Math.round(state.relics.damageBonus * 100)}% · 攻速 +${Math.round(state.relics.rateBonus * 100)}%`;
-    dom.relicRunHud.append(chip);
+    const damage = Math.round(state.relics.damageBonus * 100);
+    const rate = Math.round(state.relics.rateBonus * 100);
+    dom.relicRunHud.append(createRelicHudChip({
+      icon: "✧",
+      name: "数值增幅",
+      label: `火力 +${damage}% · 攻速 +${rate}%`,
+      description: "栏位缺口转化成的本局临时强化。",
+      effect: `本局攻击力 +${damage}% · 攻速 +${rate}%`
+    }));
   }
 }
 
@@ -936,13 +985,18 @@ function handleEvents(events) {
     }
     else if (event.type === "colossusEnrage") { audio.play("boss"); renderer.trigger("bossSpawn", 1.8); announce("第一命核破碎 · 第二血条开启 · 巨兽狂暴并行施法"); }
     else if (event.type === "colossusFreezeImmune") showToast("狂化巨兽免疫冰冻");
+    else if (event.type === "bossDefeated") {
+      audio.play("ascend");
+      renderer.trigger("ascend");
+      const unlockedNow = event.threat >= GAME_CONFIG.unlocks.doubleSpeedThreat && unlockDoubleSpeed(save);
+      if (unlockedNow) save = writeSave(save);
+      announce(unlockedNow ? `威胁 ${formatThreat(event.threat)} 首领击破 · 永久解锁 2× 时流` : "大首领崩解 · 战场回路已回收");
+      if (unlockedNow) showFirstRunTutorial(4, true);
+    }
     else if (event.type === "colossusDefeated") {
       audio.play("ascend");
       renderer.trigger("ascend");
-      const unlockedNow = unlockDoubleSpeed(save);
-      if (unlockedNow) save = writeSave(save);
-      announce(unlockedNow ? "虚环崩解 · 永久解锁 2× 时流" : "虚环崩解 · 常规怪群恢复活动");
-      if (unlockedNow) showToast("2× 倍速已永久解锁 · 点击右上角切换");
+      announce("虚环崩解 · 常规怪群恢复活动");
     }
     else if (event.type === "eliteSpawn") { audio.play("waveStart"); renderer.trigger("eliteSpawn"); announce(`精英怪 · ${ELITE_AFFIX_NAMES[event.affix] ?? "异变"}`); }
     else if (event.type === "bossPhase") { audio.play("boss"); renderer.trigger("bossSpawn", 0.7); announce(`首领转化为${ELEMENT_NAMES[event.resistance]}抗性 · 锚点重生`); }
@@ -950,6 +1004,12 @@ function handleEvents(events) {
     else if (event.type === "targetProtocol") renderer.trigger("targetProtocol");
     else if (event.type === "droneDepleted") { renderer.trigger("droneDepleted"); announce("无人机电量耗尽 · 强制返航"); }
     else if (event.type === "droneIntercept") { renderer.trigger("droneIntercept"); announce("拦截协议 · 重击无效"); }
+    else if (event.type === "droneDetonateMode") announce(event.active ? "自爆协议已启动 · 优先猎杀 Boss / 精英" : "自爆协议已关闭 · 无人机返回护航");
+    else if (event.type === "droneDetonate") { audio.play("overload"); renderer.trigger("droneDetonate"); announce(`自爆协议 · 命中 ${event.hits} 个目标 · 无人机恢复 ${event.recovery.toFixed(1)}s`); }
+    else if (event.type === "droneDetonateDepleted") { renderer.trigger("droneDepleted"); announce("自爆协议电量不足 · 无人机返回护航"); }
+    else if (event.type === "droneRecovered") showToast("自爆无人机已恢复");
+    else if (event.type === "droneGuardDepleted") { renderer.trigger("droneGuardDepleted"); announce(`防御护盾耗尽 · 电力冷却 ${event.cooldown.toFixed(1)}s`); }
+    else if (event.type === "droneGuardReady") { renderer.trigger("droneGuardReady"); showToast("防御协议已恢复 · 护盾重新充能"); }
     else if (event.type === "eliteMarked") renderer.trigger("eliteMarked");
     else if (event.type === "permanentResourceCollected") { commitPermanentDrop(event); audio.play("coin"); showToast(`${event.resourceType === "core" ? "核心残片" : "遗响碎片"} +${event.value}`); }
     else if (event.type === "relicWard") showToast(`棱镜护佑 · 护盾 +${Math.round(event.value)}`);
@@ -972,7 +1032,9 @@ function handleEvents(events) {
 function updateUi() {
   const stats = getTowerStats(state);
   const hpRatio = Math.max(0, state.tower.hp / stats.maxHp);
-  dom.healthText.textContent = `${Math.ceil(state.tower.hp)} / ${Math.round(stats.maxHp)}${state.tower.shield > 0.5 ? ` +${Math.ceil(state.tower.shield)}盾` : ""}`;
+  const totalShield = state.tower.shield + state.tower.droneGuardShield;
+  const droneEnergyMax = getDroneEnergyMax(state);
+  dom.healthText.textContent = `${Math.ceil(state.tower.hp)} / ${Math.round(stats.maxHp)}${totalShield > 0.5 ? ` +${Math.ceil(totalShield)}盾` : ""}`;
   dom.healthFill.style.width = `${hpRatio * 100}%`;
   dom.healthFill.style.background = state.tower.shield > 0.5 ? "linear-gradient(90deg,#e9ffff,#68dfff)" : hpRatio < 0.3 ? "linear-gradient(90deg,#ff4f70,#ff9a72)" : "linear-gradient(90deg,#7ee8ff,#b48cff)";
   dom.coinsText.textContent = formatNumber(state.coins);
@@ -987,7 +1049,7 @@ function updateUi() {
   dom.damageStat.textContent = Math.round(stats.damage);
   dom.rateStat.textContent = stats.fireRate.toFixed(1);
   dom.rangeStat.textContent = Math.round(stats.range);
-  dom.droneEnergyStat.textContent = state.tower.upgrades.drone > 0 ? `${Math.round(state.tower.droneEnergy)}%` : "--";
+  dom.droneEnergyStat.textContent = state.tower.upgrades.drone > 0 ? `${Math.round(state.tower.droneEnergy)} / ${Math.round(droneEnergyMax)}` : "--";
   dom.seedText.textContent = state.seed;
   const researchedTechs = TECH_ORDER.filter((key) => state.tower.upgrades[key] > 0).length;
   const availableTechs = TECH_ORDER.filter((key) => {
@@ -1002,15 +1064,34 @@ function updateUi() {
   const droneModeUnlocked = state.tower.upgrades.autoCollect > 0;
   const droneAttacking = droneModeUnlocked && state.tower.droneMode === "attack";
   const energyTooLow = state.tower.droneMode === "collect" && state.tower.droneEnergy < GAME_CONFIG.drones.minAttackEnergy;
-  dom.droneModeButton.disabled = state.over || !droneModeUnlocked || energyTooLow;
+  const detonateUnlocked = state.tower.upgrades.droneDetonate > 0;
+  const detonateActive = state.tower.droneDetonateActive;
+  const defenseUnlocked = state.tower.upgrades.droneGuard > 0;
+  const defenseCooldown = state.tower.droneGuardCooldown;
+  const readyDrones = state.drones.length === 0 ? state.tower.upgrades.drone : state.drones.filter((drone) => (drone.recoveryTimer ?? 0) <= 0).length;
+  dom.droneModeButton.disabled = state.over || !droneModeUnlocked || energyTooLow || detonateActive;
   dom.droneModeButton.setAttribute("aria-pressed", String(droneAttacking));
   dom.droneModeButton.classList.toggle("attack", droneAttacking);
-  dom.droneModeText.textContent = droneModeUnlocked ? (droneAttacking ? "战术节点 · 攻击模式" : "战术节点 · 护航模式") : "战术节点 · 攻击模式未解锁";
+  dom.droneModeText.textContent = detonateActive ? "战术节点 · 自爆模式" : droneModeUnlocked ? (droneAttacking ? "战术节点 · 攻击模式" : "战术节点 · 护航模式") : "战术节点 · 攻击模式未解锁";
   const interceptText = state.tower.upgrades.droneIntercept > 0 ? ` · 拦截${state.tower.interceptCharge > 0 ? "就绪" : `${state.tower.interceptRecharge.toFixed(1)}s`}` : "";
   dom.droneModeHint.textContent = droneModeUnlocked
-    ? (droneAttacking ? `暂停自动回收 · 手动拾币可用 · 撞击耗电${state.tower.upgrades.droneHunt > 0 ? " · 猎杀标记" : ""}` : `自动拾币充能 · 手动可用 · 磁吸 ${Math.max(0, state.tower.autoCollectCooldown).toFixed(1)}s${interceptText}`)
+    ? (detonateActive
+      ? `优先锁定 Boss / 精英 · 每次消耗 ${GAME_CONFIG.drones.detonate.energyCost} 电量`
+      : droneAttacking
+        ? `暂停自动回收 · 手动拾币可用 · 撞击耗电${state.tower.upgrades.droneHunt > 0 ? " · 猎杀标记" : ""}`
+        : defenseUnlocked
+          ? (defenseCooldown > 0 ? `防御护盾冷却 ${defenseCooldown.toFixed(1)}s` : `防御护盾 ${Math.round(state.tower.droneGuardShield)} · 电力持续消耗`)
+          : `资源磁吸充能 · 金币手动/无人机可用 · ${Math.max(0, state.tower.autoCollectCooldown).toFixed(1)}s${interceptText}`)
     : "研究晶塔磁吸核心后开放";
-  dom.droneEnergyFill.style.width = `${Math.max(0, Math.min(100, state.tower.droneEnergy / GAME_CONFIG.drones.energyMax * 100))}%`;
+  dom.droneEnergyFill.style.width = `${Math.max(0, Math.min(100, state.tower.droneEnergy / droneEnergyMax * 100))}%`;
+  dom.droneProtocolButton.classList.toggle("hidden", !detonateUnlocked);
+  dom.droneProtocolButton.classList.toggle("active", detonateActive);
+  dom.droneProtocolButton.setAttribute("aria-pressed", String(detonateActive));
+  dom.droneProtocolButton.disabled = state.over || (!detonateActive && (state.tower.droneEnergy < GAME_CONFIG.drones.detonate.energyCost || readyDrones === 0));
+  dom.droneProtocolText.textContent = detonateActive ? "自爆协议 · 已启动" : "自爆协议 · 待命";
+  dom.droneProtocolHint.textContent = detonateActive
+    ? `恢复 ${getDroneDetonateRecovery(state).toFixed(1)}s · 可随时关闭`
+    : readyDrones < state.drones.length ? `部分无人机恢复中 · ${getDroneDetonateRecovery(state).toFixed(1)}s` : `优先 Boss / 精英 · 每次消耗 ${GAME_CONFIG.drones.detonate.energyCost} 电量`;
   for (const button of dom.targetProtocolList.children) {
     const selected = button.dataset.protocol === state.tower.targetProtocol;
     button.setAttribute("aria-pressed", String(selected));
@@ -1033,6 +1114,8 @@ function updateUi() {
   }
   dom.upgradeList.querySelector('[data-route="orbit"]')?.classList.toggle("chosen", state.tower.upgrades.sawOverdrive > 0 || state.tower.upgrades.sawGun > 0);
   dom.upgradeList.querySelector('[data-route="launch"]')?.classList.toggle("chosen", state.tower.upgrades.sawLaunch > 0);
+  dom.upgradeList.querySelector('[data-route="detonate"]')?.classList.toggle("chosen", state.tower.upgrades.droneDetonate > 0);
+  dom.upgradeList.querySelector('[data-route="guard"]')?.classList.toggle("chosen", state.tower.upgrades.droneGuard > 0);
 
   for (const button of dom.skillList.children) {
     const key = button.dataset.skill;
@@ -1088,7 +1171,7 @@ function updateUi() {
   dom.speedButton.setAttribute("aria-pressed", String(doubleSpeedActive));
   dom.speedButton.setAttribute("aria-disabled", String(!doubleSpeedUnlocked));
   dom.speedButton.setAttribute("aria-label", doubleSpeedUnlocked ? `当前 ${doubleSpeedActive ? "2" : "1"} 倍速，点击切换` : "2倍速未解锁");
-  dom.speedButton.title = doubleSpeedUnlocked ? "切换 1× / 2× 倍速（X）" : "击败威胁 XV 首领后永久解锁 2× 倍速";
+  dom.speedButton.title = doubleSpeedUnlocked ? "切换 1× / 2× 倍速（X）" : "击败威胁 Ⅹ 首领后永久解锁 2× 倍速";
 }
 
 function renderLeaderboardPodium(container, highlightDate) {
@@ -1273,7 +1356,7 @@ function togglePause(force) {
 
 function toggleDoubleSpeed() {
   if (!save.unlocks.doubleSpeed && previewMode !== "speed") {
-    showToast("击败威胁 XV 首领后永久解锁 2× 倍速");
+    showToast("击败威胁 Ⅹ 首领后永久解锁 2× 倍速");
     return;
   }
   doubleSpeedActive = !doubleSpeedActive;
@@ -1326,12 +1409,13 @@ function loop(now) {
 createUpgradeUi();
 createSkillUi();
 dom.droneModeButton.addEventListener("click", switchDroneMode);
+dom.droneProtocolButton.addEventListener("click", switchDroneProtocol);
 for (const button of dom.targetProtocolList.children) button.addEventListener("click", () => switchTargetProtocol(button.dataset.protocol));
 updateUi();
 if (previewMode === "tutorial-coin") showFirstRunTutorial(1, true);
 if (previewMode === "tutorial-upgrade") showFirstRunTutorial(2, true);
 if (previewMode === "tutorial-branches") showFirstRunTutorial(3, true);
-if (previewMode === "tech" || previewMode === "drones" || previewMode === "element-tech" || previewMode === "drone-energy") setTechTreeOpen(true);
+if (previewMode === "tech" || previewMode === "drones" || previewMode === "element-tech" || previewMode === "drone-energy" || previewMode === "drone-protocols") setTechTreeOpen(true);
 announce("守住中央晶塔");
 refreshLeaderboard();
 if (previewMode === "relics") {

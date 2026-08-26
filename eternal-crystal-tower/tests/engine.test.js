@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG } from "../src/config.js";
 
 test("基础塔属性符合策划", () => {
@@ -18,6 +18,35 @@ test("塔优先选择射程内离中心最近的目标", () => {
   const near = spawnEnemy(state, "wisp", { x: 560, y: 360 });
   spawnEnemy(state, "wisp", { x: 900, y: 360 });
   assert.deepEqual(findTargets(state, 2).map((enemy) => enemy.id), [near.id, far.id]);
+});
+
+test("无目标期间不会积累负开火冷却造成连发", () => {
+  const state = createGameState(201);
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.fireCooldown = 0;
+  updateGame(state, 30);
+  assert.equal(state.tower.fireCooldown, 0);
+
+  spawnEnemy(state, "boss", { x: 650, y: 360 }).speed = 0;
+  updateGame(state, 1 / 60);
+  assert.equal(state.events.filter((event) => event.type === "shoot").length, 1);
+  for (let index = 0; index < 30; index += 1) updateGame(state, 1 / 60);
+  assert.equal(state.events.filter((event) => event.type === "shoot").length, 0);
+
+  const sawState = createGameState(202);
+  sawState.spawnTimer = 999;
+  sawState.wave.nextAt = 999;
+  sawState.tower.fireCooldown = 999;
+  sawState.tower.upgrades.saw = 3;
+  sawState.tower.upgrades.sawGun = 1;
+  updateGame(sawState, 30);
+  assert.equal(sawState.tower.sawFireCooldown, 0);
+  spawnEnemy(sawState, "boss", { x: 650, y: 360 }).speed = 0;
+  updateGame(sawState, 1 / 60);
+  assert.equal(sawState.events.filter((event) => event.type === "sawShoot").length, 1);
+  for (let index = 0; index < 30; index += 1) updateGame(sawState, 1 / 60);
+  assert.equal(sawState.events.filter((event) => event.type === "sawShoot").length, 0);
 });
 
 test("四种目标协议会改变自动攻击的优先目标", () => {
@@ -439,6 +468,27 @@ test("四种首领锚点分别提供减伤、修复、召唤和攻击过载", ()
   assert.equal(repair.anchorRole, "repair");
 });
 
+test("威胁十首领击败事件携带二倍速解锁门槛", () => {
+  const state = createGameState(94);
+  state.time = GAME_CONFIG.threat.duration * (GAME_CONFIG.unlocks.doubleSpeedThreat - 1);
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.fireCooldown = 999;
+  const boss = spawnEnemy(state, "boss", { x: 700, y: 360 });
+  for (const anchor of state.enemies.filter((enemy) => enemy.type === "anchor")) anchor.hp = 0;
+  updateGame(state, 0.01);
+  boss.spawnShield = 0;
+  boss.hp = 1;
+  damageEnemy(state, boss, 10);
+  updateGame(state, 0.01);
+  assert.deepEqual(state.events.find((event) => event.type === "bossDefeated"), {
+    type: "bossDefeated",
+    threat: GAME_CONFIG.unlocks.doubleSpeedThreat,
+    x: boss.x,
+    y: boss.y
+  });
+});
+
 test("咒晶怪会停在塔外进行远程攻击", () => {
   const state = createGameState(43);
   state.spawnTimer = 999;
@@ -524,7 +574,7 @@ test("金潮归塔立即吸收全场金币并应用永久金币倍率", () => {
   assert.equal(useSkill(state, "coinVacuum"), false);
 });
 
-test("无人机满级后才能解锁晶塔自动收集", () => {
+test("无人机满级后才能解锁晶塔磁吸并每五秒吸收永久资源", () => {
   const state = createGameState(71);
   state.threat = 6;
   state.coins = 10_000;
@@ -535,16 +585,20 @@ test("无人机满级后才能解锁晶塔自动收集", () => {
   assert.equal(purchaseUpgrade(state, "autoCollect"), true);
   state.spawnTimer = 999;
   state.tower.droneCooldown = 999;
-  state.coinOrbs.push({ x: 120, y: 120, renderX: 120, renderY: 120, value: 11, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
-  state.coinOrbs.push({ x: 160, y: 120, renderX: 160, renderY: 120, value: 13, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
-  const before = state.coins;
+  spawnPermanentResourceDrop(state, "echo", 2, 120, 120, { source: "elite" });
+  spawnPermanentResourceDrop(state, "core", 1, 160, 120, { source: "boss" });
+  const before = { echo: state.stats.echoShards, core: state.stats.coreFragments };
   for (let index = 0; index < 294; index += 1) updateGame(state, 1 / 60);
-  assert.equal(state.coins, before);
-  assert.equal(state.coinOrbs[0].collector, null);
-  for (let index = 0; index < 36; index += 1) updateGame(state, 1 / 60);
-  assert.equal(state.coins, before + 11);
-  assert.equal(state.coinOrbs.length, 1);
-  assert.equal(state.coinOrbs[0].collector, null);
+  assert.deepEqual([state.stats.echoShards, state.stats.coreFragments], [before.echo, before.core]);
+  assert.equal(state.resourceDrops.length, 2);
+  let pulseCount = 0;
+  for (let index = 0; index < 36; index += 1) {
+    updateGame(state, 1 / 60);
+    pulseCount += state.events.filter((event) => event.type === "towerCollectPulse" && event.count === 2).length;
+  }
+  assert.deepEqual([state.stats.echoShards, state.stats.coreFragments], [before.echo + 2, before.core + 1]);
+  assert.equal(state.resourceDrops.length, 0);
+  assert.equal(pulseCount, 1);
 });
 
 test("研究磁吸核心后护航模式仍允许手动点击金币", () => {
@@ -603,11 +657,13 @@ test("攻击模式暂停自动回收但保留手动拾币，耗尽后返回护�
   purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "autoCollect");
   state.tower.droneEnergy = 20;
   assert.equal(toggleDroneMode(state), true);
+  spawnPermanentResourceDrop(state, "echo", 2, 300, 300, { source: "elite" });
   state.coinOrbs.push({ x: 300, y: 300, renderX: 300, renderY: 300, value: 10, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   const coins = state.coins;
   updateGame(state, 1);
   assert.equal(state.tower.droneMode, "attack");
   assert.equal(state.tower.droneEnergy, 15);
+  assert.equal(state.resourceDrops.length, 1);
   assert.equal(state.coinOrbs[0].collector, null);
   assert.equal(state.coins, coins);
   assert.equal(collectCoinAt(state, 300, 300), true);
@@ -623,6 +679,78 @@ test("攻击模式暂停自动回收但保留手动拾币，耗尽后返回护�
   assert.ok(state.tower.droneEnergy >= GAME_CONFIG.drones.coinEnergy);
   state.tower.droneEnergy = GAME_CONFIG.drones.minAttackEnergy - 1;
   assert.equal(toggleDroneMode(state), false);
+});
+
+test("协议电池扩容提高无人机电量且自爆与防御路线互斥", () => {
+  const state = createGameState(741);
+  state.time = 315; state.threat = 8; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999;
+  purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "autoCollect");
+  assert.equal(getDroneEnergyMax(state), GAME_CONFIG.drones.energyMax);
+  assert.equal(purchaseUpgrade(state, "droneBattery"), true);
+  assert.equal(getDroneEnergyMax(state), GAME_CONFIG.drones.energyMax + GAME_CONFIG.drones.batteryCapacityPerLevel);
+  assert.equal(state.tower.droneEnergy, getDroneEnergyMax(state));
+  assert.equal(purchaseUpgrade(state, "droneDetonate"), true);
+  assert.equal(getTechStatus(state, "droneGuard").unlocked, false);
+  assert.match(getTechStatus(state, "droneGuard").reason, /自爆协议/);
+  assert.equal(getDroneDetonateRecovery(state), GAME_CONFIG.drones.detonate.recoveryDuration);
+});
+
+test("自爆协议优先锁定精英并在接近后造成范围伤害，随后进入十秒恢复", () => {
+  const state = createGameState(742);
+  state.time = 315; state.threat = 8; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneBattery"); purchaseUpgrade(state, "droneDetonate");
+  const ordinary = spawnEnemy(state, "brute", { x: 430, y: 360 });
+  const elite = spawnEnemy(state, "sentinel", { x: 700, y: 360 }, { elite: true, affix: "sprint" });
+  elite.hp = elite.maxHp = 10_000; elite.speed = 0;
+  assert.equal(toggleDroneDetonate(state), true);
+  updateGame(state, 1 / 60);
+  state.drones[0].x = elite.x + 40;
+  state.drones[0].y = elite.y;
+  const eliteHp = elite.hp;
+  const ordinaryHp = ordinary.hp;
+  updateGame(state, 1 / 60);
+  const detonation = state.events.find((event) => event.type === "droneDetonate");
+  assert.equal(detonation.targetId, elite.id);
+  assert.ok(elite.hp < eliteHp);
+  assert.equal(ordinary.hp, ordinaryHp);
+  assert.equal(state.drones[0].recoveryTimer, getDroneDetonateRecovery(state));
+  assert.equal(state.tower.droneEnergy, getDroneEnergyMax(state) - GAME_CONFIG.drones.detonate.energyCost);
+});
+
+test("防御协议消耗电力生成无人机护盾，耗尽后冷却并自动恢复", () => {
+  const state = createGameState(743);
+  state.time = 315; state.threat = 8; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999; state.tower.hp = 1_000_000;
+  purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneBattery"); purchaseUpgrade(state, "droneGuard");
+  updateGame(state, 3);
+  assert.ok(state.tower.droneGuardShield > 0);
+  assert.ok(state.tower.droneGuardShield <= getDroneGuardShieldMax(state));
+  const shieldBeforeHit = state.tower.droneGuardShield;
+  const rammer = spawnEnemy(state, "rammer", { x: 520, y: 360 });
+  rammer.speed = 0;
+  const hp = state.tower.hp;
+  updateGame(state, 0.71);
+  assert.equal(state.tower.hp, hp);
+  assert.ok(state.tower.droneGuardShield < shieldBeforeHit + GAME_CONFIG.drones.guard.drainPerSecond * 0.71 * GAME_CONFIG.drones.guard.shieldPerEnergy);
+  assert.ok(state.events.some((event) => event.type === "towerHit" && event.droneShieldAbsorbed > 0));
+  state.tower.droneEnergy = 0.5;
+  updateGame(state, 0.1);
+  assert.equal(state.tower.droneEnergy, 0);
+  assert.equal(state.tower.droneGuardCooldown, getDroneGuardCooldown(state));
+  assert.ok(state.events.some((event) => event.type === "droneGuardDepleted"));
+  state.tower.droneMode = "attack";
+  const cooldownBefore = state.tower.droneGuardCooldown;
+  updateGame(state, 1);
+  assert.ok(state.tower.droneGuardCooldown < cooldownBefore);
+  updateGame(state, cooldownBefore);
+  assert.equal(state.tower.droneGuardCooldown, 0);
+  assert.equal(state.tower.droneEnergy, getDroneEnergyMax(state));
+  assert.ok(state.events.some((event) => event.type === "droneGuardReady"));
 });
 
 test("拾荒协议加快拾币并提高无人机带回的金币价值", () => {

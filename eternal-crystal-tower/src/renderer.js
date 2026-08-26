@@ -1,5 +1,5 @@
 import { GAME_CONFIG } from "./config.js";
-import { getDronePosition, getTowerStats } from "./engine.js";
+import { getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getTowerStats } from "./engine.js";
 
 const ENEMY_COLORS = {
   wisp: ["#ff706d", "#8e273e"],
@@ -171,6 +171,8 @@ export class Renderer {
     if (type === "targetProtocol") { this.flash = Math.max(this.flash, 0.06); this.flashColor = "#7ceeff"; }
     if (type === "droneDepleted") { this.flash = Math.max(this.flash, 0.13); this.flashColor = "#ff8a5c"; }
     if (type === "droneIntercept") { this.shake = Math.max(this.shake, 4); this.flash = Math.max(this.flash, 0.18); this.flashColor = "#a8f8ff"; }
+    if (type === "droneDetonate") { this.shake = Math.max(this.shake, 8); this.flash = Math.max(this.flash, 0.32); this.flashColor = "#ff8468"; }
+    if (type === "droneGuardDepleted") { this.flash = Math.max(this.flash, 0.16); this.flashColor = "#b39aff"; }
     if (type === "eliteMarked") { this.flash = Math.max(this.flash, 0.07); this.flashColor = "#ff6fcf"; }
     if (type === "waveWarning") { this.shake = 3; this.flash = 0.12; this.flashColor = "#ff796f"; }
     if (type === "waveStart") { this.shake = 10; this.flash = 0.34; this.flashColor = "#ff4f70"; }
@@ -1116,11 +1118,14 @@ export class Renderer {
   drawDrones(ctx, state) {
     const count = state.tower.upgrades.drone;
     if (!count) return;
-    const attacking = state.tower.droneMode === "attack" && state.tower.upgrades.autoCollect > 0;
+    const detonate = state.tower.droneDetonateActive;
+    const attacking = (state.tower.droneMode === "attack" && state.tower.upgrades.autoCollect > 0) || detonate;
+    const defending = state.tower.upgrades.droneGuard > 0 && state.tower.droneMode === "collect" && state.tower.droneGuardCooldown <= 0;
     for (let index = 0; index < count; index += 1) {
       const drone = state.drones[index];
       const { x, y } = getDronePosition(state, index);
       const angle = drone?.angle ?? state.time * (1.25 + count * 0.08) + index * Math.PI * 2 / count;
+      const recovering = (drone?.recoveryTimer ?? 0) > 0;
       const target = state.coinOrbs.find((orb) => orb.collector === "drone" && orb.droneIndex === index);
       const enemyTarget = attacking && drone?.targetId ? state.enemies.find((enemy) => enemy.id === drone.targetId) : null;
       ctx.save();
@@ -1131,26 +1136,33 @@ export class Renderer {
         ctx.setLineDash([]);
       }
       if (enemyTarget) {
-        ctx.strokeStyle = "rgba(255,177,78,.18)";
+        ctx.strokeStyle = detonate ? "rgba(255,111,117,.36)" : "rgba(255,177,78,.18)";
         ctx.setLineDash([2, 8]);
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(enemyTarget.x, enemyTarget.y); ctx.stroke();
         ctx.setLineDash([]);
       }
       ctx.translate(x, y); ctx.rotate(angle + Math.PI / 2);
-      ctx.shadowColor = attacking ? "#ffad4d" : "#7ceeff"; ctx.shadowBlur = attacking ? 15 : 10;
-      ctx.fillStyle = attacking ? "#4a2630" : "#202949";
-      ctx.strokeStyle = attacking ? "#ffd171" : "#b9f7ff"; ctx.lineWidth = attacking ? 1.7 : 1.2;
+      const primaryColor = recovering ? "#6c718c" : detonate ? "#ff715f" : defending ? "#a88cff" : attacking ? "#ffad4d" : "#7ceeff";
+      ctx.shadowColor = primaryColor; ctx.shadowBlur = recovering ? 5 : attacking || defending ? 15 : 10;
+      ctx.fillStyle = recovering ? "#20253d" : detonate ? "#4a2630" : defending ? "#302653" : attacking ? "#4a2630" : "#202949";
+      ctx.strokeStyle = recovering ? "#747995" : detonate ? "#ffd171" : defending ? "#d2c4ff" : attacking ? "#ffd171" : "#b9f7ff"; ctx.lineWidth = attacking || defending ? 1.7 : 1.2;
       ctx.beginPath();
-      if (attacking) {
+      if (recovering) {
+        ctx.arc(0, 0, 8, 0, Math.PI * 2);
+      } else if (attacking || defending) {
         ctx.moveTo(0, -15); ctx.lineTo(8, 2); ctx.lineTo(3, 0); ctx.lineTo(0, 8); ctx.lineTo(-3, 0); ctx.lineTo(-8, 2);
       } else {
         ctx.moveTo(0, -10); ctx.lineTo(8, 0); ctx.lineTo(0, 7); ctx.lineTo(-8, 0);
       }
       ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = attacking ? "#fff0a7" : "#ffc96b"; ctx.beginPath(); ctx.arc(0, 0, 2.8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = recovering ? "#8e94b7" : detonate ? "#fff0a7" : defending ? "#d9ccff" : attacking ? "#fff0a7" : "#ffc96b"; ctx.beginPath(); ctx.arc(0, 0, 2.8, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
-      const energyRatio = Math.max(0, Math.min(1, state.tower.droneEnergy / GAME_CONFIG.drones.energyMax));
-      ctx.save(); ctx.fillStyle = "rgba(4,7,20,.72)"; ctx.fillRect(x - 12, y + 13, 24, 3); ctx.fillStyle = energyRatio < .2 ? "#ff705d" : attacking ? "#ffbd61" : "#74e7ff"; ctx.fillRect(x - 12, y + 13, 24 * energyRatio, 3); ctx.restore();
+      const energyRatio = Math.max(0, Math.min(1, state.tower.droneEnergy / getDroneEnergyMax(state)));
+      ctx.save(); ctx.fillStyle = "rgba(4,7,20,.72)"; ctx.fillRect(x - 12, y + 13, 24, 3); ctx.fillStyle = energyRatio < .2 ? "#ff705d" : detonate ? "#ffbd61" : defending ? "#c4a7ff" : attacking ? "#ffbd61" : "#74e7ff"; ctx.fillRect(x - 12, y + 13, 24 * energyRatio, 3); ctx.restore();
+      if (recovering) {
+        const recoveryRatio = Math.max(0, Math.min(1, drone.recoveryTimer / getDroneDetonateRecovery(state)));
+        ctx.save(); ctx.strokeStyle = "rgba(255,210,143,.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 13, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - recoveryRatio)); ctx.stroke(); ctx.restore();
+      }
     }
   }
 
@@ -1168,6 +1180,11 @@ export class Renderer {
     ctx.beginPath(); ctx.arc(0, 0, 55 + tier * 13 + Math.sin(this.time * 2.5) * 4, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
 
+    if (state.tower.droneGuardShield > 0) {
+      const guardRatio = Math.min(1, state.tower.droneGuardShield / getDroneGuardShieldMax(state));
+      ctx.save(); ctx.rotate(this.time * .55); ctx.globalAlpha = .24 + guardRatio * .42; ctx.strokeStyle = "#bfadff"; ctx.shadowColor = "#a789ff"; ctx.shadowBlur = 18; ctx.lineWidth = 3;
+      ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.arc(0, 0, 72 + tier * 10, .2, .2 + Math.PI * 2 * guardRatio); ctx.stroke(); ctx.restore();
+    }
     if (state.tower.shield > 0) {
       const shieldRatio = Math.min(1, state.tower.shield / (stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction));
       ctx.save(); ctx.rotate(-this.time * .45);

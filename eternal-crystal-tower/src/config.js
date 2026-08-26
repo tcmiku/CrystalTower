@@ -3,6 +3,7 @@ export const GAME_CONFIG = Object.freeze({
   fixedStep: 1 / 60,
   tower: { maxHp: 600, damage: 12, fireRate: 1.2, range: 360, radius: 38, projectileSpeed: 650 },
   threat: { duration: 45, hpGrowth: 1.16, damageGrowth: 1.1, rewardGrowth: 1.08, spawnDecay: 0.91, spawnBase: 1.55, spawnMin: 0.34, dayWaves: 2, nightWaves: 2, packGrowthEvery: 4, maxPack: 3, bossEvery: 10 },
+  unlocks: { doubleSpeedThreat: 10 },
   waves: { firstAt: 90, interval: 90, warning: 10, spawnInterval: 0.2, baseCount: 14, countPerThreat: 3, eliteHpMultiplier: 3.2, eliteDamageMultiplier: 1.45, eliteRewardMultiplier: 3 },
   eliteAffixes: {
     order: ["shield", "sprint", "devour", "split"],
@@ -76,6 +77,11 @@ export const GAME_CONFIG = Object.freeze({
     droneScavenge: { branch: "economy", costs: [300], maxLevel: 1, threat: [5], requires: { drone: 2 } },
     droneIntercept: { branch: "economy", costs: [480], maxLevel: 1, threat: [6], requires: { drone: 3 } },
     droneHunt: { branch: "economy", costs: [720], maxLevel: 1, threat: [7], requires: { autoCollect: 1, damage: 3 } },
+    droneBattery: { branch: "economy", baseCost: 260, growth: 1.75, maxLevel: 3, threat: [6, 8, 10], requires: { drone: 3, autoCollect: 1 } },
+    droneDetonate: { branch: "economy", costs: [420], maxLevel: 1, threat: [7], requires: { droneBattery: 1 }, excludes: ["droneGuard"] },
+    droneDetonateRecovery: { branch: "economy", baseCost: 360, growth: 1.75, maxLevel: 3, threat: [8, 10, 12], requires: { droneDetonate: 1 }, excludes: ["droneGuard"] },
+    droneGuard: { branch: "economy", costs: [420], maxLevel: 1, threat: [7], requires: { droneBattery: 1 }, excludes: ["droneDetonate"] },
+    droneGuardRecovery: { branch: "economy", baseCost: 360, growth: 1.75, maxLevel: 3, threat: [8, 10, 12], requires: { droneGuard: 1 }, excludes: ["droneDetonate"] },
     frost: { branch: "element", costs: [260], maxLevel: 1, threat: [4], towerLevel: 2, requires: { damage: 2 } },
     fire: { branch: "element", costs: [420], maxLevel: 1, threat: [6], towerLevel: 2, requires: { damage: 4 } },
     lightning: { branch: "element", costs: [760], maxLevel: 1, threat: [8], towerLevel: 3, requires: { rate: 3 } }
@@ -107,10 +113,12 @@ export const GAME_CONFIG = Object.freeze({
   },
   drones: {
     attackSpeed: 285, returnSpeed: 340, damageMultiplier: 0.22, hitInterval: 0.45, contactRadius: 13,
-    energyMax: 100, guardRegenPerSecond: 5, coinEnergy: 18, attackDrainPerSecond: 5, hitEnergyCost: 7, minAttackEnergy: 15,
+    energyMax: 100, batteryCapacityPerLevel: 25, guardRegenPerSecond: 5, coinEnergy: 18, attackDrainPerSecond: 5, hitEnergyCost: 7, minAttackEnergy: 15,
     scavengeIntervalMultiplier: 0.55, scavengeValueMultiplier: 1.25,
     interceptRecharge: 16,
-    huntMarkDuration: 6, huntDamageMultiplier: 1.35
+    huntMarkDuration: 6, huntDamageMultiplier: 1.35,
+    detonate: { damageMultiplier: 3.8, radius: 126, triggerDistance: 28, energyCost: 28, recoveryDuration: 10, recoveryMultiplier: 0.78 },
+    guard: { drainPerSecond: 10, shieldPerEnergy: 3.1, shieldMax: 180, shieldPerBattery: 28, shieldDecayPerSecond: 22, cooldown: 10, cooldownMultiplier: 0.78 }
   },
   skills: {
     heal: { cooldown: 30, fraction: 0.2, shieldCapFraction: 0.35, burstRadius: 260, burstDamageMultiplier: 3, burstDuration: 0.55 },
@@ -130,11 +138,11 @@ export const GAME_CONFIG = Object.freeze({
     colossus: { hp: 5000, speed: 0, damage: 58, reward: 620, radius: 76 },
     anchor: { hp: 115, speed: 0, damage: 0, reward: 0, radius: 17 }
   },
-  research: { bonusPerLevel: 0.05, maxLevel: 10 },
+  research: { bonusPerLevel: 0.05, maxLevel: 20 },
   combat: { enemyAttackInterval: 0.7, maxEnemies: 420, normalEnemyBudget: 240, crowdRadiusPerDoubling: 0.14, crowdMaxRadiusMultiplier: 1.55 }
 });
 
-export const TECH_ORDER = ["damage", "rate", "ascend", "saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
+export const TECH_ORDER = ["damage", "rate", "ascend", "saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "drone", "droneScavenge", "autoCollect", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
 export const UPGRADE_ORDER = TECH_ORDER;
 export const SKILL_ORDER = ["heal", "overload", "starfall", "coinVacuum"];
 export const TARGET_PROTOCOL_ORDER = ["guard", "hunter", "breach", "radar"];
