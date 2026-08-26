@@ -130,7 +130,8 @@ export function writeSave(save, storage = globalThis.localStorage) {
 }
 
 export function researchCost(level) {
-  return level + 1;
+  const cfg = GAME_CONFIG.research;
+  return Math.max(1, Math.ceil(cfg.costBase * (cfg.costGrowth ** Math.max(0, Number(level) || 0))));
 }
 
 export function buyResearch(save, key) {

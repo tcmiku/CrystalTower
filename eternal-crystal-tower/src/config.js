@@ -52,6 +52,29 @@ export const GAME_CONFIG = Object.freeze({
     bulwark: { duration: 3.6, damageMultiplier: 0.38, orbitSpeedMultiplier: 2.25 },
     counters: { artilleryAnchorHp: 260, artilleryShotMultiplier: 0.45, exposedDuration: 4.5, exposedDamageMultiplier: 1.5, riftHp: 150, bulwarkHeat: 55 }
   },
+  sovereign: {
+    spawnThreat: 20,
+    healthBars: 4,
+    fixedX: 480,
+    fixedY: 138,
+    towerX: 480,
+    towerY: 600,
+    towerScale: 0.72,
+    entryDuration: 3.2,
+    phaseBreakInvulnerability: 0.85,
+    intentDuration: 1.05,
+    skillCooldown: 2.65,
+    skillOrder: ["summon", "artillery", "summon", "beam", "summon", "bulwark"],
+    finalEnrageThreshold: 0.5,
+    enrageDamageMultiplier: 1.45,
+    enrageCooldownMultiplier: 0.52,
+    rangedSlowDuration: 4.5,
+    rangedSlowMultiplier: 0.58,
+    artillery: { duration: 3.3, interval: 0.62, projectileSpeed: 300, projectileLife: 3, damageMultiplier: 0.3, radius: 13 },
+    summon: { duration: 3.7, interval: 1.05, portalsPerWave: 4, waves: 3, telegraphDuration: 0.72, types: ["inkHound", "runner", "hexer", "rammer", "porcelainWarden"] },
+    beam: { duration: 2.7, tickInterval: 0.46, damageMultiplier: 0.2 },
+    bulwark: { duration: 3.4, damageMultiplier: 0.34 }
+  },
   upgrades: {
     damage: { baseCost: 20, growth: 1.55, multiplier: 1.25 },
     rate: { baseCost: 25, growth: 1.65, multiplier: 1.15, cap: 5 },
@@ -115,9 +138,9 @@ export const GAME_CONFIG = Object.freeze({
   },
   relicResearch: { ward: 0, decoy: 3, lunar: 4, mirror: 5, ember: 6, frostbloom: 7, stormglass: 9, gilded: 11, execution: 13, hourglass: 15 },
   relicSlotResearch: { costs: [2, 4, 7] },
-  permanentResources: { clickRadius: 30, maxDrops: 72, eliteEcho: 2, bossCore: 3, colossusCore: 8 },
+  permanentResources: { clickRadius: 30, maxDrops: 72, eliteEcho: 2, bossCore: 3, colossusCore: 8, sovereignCore: 15 },
   score: {
-    enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, inkHound: 260, orbitMote: 390, rustBeetle: 520, porcelainWarden: 480, boss: 5000, colossus: 20000 },
+    enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, inkHound: 260, orbitMote: 390, rustBeetle: 520, porcelainWarden: 480, boss: 5000, colossus: 20000, sovereign: 50000 },
     eliteMultiplier: 4,
     coinMultiplier: 10,
     leaderboardSize: 10
@@ -151,9 +174,10 @@ export const GAME_CONFIG = Object.freeze({
     porcelainWarden: { hp: 108, speed: 28, damage: 19, reward: 18, radius: 22 },
     boss: { hp: 900, speed: 16, damage: 42, reward: 180, radius: 48 },
     colossus: { hp: 5000, speed: 0, damage: 58, reward: 620, radius: 76 },
+    sovereign: { hp: 2800, speed: 0, damage: 76, reward: 1500, radius: 128 },
     anchor: { hp: 115, speed: 0, damage: 0, reward: 0, radius: 17 }
   },
-  research: { bonusPerLevel: 0.05, maxLevel: 20 },
+  research: { bonusPerLevel: 0.05, maxLevel: 20, costBase: 2, costGrowth: 1.3 },
   combat: { enemyAttackInterval: 0.7, maxEnemies: 420, normalEnemyBudget: 240, crowdRadiusPerDoubling: 0.14, crowdMaxRadiusMultiplier: 1.55 }
 });
 

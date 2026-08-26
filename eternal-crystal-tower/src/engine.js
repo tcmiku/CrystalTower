@@ -19,10 +19,12 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     spawnTimer: 0.65,
     wave: { index: 0, nextAt: GAME_CONFIG.waves.firstAt, warningStarted: false, active: false, remaining: 0, spawnTimer: 0, direction: null, elitePending: false },
     colossusEncounter: { spawned: false, defeated: false },
+    sovereignEncounter: { spawned: false, defeated: false },
     tower: {
       hp: 0,
       shield: 0,
       fireCooldown: 0,
+      fireRateSuppression: 0,
       sawFireCooldown: 0,
       sawLaunchCooldown: 0,
       sawRecoveries: [],
@@ -94,6 +96,22 @@ export function getDayPhase(threat) {
   return ((Math.max(1, threat) - 1) % (dayWaves + nightWaves)) < dayWaves ? "day" : "night";
 }
 
+export function getTowerPosition(state) {
+  const sovereignActive = state?.enemies?.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0);
+  return sovereignActive
+    ? { x: GAME_CONFIG.sovereign.towerX, y: GAME_CONFIG.sovereign.towerY }
+    : { x: GAME_CONFIG.arena.centerX, y: GAME_CONFIG.arena.centerY };
+}
+
+export function getTowerRadius(state) {
+  const base = GAME_CONFIG.tower.radius + (state?.tower?.upgrades?.ascend ?? 0) * 5;
+  return base * (state?.enemies?.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1);
+}
+
+export function getTowerScale(state) {
+  return state?.enemies?.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1;
+}
+
 export function getTowerStats(state) {
   const { tower, research } = state;
   const level = tower.upgrades.ascend;
@@ -106,9 +124,10 @@ export function getTowerStats(state) {
   const damage = cfg.tower.damage * (cfg.upgrades.damage.multiplier ** tower.upgrades.damage) * cfg.upgrades.ascend.damage[level] * permanentDamage * relicDamage * phaseDamage;
   const rawRate = cfg.tower.fireRate * (cfg.upgrades.rate.multiplier ** tower.upgrades.rate) * cfg.upgrades.ascend.rate[level];
   const relicRate = (1 + (state.relics?.rateBonus ?? 0)) * ((state.relics?.phaseBuff ?? 0) > 0 ? cfg.relics.lunar.transitionRateMultiplier : 1);
+  const suppression = (tower.fireRateSuppression ?? 0) > 0 ? cfg.sovereign.rangedSlowMultiplier : 1;
   return {
     damage,
-    fireRate: Math.min(cfg.upgrades.rate.cap * 1.5, Math.min(cfg.upgrades.rate.cap, rawRate) * relicRate),
+    fireRate: Math.min(cfg.upgrades.rate.cap * 1.5, Math.min(cfg.upgrades.rate.cap, rawRate) * relicRate) * suppression,
     range: cfg.tower.range + cfg.upgrades.ascend.rangePerLevel * level,
     maxHp: (cfg.tower.maxHp + cfg.upgrades.ascend.hpPerLevel * level) * permanentHealth,
     projectileCount: level >= 3 ? 3 : level >= 2 ? 2 : 1,
@@ -256,7 +275,7 @@ export function chooseEnemyType(state) {
 }
 
 function isBossEnemy(enemy) {
-  return enemy?.type === "boss" || enemy?.type === "colossus";
+  return enemy?.type === "boss" || enemy?.type === "colossus" || enemy?.type === "sovereign";
 }
 
 function spawnPosition(rng, forcedSide = null) {
@@ -303,7 +322,7 @@ function mergeCrowdEnemy(state, incoming) {
 }
 
 export function spawnEnemy(state, type = chooseEnemyType(state), position, options = {}) {
-  const bossType = type === "boss" || type === "colossus";
+  const bossType = type === "boss" || type === "colossus" || type === "sovereign";
   const elite = Boolean(options.elite) && !bossType;
   if (state.enemies.length >= GAME_CONFIG.combat.maxEnemies) {
     if (!bossType && !elite) return null;
@@ -388,6 +407,26 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
     enemy.parallelCooldowns = Object.fromEntries(GAME_CONFIG.colossus.skillOrder.map((skill, index) => [skill, index * GAME_CONFIG.colossus.enrageParallelStagger]));
     state.colossusEncounter.spawned = true;
   }
+  if (type === "sovereign") {
+    const cfg = GAME_CONFIG.sovereign;
+    enemy.x = cfg.fixedX;
+    enemy.y = cfg.fixedY;
+    enemy.activeSkill = null;
+    enemy.intentSkill = null;
+    enemy.intentTimer = 0;
+    enemy.skillTimer = 0;
+    enemy.skillCooldown = 1.8;
+    enemy.skillTick = 0;
+    enemy.skillSequence = 0;
+    enemy.summonWavesRemaining = 0;
+    enemy.healthBars = cfg.healthBars;
+    enemy.healthBar = cfg.healthBars;
+    enemy.phaseBreakInvulnerability = cfg.entryDuration;
+    enemy.entryTimer = cfg.entryDuration;
+    enemy.enraged = false;
+    enemy.elementImmune = false;
+    state.sovereignEncounter.spawned = true;
+  }
   if (type === "anchor") {
     enemy.anchorBossId = options.anchorBossId ?? null;
     enemy.anchorRole = GAME_CONFIG.boss.anchorRoles.includes(options.anchorRole) ? options.anchorRole : GAME_CONFIG.boss.anchorRoles[0];
@@ -407,6 +446,7 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
     state.events.push({ type: "bossSpawn", resistance: enemy.resistance });
   }
   if (type === "colossus") state.events.push({ type: "colossusSpawn", enemyId: enemy.id, affix: enemy.colossusAffix, x: enemy.x, y: enemy.y });
+  if (type === "sovereign") state.events.push({ type: "sovereignSpawn", enemyId: enemy.id, x: enemy.x, y: enemy.y, duration: GAME_CONFIG.sovereign.entryDuration });
   if (elite) state.events.push({ type: "eliteSpawn", enemyType: type, affix: enemy.affix, x: enemy.x, y: enemy.y });
   return enemy;
 }
@@ -494,18 +534,18 @@ export function chooseRelic(state, id) {
   return true;
 }
 export function findTargets(state, count = 1) {
-  const { centerX, centerY } = GAME_CONFIG.arena;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
   const range = getTowerStats(state).range;
   const candidates = state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - centerX, enemy.y - centerY) <= range);
   return rankTargets(state, candidates).slice(0, count);
 }
 
 function rankTargets(state, candidates) {
-  const { centerX, centerY } = GAME_CONFIG.arena;
-  const towerRadius = GAME_CONFIG.tower.radius + state.tower.upgrades.ascend * 5;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
+  const towerRadius = getTowerRadius(state);
   const distance = (enemy) => Math.hypot(enemy.x - centerX, enemy.y - centerY);
   const lockedPriority = (enemy) => Number(state.tower.anchorLockTimer > 0 && enemy.id === state.tower.anchorLockId);
-  const hunterPriority = (enemy) => enemy.type === "colossus" ? 4 : enemy.type === "boss" ? 3 : enemy.elite ? 2 : enemy.type === "hexer" ? 1 : 0;
+  const hunterPriority = (enemy) => enemy.type === "sovereign" ? 5 : enemy.type === "colossus" ? 4 : enemy.type === "boss" ? 3 : enemy.elite ? 2 : enemy.type === "hexer" ? 1 : 0;
   const contactTime = (enemy) => Math.max(0, distance(enemy) - towerRadius - enemy.radius - (enemy.attackRange ?? 0)) / Math.max(1, enemy.speed);
   const radarPriority = (enemy) => Number((enemy.attackRange ?? 0) > 0);
   return [...candidates].sort((a, b) => {
@@ -530,7 +570,7 @@ function fireTower(state) {
   const targets = findTargets(state, stats.projectileCount);
   state.tower.priorityTargetIds = targets.map((target) => target.id);
   if (!targets.length) return false;
-  const { centerX, centerY } = GAME_CONFIG.arena;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
   const siegeLevel = state.tower.upgrades.cannonSiege;
   const chargeLevel = state.tower.upgrades.cannonCharge;
   let chargeMultiplier = 1;
@@ -602,12 +642,13 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
     if (enemy.colossusAffix === "carapace") appliedDamage *= GAME_CONFIG.colossus.affixes.carapace.passiveDamageMultiplier;
     if ((enemy.exposedTimer ?? 0) > 0) appliedDamage *= GAME_CONFIG.colossus.counters.exposedDamageMultiplier;
     if (enemy.activeSkill === "bulwark" || enemy.activeSkills?.bulwark) appliedDamage *= GAME_CONFIG.colossus.bulwark.damageMultiplier;
-  if ((enemy.spawnShield ?? 0) > 0) {
-    const absorbed = Math.min(enemy.spawnShield, appliedDamage);
-    enemy.spawnShield -= absorbed;
-    appliedDamage -= absorbed;
+    if ((enemy.spawnShield ?? 0) > 0) {
+      const absorbed = Math.min(enemy.spawnShield, appliedDamage);
+      enemy.spawnShield -= absorbed;
+      appliedDamage -= absorbed;
+    }
   }
-  }
+  if (enemy.type === "sovereign" && enemy.activeSkill === "bulwark") appliedDamage *= GAME_CONFIG.sovereign.bulwark.damageMultiplier;
   if ((enemy.affixShield ?? 0) > 0) {
     const absorbed = Math.min(enemy.affixShield, appliedDamage);
     enemy.affixShield -= absorbed;
@@ -639,6 +680,29 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
     state.events.push({ type: "colossusEnrage", enemyId: enemy.id, affix: enemy.colossusAffix, healthBar: enemy.healthBar, x: enemy.x, y: enemy.y });
     offerRelicChoice(state, "colossusPhase");
   }
+  if (enemy.type === "sovereign" && enemy.hp <= 0 && enemy.healthBar > 1) {
+    enemy.healthBar -= 1;
+    enemy.hp = enemy.maxHp;
+    enemy.phaseBreakInvulnerability = GAME_CONFIG.sovereign.phaseBreakInvulnerability;
+    enemy.activeSkill = null;
+    enemy.intentSkill = null;
+    enemy.skillCooldown = 1.15;
+    enemy.freezeTimer = 0;
+    enemy.burnTimer = 0;
+    enemy.burnDamagePerTick = 0;
+    state.hostileProjectiles.length = 0;
+    state.summonRifts = state.summonRifts.filter((rift) => rift.bossId !== enemy.id);
+    state.events.push({ type: "sovereignPhase", enemyId: enemy.id, healthBar: enemy.healthBar, x: enemy.x, y: enemy.y });
+  }
+  if (enemy.type === "sovereign" && enemy.hp > 0 && enemy.healthBar === 1 && !enemy.enraged && enemy.hp / enemy.maxHp <= GAME_CONFIG.sovereign.finalEnrageThreshold) {
+    enemy.enraged = true;
+    enemy.elementImmune = true;
+    enemy.freezeTimer = 0;
+    enemy.burnTimer = 0;
+    enemy.burnDamagePerTick = 0;
+    enemy.skillCooldown = Math.min(enemy.skillCooldown, 0.45);
+    state.events.push({ type: "sovereignEnrage", enemyId: enemy.id, x: enemy.x, y: enemy.y });
+  }
   if (enemy.type === "boss" && enemy.hp > 0) {
     const ratio = enemy.hp / enemy.maxHp;
     const nextPhase = ratio <= GAME_CONFIG.boss.phaseThresholds[1] ? 2 : ratio <= GAME_CONFIG.boss.phaseThresholds[0] ? 1 : 0;
@@ -654,6 +718,14 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
 export function applyElementalHit(state, enemy, element, baseDamage) {
   const cfg = GAME_CONFIG.elements[element];
   if (!cfg || !enemy || enemy.hp <= 0) return false;
+  if (enemy.type === "sovereign" && enemy.elementImmune) {
+    enemy.freezeTimer = 0;
+    enemy.burnTimer = 0;
+    enemy.burnDamagePerTick = 0;
+    state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius, text: "元素无效", life: 0.75, color: "#ff6d55" });
+    state.events.push({ type: "sovereignElementImmune", element, enemyId: enemy.id, x: enemy.x, y: enemy.y });
+    return false;
+  }
   const bossScale = isBossEnemy(enemy) ? cfg.bossEffectMultiplier : 1;
   const lunarScale = state.relics.owned.lunar && state.phase === "night" ? GAME_CONFIG.relics.lunar.nightElementMultiplier : 1;
   if (element === "frost") {
@@ -722,7 +794,7 @@ function addCoinDrop(state, enemy) {
 function spawnRelicDecoy(state, direction, waveIndex) {
   if (!state.relics.owned.decoy || direction == null) return null;
   const cfg = GAME_CONFIG.relics.decoy;
-  const { centerX, centerY } = GAME_CONFIG.arena;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
   const vectors = [[0, -1], [1, 0], [0, 1], [-1, 0]];
   const [vx, vy] = vectors[direction] ?? vectors[0];
   const hpScale = 1 + Math.max(0, state.threat - 1) * 0.15;
@@ -936,7 +1008,7 @@ function resolveDeaths(state) {
       for (const target of state.enemies) {
         if (target === enemy || target.hp <= 0 || Math.hypot(target.x - enemy.x, target.y - enemy.y) > cfg.radius + target.radius) continue;
         damageEnemy(state, target, getTowerStats(state).damage * cfg.damageMultiplier, "frost");
-        if (target.type !== "colossus" || !target.enraged) target.freezeTimer = Math.max(target.freezeTimer ?? 0, cfg.freezeDuration * (isBossEnemy(target) ? GAME_CONFIG.elements.frost.bossEffectMultiplier : 1));
+        if ((target.type !== "colossus" || !target.enraged) && (target.type !== "sovereign" || !target.elementImmune)) target.freezeTimer = Math.max(target.freezeTimer ?? 0, cfg.freezeDuration * (isBossEnemy(target) ? GAME_CONFIG.elements.frost.bossEffectMultiplier : 1));
       }
       state.events.push({ type: "relicFrostbloom", x: enemy.x, y: enemy.y, radius: cfg.radius });
     }
@@ -957,7 +1029,8 @@ function resolveDeaths(state) {
     }
     if (isBossEnemy(enemy)) {
       state.stats.bossKills += 1;
-      spawnPermanentResourceDrop(state, "core", enemy.type === "colossus" ? GAME_CONFIG.permanentResources.colossusCore : GAME_CONFIG.permanentResources.bossCore, enemy.x, enemy.y, { source: enemy.type });
+      const coreValue = enemy.type === "sovereign" ? GAME_CONFIG.permanentResources.sovereignCore : enemy.type === "colossus" ? GAME_CONFIG.permanentResources.colossusCore : GAME_CONFIG.permanentResources.bossCore;
+      spawnPermanentResourceDrop(state, "core", coreValue, enemy.x, enemy.y, { source: enemy.type });
       if (enemy.type === "boss") {
         for (const anchor of bossAnchors(state, enemy)) anchor.deadHandled = true;
         state.events.push({ type: "bossDefeated", threat: state.threat, x: enemy.x, y: enemy.y });
@@ -968,6 +1041,14 @@ function resolveDeaths(state) {
         state.hostileProjectiles.length = 0;
         state.summonRifts = state.summonRifts.filter((rift) => rift.bossId !== enemy.id);
         state.events.push({ type: "colossusDefeated", x: enemy.x, y: enemy.y });
+        offerRelicChoice(state, "colossusDefeat");
+      }
+      if (enemy.type === "sovereign") {
+        state.sovereignEncounter.defeated = true;
+        state.hostileProjectiles.length = 0;
+        state.summonRifts = state.summonRifts.filter((rift) => rift.bossId !== enemy.id);
+        state.tower.fireRateSuppression = 0;
+        state.events.push({ type: "sovereignDefeated", x: enemy.x, y: enemy.y });
         offerRelicChoice(state, "colossusDefeat");
       }
     }
@@ -1001,11 +1082,19 @@ function updateThreat(state) {
   state.stats.highestThreat = Math.max(state.stats.highestThreat, nextThreat);
   state.events.push({ type: "threat", level: nextThreat });
   if (nextThreat === GAME_CONFIG.colossus.spawnThreat && !state.colossusEncounter.spawned) spawnEnemy(state, "colossus");
-  if (nextThreat % GAME_CONFIG.threat.bossEvery === 0) spawnEnemy(state, "boss");
+  if (nextThreat === GAME_CONFIG.sovereign.spawnThreat && !state.sovereignEncounter.spawned) {
+    state.enemies.length = 0;
+    state.hostileProjectiles.length = 0;
+    state.summonRifts.length = 0;
+    state.wave.active = false;
+    state.wave.remaining = 0;
+    state.decoys.length = 0;
+    spawnEnemy(state, "sovereign", { x: GAME_CONFIG.sovereign.fixedX, y: GAME_CONFIG.sovereign.fixedY });
+  } else if (nextThreat % GAME_CONFIG.threat.bossEvery === 0) spawnEnemy(state, "boss");
 }
 
 function activeColossus(state) {
-  return state.enemies.find((enemy) => enemy.type === "colossus" && enemy.hp > 0);
+  return state.enemies.find((enemy) => (enemy.type === "colossus" || enemy.type === "sovereign") && enemy.hp > 0);
 }
 
 function updateWave(state, dt) {
@@ -1084,7 +1173,8 @@ function damageTower(state, damage, heavy = false, source = "enemy") {
   if (heavy && state.tower.droneMode === "collect" && state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge > 0) {
     state.tower.interceptCharge = 0;
     state.tower.interceptRecharge = GAME_CONFIG.drones.interceptRecharge;
-    state.events.push({ type: "droneIntercept", x: GAME_CONFIG.arena.centerX, y: GAME_CONFIG.arena.centerY, enemyType: source });
+    const towerPosition = getTowerPosition(state);
+    state.events.push({ type: "droneIntercept", x: towerPosition.x, y: towerPosition.y, enemyType: source });
     return false;
   }
   if (state.skills.heal.shieldBurstArmed) releaseShieldBurst(state);
@@ -1333,9 +1423,115 @@ function updateColossus(state, boss, dt) {
   if (finished) finishColossusSkill(boss);
 }
 
+function suppressTowerFire(state, boss, skill) {
+  const cfg = GAME_CONFIG.sovereign;
+  const wasSuppressed = state.tower.fireRateSuppression > 0;
+  state.tower.fireRateSuppression = Math.max(state.tower.fireRateSuppression, cfg.rangedSlowDuration);
+  if (!wasSuppressed) state.events.push({ type: "sovereignSuppress", enemyId: boss.id, skill, duration: cfg.rangedSlowDuration, multiplier: cfg.rangedSlowMultiplier });
+}
+
+function beginSovereignIntent(state, boss) {
+  const cfg = GAME_CONFIG.sovereign;
+  const skill = cfg.skillOrder[boss.skillSequence % cfg.skillOrder.length];
+  boss.skillSequence += 1;
+  boss.intentSkill = skill;
+  boss.intentTimer = cfg.intentDuration * (boss.enraged ? 0.55 : 1);
+  state.events.push({ type: "sovereignIntent", skill, enemyId: boss.id, duration: boss.intentTimer, enraged: boss.enraged });
+}
+
+function startSovereignSkill(state, boss) {
+  const cfg = GAME_CONFIG.sovereign;
+  const skill = boss.intentSkill ?? cfg.skillOrder[boss.skillSequence++ % cfg.skillOrder.length];
+  boss.intentSkill = null;
+  boss.intentTimer = 0;
+  boss.activeSkill = skill;
+  boss.skillTimer = cfg[skill].duration;
+  boss.skillTick = 0;
+  boss.summonWavesRemaining = skill === "summon" ? cfg.summon.waves + (boss.enraged ? 1 : 0) : 0;
+  if (skill === "artillery" || skill === "beam") suppressTowerFire(state, boss, skill);
+  state.events.push({ type: "sovereignSkill", skill, enemyId: boss.id, duration: boss.skillTimer, enraged: boss.enraged });
+}
+
+function finishSovereignSkill(boss) {
+  boss.activeSkill = null;
+  boss.skillTimer = 0;
+  boss.skillTick = 0;
+  boss.skillCooldown = GAME_CONFIG.sovereign.skillCooldown * (boss.enraged ? GAME_CONFIG.sovereign.enrageCooldownMultiplier : 1);
+}
+
+function fireSovereignArtillery(state, boss) {
+  const cfg = GAME_CONFIG.sovereign.artillery;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
+  const targetX = centerX + (state.rng.next() - 0.5) * 190;
+  const targetY = centerY + (state.rng.next() - 0.5) * 90;
+  const angle = Math.atan2(targetY - boss.y, targetX - boss.x);
+  state.hostileProjectiles.push({
+    id: state.nextId++, kind: "sovereignMortar", x: boss.x, y: boss.y + 48,
+    vx: Math.cos(angle) * cfg.projectileSpeed, vy: Math.sin(angle) * cfg.projectileSpeed,
+    targetX, targetY, radius: cfg.radius, life: cfg.projectileLife,
+    damage: boss.damage * cfg.damageMultiplier * (boss.enraged ? GAME_CONFIG.sovereign.enrageDamageMultiplier : 1)
+  });
+  boss.rangedFlash = 0.32;
+  state.events.push({ type: "sovereignArtillery", x: boss.x, y: boss.y, targetX, targetY });
+}
+
+function queueSovereignRiftWave(state, boss) {
+  const cfg = GAME_CONFIG.sovereign.summon;
+  if (boss.summonWavesRemaining <= 0) return;
+  const waveIndex = cfg.waves + Number(boss.enraged) - boss.summonWavesRemaining;
+  const positions = [
+    [155, 260], [355, 315], [605, 315], [805, 260], [480, 425]
+  ];
+  const count = cfg.portalsPerWave + Number(boss.enraged);
+  for (let index = 0; index < count; index += 1) {
+    const [baseX, baseY] = positions[(index + waveIndex) % positions.length];
+    const x = baseX + (state.rng.next() - 0.5) * 48;
+    const y = baseY + (state.rng.next() - 0.5) * 36;
+    const enemyType = cfg.types[(waveIndex * count + index) % cfg.types.length];
+    state.summonRifts.push({ id: state.nextId++, bossId: boss.id, enemyType, x, y, life: cfg.telegraphDuration, maxLife: cfg.telegraphDuration, attackable: false, targetId: null });
+    state.events.push({ type: "sovereignSummonRift", enemyType, x, y, duration: cfg.telegraphDuration });
+  }
+  boss.summonWavesRemaining -= 1;
+  state.events.push({ type: "sovereignRiftWave", enemyId: boss.id, count });
+}
+
+function updateSovereign(state, boss, dt) {
+  const cfg = GAME_CONFIG.sovereign;
+  boss.x = cfg.fixedX;
+  boss.y = cfg.fixedY;
+  boss.entryTimer = Math.max(0, (boss.entryTimer ?? 0) - dt);
+  if (boss.entryTimer > 0) return;
+  if (boss.intentSkill) {
+    boss.intentTimer -= dt;
+    if (boss.intentTimer <= 0) startSovereignSkill(state, boss);
+    return;
+  }
+  if (!boss.activeSkill) {
+    boss.skillCooldown -= dt;
+    if (boss.skillCooldown <= 0) beginSovereignIntent(state, boss);
+    return;
+  }
+  boss.skillTimer -= dt;
+  boss.skillTick -= dt;
+  if (boss.activeSkill === "artillery" && boss.skillTick <= 0) {
+    fireSovereignArtillery(state, boss);
+    boss.skillTick += cfg.artillery.interval;
+  } else if (boss.activeSkill === "summon" && boss.skillTick <= 0 && boss.summonWavesRemaining > 0) {
+    queueSovereignRiftWave(state, boss);
+    boss.skillTick += cfg.summon.interval;
+  } else if (boss.activeSkill === "beam" && boss.skillTick <= 0) {
+    damageTower(state, boss.damage * cfg.beam.damageMultiplier * (boss.enraged ? cfg.enrageDamageMultiplier : 1), true, "sovereignBeam");
+    boss.rangedFlash = Math.max(boss.rangedFlash, cfg.beam.tickInterval + 0.08);
+    boss.skillTick += cfg.beam.tickInterval;
+    state.events.push({ type: "sovereignBeam", x: boss.x, y: boss.y });
+  }
+  if (boss.skillTimer <= 0 || (boss.activeSkill === "summon" && boss.summonWavesRemaining <= 0)) finishSovereignSkill(boss);
+}
+
 function updateHostileProjectiles(state, dt) {
-  const { centerX, centerY, width, height } = GAME_CONFIG.arena;
-  const towerRadius = GAME_CONFIG.tower.radius + state.tower.upgrades.ascend * 5;
+  const { width, height } = GAME_CONFIG.arena;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
+  const towerRadius = getTowerRadius(state);
   for (const projectile of state.hostileProjectiles) {
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
@@ -1343,7 +1539,7 @@ function updateHostileProjectiles(state, dt) {
     const reachedTarget = Math.hypot(projectile.x - projectile.targetX, projectile.y - projectile.targetY) <= projectile.radius + 9;
     const hitTower = Math.hypot(projectile.x - centerX, projectile.y - centerY) <= towerRadius + projectile.radius;
     if (reachedTarget || hitTower) {
-      if (hitTower) damageTower(state, projectile.damage, true, "colossusArtillery");
+      if (hitTower) damageTower(state, projectile.damage, true, projectile.kind === "sovereignMortar" ? "sovereignArtillery" : "colossusArtillery");
       state.events.push({ type: "colossusImpact", x: projectile.x, y: projectile.y, hitTower });
       projectile.life = 0;
     }
@@ -1355,19 +1551,19 @@ function updateSummonRifts(state, dt) {
   for (const rift of state.summonRifts) {
     rift.life -= dt;
     if (rift.life > 0) continue;
-    const boss = state.enemies.find((enemy) => enemy.id === rift.bossId && enemy.type === "colossus" && enemy.hp > 0);
+    const boss = state.enemies.find((enemy) => enemy.id === rift.bossId && (enemy.type === "colossus" || enemy.type === "sovereign") && enemy.hp > 0);
     if (!boss) continue;
     if (rift.targetId && !state.enemies.some((enemy) => enemy.id === rift.targetId && enemy.hp > 0)) continue;
     const summoned = spawnEnemy(state, rift.enemyType, { x: rift.x, y: rift.y }, { summonedByColossus: true });
     if (rift.targetId) state.enemies = state.enemies.filter((enemy) => enemy.id !== rift.targetId);
-    if (summoned) state.events.push({ type: "colossusSummon", enemyId: summoned.id, enemyType: rift.enemyType, x: summoned.x, y: summoned.y });
+    if (summoned) state.events.push({ type: boss.type === "sovereign" ? "sovereignSummon" : "colossusSummon", enemyId: summoned.id, enemyType: rift.enemyType, x: summoned.x, y: summoned.y });
   }
   state.summonRifts = state.summonRifts.filter((rift) => rift.life > 0);
 }
 
 function updateEnemies(state, dt) {
-  const { centerX, centerY } = GAME_CONFIG.arena;
-  const towerRadius = GAME_CONFIG.tower.radius + state.tower.upgrades.ascend * 5;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
+  const towerRadius = getTowerRadius(state);
   for (const enemy of state.enemies) {
     enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
     enemy.rangedFlash = Math.max(0, (enemy.rangedFlash ?? 0) - dt);
@@ -1408,6 +1604,10 @@ function updateEnemies(state, dt) {
       updateColossus(state, enemy, dt);
       continue;
     }
+    if (enemy.type === "sovereign") {
+      updateSovereign(state, enemy, dt);
+      continue;
+    }
     const decoy = state.decoys.find((candidate) => candidate.hp > 0);
     const targetX = decoy?.x ?? centerX;
     const targetY = decoy?.y ?? centerY;
@@ -1446,14 +1646,15 @@ function updateSaws(state, dt) {
   const launchedIndexes = new Set(state.launchedSaws.map((saw) => saw.bladeIndex));
   const overdrive = state.tower.upgrades.sawOverdrive;
   state.tower.sawAngle += dt * (1.8 + count * 0.06) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.speedPerLevel);
-  const { centerX, centerY } = GAME_CONFIG.arena;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
   const cfg = GAME_CONFIG.upgrades.saw;
   const damage = cfg.damage * (1 + (count - 1) * cfg.growthDamage) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.damagePerLevel);
   for (let index = 0; index < count; index += 1) {
     if (launchedIndexes.has(index) || state.tower.sawRecoveries[index] > 0) continue;
     const angle = state.tower.sawAngle + index * Math.PI * 2 / count;
-    const x = centerX + Math.cos(angle) * cfg.radius;
-    const y = centerY + Math.sin(angle) * cfg.radius;
+    const radius = cfg.radius * getTowerScale(state);
+    const x = centerX + Math.cos(angle) * radius;
+    const y = centerY + Math.sin(angle) * radius;
     for (const enemy of state.enemies) {
       if (enemy.sawCooldown > 0 || enemy.hp <= 0) continue;
       if (Math.hypot(enemy.x - x, enemy.y - y) <= enemy.radius + 17) {
@@ -1509,8 +1710,9 @@ function updateLaunchedSaws(state, dt) {
     .find((index) => !launchedIndexes.has(index) && state.tower.sawRecoveries[index] <= 0);
   if (bladeIndex == null) return;
   const angle = state.tower.sawAngle + bladeIndex * Math.PI * 2 / count;
-  const x = centerX + Math.cos(angle) * GAME_CONFIG.upgrades.saw.radius;
-  const y = centerY + Math.sin(angle) * GAME_CONFIG.upgrades.saw.radius;
+  const radius = GAME_CONFIG.upgrades.saw.radius * getTowerScale(state);
+  const x = centerX + Math.cos(angle) * radius;
+  const y = centerY + Math.sin(angle) * radius;
   const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range))[0];
   if (!target) return;
   const launchAngle = Math.atan2(target.y - y, target.x - x);
@@ -1536,12 +1738,13 @@ function updateSawGuns(state, dt) {
   if (state.tower.sawFireCooldown > 0) return;
   const cfg = GAME_CONFIG.upgrades.sawGun;
   const stats = getTowerStats(state);
-  const { centerX, centerY } = GAME_CONFIG.arena;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
   let fired = false;
   for (let index = 0; index < count; index += 1) {
     const sawAngle = state.tower.sawAngle + index * Math.PI * 2 / count;
-    const x = centerX + Math.cos(sawAngle) * GAME_CONFIG.upgrades.saw.radius;
-    const y = centerY + Math.sin(sawAngle) * GAME_CONFIG.upgrades.saw.radius;
+    const radius = GAME_CONFIG.upgrades.saw.radius * getTowerScale(state);
+    const x = centerX + Math.cos(sawAngle) * radius;
+    const y = centerY + Math.sin(sawAngle) * radius;
     const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range))[0];
     if (!target) continue;
     const angle = Math.atan2(target.y - y, target.x - x);
@@ -1649,10 +1852,8 @@ function updateProjectiles(state, dt) {
 function getDroneOrbitPosition(state, index) {
   const count = Math.max(1, state.tower.upgrades.drone);
   const angle = state.time * (1.25 + count * 0.08) + index * Math.PI * 2 / count;
-  return {
-    x: GAME_CONFIG.arena.centerX + Math.cos(angle) * GAME_CONFIG.coins.droneOrbitRadius,
-    y: GAME_CONFIG.arena.centerY + Math.sin(angle) * GAME_CONFIG.coins.droneOrbitRadius
-  };
+  const { x: centerX, y: centerY } = getTowerPosition(state);
+  return { x: centerX + Math.cos(angle) * GAME_CONFIG.coins.droneOrbitRadius, y: centerY + Math.sin(angle) * GAME_CONFIG.coins.droneOrbitRadius };
 }
 
 export function getDronePosition(state, index) {
@@ -1672,7 +1873,7 @@ function moveDroneTowards(drone, target, speed, dt) {
 }
 
 function rankDroneDetonationTargets(state, drone) {
-  const priority = (enemy) => enemy.type === "colossus" ? 0 : enemy.type === "boss" ? 1 : enemy.elite ? 2 : 3;
+  const priority = (enemy) => enemy.type === "sovereign" ? 0 : enemy.type === "colossus" ? 1 : enemy.type === "boss" ? 2 : enemy.elite ? 3 : 4;
   return state.enemies
     .filter((enemy) => enemy.hp > 0)
     .sort((a, b) => priority(a) - priority(b) || Math.hypot(a.x - drone.x, a.y - drone.y) - Math.hypot(b.x - drone.x, b.y - drone.y) || a.id - b.id);
@@ -1851,7 +2052,7 @@ export function collectCoinAt(state, x, y, clickRadius = GAME_CONFIG.coins.click
 }
 
 function updateCoinOrbs(state, dt) {
-  const { centerX, centerY } = GAME_CONFIG.arena;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
   const incomeMultiplier = 1 + state.research.income * GAME_CONFIG.research.bonusPerLevel;
   const droneCount = state.tower.upgrades.drone;
   const guardMode = state.tower.droneMode === "collect";
@@ -1883,7 +2084,7 @@ function updateCoinOrbs(state, dt) {
     orb.collectAge += dt;
     const progress = Math.min(1, orb.collectAge / GAME_CONFIG.coins.collectDuration);
     const ease = progress * progress * (3 - 2 * progress);
-    const target = orb.collector === "drone" ? getDronePosition(state, orb.droneIndex) : { x: centerX, y: centerY };
+    const target = orb.collector === "drone" ? getDronePosition(state, orb.droneIndex) : getTowerPosition(state);
     orb.renderX = orb.collectStartX + (target.x - orb.collectStartX) * ease;
     orb.renderY = orb.collectStartY + (target.y - orb.collectStartY) * ease - Math.sin(progress * Math.PI) * 28;
     if (progress >= 1 && !orb.collected) {
@@ -1949,7 +2150,7 @@ function releaseShieldBurst(state) {
   const skill = state.skills.heal;
   if (!skill.shieldBurstArmed) return false;
   const config = GAME_CONFIG.skills.heal;
-  const { centerX, centerY } = GAME_CONFIG.arena;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
   const damage = getTowerStats(state).damage * config.burstDamageMultiplier;
   let hits = 0;
   skill.shieldBurstArmed = false;
@@ -2027,7 +2228,7 @@ export function useSkill(state, key, options = {}) {
     const angle = Math.atan2(Math.sin(requestedAngle), Math.cos(requestedAngle));
     counterColossusBeam(state, angle, config.coneHalfAngle);
     const damage = getTowerStats(state).damage * config.damageMultiplier;
-    const { centerX, centerY } = GAME_CONFIG.arena;
+    const { x: centerX, y: centerY } = getTowerPosition(state);
     for (const enemy of state.enemies) {
       const enemyAngle = Math.atan2(enemy.y - centerY, enemy.x - centerX);
       if (angleDistance(enemyAngle, angle) <= config.coneHalfAngle) damageEnemy(state, enemy, damage, "starfall");
@@ -2083,6 +2284,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   state.skills.starfall.active = Math.max(0, state.skills.starfall.active - dt);
   state.skills.coinVacuum.active = Math.max(0, state.skills.coinVacuum.active - dt);
   state.relics.phaseBuff = Math.max(0, state.relics.phaseBuff - dt);
+  state.tower.fireRateSuppression = Math.max(0, (state.tower.fireRateSuppression ?? 0) - dt);
   if (state.skills.coinVacuum.active <= 0) state.skills.coinVacuum.trails = [];
   if (state.tower.anchorLockTimer > 0) {
     state.tower.anchorLockTimer = Math.max(0, state.tower.anchorLockTimer - dt);

@@ -83,6 +83,8 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(renderer, /enemy-astral-atlas-ai\.png/);
   assert.match(main, /COLOSSUS_COUNTER_HINTS/);
   assert.match(main, /炮击锚点出现/);
+  assert.match(main, /previewMode === "sovereign-entry"/);
+  assert.match(main, /previewMode === "sovereign-skills"/);
   assert.match(main, /skill-tooltip/);
   assert.match(styles, /skill-button:hover \.skill-tooltip/);
   assert.match(styles, /--ui-attack:\s*#ff707a/);
@@ -102,6 +104,7 @@ test("设计、构建与入口产物齐全", async () => {
     "assets/generated/arena-day.png", "assets/generated/enemy-wave-atlas.png",
     "assets/generated/enemy-astral-atlas-ai.png",
     "assets/generated/boss-overlord.png", "assets/generated/boss-void-ring-colossus.png",
+    "assets/generated/boss-rift-sovereign-ai.png",
     "assets/generated/boss-corruption-lance-ai.png",
     "assets/generated/projectile-frost-ai-v2.png",
     "assets/generated/projectile-fire-ai.png",

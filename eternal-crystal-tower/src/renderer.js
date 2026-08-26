@@ -1,5 +1,5 @@
 import { GAME_CONFIG } from "./config.js";
-import { getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getTowerStats } from "./engine.js";
+import { getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 
 const ENEMY_COLORS = {
   wisp: ["#ff706d", "#8e273e"],
@@ -11,6 +11,7 @@ const ENEMY_COLORS = {
   rammer: ["#ffc95d", "#6b3429"],
   boss: ["#ffd078", "#6f1f4b"],
   colossus: ["#ff5b72", "#251136"],
+  sovereign: ["#ff345f", "#18091f"],
   anchor: ["#d9c8ff", "#38255d"],
   inkHound: ["#39e8ff", "#07192b"],
   orbitMote: ["#d9f5ff", "#25204a"],
@@ -47,6 +48,7 @@ const GENERATED_ASSETS = {
   astralEnemies: "./assets/generated/enemy-astral-atlas-ai.png",
   boss: "./assets/generated/boss-overlord.png",
   colossus: "./assets/generated/boss-void-ring-colossus.png",
+  sovereign: "./assets/generated/boss-rift-sovereign-ai.png",
   bossProjectile: "./assets/generated/boss-corruption-lance-ai.png",
   saw: "./assets/generated/crystal-saw.png",
   projectileFrost: "./assets/generated/projectile-frost-ai-v2.png",
@@ -171,7 +173,7 @@ export class Renderer {
     if (type === "shieldBurst") { this.shake = Math.max(this.shake, 7); this.flash = Math.max(this.flash, .28); this.flashColor = "#bafaff"; }
     if (type === "anchorLocked") { this.flash = Math.max(this.flash, .1); this.flashColor = "#fff0a8"; }
     if (type === "coinVacuum") { this.shake = Math.max(this.shake, 3); this.flash = Math.max(this.flash, .22); this.flashColor = "#ffe68a"; }
-    if (type === "bossSpawn") { this.shake = 8; this.flash = 0.25; this.flashColor = "#ff6b72"; }
+    if (type === "bossSpawn") { this.shake = Math.max(this.shake, 8 * strength); this.flash = Math.max(this.flash, 0.25 * strength); this.flashColor = "#ff6b72"; }
     if (type === "eliteSpawn") { this.shake = Math.max(this.shake, 4); this.flash = Math.max(this.flash, 0.14); this.flashColor = "#ffd35f"; }
     if (type === "collectPulse") { this.flash = Math.max(this.flash, 0.08); this.flashColor = "#ffe09a"; }
     if (type === "targetProtocol") { this.flash = Math.max(this.flash, 0.06); this.flashColor = "#7ceeff"; }
@@ -274,6 +276,9 @@ export class Renderer {
 
   drawGround(ctx, state) {
     const { width, height, centerX, centerY } = GAME_CONFIG.arena;
+    const towerPosition = getTowerPosition(state);
+    const towerX = towerPosition.x;
+    const towerY = towerPosition.y;
     ctx.save();
     for (const star of this.stars) {
       const pulse = 0.35 + Math.sin(this.time * 0.9 + star.phase) * 0.2;
@@ -305,13 +310,13 @@ export class Renderer {
       const ease = 1 - (1 - progress) ** 3;
       ctx.save(); ctx.globalAlpha = Math.max(0, 1 - progress * .72); ctx.strokeStyle = "#ffe37a"; ctx.fillStyle = "#fff2a8"; ctx.shadowColor = "#ffbd43"; ctx.shadowBlur = 14; ctx.lineWidth = 2.2;
       for (const trail of state.skills.coinVacuum.trails) {
-        const x = trail.x + (centerX - trail.x) * ease;
-        const y = trail.y + (centerY - trail.y) * ease;
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(centerX, centerY); ctx.stroke();
+        const x = trail.x + (towerX - trail.x) * ease;
+        const y = trail.y + (towerY - trail.y) * ease;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(towerX, towerY); ctx.stroke();
         ctx.beginPath(); ctx.arc(x, y, 5 * (1 - progress) + 1, 0, Math.PI * 2); ctx.fill();
       }
       ctx.globalAlpha = 1 - progress; ctx.lineWidth = 5 - progress * 3;
-      ctx.beginPath(); ctx.arc(centerX, centerY, 55 + progress * 95, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      ctx.beginPath(); ctx.arc(towerX, towerY, 55 + progress * 95, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     }
 
     if (state.skills.starfall.active > 0 || state.skills.starfall.aiming) {
@@ -320,7 +325,7 @@ export class Renderer {
       const aiming = state.skills.starfall.aiming;
       const alpha = aiming ? 0.48 + Math.sin(this.time * 6) * 0.08 : state.skills.starfall.active / config.activeDuration;
       ctx.globalAlpha = alpha;
-      ctx.translate(centerX, centerY);
+      ctx.translate(towerX, towerY);
       ctx.rotate(aiming ? state.skills.starfall.aimAngle : state.skills.starfall.angle);
       const radius = 670;
       const wedge = ctx.createRadialGradient(0, 0, 30, 0, 0, radius);
@@ -338,13 +343,13 @@ export class Renderer {
       ctx.restore();
       if (aiming) {
         ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = "#ffe7a0"; ctx.font = "900 13px 'Microsoft YaHei UI', sans-serif"; ctx.shadowColor = "#3b1424"; ctx.shadowBlur = 8;
-        ctx.fillText("移动鼠标选择方向 · 点击释放 · Esc 取消", centerX, height - 34); ctx.restore();
+        ctx.fillText("移动鼠标选择方向 · 点击释放 · Esc 取消", towerX, height - 34); ctx.restore();
       }
     }
     if (state.skills.heal.burst > 0) {
       const config = GAME_CONFIG.skills.heal;
       const progress = 1 - state.skills.heal.burst / config.burstDuration;
-      ctx.save(); ctx.translate(centerX, centerY); ctx.globalAlpha = 1 - progress;
+      ctx.save(); ctx.translate(towerX, towerY); ctx.globalAlpha = 1 - progress;
       ctx.strokeStyle = "#bafaff"; ctx.fillStyle = "#eaffff"; ctx.shadowColor = "#72eaff"; ctx.shadowBlur = 16; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(0, 0, 45 + progress * config.burstRadius, 0, Math.PI * 2); ctx.stroke();
       for (let shard = 0; shard < 14; shard += 1) {
@@ -358,7 +363,7 @@ export class Renderer {
     if (state.skills.overload.pulse > 0) {
       const config = GAME_CONFIG.skills.overload;
       const progress = 1 - state.skills.overload.pulse / config.pulseDuration;
-      ctx.save(); ctx.translate(centerX, centerY);
+      ctx.save(); ctx.translate(towerX, towerY);
       ctx.globalAlpha = 1 - progress;
       ctx.strokeStyle = state.skills.overload.overheated ? "#ff7650" : "#c9a6ff";
       ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 18; ctx.lineWidth = 7 - progress * 4;
@@ -406,7 +411,7 @@ export class Renderer {
 
   drawRange(ctx, state) {
     const stats = getTowerStats(state);
-    const { centerX, centerY } = GAME_CONFIG.arena;
+    const { x: centerX, y: centerY } = getTowerPosition(state);
     ctx.save();
     ctx.strokeStyle = "rgba(124,238,255,.045)";
     ctx.fillStyle = "rgba(106,79,207,.018)";
@@ -741,7 +746,7 @@ export class Renderer {
     for (const projectile of state.hostileProjectiles ?? []) {
       const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
       const ux = projectile.vx / speed;
-      if (projectile.kind === "colossusMortar" && imageReady(this.assets.bossProjectile)) {
+      if ((projectile.kind === "colossusMortar" || projectile.kind === "sovereignMortar") && imageReady(this.assets.bossProjectile)) {
       const uy = projectile.vy / speed;
         const angle = Math.atan2(projectile.vy, projectile.vx);
         const pulse = 0.72 + Math.sin(this.time * 24 + projectile.id) * 0.18;
@@ -818,6 +823,7 @@ export class Renderer {
   }
 
   drawEnemies(ctx, state) {
+    const towerPosition = getTowerPosition(state);
     for (const anchor of state.enemies.filter((enemy) => enemy.type === "anchor" && enemy.hp > 0 && !enemy.riftAnchor)) {
       const boss = state.enemies.find((enemy) => enemy.id === anchor.anchorBossId && enemy.hp > 0);
       if (!boss) continue;
@@ -836,18 +842,21 @@ export class Renderer {
         ctx.shadowBlur = 12;
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 5]);
-        ctx.beginPath(); ctx.moveTo(enemy.x, enemy.y); ctx.lineTo(GAME_CONFIG.arena.centerX, GAME_CONFIG.arena.centerY); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(enemy.x, enemy.y); ctx.lineTo(towerPosition.x, towerPosition.y); ctx.stroke();
         ctx.restore();
       }
       ctx.save();
-      ctx.translate(enemy.x, enemy.y);
-      const angle = enemy.type === "colossus" ? (enemy.orbitAngle ?? 0) + Math.PI / 2 : Math.atan2(GAME_CONFIG.arena.centerY - enemy.y, GAME_CONFIG.arena.centerX - enemy.x);
+      const sovereignEntry = enemy.type === "sovereign" ? 1 - Math.max(0, enemy.entryTimer ?? 0) / GAME_CONFIG.sovereign.entryDuration : 1;
+      const renderY = enemy.type === "sovereign" ? enemy.y - (1 - sovereignEntry) * 390 : enemy.y;
+      ctx.translate(enemy.x, renderY);
+      const angle = enemy.type === "sovereign" ? 0 : enemy.type === "colossus" ? (enemy.orbitAngle ?? 0) + Math.PI / 2 : Math.atan2(GAME_CONFIG.arena.centerY - enemy.y, GAME_CONFIG.arena.centerX - enemy.x);
       ctx.rotate(angle);
       const resistanceColor = { frost: "#7de8ff", fire: "#ff754d", lightning: "#c6a2ff" }[enemy.resistance];
       ctx.shadowColor = enemy.type === "boss" ? resistanceColor ?? bright : bright;
-      ctx.shadowBlur = enemy.type === "colossus" ? 24 : enemy.type === "boss" ? 18 : 7;
+      ctx.shadowBlur = enemy.type === "sovereign" ? 34 : enemy.type === "colossus" ? 24 : enemy.type === "boss" ? 18 : 7;
       const isBoss = enemy.type === "boss";
       const isColossus = enemy.type === "colossus";
+      const isSovereign = enemy.type === "sovereign";
       const isAnchor = enemy.type === "anchor";
       const isWaveType = enemy.type === "crawler" || enemy.type === "sentinel";
       const isAstralType = ASTRAL_ENEMY_TYPES.has(enemy.type);
@@ -858,6 +867,16 @@ export class Renderer {
         ctx.fillStyle = enemy.hitFlash > 0 ? "#ffffff" : visual.dark; ctx.strokeStyle = visual.color; ctx.lineWidth = 2; ctx.shadowColor = visual.color; ctx.shadowBlur = 16;
         ctx.beginPath(); ctx.moveTo(0, -enemy.radius); ctx.lineTo(enemy.radius * .72, 0); ctx.lineTo(0, enemy.radius); ctx.lineTo(-enemy.radius * .72, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.rotate(-this.time * 1.7); ctx.fillStyle = "#fff"; ctx.font = "900 14px 'Microsoft YaHei UI',sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(visual.symbol, 0, 0);
+      } else if (isSovereign && imageReady(this.assets.sovereign)) {
+        const width = 760;
+        const height = width * (this.assets.sovereign.naturalHeight / this.assets.sovereign.naturalWidth);
+        ctx.globalAlpha = Math.min(1, sovereignEntry * 1.35) * (enemy.hitFlash > 0 ? 0.76 : 1);
+        ctx.drawImage(this.assets.sovereign, -width / 2, -height * .42, width, height);
+        if (enemy.hitFlash > 0) {
+          ctx.globalCompositeOperation = "screen";
+          ctx.globalAlpha = Math.min(0.72, enemy.hitFlash * 7);
+          ctx.drawImage(this.assets.sovereign, -width / 2, -height * .42, width, height);
+        }
       } else if (isColossus && imageReady(this.assets.colossus)) {
         const width = enemy.radius * 3.5;
         const height = width * .572;
@@ -904,12 +923,12 @@ export class Renderer {
       } else {
         ctx.fillStyle = enemy.hitFlash > 0 ? "#fff7ef" : dark;
         ctx.strokeStyle = bright;
-        ctx.lineWidth = isBoss || isColossus ? 3 : 1.5;
+        ctx.lineWidth = isBoss || isColossus || isSovereign ? 3 : 1.5;
         ctx.beginPath();
         if (enemy.type === "runner") {
           ctx.moveTo(enemy.radius, 0); ctx.lineTo(-enemy.radius, -enemy.radius * .72); ctx.lineTo(-enemy.radius * .55, 0); ctx.lineTo(-enemy.radius, enemy.radius * .72);
         } else {
-          const points = isBoss || isColossus ? 12 : enemy.type === "brute" ? 8 : 0;
+          const points = isBoss || isColossus || isSovereign ? 12 : enemy.type === "brute" ? 8 : 0;
           if (points) for (let i = 0; i < points; i += 1) { const a = i * Math.PI * 2 / points; const r = i % 2 ? enemy.radius * .75 : enemy.radius; i ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
           else { ctx.moveTo(enemy.radius, 0); ctx.quadraticCurveTo(0, -enemy.radius * 1.1, -enemy.radius, 0); ctx.quadraticCurveTo(0, enemy.radius * 1.1, enemy.radius, 0); }
         }
@@ -930,6 +949,25 @@ export class Renderer {
         ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(this.time * .45); ctx.strokeStyle = phaseColor; ctx.shadowColor = phaseColor; ctx.shadowBlur = 14; ctx.lineWidth = 2.4; ctx.setLineDash([12, 8]);
         ctx.beginPath(); ctx.arc(0, 0, enemy.radius + 22, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
         for (let index = 0; index < 3; index += 1) { const a = index * Math.PI * 2 / 3; ctx.fillStyle = phaseColor; ctx.beginPath(); ctx.arc(Math.cos(a) * (enemy.radius + 22), Math.sin(a) * (enemy.radius + 22), 3.5, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+      }
+      if (enemy.type === "sovereign") {
+        const announcedSkill = enemy.intentSkill ?? enemy.activeSkill;
+        const skillVisual = COLOSSUS_SKILLS[announcedSkill];
+        const pulse = .5 + Math.sin(this.time * (enemy.enraged ? 11 : 6)) * .5;
+        ctx.save();
+        ctx.strokeStyle = enemy.enraged ? "#ff3d31" : skillVisual?.color ?? "#d65cff";
+        ctx.fillStyle = enemy.enraged ? "rgba(255,34,28,.12)" : "rgba(166,62,255,.08)";
+        ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 28 + pulse * 20; ctx.lineWidth = enemy.enraged ? 5 : 3;
+        ctx.setLineDash(enemy.intentSkill ? [18, 8] : [7, 14]);
+        ctx.beginPath(); ctx.ellipse(enemy.x, enemy.y + 38, 340 + pulse * 18, 142 + pulse * 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        if (enemy.intentSkill === "beam" || enemy.intentSkill === "artillery") {
+            ctx.beginPath(); ctx.moveTo(enemy.x, enemy.y + 60); ctx.lineTo(towerPosition.x, towerPosition.y); ctx.stroke();
+        }
+        ctx.setLineDash([]); ctx.textAlign = "center"; ctx.font = "900 13px 'Microsoft YaHei UI',sans-serif"; ctx.fillStyle = enemy.enraged ? "#ff6a4d" : skillVisual?.color ?? "#e8b8ff";
+        const label = enemy.entryTimer > 0 ? "灾厄显现" : enemy.intentSkill ? `灭世预兆 · ${skillVisual?.name ?? "未知"} ${Math.max(0, enemy.intentTimer).toFixed(1)}s` : skillVisual?.name ?? "裂隙凝视";
+        ctx.fillText(label, enemy.x, 287);
+        if (enemy.enraged) { ctx.fillStyle = "#ff4e39"; ctx.fillText("终末狂暴 · 元素效果无效", enemy.x, 306); }
         ctx.restore();
       }
       if (enemy.type === "colossus") {
@@ -963,8 +1001,8 @@ export class Renderer {
           const pulse = 0.5 + Math.sin(this.time * 9) * 0.5;
           ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = `${color}22`; ctx.shadowColor = color; ctx.shadowBlur = 20; ctx.lineWidth = 3 + pulse * 3; ctx.setLineDash([11, 8]);
           if (enemy.intentSkill === "beam" || enemy.intentSkill === "artillery") {
-            ctx.beginPath(); ctx.moveTo(enemy.x, enemy.y); ctx.lineTo(GAME_CONFIG.arena.centerX, GAME_CONFIG.arena.centerY); ctx.stroke();
-            ctx.beginPath(); ctx.arc(GAME_CONFIG.arena.centerX, GAME_CONFIG.arena.centerY, 42 + pulse * 16, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(enemy.x, enemy.y); ctx.lineTo(towerPosition.x, towerPosition.y); ctx.stroke();
+            ctx.beginPath(); ctx.arc(towerPosition.x, towerPosition.y, 42 + pulse * 16, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
           } else {
             ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius + 35 + pulse * 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
           }
@@ -1099,10 +1137,11 @@ export class Renderer {
       }
 
       const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
-      if (hpRatio < 0.999 || isBoss || isColossus || enemy.elite) {
-        const width = isColossus ? 150 : isBoss ? 92 : enemy.elite ? Math.max(48, enemy.radius * 2.5) : enemy.radius * 2;
-        ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(enemy.x - width / 2, enemy.y - enemy.radius - 12, width, 4);
-        ctx.fillStyle = isColossus ? "#ff5477" : isBoss ? "#ffc66d" : enemy.elite ? "#ffd35f" : "#ff7076"; ctx.fillRect(enemy.x - width / 2, enemy.y - enemy.radius - 12, width * hpRatio, 4);
+      if (hpRatio < 0.999 || isBoss || isColossus || isSovereign || enemy.elite) {
+        const width = isSovereign ? 260 : isColossus ? 150 : isBoss ? 92 : enemy.elite ? Math.max(48, enemy.radius * 2.5) : enemy.radius * 2;
+        const barY = isSovereign ? enemy.y + 108 : enemy.y - enemy.radius - 12;
+        ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(enemy.x - width / 2, barY, width, 4);
+        ctx.fillStyle = isSovereign ? "#ff3f70" : isColossus ? "#ff5477" : isBoss ? "#ffc66d" : enemy.elite ? "#ffd35f" : "#ff7076"; ctx.fillRect(enemy.x - width / 2, barY, width * hpRatio, 4);
       }
     }
   }
@@ -1110,8 +1149,9 @@ export class Renderer {
   drawSaws(ctx, state) {
     const count = state.tower.upgrades.saw;
     if (!count) return;
-    const { centerX, centerY } = GAME_CONFIG.arena;
-    const radius = GAME_CONFIG.upgrades.saw.radius;
+    const { x: centerX, y: centerY } = getTowerPosition(state);
+    const towerScale = state.enemies.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1;
+    const radius = GAME_CONFIG.upgrades.saw.radius * towerScale;
     const launchedIndexes = new Set(state.launchedSaws.map((saw) => saw.bladeIndex));
     const overdrive = state.tower.upgrades.sawOverdrive;
     const drawSaw = (x, y, rotation, scale = 1) => {
@@ -1138,7 +1178,7 @@ export class Renderer {
       const angle = state.tower.sawAngle + index * Math.PI * 2 / count;
       const x = centerX + Math.cos(angle) * radius;
       const y = centerY + Math.sin(angle) * radius;
-      drawSaw(x, y, -this.time * (8 + overdrive * 2));
+      drawSaw(x, y, -this.time * (8 + overdrive * 2), towerScale);
     }
     for (const saw of state.launchedSaws) {
       ctx.save();
@@ -1201,14 +1241,15 @@ export class Renderer {
   }
 
   drawTower(ctx, state) {
-    const { centerX: x, centerY: y } = GAME_CONFIG.arena;
+    const { x, y } = getTowerPosition(state);
+    const towerScale = state.enemies.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1;
     const tier = state.tower.upgrades.ascend;
     const stats = getTowerStats(state);
     const hpRatio = Math.max(0, state.tower.hp / stats.maxHp);
     const overload = state.skills.overload.active > 0;
     const heatRatio = state.skills.overload.heat / GAME_CONFIG.skills.overload.overheatThreshold;
 
-    ctx.save(); ctx.translate(x, y);
+    ctx.save(); ctx.translate(x, y); ctx.scale(towerScale, towerScale);
     ctx.globalAlpha = 0.18 + hpRatio * 0.12;
     ctx.fillStyle = overload ? (heatRatio >= 1 ? "#ff704d" : "#c99cff") : state.skills.overload.slow > 0 ? "#b9474f" : "#7ceeff";
     ctx.beginPath(); ctx.arc(0, 0, 55 + tier * 13 + Math.sin(this.time * 2.5) * 4, 0, Math.PI * 2); ctx.fill();
@@ -1345,20 +1386,22 @@ export class Renderer {
   }
 
   drawBossBar(ctx, state) {
-    const boss = state.enemies.find((enemy) => enemy.type === "colossus" && enemy.hp > 0)
+    const boss = state.enemies.find((enemy) => enemy.type === "sovereign" && enemy.hp > 0)
+      ?? state.enemies.find((enemy) => enemy.type === "colossus" && enemy.hp > 0)
       ?? state.enemies.find((enemy) => enemy.type === "boss" && enemy.hp > 0);
     if (!boss) return;
     const { width } = GAME_CONFIG.arena;
     const isColossus = boss.type === "colossus";
-    const shifted = !isColossus && (state.wave.warningStarted || state.wave.active);
+    const isSovereign = boss.type === "sovereign";
+    const shifted = !isColossus && !isSovereign && (state.wave.warningStarted || state.wave.active);
     const y = shifted ? 92 : 20;
     const barWidth = 390;
     const ratio = Math.max(0, boss.hp / boss.maxHp);
     ctx.save();
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(18,4,20,.9)";
-    ctx.strokeStyle = isColossus ? "rgba(255,74,132,.68)" : "rgba(255,180,95,.55)";
-    const panelHeight = isColossus ? 76 : 49;
+    ctx.strokeStyle = isSovereign ? "rgba(255,38,91,.9)" : isColossus ? "rgba(255,74,132,.68)" : "rgba(255,180,95,.55)";
+    const panelHeight = isSovereign ? 92 : isColossus ? 76 : 49;
     ctx.beginPath(); ctx.roundRect(width / 2 - barWidth / 2 - 12, y - 9, barWidth + 24, panelHeight, 12); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#ffd18a"; ctx.font = "800 12px 'Microsoft YaHei UI', sans-serif";
     const resistanceNames = { frost: "冰霜", fire: "火焰", lightning: "雷电" };
@@ -1369,14 +1412,31 @@ export class Renderer {
     const colossusAction = boss.intentSkill
       ? `预兆:${COLOSSUS_SKILLS[boss.intentSkill]?.name} ${Math.max(0, boss.intentTimer).toFixed(1)}s`
       : parallelSkills.length ? parallelSkills.join(" + ") : COLOSSUS_SKILLS[boss.activeSkill]?.name ?? "技能间隙";
-    const title = isColossus
+    const title = isSovereign
+      ? `裂界魔君 · ${boss.enraged ? "终末狂暴 · 元素无效" : COLOSSUS_SKILLS[boss.intentSkill ?? boss.activeSkill]?.name ?? "四重命核"}`
+      : isColossus
       ? `虚环吞星兽 · ${colossusAffix.name} · ${boss.enraged ? `狂暴并行 · ${colossusAction}` : colossusAction}`
       : `腐化晶核领主 · ${resistanceNames[boss.resistance] ?? "未知"}抗性 · ${anchorSummary}`;
     ctx.fillText(title, width / 2, y + 5);
-    const phaseColor = isColossus ? (boss.enraged ? "#ff4a2f" : COLOSSUS_AFFIXES[boss.colossusAffix]?.color ?? "#ff477c") : { frost: "#62dfff", fire: "#ff6749", lightning: "#aa83ff" }[boss.resistance] ?? "#ff4d67";
+    const phaseColor = isSovereign ? (boss.enraged ? "#ff342e" : "#d948ff") : isColossus ? (boss.enraged ? "#ff4a2f" : COLOSSUS_AFFIXES[boss.colossusAffix]?.color ?? "#ff477c") : { frost: "#62dfff", fire: "#ff6749", lightning: "#aa83ff" }[boss.resistance] ?? "#ff4d67";
     const gradient = ctx.createLinearGradient(width / 2 - barWidth / 2, 0, width / 2 + barWidth / 2, 0);
     gradient.addColorStop(0, phaseColor); gradient.addColorStop(1, "#ffc45f");
-    if (isColossus) {
+    if (isSovereign) {
+      const x = width / 2 - barWidth / 2;
+      const labels = ["Ⅳ", "Ⅲ", "Ⅱ", "Ⅰ"];
+      labels.forEach((label, index) => {
+        const representedBar = 4 - index;
+        const barRatio = boss.healthBar > representedBar ? 1 : boss.healthBar === representedBar ? ratio : 0;
+        const barY = y + 16 + index * 13;
+        ctx.fillStyle = "rgba(255,255,255,.1)"; ctx.fillRect(x, barY, barWidth, 8);
+        ctx.fillStyle = gradient; ctx.fillRect(x, barY, barWidth * barRatio, 8);
+        ctx.textAlign = "left"; ctx.fillStyle = "rgba(255,255,255,.88)"; ctx.font = "900 9px ui-monospace, monospace"; ctx.fillText(label, x + 5, barY + 7);
+      });
+      ctx.textAlign = "center"; ctx.font = "800 10px 'Microsoft YaHei UI', sans-serif";
+      ctx.fillStyle = boss.enraged ? "#ff6b4e" : (state.tower.fireRateSuppression ?? 0) > 0 ? "#ff8d79" : "#e5b9ff";
+      const status = boss.entryTimer > 0 ? `灾厄升起 · ${boss.entryTimer.toFixed(1)}s` : boss.enraged ? "最后命核 50% 以下 · 元素强化与异常全部失效" : (state.tower.fireRateSuppression ?? 0) > 0 ? `晶矢频率受压制 · ${state.tower.fireRateSuppression.toFixed(1)}s` : `剩余命核 ${boss.healthBar}/4 · 优先施放多重裂隙`;
+      ctx.fillText(status, width / 2, y + 76);
+    } else if (isColossus) {
       const x = width / 2 - barWidth / 2;
       const shieldRatio = Math.max(0, (boss.spawnShield ?? 0) / (boss.spawnShieldMax || 1));
       ctx.fillStyle = "rgba(103,220,255,.13)"; ctx.fillRect(x, y + 13, barWidth, 4);

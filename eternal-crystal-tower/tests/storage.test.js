@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
+import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, researchCost, registerFailure, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -33,12 +33,15 @@ test("存档值被限制在安全范围", () => {
   assert.deepEqual(safe.records, { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 });
 });
 
-test("永久研究花费为当前等级加一", () => {
+test("永久研究费用按等级指数增长并限制在满级", () => {
   const save = defaultSave();
-  save.stardust = 3;
+  assert.equal(researchCost(0), 2);
+  assert.equal(researchCost(1), 3);
+  assert.ok(researchCost(10) > researchCost(1));
+  save.stardust = 5;
   assert.equal(buyResearch(save, "damage"), true);
   assert.equal(save.research.damage, 1);
-  assert.equal(save.stardust, 2);
+  assert.equal(save.stardust, 3);
   assert.equal(buyResearch(save, "damage"), true);
   assert.equal(save.research.damage, 2);
   assert.equal(save.stardust, 0);

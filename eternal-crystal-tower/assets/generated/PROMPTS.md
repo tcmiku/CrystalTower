@@ -307,3 +307,11 @@ Composition/framing: 2 by 2 grid of equal square cells, one creature centered pe
 Lighting/mood: stark rim lighting, cyan/violet/acid-green accents, restrained glow, eerie high contrast.
 Constraints: genuine alpha transparency; no backdrop, checkerboard, ground, cast shadow, grid lines, cell borders, text, logo, watermark, particles outside silhouettes, scenery, extra creatures, crop or blur.
 ```
+
+## 威胁 20 超巨型首领“裂界魔君”
+
+生成方式：OpenAI 内置生图模型，`game-production-asset`。
+
+```text
+Create a production-ready transparent-background 2D game boss sprite for a dark neon sci-fi fantasy tower-defense / survivor game. Subject: an apocalyptic super-giant half-body demon called “Rift Sovereign”, shown from the upper torso upward because its body is unimaginably huge. It is fixed at the TOP of the battlefield and looms downward toward the player. Massive broad silhouette occupying most of a wide combat screen, colossal horned skull-like head, layered obsidian armor fused with pale crystal ribs, four glowing crimson-violet core scars across the chest suggesting four health bars, enormous clawed forearms braced at both sides, several spatial rift apertures opening behind shoulders and palms for summoning hordes. Strong oppressive scale and intimidating presence; readable silhouette at game scale; asymmetrical battle damage; high-detail painterly sprite with sharp hard-surface accents, violet-black shadows, ember-red highlights, cyan edge glints matching a neon UI. Front-facing with a slight top-down battlefield perspective, designed to rise vertically into view from above. Show only the monster, no scenery, no ground, no frame, no UI, no health bar, no text, no logos. Fully transparent alpha background, clean isolated edges, generous transparent padding around horns and hands. Landscape-friendly composition, centered, 3:2 aspect feel, game asset sprite sheet quality but a single character only.
+```

@@ -1,5 +1,5 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
-import { calculateRunScore, calculateStardust, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
+import { calculateRunScore, calculateStardust, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
 import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
@@ -309,6 +309,32 @@ if (previewMode === "colossus-enrage") {
   state.hostileProjectiles.push({ id: state.nextId++, kind: "colossusMortar", x: colossus.x - 86, y: colossus.y + 72, vx: Math.cos(shotAngle) * 285, vy: Math.sin(shotAngle) * 285, targetX: GAME_CONFIG.arena.centerX, targetY: GAME_CONFIG.arena.centerY, radius: 11, life: 2, damage: 30 });
   state.summonRifts.push({ id: state.nextId++, bossId: colossus.id, enemyType: "rammer", x: colossus.x - 95, y: colossus.y + 85, life: .22, maxLife: .62 });
   state.tower.upgrades.ascend = 3; state.tower.upgrades.damage = 8; state.tower.upgrades.rate = 5;
+  state.tower.hp = getTowerStats(state).maxHp;
+  state.paused = true;
+}
+if (previewMode === "sovereign" || previewMode === "sovereign-entry") {
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = GAME_CONFIG.sovereign.spawnThreat; state.time = 855; state.phase = "night";
+  const sovereign = spawnEnemy(state, "sovereign");
+  sovereign.entryTimer = GAME_CONFIG.sovereign.entryDuration; sovereign.phaseBreakInvulnerability = GAME_CONFIG.sovereign.entryDuration;
+  sovereign.hp = sovereign.maxHp; sovereign.healthBar = 4;
+  state.tower.upgrades.ascend = 3; state.tower.upgrades.damage = 8; state.tower.upgrades.rate = 5;
+  state.tower.fireCooldown = 999;
+  state.tower.hp = getTowerStats(state).maxHp;
+  sovereign.skillCooldown = 999;
+}
+if (previewMode === "sovereign-skills") {
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = GAME_CONFIG.sovereign.spawnThreat; state.time = 855; state.phase = "night";
+  const sovereign = spawnEnemy(state, "sovereign");
+  sovereign.entryTimer = 0; sovereign.phaseBreakInvulnerability = 0;
+  sovereign.hp = sovereign.maxHp * .72; sovereign.healthBar = 2;
+  sovereign.activeSkill = "summon"; sovereign.skillTimer = GAME_CONFIG.sovereign.summon.duration; sovereign.summonWavesRemaining = 1;
+  sovereign.skillTick = 999;
+  state.tower.upgrades.ascend = 3; state.tower.upgrades.damage = 8; state.tower.upgrades.rate = 5;
+  state.tower.fireRateSuppression = GAME_CONFIG.sovereign.rangedSlowDuration;
+  const riftPositions = [[155,260],[355,315],[605,315],[805,260]];
+  riftPositions.forEach(([x, y], index) => state.summonRifts.push({ id: state.nextId++, bossId: sovereign.id, enemyType: GAME_CONFIG.sovereign.summon.types[index], x, y, life: 1.8, maxLife: 1.8, attackable: false, targetId: null }));
+  state.hostileProjectiles.push({ id: state.nextId++, kind: "sovereignMortar", x: sovereign.x, y: sovereign.y + 48, vx: 0, vy: 0, targetX: 480, targetY: 540, radius: 13, life: 1.1, damage: 30 });
+  state.events.push({ type: "sovereignRiftWave", enemyId: sovereign.id, count: 4 });
   state.tower.hp = getTowerStats(state).maxHp;
   state.paused = true;
 }
@@ -879,7 +905,8 @@ function canvasPoint(event) {
 }
 
 function starfallAngleAt(x, y) {
-  return Math.atan2(y - GAME_CONFIG.arena.centerY, x - GAME_CONFIG.arena.centerX);
+  const towerPosition = getTowerPosition(state);
+  return Math.atan2(y - towerPosition.y, x - towerPosition.x);
 }
 
 function switchDroneMode() {
@@ -1024,6 +1051,15 @@ function handleEvents(events) {
     }
     else if (event.type === "colossusEnrage") { audio.play("boss"); renderer.trigger("bossSpawn", 1.8); announce("第一命核破碎 · 第二血条开启 · 巨兽狂暴并行施法"); }
     else if (event.type === "colossusFreezeImmune") showToast("狂化巨兽免疫冰冻");
+    else if (event.type === "sovereignSpawn") { audio.play("boss"); renderer.trigger("bossSpawn", 2.6); announce("威胁 XX · 裂界魔君正在升起 · 战场清空"); }
+    else if (event.type === "sovereignIntent") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce(`灭世预兆 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知技能"}`); }
+    else if (event.type === "sovereignSkill") { audio.play(event.skill === "summon" ? "waveStart" : "boss"); announce(`裂界魔君 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知技能"}${event.enraged ? " · 狂暴强化" : ""}`); }
+    else if (event.type === "sovereignRiftWave") { renderer.trigger("waveStart", 1.25); showToast(`多重裂隙同时开启 · ${event.count} 处`); }
+    else if (event.type === "sovereignSuppress") { renderer.trigger("towerHit", 1.2); announce(`远程压制 · 晶矢攻击频率降低 ${Math.round((1 - event.multiplier) * 100)}%`); }
+    else if (event.type === "sovereignPhase") { audio.play("boss"); renderer.trigger("bossSpawn", 1.35); announce(`命核破碎 · 剩余 ${event.healthBar} 管生命`); }
+    else if (event.type === "sovereignEnrage") { audio.play("boss"); renderer.trigger("bossSpawn", 2.4); announce("终末狂暴 · 元素强化与异常效果全部失效"); }
+    else if (event.type === "sovereignElementImmune") showToast("终末狂暴 · 元素效果无效");
+    else if (event.type === "sovereignDefeated") { audio.play("ascend"); renderer.trigger("ascend", 2); announce("裂界魔君陨落 · 威胁 XX 已突破"); }
     else if (event.type === "bossDefeated") {
       audio.play("ascend");
       renderer.trigger("ascend");
@@ -1054,7 +1090,7 @@ function handleEvents(events) {
     else if (event.type === "relicWard") showToast(`棱镜护佑 · 护盾 +${Math.round(event.value)}`);
     else if (event.type === "relicFrostbloom") renderer.trigger("targetProtocol");
     else if (event.type === "relicGilded") showToast(`拾金脉冲 · 额外金币 +${event.value}`);
-    else if (event.type === "threat") { announce(event.level === GAME_CONFIG.colossus.spawnThreat ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
+    else if (event.type === "threat") { announce(event.level === GAME_CONFIG.sovereign.spawnThreat ? `威胁 ${formatThreat(event.level)} · 超巨型灾厄来袭` : event.level === GAME_CONFIG.colossus.spawnThreat ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
     else if (event.type === "phase") { audio.play("phase"); announce(event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场"); }
     else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce("侦测到大规模怪潮"); }
     else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(`第 ${event.index} 次怪潮抵达`); }
@@ -1182,8 +1218,16 @@ function updateUi() {
     else description.textContent = state.skills.coinVacuum.active > 0 ? `${state.skills.coinVacuum.collected} 枚 · +${state.skills.coinVacuum.value}` : SKILL_META[key].description;
   }
 
+  const sovereign = state.enemies.find((enemy) => enemy.type === "sovereign" && enemy.hp > 0);
   const colossus = state.enemies.find((enemy) => enemy.type === "colossus" && enemy.hp > 0);
-  if (colossus) {
+  if (sovereign) {
+    dom.objectiveTitle.textContent = sovereign.enraged ? "终末狂暴 · 元素无效" : `裂界魔君 · 命核 ${sovereign.healthBar}/4`;
+    dom.objectiveText.textContent = sovereign.entryTimer > 0
+      ? "战场已被清空，超巨型魔物正从画面上方升起。"
+      : sovereign.intentSkill === "summon" || sovereign.activeSkill === "summon" ? "多处裂隙将同时召唤怪群，优先清理靠近晶塔的目标。"
+        : (state.tower.fireRateSuppression ?? 0) > 0 ? `远程压制生效中：晶矢攻击频率降低，剩余 ${state.tower.fireRateSuppression.toFixed(1)} 秒。`
+          : sovereign.enraged ? "最后命核低于 50%：冰冻、灼烧与雷电连锁无法作用于首领。" : "首领固定在战场上方，四条血量逐管击破。";
+  } else if (colossus) {
     const activeColossusSkills = Object.keys(colossus.activeSkills ?? {}).map((skill) => COLOSSUS_SKILL_NAMES[skill]).filter(Boolean);
     dom.objectiveTitle.textContent = colossus.enraged ? `第二命核 · 狂暴并行 ${activeColossusSkills.length}/4` : colossus.spawnShield > 0 ? "首领护盾 · 优先击破" : `巨兽词条 · ${COLOSSUS_AFFIX_NAMES[colossus.colossusAffix] ?? "未知异变"}`;
     dom.objectiveText.textContent = colossus.intentSkill

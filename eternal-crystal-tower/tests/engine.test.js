@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getTechStatus, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG } from "../src/config.js";
 
 test("基础塔属性符合策划", () => {
@@ -1600,4 +1600,79 @@ test("拾金脉冲可复制金币价值，遗响碎片可在战场点击收集",
   spawnPermanentResourceDrop(state, "echo", 3, 520, 300, { source: "elite" });
   assert.equal(collectPermanentResourceAt(state, 520, 300)?.resourceType, "echo");
   assert.equal(state.stats.echoShards, 3);
+});
+
+test("威胁二十清空战场并只生成固定于顶部的超巨型首领", () => {
+  const state = createGameState(20001);
+  spawnEnemy(state, "wisp", { x: 100, y: 100 });
+  spawnEnemy(state, "boss", { x: 800, y: 500 });
+  state.time = GAME_CONFIG.threat.duration * 19 - 0.05;
+  state.tower.hp = 1_000_000;
+  updateGame(state, 0.1);
+  const sovereign = state.enemies.find((enemy) => enemy.type === "sovereign");
+  assert.ok(sovereign);
+  assert.deepEqual(state.enemies.map((enemy) => enemy.type), ["sovereign"]);
+  assert.equal(sovereign.x, GAME_CONFIG.sovereign.fixedX);
+  assert.equal(sovereign.y, GAME_CONFIG.sovereign.fixedY);
+  assert.equal(sovereign.healthBars, 4);
+  assert.ok(state.events.some((event) => event.type === "sovereignSpawn"));
+  assert.equal(state.enemies.some((enemy) => enemy.type === "boss"), false);
+});
+
+test("裂界魔君拥有四管血且最后半管狂暴后免疫全部元素效果", () => {
+  const state = createGameState(20002);
+  const boss = spawnEnemy(state, "sovereign");
+  boss.entryTimer = 0; boss.phaseBreakInvulnerability = 0;
+  for (const expectedBar of [3, 2, 1]) {
+    damageEnemy(state, boss, boss.maxHp * 2, "shot");
+    assert.equal(boss.healthBar, expectedBar);
+    boss.phaseBreakInvulnerability = 0;
+  }
+  assert.equal(boss.enraged, false);
+  damageEnemy(state, boss, boss.maxHp * 0.55, "shot");
+  assert.equal(boss.enraged, true);
+  assert.equal(boss.elementImmune, true);
+  for (const element of ["frost", "fire", "lightning"]) assert.equal(applyElementalHit(state, boss, element, 100), false);
+  assert.equal(boss.freezeTimer, 0);
+  assert.equal(boss.burnTimer, 0);
+});
+
+test("裂界魔君一次召唤会同时在四处开启裂隙", () => {
+  const state = createGameState(20003);
+  state.spawnTimer = 999; state.wave.nextAt = 999;
+  const boss = spawnEnemy(state, "sovereign");
+  boss.entryTimer = 0; boss.phaseBreakInvulnerability = 0;
+  boss.intentSkill = "summon"; boss.intentTimer = 0;
+  updateGame(state, 0.01);
+  updateGame(state, 0.01);
+  assert.equal(state.summonRifts.length, GAME_CONFIG.sovereign.summon.portalsPerWave);
+  assert.ok(state.events.some((event) => event.type === "sovereignRiftWave" && event.count === 4));
+});
+
+test("裂界魔君远程技能会暂时降低晶塔子弹攻击频率", () => {
+  const state = createGameState(20004);
+  state.spawnTimer = 999; state.wave.nextAt = 999;
+  const boss = spawnEnemy(state, "sovereign");
+  boss.entryTimer = 0; boss.phaseBreakInvulnerability = 0;
+  const baseRate = getTowerStats(state).fireRate;
+  boss.intentSkill = "beam"; boss.intentTimer = 0;
+  updateGame(state, 0.01);
+  assert.ok(state.tower.fireRateSuppression > 0);
+  assert.equal(Number((getTowerStats(state).fireRate / baseRate).toFixed(2)), GAME_CONFIG.sovereign.rangedSlowMultiplier);
+  assert.ok(state.events.some((event) => event.type === "sovereignSuppress"));
+});
+
+test("超巨型首领在场时晶塔下移缩小，击败后恢复中央尺寸", () => {
+  const state = createGameState(20005);
+  const defaultPosition = getTowerPosition(state);
+  const defaultRadius = getTowerRadius(state);
+  const boss = spawnEnemy(state, "sovereign");
+  assert.deepEqual(getTowerPosition(state), { x: GAME_CONFIG.sovereign.towerX, y: GAME_CONFIG.sovereign.towerY });
+  assert.equal(Number((getTowerRadius(state) / defaultRadius).toFixed(2)), GAME_CONFIG.sovereign.towerScale);
+  boss.entryTimer = 0; boss.phaseBreakInvulnerability = 0;
+  boss.healthBar = 1;
+  damageEnemy(state, boss, boss.maxHp * 10, "shot");
+  updateGame(state, 0.01);
+  assert.deepEqual(getTowerPosition(state), defaultPosition);
+  assert.equal(getTowerRadius(state), defaultRadius);
 });
