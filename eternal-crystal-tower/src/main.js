@@ -38,13 +38,13 @@ const SKILL_META = {
   coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币" }
 };
 const RELIC_META = {
-  decoy: { icon: "◈", name: "诡光诱饵", type: "战术造物", description: "每波开始时在来袭方向生成诱饵。敌人会优先追逐它。", effect: "摧毁：爆炸 · 存活：转化为金币" },
-  lunar: { icon: "◐", name: "月相调律", type: "昼夜回路", description: "白昼提高金币价值，长夜增强冰霜、灼烧与雷链效果。", effect: "昼夜切换时获得 6 秒火力强化" },
-  mirror: { icon: "◇", name: "镜面裂片", type: "晶矢回路", description: "每 5 次普通攻击，下一枚晶矢折射至第二个目标。", effect: "首领作为当前目标时不会折射" },
-  ember: { icon: "♨", name: "余烬回收", type: "燃烧回路", description: "灼烧或爆炸击杀会留下伤害区域，持续烧灼经过的敌人。", effect: "代价：余烬区内金币更快消失" },
-  "boost:damage": { icon: "✦", name: "晶矢增幅", type: "回路强化", description: "模块槽已满，将过载能量直接灌注主炮。", effect: "本局攻击力 +18% · 可重复" },
-  "boost:rate": { icon: "⌁", name: "咏唱增幅", type: "回路强化", description: "模块槽已满，缩短自动攻击的咏唱间隔。", effect: "本局攻击速度 +12% · 可重复" },
-  "boost:hybrid": { icon: "✧", name: "双相增幅", type: "回路强化", description: "模块槽已满，以均衡方式扩展晶塔输出。", effect: "本局攻击力 +9% · 攻速 +6%" }
+  decoy: { icon: "◈", art: "./assets/generated/relic-decoy-ai.png", name: "诡光诱饵", type: "战术造物", description: "每波开始时在来袭方向生成诱饵。敌人会优先追逐它。", effect: "摧毁：爆炸 · 存活：转化为金币" },
+  lunar: { icon: "◐", art: "./assets/generated/relic-lunar-ai.png", name: "月相调律", type: "昼夜回路", description: "白昼提高金币价值，长夜增强冰霜、灼烧与雷链效果。", effect: "昼夜切换时获得 6 秒火力强化" },
+  mirror: { icon: "◇", art: "./assets/generated/relic-mirror-ai.png", name: "镜面裂片", type: "晶矢回路", description: "每 5 次普通攻击，下一枚晶矢折射至第二个目标。", effect: "首领作为当前目标时不会折射" },
+  ember: { icon: "♨", art: "./assets/generated/relic-ember-ai.png", name: "余烬回收", type: "燃烧回路", description: "灼烧或爆炸击杀会留下伤害区域，持续烧灼经过的敌人。", effect: "代价：余烬区内金币更快消失" },
+  "boost:damage": { icon: "✦", art: "./assets/generated/relic-boost-ai.png", name: "晶矢增幅", type: "回路强化", description: "模块槽已满，将过载能量直接灌注主炮。", effect: "本局攻击力 +18% · 可重复" },
+  "boost:rate": { icon: "⌁", art: "./assets/generated/relic-boost-ai.png", name: "咏唱增幅", type: "回路强化", description: "模块槽已满，缩短自动攻击的咏唱间隔。", effect: "本局攻击速度 +12% · 可重复" },
+  "boost:hybrid": { icon: "✧", art: "./assets/generated/relic-boost-ai.png", name: "双相增幅", type: "回路强化", description: "模块槽已满，以均衡方式扩展晶塔输出。", effect: "本局攻击力 +9% · 攻速 +6%" }
 };
 const RELIC_SOURCE_TEXT = {
   eliteWave: "怪潮精英已被肃清，选择一项回路继续守望。",
@@ -346,10 +346,6 @@ if (previewMode === "skill-risk") {
   ranged.speed = 0;
   for (const enemy of state.enemies) enemy.speed = 0;
   state.paused = true;
-}
-if (previewMode === "relics") {
-  offerRelicChoice(state, "eliteWave");
-  handleEvents(state.events);
 }
 if (previewMode === "leaderboard") {
   state.spawnTimer = 999;
@@ -809,7 +805,7 @@ function renderRelicChoice() {
     button.type = "button";
     button.className = "relic-card";
     button.dataset.relic = id;
-    button.innerHTML = `<span class="relic-card-index">0${index + 1}</span><span class="relic-card-icon">${meta.icon}</span><span class="relic-card-type">${meta.type}</span><h3>${meta.name}</h3><p>${meta.description}</p><span class="relic-card-effect">${meta.effect}</span>`;
+    button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" aria-hidden="true" decoding="async"></span><span class="relic-card-index">0${index + 1}</span><span class="relic-card-icon">${meta.icon}</span><span class="relic-card-body"><span class="relic-card-type">${meta.type}</span><h3>${meta.name}</h3><p>${meta.description}</p><span class="relic-card-effect">${meta.effect}</span></span>`;
     button.addEventListener("click", () => selectRunRelic(id));
     dom.relicChoiceList.append(button);
   });

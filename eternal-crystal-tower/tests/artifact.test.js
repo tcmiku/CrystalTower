@@ -57,6 +57,8 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(renderer, /resource-echo-shard-ai\.png/);
   assert.match(main, /COLOSSUS_COUNTER_HINTS/);
   assert.match(main, /炮击锚点出现/);
+  assert.equal((main.match(/previewMode === "relics"/g) ?? []).length, 1);
+  assert.ok(main.indexOf("let relicChoiceOpen = false") < main.indexOf('previewMode === "relics"'));
   assert.match(renderer, /可摧毁裂隙/);
   assert.match(renderer, /弱点暴露/);
   assert.match(styles, /basecamp-core-room-ai\.png/);
@@ -81,6 +83,7 @@ test("设计、构建与入口产物齐全", async () => {
     "assets/generated/effect-frost-hex-ai.png",
     "assets/generated/effect-fire-ember-ring-ai.png",
     "assets/generated/effect-lightning-chain-ai.png",
+    "assets/generated/relic-decoy-ai.png", "assets/generated/relic-lunar-ai.png", "assets/generated/relic-mirror-ai.png", "assets/generated/relic-ember-ai.png", "assets/generated/relic-boost-ai.png",
     "assets/generated/leaderboard-podium-ai.png",
     "assets/generated/resource-echo-shard-ai.png", "assets/generated/resource-core-fragment-ai.png", "assets/generated/basecamp-core-room-ai.png",
     "assets/generated/ASSET_MANIFEST.md", "assets/generated/PROMPTS.md"

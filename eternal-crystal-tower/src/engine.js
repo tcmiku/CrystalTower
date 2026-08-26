@@ -498,7 +498,9 @@ function fireTower(state) {
       vx: Math.cos(angle) * GAME_CONFIG.tower.projectileSpeed,
       vy: Math.sin(angle) * GAME_CONFIG.tower.projectileSpeed,
       damage: stats.damage, radius: 5 + state.tower.upgrades.ascend * 1.5,
-      pierce: stats.pierce, life: 1.2, tier: state.tower.upgrades.ascend, element, mirrorReady: mirrorReady && targetIndex === 0`r`n    });
+      pierce: stats.pierce, life: 1.2, tier: state.tower.upgrades.ascend, element,
+      mirrorReady: mirrorReady && targetIndex === 0
+    });
   }
   if (state.skills.overload.active > 0) {
     const config = GAME_CONFIG.skills.overload;
