@@ -67,7 +67,7 @@ const dom = Object.fromEntries([
   "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
-  "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
+  "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
   "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss"
 ].map((id) => [id, document.getElementById(id)]));
@@ -427,7 +427,7 @@ function showFirstRunTutorial(step, force = false) {
   dom.tutorialChoices.replaceChildren();
   if (step === 1) {
     dom.tutorialTitle.textContent = "战利品已经掉落";
-    dom.tutorialText.textContent = "点击战场上的发光金币，把它送回晶塔。未拾取的金币会在 10 秒后消失。";
+    dom.tutorialText.textContent = "鼠标滑过战场上的发光金币，把它送回晶塔。未拾取的金币会在 10 秒后消失。";
     dom.tutorialDismiss.textContent = "我看见了";
   } else if (step === 2) {
     setTechTreeOpen(true);
@@ -807,7 +807,7 @@ function updateUi() {
     dom.objectiveText.textContent = state.wave.active ? "敌群正在集中涌入，使用技能清开塔下空间。" : "地图红光标出了主攻方向，准备星落与超载。";
   } else if (state.threat < 2) {
     dom.objectiveTitle.textContent = "怪潮已至";
-    dom.objectiveText.textContent = state.coins < 20 ? "点击战场金币拾取，10 秒未收集就会消失。" : "第一笔金币到手。沿科技树选择路线。";
+    dom.objectiveText.textContent = state.coins < 20 ? "鼠标滑过战场金币即可拾取，10 秒未收集就会消失。" : "第一笔金币到手。沿科技树选择路线。";
   } else if (state.threat < 5) {
     dom.objectiveTitle.textContent = "外圈正在收紧";
     dom.objectiveText.textContent = "疾行怪与重甲怪已加入，留一个技能救场。";
@@ -827,9 +827,43 @@ function updateUi() {
   dom.speedButton.title = doubleSpeedUnlocked ? "切换 1× / 2× 倍速（X）" : "击败威胁 XV 首领后永久解锁 2× 倍速";
 }
 
+function renderLeaderboardPodium(container, highlightDate) {
+  if (!container) return;
+  container.replaceChildren();
+  if (leaderboardEntries.length === 0) {
+    container.classList.add("hidden");
+    return;
+  }
+  container.classList.remove("hidden");
+  const slots = [
+    { rank: 2, entry: leaderboardEntries[1] ?? null },
+    { rank: 1, entry: leaderboardEntries[0] ?? null },
+    { rank: 3, entry: leaderboardEntries[2] ?? null }
+  ];
+  for (const slot of slots) {
+    const card = document.createElement("article");
+    card.className = "podium-entry podium-rank-" + slot.rank;
+    if (slot.entry && highlightDate !== null && slot.entry.date === highlightDate) card.classList.add("current");
+    const rank = document.createElement("span");
+    rank.className = "podium-rank";
+    rank.textContent = "0" + slot.rank;
+    const name = document.createElement("b");
+    name.className = "podium-name";
+    name.textContent = slot.entry?.name ?? "等待记录";
+    const score = document.createElement("strong");
+    score.className = "podium-score";
+    score.textContent = slot.entry ? formatScore(slot.entry.score) : "—";
+    const detail = document.createElement("small");
+    detail.className = "podium-detail";
+    detail.textContent = slot.entry ? "威胁 " + formatThreat(slot.entry.threat) + " · " + slot.entry.kills + " 击杀" : "空缺";
+    card.append(rank, name, score, detail);
+    container.append(card);
+  }
+}
+
 function renderLeaderboardInto(list, count, highlightDate) {
   list.replaceChildren();
-  count.textContent = leaderboardEntries.length > 0 ? `${leaderboardEntries.length} 条` : "全服";
+  count.textContent = leaderboardEntries.length > 0 ? leaderboardEntries.length + " 条" : "全服";
   if (leaderboardEntries.length === 0) {
     const empty = document.createElement("li");
     empty.className = "empty";
@@ -846,8 +880,8 @@ function renderLeaderboardInto(list, count, highlightDate) {
     const kills = document.createElement("span");
     name.textContent = entry.name;
     score.textContent = formatScore(entry.score);
-    threat.textContent = `威胁 ${formatThreat(entry.threat)}`;
-    kills.textContent = `${entry.kills} 击杀`;
+    threat.textContent = "威胁 " + formatThreat(entry.threat);
+    kills.textContent = entry.kills + " 击杀";
     item.append(name, score, threat, kills);
     list.append(item);
   }
@@ -856,6 +890,7 @@ function renderLeaderboardInto(list, count, highlightDate) {
 function renderLeaderboard(highlightDate = currentEntryDate) {
   renderLeaderboardInto(dom.leaderboardList, dom.leaderboardCount, highlightDate);
   renderLeaderboardInto(dom.globalLeaderboardList, dom.globalLeaderboardCount, highlightDate);
+  renderLeaderboardPodium(dom.globalLeaderboardPodium, highlightDate);
 }
 
 async function refreshLeaderboard() {
@@ -1056,10 +1091,18 @@ dom.techTreePanel.addEventListener("pointerdown", (event) => {
 dom.pauseButton.addEventListener("click", () => togglePause());
 dom.speedButton.addEventListener("click", toggleDoubleSpeed);
 dom.gameCanvas.addEventListener("pointermove", (event) => {
-  if (!starfallAiming) return;
-  if (event.pointerType === "touch") event.preventDefault();
+  if (event.pointerType === "touch") {
+    if (!starfallAiming) return;
+    event.preventDefault();
+  }
   const { x, y } = canvasPoint(event);
-  state.skills.starfall.aimAngle = starfallAngleAt(x, y);
+  if (starfallAiming) {
+    state.skills.starfall.aimAngle = starfallAngleAt(x, y);
+    return;
+  }
+  if (event.pointerType === "mouse" && collectCoinAt(state, x, y, GAME_CONFIG.coins.clickRadius)) {
+    audio.play("coinPick");
+  }
 });
 dom.gameCanvas.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "touch") event.preventDefault();
@@ -1104,7 +1147,7 @@ dom.clearSaveButton.addEventListener("click", () => {
   showToast("存档已清除");
   updateUi();
 });
-window.addEventListener("blur", () => togglePause(true));
+
 document.addEventListener("pointerdown", () => audio.unlock(), { once: true });
 revealGameWhenReady();
 

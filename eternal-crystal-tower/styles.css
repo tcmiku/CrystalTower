@@ -244,6 +244,102 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .standalone-count { margin-top: 16px; padding-bottom: 7px; }
 .standalone-leaderboard-list { max-height: min(55vh, 460px); margin-top: 0; }
 .standalone-leaderboard-list li { min-height: 38px; font-size: 11px; }
+.leaderboard-podium {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-areas: "second first third";
+  align-items: end;
+  gap: 8px;
+  min-height: 226px;
+  margin: 10px -5px 14px;
+  padding: 32px 8px 0;
+  background: url("./assets/generated/leaderboard-podium-ai.png") center bottom / 100% auto no-repeat;
+  isolation: isolate;
+}
+.leaderboard-podium::before {
+  content: "";
+  position: absolute;
+  inset: 26% 10% 3%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(124,238,255,.12), transparent 68%);
+  filter: blur(12px);
+}
+.podium-entry {
+  min-width: 0;
+  min-height: 104px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 6px 11px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 13px 13px 10px 10px;
+  background: linear-gradient(160deg, rgba(28,31,72,.93), rgba(10,12,35,.9));
+  box-shadow: 0 10px 20px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.1);
+  text-align: center;
+  transform: translateY(4px);
+}
+.podium-entry.podium-rank-1 {
+  grid-area: first;
+  min-height: 132px;
+  border-color: rgba(255,210,115,.7);
+  background: linear-gradient(160deg, rgba(104,76,39,.94), rgba(28,22,39,.95));
+  box-shadow: 0 0 28px rgba(255,201,107,.2), 0 12px 24px rgba(0,0,0,.28), inset 0 1px rgba(255,247,201,.24);
+  transform: translateY(-8px);
+}
+.podium-entry.podium-rank-2 {
+  grid-area: second;
+  border-color: rgba(177,211,255,.55);
+  box-shadow: 0 0 18px rgba(150,198,255,.14), 0 10px 20px rgba(0,0,0,.22), inset 0 1px rgba(224,241,255,.18);
+}
+.podium-entry.podium-rank-3 {
+  grid-area: third;
+  border-color: rgba(244,163,139,.55);
+  box-shadow: 0 0 18px rgba(244,163,139,.13), 0 10px 20px rgba(0,0,0,.22), inset 0 1px rgba(255,218,201,.16);
+}
+.podium-entry.current {
+  outline: 2px solid rgba(124,238,255,.82);
+  outline-offset: 2px;
+}
+.podium-rank {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 5px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: #c9ddff;
+  background: rgba(11,13,39,.74);
+  font: 900 11px ui-monospace, monospace;
+}
+.podium-rank-1 .podium-rank { color: #ffe08a; background: rgba(94,61,20,.55); }
+.podium-rank-3 .podium-rank { color: #ffc0a5; background: rgba(96,45,42,.46); }
+.podium-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: #f5f2ff;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.podium-score {
+  margin-top: 4px;
+  color: #fff0aa;
+  font: 900 16px ui-monospace, monospace;
+  letter-spacing: .04em;
+}
+.podium-detail {
+  max-width: 100%;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #aaa8c9;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .eyebrow { color: var(--red); font-size: 10px; letter-spacing: .2em; }
 .modal-card h2 { margin-top: 7px; font-size: 31px; }
 .modal-card > p { margin-top: 6px; color: var(--muted); font-size: 13px; }
@@ -430,6 +526,18 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .standalone-leaderboard-header { gap: 10px; padding-bottom: 12px; }
   .standalone-leaderboard-header h2 { font-size: 21px; }
   .standalone-leaderboard-header p { font-size: 10px; }
+.leaderboard-podium {
+    min-height: 190px;
+    margin: 8px -3px 10px;
+    padding: 22px 4px 0;
+    background-size: 112% auto;
+  }
+  .podium-entry { min-height: 88px; padding: 9px 4px 8px; }
+  .podium-entry.podium-rank-1 { min-height: 112px; }
+  .podium-rank { width: 28px; height: 28px; }
+  .podium-name { font-size: 10px; }
+  .podium-score { font-size: 13px; }
+  .podium-detail { font-size: 8px; }
   .leaderboard-close { padding: 8px 12px; }
   .leaderboard-list li { grid-template-columns: 24px minmax(58px, 1fr) 70px 56px 50px; gap: 3px; font-size: 8px; }
   .run-results { grid-template-columns: repeat(2, 1fr); margin: 14px 0; }

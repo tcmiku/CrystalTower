@@ -267,3 +267,9 @@ Constraints: genuinely transparent background; exactly one projectile; no charac
 ```
 
 集成调整：实际显示尺寸取 132×48，以保持威胁 XV 首领炮击相对普通弹丸的压迫感；主轴跟随速度方向，命中或抵达目标后立即移除。程序化尾迹和落点环用于增强动态可读性，不修改位图主体。
+
+## 排行榜前三名领奖台
+
+生成方式：OpenAI 内置生图模型，`stylized-concept`。
+
+透明宽幅游戏 UI 美术：中央最高的金白晶冠晶台、左侧银蓝晶台、右侧铜玫晶台，刻蚀符文与小型悬浮晶尘；不含文字、数字、角色、徽标或背景框。用于 HTML 排行榜动态卡片的背景装饰。
