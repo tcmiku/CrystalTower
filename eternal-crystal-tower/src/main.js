@@ -10,6 +10,13 @@ const UPGRADE_META = {
   damage: { icon: "✦", name: "淬亮晶矢", description: "每级伤害 +25%", max: 10 },
   rate: { icon: "⌁", name: "加速咏唱", description: "每级攻速 +15%", max: 8 },
   ascend: { icon: "◇", name: "唤醒塔阶", description: "三元素共鸣后融合万象", max: 3 },
+  cannonSiege: { icon: "▣", name: "破城炮膛", description: "单体专精：锁定首领与精英，开启蓄能、穿透与弱点路线", max: 1 },
+  cannonCharge: { icon: "◈", name: "蓄能晶矢", description: "连续攻击同一目标，每层使后续晶矢伤害 +12%", max: 3 },
+  cannonPierce: { icon: "➤", name: "贯星穿透", description: "晶矢穿透敌人；每级提高穿透次数并使首领伤害 +18%", max: 3 },
+  cannonWeakpoint: { icon: "⌖", name: "弱点校准", description: "攻击首领或精英有概率暴露弱点，短时间承伤 +35%", max: 3 },
+  cannonSplit: { icon: "✣", name: "裂晶炮膛", description: "群体专精：命中后分裂晶矢，开启增殖与晶爆路线", max: 1 },
+  cannonGrowth: { icon: "✧", name: "碎片增殖", description: "分裂晶矢命中后继续寻找附近目标，逐级增加追击次数", max: 3 },
+  cannonEcho: { icon: "✹", name: "晶爆回响", description: "击杀敌人时产生小范围晶爆，对周围敌人造成伤害", max: 3 },
   saw: { icon: "✺", name: "环绕晶刃", description: "增加一枚近身晶刃", max: 5 },
   sawOverdrive: { icon: "◌", name: "疾旋锻刃", description: "专精：提高环速与接触伤害", max: 3 },
   sawGun: { icon: "➶", name: "晶刃炮膛", description: "疾旋分支：保留并强化金色弹幕", max: 3 },
@@ -31,16 +38,16 @@ const UPGRADE_META = {
   lightning: { icon: "ϟ", name: "雷鸣天球", description: "14% 概率连锁附近三名敌人", max: 1 }
 };
 const BRANCH_META = {
-  power: { name: "晶塔火力", keys: ["damage", "rate", "ascend"] },
+  power: { name: "晶塔火力 · 炮膛专精（二选一）", keys: ["damage", "rate", "ascend", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonSplit", "cannonGrowth", "cannonEcho"] },
   blade: { name: "环刃工事 · 二选一专精", keys: ["saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery"] },
   economy: { name: "无人机协议", keys: ["drone", "droneScavenge", "autoCollect", "droneBattery", "droneIntercept", "droneHunt", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery"] },
   element: { name: "元素共鸣", keys: ["frost", "fire", "lightning"] }
 };
 const SKILL_META = {
-  heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片" },
-  overload: { key: "W", name: "超载", description: "再按 W 提前释放冲击" },
-  starfall: { key: "E", name: "星落", description: "手动选择轰击方向" },
-  coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币" }
+  heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片", tooltip: "恢复晶塔生命；生命已满时转化为护盾，满盾受击会引爆晶片。" },
+  overload: { key: "W", name: "超载", description: "再按 W 提前释放冲击", tooltip: "短时间提升攻速并持续积热；再次按 W 可提前释放冲击。" },
+  starfall: { key: "E", name: "星落", description: "手动选择轰击方向", tooltip: "选择方向轰击敌群，造成范围伤害，并可打断巨兽射线。" },
+  coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币", tooltip: "立即吸收全场金币，将它们送回晶塔并触发金币结算。" }
 };
 const RELIC_META = {
   decoy: { icon: "◈", art: "./assets/generated/relic-decoy-ai.png", name: "诡光诱饵", type: "战术造物", description: "每波开始时在来袭方向生成诱饵。敌人会优先追逐它。", effect: "摧毁：爆炸 · 存活：转化为金币" },
@@ -126,7 +133,7 @@ if (previewMode === "performance") {
   state.time = 855;
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
-  const types = ["wisp", "runner", "crawler", "brute", "sentinel", "hexer", "rammer"];
+  const types = ["wisp", "runner", "crawler", "brute", "sentinel", "hexer", "rammer", "inkHound", "orbitMote", "rustBeetle", "porcelainWarden"];
   for (let index = 0; index < 420; index += 1) {
     const angle = index * Math.PI * 2 / 420;
     const radius = 245 + index % 5 * 22;
@@ -177,6 +184,26 @@ if (previewMode === "drones") {
   spawnEnemy(state, "brute", { x: 710, y: 250 });
   spawnEnemy(state, "sentinel", { x: 720, y: 470 });
   spawnEnemy(state, "crawler", { x: 260, y: 220 });
+}
+if (previewMode === "astral-enemies") {
+  state.threat = 6;
+  state.phase = "night";
+  state.time = 270;
+  state.wave.nextAt = 999;
+  state.spawnTimer = 999;
+  state.tower.fireCooldown = 999;
+  const previewEnemies = [
+    ["inkHound", { x: 690, y: 210 }],
+    ["orbitMote", { x: 720, y: 330 }],
+    ["rustBeetle", { x: 675, y: 480 }],
+    ["porcelainWarden", { x: 300, y: 220 }]
+  ];
+  for (const [type, position] of previewEnemies) {
+    const enemy = spawnEnemy(state, type, position);
+    enemy.speed = 0;
+    enemy.hp = enemy.maxHp = 100_000;
+  }
+  state.paused = true;
 }
 if (previewMode === "coins") {
   state.spawnTimer = 999;
@@ -538,6 +565,15 @@ function createUpgradeUi() {
           ? `<strong>路线 A · 自爆猎杀</strong><span>主动开启 · 优先 Boss / 精英 · 接近自爆</span>`
           : `<strong>路线 B · 防御护盾</strong><span>护航耗电 · 自动护盾 · 耗尽冷却</span>`;
         section.append(route);
+      } else if (branchKey === "power" && (key === "cannonSiege" || key === "cannonSplit")) {
+        const route = document.createElement("div");
+        const siegeRoute = key === "cannonSiege";
+        route.className = `blade-route-label ${siegeRoute ? "siege" : "split"}`;
+        route.dataset.route = siegeRoute ? "cannonSiege" : "cannonSplit";
+        route.innerHTML = siegeRoute
+          ? `<strong>路线 A · 破城炮膛</strong><span>首领 / 精英 · 蓄能晶矢 · 贯星穿透 · 弱点校准</span>`
+          : `<strong>路线 B · 裂晶炮膛</strong><span>怪潮清场 · 晶矢分裂 · 碎片增殖 · 晶爆回响</span>`;
+        section.append(route);
       }
       const index = TECH_ORDER.indexOf(key);
       const meta = UPGRADE_META[key];
@@ -690,7 +726,7 @@ function createSkillUi() {
     button.type = "button";
     button.className = "skill-button";
     button.dataset.skill = key;
-    button.innerHTML = `<span class="skill-key">${meta.key}</span><strong>${meta.name}</strong><small>${meta.description}</small><i class="cooldown-mask"></i><span class="cooldown-text"></span>`;
+    button.innerHTML = `<span class="skill-key">${meta.key}</span><strong>${meta.name}</strong><small>${meta.description}</small><i class="cooldown-mask"></i><span class="cooldown-text"></span><span class="skill-tooltip" role="tooltip"><b>${meta.key} · ${meta.name}</b><span>${meta.tooltip}</span></span>`;
     button.addEventListener("click", () => activateSkill(key));
     dom.skillList.append(button);
   }
@@ -962,6 +998,9 @@ function handleEvents(events) {
     else if (event.type === "relicDecoySurvived") { audio.play("coin"); showToast(`诡光诱饵存活 · 转化金币 ${event.value}`); }
     else if (event.type === "relicPhaseBuff") { renderer.trigger("ascend", 0.45); showToast("月相调律 · 短暂火力强化"); }
     else if (event.type === "relicMirror") renderer.trigger("targetProtocol");
+    else if (event.type === "cannonWeakpoint") { renderer.trigger("cannonWeakpoint"); showToast("弱点校准 · 目标暴露"); }
+    else if (event.type === "cannonSplit") renderer.trigger("cannonSplit");
+    else if (event.type === "cannonEcho") renderer.trigger("cannonEcho");
     else if (event.type === "shoot") audio.play("shoot");
     else if (event.type === "sawShoot") audio.play("sawShoot");
     else if (event.type === "sawLaunch" || event.type === "sawBounce") audio.play("sawShoot");
@@ -1116,6 +1155,8 @@ function updateUi() {
   dom.upgradeList.querySelector('[data-route="launch"]')?.classList.toggle("chosen", state.tower.upgrades.sawLaunch > 0);
   dom.upgradeList.querySelector('[data-route="detonate"]')?.classList.toggle("chosen", state.tower.upgrades.droneDetonate > 0);
   dom.upgradeList.querySelector('[data-route="guard"]')?.classList.toggle("chosen", state.tower.upgrades.droneGuard > 0);
+  dom.upgradeList.querySelector('[data-route="cannonSiege"]')?.classList.toggle("chosen", state.tower.upgrades.cannonSiege > 0);
+  dom.upgradeList.querySelector('[data-route="cannonSplit"]')?.classList.toggle("chosen", state.tower.upgrades.cannonSplit > 0);
 
   for (const button of dom.skillList.children) {
     const key = button.dataset.skill;
@@ -1130,6 +1171,8 @@ function updateUi() {
     }
     button.querySelector(".cooldown-mask").style.height = `${Math.min(100, cooldown / total * 100)}%`;
     button.querySelector(".cooldown-text").textContent = cooldown > 0 ? `${cooldown.toFixed(1)}s` : "";
+    const tooltip = button.querySelector(".skill-tooltip span");
+    if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
     const description = button.querySelector("small");
     if (key === "heal") description.textContent = state.skills.heal.shieldBurstArmed ? "晶片爆炸已装填" : state.tower.shield > 0.5 ? `护盾 ${Math.ceil(state.tower.shield)}` : SKILL_META[key].description;
     else if (key === "overload") description.textContent = state.skills.overload.active > 0
@@ -1203,7 +1246,10 @@ function renderLeaderboardPodium(container, highlightDate) {
     const detail = document.createElement("small");
     detail.className = "podium-detail";
     detail.textContent = slot.entry ? "威胁 " + formatThreat(slot.entry.threat) + " · " + slot.entry.kills + " 击杀" : "空缺";
-    card.append(rank, name, score, detail);
+    const time = document.createElement("small");
+    time.className = "podium-time";
+    time.textContent = slot.entry ? "坚守 " + formatTime(slot.entry.time) : "";
+    card.append(rank, name, score, detail, time);
     container.append(card);
   }
 }
@@ -1225,11 +1271,14 @@ function renderLeaderboardInto(list, count, highlightDate) {
     const score = document.createElement("strong");
     const threat = document.createElement("span");
     const kills = document.createElement("span");
+    const time = document.createElement("span");
+    time.className = "leaderboard-time";
     name.textContent = entry.name;
     score.textContent = formatScore(entry.score);
     threat.textContent = "威胁 " + formatThreat(entry.threat);
     kills.textContent = entry.kills + " 击杀";
-    item.append(name, score, threat, kills);
+    time.textContent = "坚守 " + formatTime(entry.time);
+    item.append(name, score, threat, kills, time);
     list.append(item);
   }
 }

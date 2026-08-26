@@ -161,6 +161,66 @@ test("弹丸首次命中后立即消失且不会继续命中后方目标", () =>
   assert.equal(second.hp, secondHp);
 });
 
+test("晶塔火力炮膛分支互斥并提供首领/怪潮两套专精", () => {
+  const siege = createGameState(501);
+  siege.threat = 12; siege.coins = 100_000;
+  for (let index = 0; index < 3; index += 1) assert.equal(purchaseUpgrade(siege, "damage"), true);
+  assert.equal(purchaseUpgrade(siege, "cannonSiege"), true);
+  assert.equal(purchaseUpgrade(siege, "cannonSplit"), false);
+  assert.equal(purchaseUpgrade(siege, "cannonCharge"), true);
+  assert.equal(purchaseUpgrade(siege, "cannonPierce"), true);
+  assert.equal(getTowerStats(siege).pierce, 1);
+  assert.equal(getTechStatus(siege, "cannonSplit").reason, "已选择破城炮膛分支");
+
+  const split = createGameState(502);
+  split.threat = 12; split.coins = 100_000;
+  for (let index = 0; index < 3; index += 1) purchaseUpgrade(split, "damage");
+  assert.equal(purchaseUpgrade(split, "cannonSplit"), true);
+  assert.equal(purchaseUpgrade(split, "cannonSiege"), false);
+  assert.equal(purchaseUpgrade(split, "cannonGrowth"), true);
+  assert.equal(purchaseUpgrade(split, "cannonEcho"), true);
+});
+
+test("破城炮膛蓄能与穿透会强化连续单体攻击", () => {
+  const state = createGameState(503);
+  state.threat = 12; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.hp = 1_000_000;
+  for (let index = 0; index < 3; index += 1) purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "cannonSiege"); purchaseUpgrade(state, "cannonCharge"); purchaseUpgrade(state, "cannonPierce");
+  const first = spawnEnemy(state, "brute", { x: 600, y: 360 });
+  const second = spawnEnemy(state, "brute", { x: 650, y: 360 });
+  first.speed = 0; second.speed = 0;
+  updateGame(state, 1 / 60);
+  for (let index = 0; index < 24; index += 1) updateGame(state, 1 / 60);
+  const firstDamage = first.maxHp - first.hp;
+  const secondDamage = second.maxHp - second.hp;
+  assert.ok(firstDamage > 0 && secondDamage > 0, "贯星穿透应命中同一直线的第二目标");
+  state.tower.fireCooldown = 0;
+  for (let index = 0; index < 24; index += 1) updateGame(state, 1 / 60);
+  assert.ok(first.maxHp - first.hp > firstDamage, "蓄能晶矢应持续强化同一目标的后续攻击");
+  assert.ok(state.tower.siegeStreak > 0);
+});
+
+test("裂晶炮膛会分裂晶矢并在击杀时触发晶爆", () => {
+  const state = createGameState(504);
+  state.threat = 12; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.hp = 1_000_000;
+  for (let index = 0; index < 3; index += 1) purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "cannonSplit"); purchaseUpgrade(state, "cannonGrowth"); purchaseUpgrade(state, "cannonEcho");
+  const target = spawnEnemy(state, "brute", { x: 600, y: 360 });
+  const nearby = spawnEnemy(state, "wisp", { x: 650, y: 360 });
+  target.speed = 0; nearby.speed = 0;
+  let splitSeen = false;
+  for (let index = 0; index < 24; index += 1) {
+    updateGame(state, 1 / 60);
+    splitSeen ||= state.events.some((event) => event.type === "cannonSplit");
+  }
+  assert.equal(splitSeen, true);
+  target.hp = 0; target.lastDamageSource = "shot";
+  const nearbyHp = nearby.hp;
+  updateGame(state, 1 / 60);
+  assert.ok(nearby.hp < nearbyHp, "击杀应触发晶爆伤害邻近目标");
+  assert.ok(state.events.some((event) => event.type === "cannonEcho"));
+});
+
 test("环绕晶刃最多五枚", () => {
   const state = createGameState(6);
   state.threat = 8;
@@ -341,6 +401,24 @@ test("高威胁等级解锁爬行怪、晶甲守卫、咒晶怪与冲撞兽", ()
   assert.ok(types.has("sentinel"));
   assert.ok(types.has("hexer"));
   assert.ok(types.has("rammer"));
+});
+
+test("威胁六开始加入异星敌群，威胁五及以前不会出现", () => {
+  const early = createGameState(411);
+  early.threat = 5;
+  const earlyTypes = new Set(Array.from({ length: 1200 }, () => chooseEnemyType(early)));
+  for (const type of ["inkHound", "orbitMote", "rustBeetle", "porcelainWarden"]) assert.equal(earlyTypes.has(type), false);
+
+  const late = createGameState(412);
+  late.threat = 6;
+  const lateTypes = new Set(Array.from({ length: 2400 }, () => chooseEnemyType(late)));
+  for (const type of ["inkHound", "orbitMote", "rustBeetle", "porcelainWarden"]) assert.equal(lateTypes.has(type), true);
+  for (const type of ["inkHound", "orbitMote", "rustBeetle", "porcelainWarden"]) {
+    const sample = createGameState(500 + type.length);
+    sample.threat = 6;
+    const enemy = spawnEnemy(sample, type, { x: 700, y: 360 });
+    assert.equal(enemy.maxHp, GAME_CONFIG.enemies[type].hp * GAME_CONFIG.threat.hpGrowth ** 5);
+  }
 });
 
 test("每次大怪潮固定生成一只高生命精英怪", () => {
@@ -1505,9 +1583,9 @@ test("雷脉导体、断罪刻印和逆时沙漏分别强化雷链、斩杀与�
 
   const time = createGameState(9505, undefined, { hourglass: true });
   time.relics.owned.hourglass = true; time.spawnTimer = 999; time.wave.nextAt = 999; time.tower.fireCooldown = 999;
-  time.skills.starfall.cooldown = 10;
+  for (const skill of Object.values(time.skills)) skill.cooldown = 10;
   updateGame(time, 1);
-  assert.equal(Number(time.skills.starfall.cooldown.toFixed(2)), Number((10 - GAME_CONFIG.relics.hourglass.cooldownRateMultiplier).toFixed(2)));
+  for (const skill of Object.values(time.skills)) assert.equal(Number(skill.cooldown.toFixed(2)), Number((10 - GAME_CONFIG.relics.hourglass.cooldownRateMultiplier).toFixed(2)));
 });
 
 test("拾金脉冲可复制金币价值，遗响碎片可在战场点击收集", () => {

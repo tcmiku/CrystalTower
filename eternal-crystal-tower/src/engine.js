@@ -2,7 +2,7 @@ import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, UPGRADE_ORDER } from "./config.js";
 import { SeededRng } from "./rng.js";
 
 const ASCEND_NAMES = ["晶芽", "晶柱", "晶冠", "万象晶塔"];
-const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
+const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", cannonSiege: "破城炮膛", cannonCharge: "蓄能晶矢", cannonPierce: "贯星穿透", cannonWeakpoint: "弱点校准", cannonSplit: "裂晶炮膛", cannonGrowth: "碎片增殖", cannonEcho: "晶爆回响", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
 
 export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots) {
   const rng = new SeededRng(seed);
@@ -39,8 +39,10 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       anchorLockId: null,
       anchorLockTimer: 0,
       priorityTargetIds: [],
+      siegeTargetId: null,
+      siegeStreak: 0,
       sawAngle: 0,
-      upgrades: { damage: 0, rate: 0, ascend: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
+      upgrades: { damage: 0, rate: 0, ascend: 0, cannonSiege: 0, cannonCharge: 0, cannonPierce: 0, cannonWeakpoint: 0, cannonSplit: 0, cannonGrowth: 0, cannonEcho: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
     },
     skills: {
       heal: { cooldown: 0, active: 0, burst: 0, shieldBurstArmed: false },
@@ -99,6 +101,7 @@ export function getTowerStats(state) {
   const permanentDamage = 1 + research.damage * cfg.research.bonusPerLevel;
   const permanentHealth = 1 + research.health * cfg.research.bonusPerLevel;
   const relicDamage = 1 + (state.relics?.damageBonus ?? 0);
+  const pierceLevel = tower.upgrades.cannonPierce ?? 0;
   const phaseDamage = (state.relics?.phaseBuff ?? 0) > 0 ? cfg.relics.lunar.transitionDamageMultiplier : 1;
   const damage = cfg.tower.damage * (cfg.upgrades.damage.multiplier ** tower.upgrades.damage) * cfg.upgrades.ascend.damage[level] * permanentDamage * relicDamage * phaseDamage;
   const rawRate = cfg.tower.fireRate * (cfg.upgrades.rate.multiplier ** tower.upgrades.rate) * cfg.upgrades.ascend.rate[level];
@@ -109,7 +112,8 @@ export function getTowerStats(state) {
     range: cfg.tower.range + cfg.upgrades.ascend.rangePerLevel * level,
     maxHp: (cfg.tower.maxHp + cfg.upgrades.ascend.hpPerLevel * level) * permanentHealth,
     projectileCount: level >= 3 ? 3 : level >= 2 ? 2 : 1,
-    pierce: 0,
+    pierce: pierceLevel * cfg.cannon.siege.piercePerLevel,
+    bossDamageMultiplier: 1 + pierceLevel * cfg.cannon.siege.bossDamagePerLevel,
     name: ASCEND_NAMES[level]
   };
 }
@@ -226,14 +230,29 @@ export function chooseEnemyType(state) {
   if (state.threat < 4) return roll < 0.52 ? "wisp" : roll < 0.8 ? "runner" : "brute";
   if (state.threat < 5) return roll < 0.38 ? "wisp" : roll < 0.62 ? "runner" : roll < 0.82 ? "crawler" : "brute";
   if (state.threat < 6) return roll < 0.3 ? "wisp" : roll < 0.5 ? "runner" : roll < 0.7 ? "crawler" : roll < 0.88 ? "brute" : "hexer";
-  if (state.threat < 8) return roll < 0.2 ? "wisp" : roll < 0.35 ? "runner" : roll < 0.53 ? "crawler" : roll < 0.7 ? "brute" : roll < 0.86 ? "sentinel" : "hexer";
-  if (roll < 0.14) return "wisp";
-  if (roll < 0.26) return "runner";
-  if (roll < 0.4) return "crawler";
-  if (roll < 0.55) return "brute";
-  if (roll < 0.7) return "sentinel";
-  if (roll < 0.84) return "hexer";
-  return "rammer";
+  if (state.threat < 8) {
+    if (roll < 0.15) return "wisp";
+    if (roll < 0.27) return "runner";
+    if (roll < 0.39) return "crawler";
+    if (roll < 0.51) return "brute";
+    if (roll < 0.63) return "sentinel";
+    if (roll < 0.75) return "hexer";
+    if (roll < 0.83) return "inkHound";
+    if (roll < 0.9) return "orbitMote";
+    if (roll < 0.96) return "rustBeetle";
+    return "porcelainWarden";
+  }
+  if (roll < 0.1) return "wisp";
+  if (roll < 0.19) return "runner";
+  if (roll < 0.3) return "crawler";
+  if (roll < 0.42) return "brute";
+  if (roll < 0.53) return "sentinel";
+  if (roll < 0.64) return "hexer";
+  if (roll < 0.72) return "rammer";
+  if (roll < 0.8) return "inkHound";
+  if (roll < 0.87) return "orbitMote";
+  if (roll < 0.94) return "rustBeetle";
+  return "porcelainWarden";
 }
 
 function isBossEnemy(enemy) {
@@ -315,6 +334,7 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
     attackRange: base.attackRange ?? 0, rangedFlash: 0,
     freezeTimer: 0, burnTimer: 0, burnTickCooldown: 0, burnDamagePerTick: 0,
     markTimer: 0,
+    weakpointTimer: 0,
     elite,
     waveElite: Boolean(options.waveElite),
     waveIndex: options.waveIndex ?? null,
@@ -511,6 +531,20 @@ function fireTower(state) {
   state.tower.priorityTargetIds = targets.map((target) => target.id);
   if (!targets.length) return false;
   const { centerX, centerY } = GAME_CONFIG.arena;
+  const siegeLevel = state.tower.upgrades.cannonSiege;
+  const chargeLevel = state.tower.upgrades.cannonCharge;
+  let chargeMultiplier = 1;
+  if (siegeLevel > 0 && chargeLevel > 0) {
+    const primaryId = targets[0].id;
+    state.tower.siegeStreak = state.tower.siegeTargetId === primaryId ? state.tower.siegeStreak + 1 : 0;
+    state.tower.siegeTargetId = primaryId;
+    const cfg = GAME_CONFIG.cannon.siege;
+    const stacks = Math.min(cfg.maxChargeStacks + chargeLevel - 1, state.tower.siegeStreak);
+    chargeMultiplier += stacks * cfg.chargeBonusPerStack;
+  } else {
+    state.tower.siegeTargetId = null;
+    state.tower.siegeStreak = 0;
+  }
   let mirrorReady = false;
   if (state.relics.owned.mirror) {
     state.relics.mirrorShots += 1;
@@ -527,8 +561,9 @@ function fireTower(state) {
       id: state.nextId++, x: centerX, y: centerY,
       vx: Math.cos(angle) * GAME_CONFIG.tower.projectileSpeed,
       vy: Math.sin(angle) * GAME_CONFIG.tower.projectileSpeed,
-      damage: stats.damage, radius: 5 + state.tower.upgrades.ascend * 1.5,
-      pierce: stats.pierce, life: 1.2, tier: state.tower.upgrades.ascend, element,
+      damage: stats.damage * (targetIndex === 0 ? chargeMultiplier : 1), radius: 5 + state.tower.upgrades.ascend * 1.5,
+      pierce: stats.pierce, pierceEnabled: stats.pierce > 0, bossDamageMultiplier: stats.bossDamageMultiplier, life: 1.2, tier: state.tower.upgrades.ascend, element,
+      splitLevel: state.tower.upgrades.cannonSplit, growthLevel: state.tower.upgrades.cannonGrowth,
       mirrorReady: mirrorReady && targetIndex === 0
     });
   }
@@ -558,6 +593,7 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
   if (state.relics.owned.execution && enemy.hp / Math.max(1, enemy.maxHp) <= GAME_CONFIG.relics.execution.hpThreshold) {
     appliedDamage *= GAME_CONFIG.relics.execution.damageMultiplier;
   }
+  if ((enemy.weakpointTimer ?? 0) > 0) appliedDamage *= GAME_CONFIG.cannon.siege.weakpointDamageMultiplier;
   if (enemy.type === "boss") {
     if (bossAnchors(state, enemy).some((anchor) => anchor.anchorRole === "shield")) appliedDamage *= GAME_CONFIG.boss.shieldDamageMultiplier;
     if (source === enemy.resistance) appliedDamage *= GAME_CONFIG.boss.elementDamageMultiplier;
@@ -882,6 +918,18 @@ function resolveDeaths(state) {
     state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius - 12, text: `+${killScore} 分`, life: 0.85, color: enemy.elite || isBossEnemy(enemy) ? "#ffe07a" : "#ffd7a0" });
     if (state.relics.owned.ember && (enemy.lastDamageSource === "fire" || enemy.lastDamageSource === "explosion")) {
       spawnEmberZone(state, enemy.x, enemy.y);
+    }
+    if (state.tower.upgrades.cannonEcho > 0 && enemy.lastDamageSource !== "cannonEcho") {
+      const cfg = GAME_CONFIG.cannon.split;
+      const radius = cfg.echoRadius;
+      const damage = getTowerStats(state).damage * cfg.echoDamageMultiplier * state.tower.upgrades.cannonEcho;
+      let hits = 0;
+      for (const target of state.enemies) {
+        if (target === enemy || target.hp <= 0 || Math.hypot(target.x - enemy.x, target.y - enemy.y) > radius + target.radius) continue;
+        damageEnemy(state, target, damage, "cannonEcho");
+        hits += 1;
+      }
+      state.events.push({ type: "cannonEcho", x: enemy.x, y: enemy.y, radius, damage, hits });
     }
     if (state.relics.owned.frostbloom && (enemy.freezeTimer ?? 0) > 0) {
       const cfg = GAME_CONFIG.relics.frostbloom;
@@ -1327,6 +1375,7 @@ function updateEnemies(state, dt) {
     enemy.phaseBreakInvulnerability = Math.max(0, (enemy.phaseBreakInvulnerability ?? 0) - dt);
     enemy.freezeTimer = Math.max(0, (enemy.freezeTimer ?? 0) - dt);
     enemy.markTimer = Math.max(0, (enemy.markTimer ?? 0) - dt);
+    enemy.weakpointTimer = Math.max(0, (enemy.weakpointTimer ?? 0) - dt);
     if (enemy.elite && enemy.affix === "devour") {
       enemy.devourCooldown -= dt;
       if (enemy.devourCooldown <= 0) {
@@ -1377,7 +1426,7 @@ function updateEnemies(state, dt) {
         const overloadedBoss = enemy.type === "boss" && bossAnchors(state, enemy).some((anchor) => anchor.anchorRole === "overload");
         const attackInterval = GAME_CONFIG.combat.enemyAttackInterval * (overloadedBoss ? GAME_CONFIG.boss.overloadAttackIntervalMultiplier : 1);
         const damage = enemy.damage * GAME_CONFIG.combat.enemyAttackInterval;
-        const heavy = isBossEnemy(enemy) || enemy.type === "brute" || enemy.type === "rammer";
+        const heavy = isBossEnemy(enemy) || enemy.type === "brute" || enemy.type === "rammer" || enemy.type === "rustBeetle" || enemy.type === "porcelainWarden";
         if (decoy) {
           decoy.hp = Math.max(0, decoy.hp - damage);
           state.events.push({ type: "relicDecoyHit", x: decoy.x, y: decoy.y, damage });
@@ -1523,9 +1572,18 @@ function updateProjectiles(state, dt) {
         projectile.hitIds ??= new Set();
         projectile.hitIds.add(enemy.id);
         const markedMultiplier = enemy.markTimer > 0 ? GAME_CONFIG.drones.huntDamageMultiplier : 1;
-        const damage = projectile.damage * markedMultiplier;
+        const bossMultiplier = isBossEnemy(enemy) ? (projectile.bossDamageMultiplier ?? 1) : 1;
+        const damage = projectile.damage * markedMultiplier * bossMultiplier;
         damageEnemy(state, enemy, damage, projectile.element ?? "shot");
         if (projectile.element) applyElementalHit(state, enemy, projectile.element, damage);
+        const weakpointLevel = state.tower.upgrades.cannonWeakpoint;
+        if (weakpointLevel > 0 && (enemy.elite || isBossEnemy(enemy)) && enemy.hp > 0) {
+          const chance = Math.min(0.9, GAME_CONFIG.cannon.siege.weakpointChancePerLevel * weakpointLevel);
+          if (state.rng.next() < chance) {
+            enemy.weakpointTimer = GAME_CONFIG.cannon.siege.weakpointDuration;
+            state.events.push({ type: "cannonWeakpoint", enemyId: enemy.id, x: enemy.x, y: enemy.y, duration: enemy.weakpointTimer });
+          }
+        }
         if (projectile.mirrorReady && !isBossEnemy(enemy)) {
           const cfg = GAME_CONFIG.relics.mirror;
           const second = state.enemies
@@ -1542,6 +1600,43 @@ function updateProjectiles(state, dt) {
             });
             state.events.push({ type: "relicMirror", x1: enemy.x, y1: enemy.y, x2: second.x, y2: second.y });
           }
+        }
+        if (projectile.splitLevel > 0 && !projectile.splitChild) {
+          const cfg = GAME_CONFIG.cannon.split;
+          const baseAngle = Math.atan2(projectile.vy, projectile.vx);
+          for (let index = 0; index < cfg.projectileCount; index += 1) {
+            const angle = baseAngle + (index - (cfg.projectileCount - 1) / 2) * 0.32;
+            state.projectiles.push({
+              id: state.nextId++, x: enemy.x, y: enemy.y,
+              vx: Math.cos(angle) * GAME_CONFIG.tower.projectileSpeed * 0.82,
+              vy: Math.sin(angle) * GAME_CONFIG.tower.projectileSpeed * 0.82,
+              damage: projectile.damage * cfg.damageMultiplier, radius: cfg.radius,
+              pierce: 0, bossDamageMultiplier: 1, life: cfg.life, tier: projectile.tier,
+              element: projectile.element ?? null, splitChild: true, growthLevel: projectile.growthLevel ?? 0,
+              seekRemaining: (projectile.growthLevel ?? 0) * cfg.growthHopsPerLevel,
+              hitIds: new Set([enemy.id]), source: "cannonSplit"
+            });
+          }
+          state.events.push({ type: "cannonSplit", x: enemy.x, y: enemy.y, count: cfg.projectileCount });
+        }
+        if ((projectile.seekRemaining ?? 0) > 0) {
+          const cfg = GAME_CONFIG.cannon.split;
+          const next = state.enemies
+            .filter((candidate) => candidate.hp > 0 && !projectile.hitIds.has(candidate.id) && Math.hypot(candidate.x - enemy.x, candidate.y - enemy.y) <= cfg.growthRange)
+            .sort((a, b) => Math.hypot(a.x - enemy.x, a.y - enemy.y) - Math.hypot(b.x - enemy.x, b.y - enemy.y) || a.id - b.id)[0];
+          if (next) {
+            const angle = Math.atan2(next.y - enemy.y, next.x - enemy.x);
+            projectile.vx = Math.cos(angle) * GAME_CONFIG.tower.projectileSpeed * 0.82;
+            projectile.vy = Math.sin(angle) * GAME_CONFIG.tower.projectileSpeed * 0.82;
+            projectile.seekRemaining -= 1;
+            projectile.life = Math.max(projectile.life, cfg.life);
+            state.events.push({ type: "cannonSeek", fromId: enemy.id, targetId: next.id, x: enemy.x, y: enemy.y });
+            continue;
+          }
+        }
+        if (projectile.pierceEnabled && projectile.pierce > 0) {
+          projectile.pierce -= 1;
+          continue;
         }
         projectile.life = 0;
         break;
@@ -1821,6 +1916,22 @@ function spawnEventParticles(state) {
   const newEvents = state.events.slice(state._eventParticleCursor ?? 0);
   state._eventParticleCursor = state.events.length;
   for (const event of newEvents) {
+    if (event.type === "cannonSplit") {
+      for (let i = 0; i < event.count * 4; i += 1) {
+        const angle = state.rng.next() * Math.PI * 2;
+        const speed = 42 + state.rng.next() * 58;
+        state.particles.push({ x: event.x, y: event.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.22 + state.rng.next() * 0.18, maxLife: 0.4, color: "#d5b3ff", size: 1.5 + state.rng.next() * 2 });
+      }
+      continue;
+    }
+    if (event.type === "cannonEcho") {
+      for (let i = 0; i < 16; i += 1) {
+        const angle = state.rng.next() * Math.PI * 2;
+        const speed = 55 + state.rng.next() * 100;
+        state.particles.push({ x: event.x, y: event.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.3 + state.rng.next() * 0.25, maxLife: 0.55, color: "#c89cff", size: 2 + state.rng.next() * 3 });
+      }
+      continue;
+    }
     if (event.type !== "kill") continue;
     for (let i = 0; i < (event.elite ? 16 : 9); i += 1) {
       const angle = state.rng.next() * Math.PI * 2;
@@ -2031,7 +2142,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 export function snapshotState(state) {
   return {
     time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins,
-    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
+    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3))]),
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
     enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1]),

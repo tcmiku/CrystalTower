@@ -10,6 +10,14 @@
   --red: #ff6f75;
   --text: #f3f1ff;
   --muted: #9899b7;
+  /* Canonical UI semantics: use these variables for all future status text. */
+  --ui-attack: #ff707a;
+  --ui-rate: #7ceeff;
+  --ui-resource: #ffd36d;
+  --ui-success: #91e5c2;
+  --ui-danger: #ff6f75;
+  --ui-element: #c9adff;
+  --ui-secondary: #b5b8d0;
 }
 
 * { box-sizing: border-box; }
@@ -636,6 +644,119 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
 
+/* Information hierarchy: bright colors carry meaning, muted text is reserved
+   for explanations and secondary constraints. */
+.status span { color: #b7bad5; font-size: 11px; font-weight: 700; }
+.status strong { font-size: 20px; text-shadow: 0 0 12px currentColor; }
+.health-status span { color: #ff9c9f; }
+.health-status strong { color: #ff707a; }
+.status:nth-child(2) span { color: #f2ce86; }
+.status:nth-child(2) strong { color: #ffd36d; }
+.status:nth-child(3) span { color: #ff9a87; }
+.status:nth-child(3) strong { color: #ff6f75; }
+.status:nth-child(4) span { color: #9fe9ff; }
+.status:nth-child(4) strong { color: #7ceeff; }
+.cycle-status span { color: #b8b1e7; }
+.cycle-status strong { color: #ffe08a; }
+.cycle-status.night strong { color: #c9adff; }
+
+.build-summary > span { color: #b8bad2; font-size: 11px; font-weight: 700; }
+.build-summary b { font-size: 16px; text-shadow: 0 0 10px currentColor; }
+#damageStat { color: #ff707a; }
+#rateStat { color: #7ceeff; }
+#rangeStat { color: #c5a5ff; }
+#droneEnergyStat { color: #83e8c1; }
+
+.upgrade-card strong { font-size: 14px; }
+.upgrade-card p { color: #b6b9d1; font-size: 12px; }
+.upgrade-card strong em { font-size: 13px; }
+.tech-gate { font-size: 10px; }
+.tech-node:not(.locked) .tech-gate { color: #91e5c2; font-weight: 700; }
+.tech-branch.power h3 { color: #ff8f91; }
+.tech-branch.blade h3 { color: #ffd27a; }
+.tech-branch.economy h3 { color: #8de6c1; }
+.tech-branch.element h3 { color: #c9adff; }
+.tech-node.locked { filter: saturate(.35); }
+.upgrade-card:disabled { opacity: .58; }
+.tech-branch.power .tech-node[data-upgrade="damage"] { border-color: rgba(255,111,117,.42); background: linear-gradient(120deg, rgba(255,75,91,.1), rgba(255,255,255,.025)); }
+.tech-branch.power .tech-node[data-upgrade="damage"] .upgrade-icon,
+.tech-branch.power .tech-node[data-upgrade="damage"] strong em { color: #ff707a; }
+.tech-branch.power .tech-node[data-upgrade="damage"] .upgrade-icon { border-color: rgba(255,111,117,.52); background: rgba(255,75,91,.14); box-shadow: 0 0 14px rgba(255,75,91,.16); }
+.tech-branch.power .tech-node[data-upgrade="rate"] { border-color: rgba(124,238,255,.35); }
+.tech-branch.power .tech-node[data-upgrade="rate"] .upgrade-icon,
+.tech-branch.power .tech-node[data-upgrade="rate"] strong em { color: #7ceeff; }
+.tech-branch.power .tech-node[data-upgrade="ascend"] .upgrade-icon { color: #c7a5ff; border-color: rgba(199,165,255,.52); background: rgba(140,103,255,.14); }
+.blade-route-label.siege { border-left: 2px solid rgba(255,111,117,.78); }
+.blade-route-label.siege strong { color: #ff9b86; }
+.blade-route-label.split { border-left: 2px solid rgba(214,151,255,.76); }
+.blade-route-label.split strong { color: #d9b0ff; }
+.tech-branch.power .tech-node[data-upgrade="cannonSiege"],
+.tech-branch.power .tech-node[data-upgrade="cannonCharge"],
+.tech-branch.power .tech-node[data-upgrade="cannonPierce"],
+.tech-branch.power .tech-node[data-upgrade="cannonWeakpoint"] { border-color: rgba(255,111,117,.34); background: linear-gradient(120deg, rgba(255,75,91,.08), rgba(255,255,255,.025)); }
+.tech-branch.power .tech-node[data-upgrade="cannonSiege"] .upgrade-icon,
+.tech-branch.power .tech-node[data-upgrade="cannonCharge"] .upgrade-icon,
+.tech-branch.power .tech-node[data-upgrade="cannonPierce"] .upgrade-icon,
+.tech-branch.power .tech-node[data-upgrade="cannonWeakpoint"] .upgrade-icon { color: #ff8b7e; border-color: rgba(255,111,117,.48); background: rgba(198,49,70,.12); }
+.tech-branch.power .tech-node[data-upgrade="cannonSplit"],
+.tech-branch.power .tech-node[data-upgrade="cannonGrowth"],
+.tech-branch.power .tech-node[data-upgrade="cannonEcho"] { border-color: rgba(207,151,255,.34); background: linear-gradient(120deg, rgba(150,92,225,.09), rgba(255,255,255,.025)); }
+.tech-branch.power .tech-node[data-upgrade="cannonSplit"] .upgrade-icon,
+.tech-branch.power .tech-node[data-upgrade="cannonGrowth"] .upgrade-icon,
+.tech-branch.power .tech-node[data-upgrade="cannonEcho"] .upgrade-icon { color: #d8b4ff; border-color: rgba(207,151,255,.5); background: rgba(140,103,255,.13); }
+.tech-branch.element .tech-node[data-upgrade="fire"] { border-color: rgba(255,111,117,.38); }
+.tech-branch.element .tech-node[data-upgrade="fire"] .upgrade-icon { color: #ff8a72; }
+.tech-branch.element .tech-node[data-upgrade="lightning"] .upgrade-icon { color: #d5c4ff; }
+.tech-tree-resources > div:nth-child(2) strong { color: #ff7e80; text-shadow: 0 0 10px rgba(255,111,117,.35); }
+
+.objective strong { color: #ffcf79; font-size: 14px; text-shadow: 0 0 10px rgba(255,201,107,.22); }
+.objective small { color: #b5b8d0; font-size: 11px; }
+.announcement { color: #ffe0d5; border-color: rgba(255,111,117,.58); background: rgba(56,13,29,.9); font-weight: 800; text-shadow: 0 0 8px rgba(255,111,117,.35); }
+.toast { color: #f4f1ff; border-color: rgba(124,238,255,.35); font-weight: 700; }
+
+.skill-button strong { font-size: 13px; }
+.skill-button small { color: #b4b8d2; font-size: 10px; }
+.skill-button[data-skill="heal"] { border-color: rgba(118,230,198,.28); }
+.skill-button[data-skill="heal"] .skill-key { color: #8bf0ce; border-color: rgba(118,230,198,.5); background: rgba(47,167,132,.14); }
+.skill-button[data-skill="overload"] { border-color: rgba(255,111,117,.3); }
+.skill-button[data-skill="overload"] .skill-key { color: #ff8b7d; border-color: rgba(255,111,117,.55); background: rgba(198,49,70,.16); }
+.skill-button[data-skill="starfall"] .skill-key { color: #d5c3ff; border-color: rgba(169,137,255,.55); background: rgba(115,72,205,.16); }
+.skill-button[data-skill="coinVacuum"] .skill-key { color: #ffe08a; border-color: rgba(255,201,107,.55); background: rgba(188,133,42,.16); }
+.cooldown-text { color: #fff0b1; font-size: 12px; }
+
+.permanent-resource-hud small, .basecamp-wallet small { color: #b9bdd7; font-size: 9px; font-weight: 700; }
+.permanent-resource-hud b, .basecamp-wallet b { font-size: 13px; text-shadow: 0 0 9px currentColor; }
+.research-heading strong { color: #e8e7ff; font-size: 13px; }
+.research-heading strong b { color: #ffd36d; font-size: 15px; }
+.research-button strong { font-size: 14px; }
+.research-button span { color: #c9b9ff; font-size: 12px; font-weight: 700; }
+.research-button small { color: #b0b4ce; font-size: 10px; line-height: 1.45; }
+.research-button:not(:disabled) small { color: #ffd36d; font-weight: 700; }
+.relic-slot-button strong { color: #ffe08a; text-shadow: 0 0 10px rgba(255,201,107,.25); }
+.relic-slot-button > b { font-size: 12px; }
+.relic-research-card strong { font-size: 15px; }
+.relic-research-card p { color: #b0b4ce; font-size: 10px; }
+.relic-research-card b { color: #ffd36d; font-size: 10px; }
+.relic-research-card:disabled b { color: #9de1c1; }
+.relic-card-type { color: #9deaff; font-size: 11px; }
+.relic-card h3 { font-size: 25px; text-shadow: 0 2px 12px rgba(0,0,0,.55); }
+.relic-card p { color: #d0d3e6; font-size: 13px; }
+.relic-card-effect { color: #ffe08a; font-size: 12px; }
+.relic-choice-header > strong { color: #ffe08a; font-size: 14px; }
+
+@media (max-width: 1024px) {
+  .status span { font-size: 10px; }
+  .status strong, .health-status strong { font-size: 14px; }
+  .objective strong { font-size: 13px; }
+  .objective small { font-size: 10px; }
+  .skill-button strong { font-size: 11px; }
+  .skill-button small { font-size: 9px; }
+  .upgrade-card strong { font-size: 13px; }
+  .upgrade-card p { font-size: 11px; }
+  .relic-card h3 { font-size: 21px; }
+  .relic-card p { font-size: 12px; }
+}
+
 /* Permanent resources and extensible base-camp core room */
 .basecamp-button { color: #d6f8ff; border-color: rgba(115,233,255,.3); background: radial-gradient(circle at 50% 35%, rgba(91,224,255,.22), rgba(52,31,103,.18)); }
 .permanent-resource-hud { position: absolute; z-index: 7; top: 12px; left: 12px; display: flex; gap: 7px; pointer-events: none; }
@@ -859,6 +980,7 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .relic-research-card strong { font-size: 16px; }
   .relic-research-card p { font-size: 11px; line-height: 1.5; }
 }
+
 /* Run relic draft */
 .relic-run-hud { position:absolute; left:14px; top:78px; z-index:3; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
 .relic-run-hud:empty { display:none; }
@@ -916,4 +1038,65 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .relic-card p { min-height:0; line-height:1.45; }
   .relic-card-effect { margin-top:8px; padding-top:8px; }
   .relic-card-index { top:8px; right:9px; font-size:20px; }
+}
+
+/* Keep high-signal values readable after all responsive overrides. */
+.status.health-status strong { color: #ff707a; }
+.status:nth-child(2) strong { color: #ffd36d; }
+.status:nth-child(3) strong { color: #ff6f75; }
+.status:nth-child(4) strong { color: #7ceeff; }
+.status strong { text-shadow: 0 0 12px currentColor; }
+#damageStat { color: #ff707a; }
+#rateStat { color: #7ceeff; }
+.tech-branch.power .tech-node[data-upgrade="damage"] strong em { color: #ff707a; }
+.tech-branch.power .tech-node[data-upgrade="rate"] strong em { color: #7ceeff; }
+.tech-node:not(.locked) .tech-gate { color: #91e5c2; }
+.objective strong { color: #ffcf79; }
+.permanent-resource-hud b, .basecamp-wallet b { text-shadow: 0 0 9px currentColor; }
+.relic-card[data-relic="boost:damage"] { border-color: rgba(255,111,117,.52); }
+.relic-card[data-relic="boost:damage"] .relic-card-type,
+.relic-card[data-relic="boost:damage"] .relic-card-effect { color: #ff8588; }
+.relic-card[data-relic="boost:rate"] { border-color: rgba(124,238,255,.48); }
+.relic-card[data-relic="boost:rate"] .relic-card-type,
+.relic-card[data-relic="boost:rate"] .relic-card-effect { color: #7ceeff; }
+.relic-card[data-relic="boost:hybrid"] .relic-card-type,
+.relic-card[data-relic="boost:hybrid"] .relic-card-effect { color: #d1b9ff; }
+@media (max-width: 1024px) {
+  .status strong, .health-status strong { font-size: 14px; }
+  .status span { font-size: 10px; }
+  .objective strong { font-size: 13px; }
+  .skill-button strong { font-size: 11px; }
+}
+
+/* Active-skill hover help. It is intentionally outside the button's clipped
+   surface so the explanation can float above the lower HUD. */
+.skill-button { overflow: visible; }
+.skill-tooltip { position: absolute; z-index: 20; left: 0; bottom: calc(100% + 10px); display: flex; width: min(285px, 32vw); flex-direction: column; gap: 5px; padding: 11px 13px; border: 1px solid rgba(124,238,255,.42); border-radius: 11px; background: rgba(7,9,30,.97); box-shadow: 0 14px 34px rgba(0,0,0,.52), 0 0 20px rgba(119,241,255,.12); color: #e8ebfa; text-align: left; opacity: 0; visibility: hidden; transform: translateY(5px); pointer-events: none; transition: opacity .16s ease, visibility .16s ease, transform .16s ease; }
+.skill-tooltip::after { content: ""; position: absolute; left: 21px; bottom: -6px; width: 10px; height: 10px; border-right: 1px solid rgba(124,238,255,.42); border-bottom: 1px solid rgba(124,238,255,.42); background: rgba(7,9,30,.97); transform: rotate(45deg); }
+.skill-tooltip b, .skill-tooltip span { position: relative; z-index: 1; display: block; }
+.skill-tooltip b { color: var(--ui-resource); font-size: 12px; line-height: 1.25; }
+.skill-tooltip span { color: #c9cde0; font-size: 11px; line-height: 1.5; }
+.skill-button:hover .skill-tooltip, .skill-button:focus-visible .skill-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }
+.skill-button[data-skill="heal"] .skill-tooltip { border-color: rgba(118,230,198,.46); }
+.skill-button[data-skill="heal"] .skill-tooltip b { color: #8bf0ce; }
+.skill-button[data-skill="overload"] .skill-tooltip { border-color: rgba(255,111,117,.48); }
+.skill-button[data-skill="overload"] .skill-tooltip b { color: #ff8b7d; }
+.skill-button[data-skill="starfall"] .skill-tooltip { border-color: rgba(169,137,255,.5); }
+.skill-button[data-skill="starfall"] .skill-tooltip b { color: var(--ui-element); }
+.skill-button[data-skill="coinVacuum"] .skill-tooltip { border-color: rgba(255,201,107,.5); }
+.skill-button[data-skill="coinVacuum"] .skill-tooltip b { color: var(--ui-resource); }
+@media (max-width: 560px) {
+  .skill-tooltip { display: none; }
+}
+
+/* Leaderboard metrics: score remains primary, survival time is always visible. */
+.leaderboard-list li { grid-template-columns: 34px minmax(90px, 1fr) 92px 60px 56px 82px; }
+.leaderboard-list li .leaderboard-time { color: var(--ui-resource); font-weight: 800; }
+.podium-time { margin-top: 3px; color: var(--ui-resource); font: 800 10px ui-monospace, monospace; }
+@media (max-width: 1024px) {
+  .leaderboard-list li { grid-template-columns: 24px minmax(58px, 1fr) 70px 52px 50px 68px; }
+  .podium-time { font-size: 9px; }
+}
+@media (max-width: 390px) {
+  .leaderboard-list li { grid-template-columns: 20px minmax(50px, 1fr) 62px 44px 44px 60px; }
 }

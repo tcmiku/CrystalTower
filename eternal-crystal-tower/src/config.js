@@ -2,6 +2,10 @@ export const GAME_CONFIG = Object.freeze({
   arena: { width: 960, height: 720, centerX: 480, centerY: 360 },
   fixedStep: 1 / 60,
   tower: { maxHp: 600, damage: 12, fireRate: 1.2, range: 360, radius: 38, projectileSpeed: 650 },
+  cannon: {
+    siege: { chargeBonusPerStack: 0.12, maxChargeStacks: 3, piercePerLevel: 1, bossDamagePerLevel: 0.18, weakpointChancePerLevel: 0.16, weakpointDuration: 3.2, weakpointDamageMultiplier: 1.35 },
+    split: { projectileCount: 2, damageMultiplier: 0.46, life: 0.82, radius: 3.8, growthHopsPerLevel: 1, growthRange: 190, echoRadius: 78, echoDamageMultiplier: 0.38 }
+  },
   threat: { duration: 45, hpGrowth: 1.16, damageGrowth: 1.1, rewardGrowth: 1.08, spawnDecay: 0.91, spawnBase: 1.55, spawnMin: 0.34, dayWaves: 2, nightWaves: 2, packGrowthEvery: 4, maxPack: 3, bossEvery: 10 },
   unlocks: { doubleSpeedThreat: 10 },
   waves: { firstAt: 90, interval: 90, warning: 10, spawnInterval: 0.2, baseCount: 14, countPerThreat: 3, eliteHpMultiplier: 3.2, eliteDamageMultiplier: 1.45, eliteRewardMultiplier: 3 },
@@ -84,7 +88,14 @@ export const GAME_CONFIG = Object.freeze({
     droneGuardRecovery: { branch: "economy", baseCost: 360, growth: 1.75, maxLevel: 3, threat: [8, 10, 12], requires: { droneGuard: 1 }, excludes: ["droneDetonate"] },
     frost: { branch: "element", costs: [260], maxLevel: 1, threat: [4], towerLevel: 2, requires: { damage: 2 } },
     fire: { branch: "element", costs: [420], maxLevel: 1, threat: [6], towerLevel: 2, requires: { damage: 4 } },
-    lightning: { branch: "element", costs: [760], maxLevel: 1, threat: [8], towerLevel: 3, requires: { rate: 3 } }
+    lightning: { branch: "element", costs: [760], maxLevel: 1, threat: [8], towerLevel: 3, requires: { rate: 3 } },
+    cannonSiege: { branch: "cannon", costs: [360], maxLevel: 1, threat: [5], requires: { damage: 3 }, excludes: ["cannonSplit"] },
+    cannonCharge: { branch: "cannon", baseCost: 180, growth: 1.65, maxLevel: 3, threat: [6, 8, 10], requires: { cannonSiege: 1 } },
+    cannonPierce: { branch: "cannon", baseCost: 240, growth: 1.75, maxLevel: 3, threat: [7, 9, 11], requires: { cannonSiege: 1 } },
+    cannonWeakpoint: { branch: "cannon", baseCost: 280, growth: 1.8, maxLevel: 3, threat: [8, 10, 12], requires: { cannonSiege: 1 } },
+    cannonSplit: { branch: "cannon", costs: [360], maxLevel: 1, threat: [5], requires: { damage: 3 }, excludes: ["cannonSiege"] },
+    cannonGrowth: { branch: "cannon", baseCost: 180, growth: 1.65, maxLevel: 3, threat: [6, 8, 10], requires: { cannonSplit: 1 } },
+    cannonEcho: { branch: "cannon", baseCost: 280, growth: 1.8, maxLevel: 3, threat: [7, 9, 11], requires: { cannonSplit: 1 } }
   },
   coins: { clickRadius: 24, maxOrbs: 80, collectDuration: 0.42, lifetime: 10, blinkStart: 7, droneInterval: 1.25, droneOrbitRadius: 148, towerInterval: 5 },
   relics: {
@@ -106,7 +117,7 @@ export const GAME_CONFIG = Object.freeze({
   relicSlotResearch: { costs: [2, 4, 7] },
   permanentResources: { clickRadius: 30, maxDrops: 72, eliteEcho: 2, bossCore: 3, colossusCore: 8 },
   score: {
-    enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, boss: 5000, colossus: 20000 },
+    enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, inkHound: 260, orbitMote: 390, rustBeetle: 520, porcelainWarden: 480, boss: 5000, colossus: 20000 },
     eliteMultiplier: 4,
     coinMultiplier: 10,
     leaderboardSize: 10
@@ -117,7 +128,7 @@ export const GAME_CONFIG = Object.freeze({
     scavengeIntervalMultiplier: 0.55, scavengeValueMultiplier: 1.25,
     interceptRecharge: 16,
     huntMarkDuration: 6, huntDamageMultiplier: 1.35,
-    detonate: { damageMultiplier: 3.8, radius: 126, triggerDistance: 28, energyCost: 28, recoveryDuration: 10, recoveryMultiplier: 0.78 },
+    detonate: { damageMultiplier: 4.5, radius: 126, triggerDistance: 28, energyCost: 28, recoveryDuration: 10, recoveryMultiplier: 0.78 },
     guard: { drainPerSecond: 10, shieldPerEnergy: 3.1, shieldMax: 180, shieldPerBattery: 28, shieldDecayPerSecond: 22, cooldown: 10, cooldownMultiplier: 0.78 }
   },
   skills: {
@@ -134,6 +145,10 @@ export const GAME_CONFIG = Object.freeze({
     sentinel: { hp: 145, speed: 20, damage: 27, reward: 22, radius: 28 },
     hexer: { hp: 58, speed: 31, damage: 13, reward: 11, radius: 17, attackRange: 145 },
     rammer: { hp: 118, speed: 49, damage: 31, reward: 25, radius: 25 },
+    inkHound: { hp: 38, speed: 102, damage: 10, reward: 8, radius: 13 },
+    orbitMote: { hp: 72, speed: 40, damage: 16, reward: 14, radius: 19, attackRange: 165 },
+    rustBeetle: { hp: 132, speed: 18, damage: 25, reward: 21, radius: 26 },
+    porcelainWarden: { hp: 108, speed: 28, damage: 19, reward: 18, radius: 22 },
     boss: { hp: 900, speed: 16, damage: 42, reward: 180, radius: 48 },
     colossus: { hp: 5000, speed: 0, damage: 58, reward: 620, radius: 76 },
     anchor: { hp: 115, speed: 0, damage: 0, reward: 0, radius: 17 }
@@ -142,7 +157,7 @@ export const GAME_CONFIG = Object.freeze({
   combat: { enemyAttackInterval: 0.7, maxEnemies: 420, normalEnemyBudget: 240, crowdRadiusPerDoubling: 0.14, crowdMaxRadiusMultiplier: 1.55 }
 });
 
-export const TECH_ORDER = ["damage", "rate", "ascend", "saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "drone", "droneScavenge", "autoCollect", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
+export const TECH_ORDER = ["damage", "rate", "ascend", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonSplit", "cannonGrowth", "cannonEcho", "saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "drone", "droneScavenge", "autoCollect", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
 export const UPGRADE_ORDER = TECH_ORDER;
 export const SKILL_ORDER = ["heal", "overload", "starfall", "coinVacuum"];
 export const TARGET_PROTOCOL_ORDER = ["guard", "hunter", "breach", "radar"];

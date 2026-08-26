@@ -291,3 +291,19 @@ Constraints: genuinely transparent background; exactly one projectile; no charac
 - 遗响碎片：透明单体游戏拾取物；一小簇青蓝和淡紫切面记忆晶片，围绕破碎符文环，常见但发光，小尺寸清晰；无文字、UI、场景、阴影或棋盘底。
 - 核心残片：透明稀有游戏拾取物；白金心形能量核封入紫晶和暗红晶壳，外有断裂银金轨道，强烈光晕且明显高于普通资源；无文字、UI、场景、阴影或棋盘底。
 - 大本营核心室：16:9 横向地下魔法基地内部；深靛晶岩与银金构架，左侧已恢复的晶核中枢、右侧待机研究舱、中央竖直恢复光束，后方保留数个封闭未来建筑位；画面供 HTML 面板覆盖，安全区清晰，无角色、敌人、文字、UI 或徽标。
+
+## 威胁 6 异星敌群图集
+
+生成方式：OpenAI 内置生图模型，`game-production-asset`。
+
+```text
+Use case: game-production-asset
+Asset type: transparent 2D enemy sprite atlas for a top-down tower-defense game
+Primary request: create four isolated alien monsters in a precise 2 by 2 arrangement, all fully contained inside equal cells, designed to be visually distinct from a crystalline fantasy enemy roster.
+Scene/backdrop: genuine transparent background only.
+Subject: top-left a sleek ink-black quadruped hunter with long ribbon-like fins and one bright cyan eye; top-right a floating ivory ceramic orb creature with three offset teal rings, a violet aperture and dangling tendrils; bottom-left a broad rust-red industrial beetle with six articulated brass legs, a furnace backpack and lime-green signal lights; bottom-right a tall pale bone-and-porcelain sentinel with a split mask and four thin cobalt energy blades.
+Style/medium: polished hand-painted 2D sci-fi biomechanical game art with smooth ceramic, ink, brass and membrane materials; hard cel-shaded planes and clean silhouettes. Avoid faceted crystal armor, magical fantasy shards and the existing purple crystal aesthetic.
+Composition/framing: 2 by 2 grid of equal square cells, one creature centered per cell, generous transparent padding, no overlap, all facing right, readable at 24–70 pixels.
+Lighting/mood: stark rim lighting, cyan/violet/acid-green accents, restrained glow, eerie high contrast.
+Constraints: genuine alpha transparency; no backdrop, checkerboard, ground, cast shadow, grid lines, cell borders, text, logo, watermark, particles outside silhouettes, scenery, extra creatures, crop or blur.
+```

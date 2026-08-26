@@ -11,8 +11,13 @@ const ENEMY_COLORS = {
   rammer: ["#ffc95d", "#6b3429"],
   boss: ["#ffd078", "#6f1f4b"],
   colossus: ["#ff5b72", "#251136"],
-  anchor: ["#d9c8ff", "#38255d"]
+  anchor: ["#d9c8ff", "#38255d"],
+  inkHound: ["#39e8ff", "#07192b"],
+  orbitMote: ["#d9f5ff", "#25204a"],
+  rustBeetle: ["#b9ff4a", "#3a241c"],
+  porcelainWarden: ["#8db7ff", "#161d3a"]
 };
+const ASTRAL_ENEMY_TYPES = new Set(["inkHound", "orbitMote", "rustBeetle", "porcelainWarden"]);
 const ANCHOR_VISUALS = {
   shield: { name: "护盾", color: "#78e9ff", dark: "#1f6688", symbol: "⬡" },
   repair: { name: "修复", color: "#79ffad", dark: "#22684b", symbol: "+" },
@@ -39,6 +44,7 @@ const GENERATED_ASSETS = {
   towerUltimate: "./assets/generated/tower-ultimate-ai.png",
   enemies: "./assets/generated/enemy-atlas.png",
   waveEnemies: "./assets/generated/enemy-wave-atlas.png",
+  astralEnemies: "./assets/generated/enemy-astral-atlas-ai.png",
   boss: "./assets/generated/boss-overlord.png",
   colossus: "./assets/generated/boss-void-ring-colossus.png",
   bossProjectile: "./assets/generated/boss-corruption-lance-ai.png",
@@ -174,6 +180,9 @@ export class Renderer {
     if (type === "droneDetonate") { this.shake = Math.max(this.shake, 8); this.flash = Math.max(this.flash, 0.32); this.flashColor = "#ff8468"; }
     if (type === "droneGuardDepleted") { this.flash = Math.max(this.flash, 0.16); this.flashColor = "#b39aff"; }
     if (type === "eliteMarked") { this.flash = Math.max(this.flash, 0.07); this.flashColor = "#ff6fcf"; }
+    if (type === "cannonWeakpoint") { this.flash = Math.max(this.flash, 0.1); this.flashColor = "#fff0a8"; }
+    if (type === "cannonSplit") { this.flash = Math.max(this.flash, 0.06); this.flashColor = "#d5b3ff"; }
+    if (type === "cannonEcho") { this.shake = Math.max(this.shake, 3.5); this.flash = Math.max(this.flash, 0.12); this.flashColor = "#c89cff"; }
     if (type === "waveWarning") { this.shake = 3; this.flash = 0.12; this.flashColor = "#ff796f"; }
     if (type === "waveStart") { this.shake = 10; this.flash = 0.34; this.flashColor = "#ff4f70"; }
     if (type === "gameOver") { this.shake = 12; this.flash = 0.55; this.flashColor = "#8a143d"; }
@@ -594,6 +603,22 @@ export class Renderer {
         ctx.restore();
         continue;
       }
+      if (projectile.source === "cannonSplit") {
+        const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
+        const ux = projectile.vx / speed;
+        const uy = projectile.vy / speed;
+        ctx.save();
+        ctx.strokeStyle = "rgba(205,154,255,.45)";
+        ctx.shadowColor = "#bd7dff";
+        ctx.shadowBlur = 11;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(projectile.x - ux * 15, projectile.y - uy * 15); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
+        ctx.translate(projectile.x, projectile.y); ctx.rotate(Math.atan2(projectile.vy, projectile.vx));
+        ctx.fillStyle = "#c89cff"; ctx.strokeStyle = "#f3e9ff"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-3, -3.5); ctx.lineTo(-5, 0); ctx.lineTo(-3, 3.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.restore();
+        continue;
+      }
       if (projectile.element) {
         const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
         const ux = projectile.vx / speed;
@@ -825,7 +850,8 @@ export class Renderer {
       const isColossus = enemy.type === "colossus";
       const isAnchor = enemy.type === "anchor";
       const isWaveType = enemy.type === "crawler" || enemy.type === "sentinel";
-      const atlas = isWaveType ? this.assets.waveEnemies : this.assets.enemies;
+      const isAstralType = ASTRAL_ENEMY_TYPES.has(enemy.type);
+      const atlas = isAstralType ? this.assets.astralEnemies : isWaveType ? this.assets.waveEnemies : this.assets.enemies;
       if (isAnchor) {
         const visual = ANCHOR_VISUALS[enemy.anchorRole] ?? ANCHOR_VISUALS.shield;
         ctx.rotate(-angle + this.time * 1.7);
@@ -853,7 +879,7 @@ export class Renderer {
         }
       } else if (imageReady(atlas)) {
         const cell = isWaveType ? atlas.naturalWidth / 2 : atlas.naturalWidth / 2;
-        const positions = { wisp: [0, 0], runner: [1, 0], brute: [0, 1], boss: [1, 1], crawler: [0, 0], sentinel: [1, 0], hexer: [0, 0], rammer: [0, 1] };
+        const positions = { wisp: [0, 0], runner: [1, 0], brute: [0, 1], boss: [1, 1], crawler: [0, 0], sentinel: [1, 0], hexer: [0, 0], rammer: [0, 1], inkHound: [0, 0], orbitMote: [1, 0], rustBeetle: [0, 1], porcelainWarden: [1, 1] };
         const [column, row] = positions[enemy.type];
         const size = enemy.radius * (isBoss ? 3.15 : 3.05);
         ctx.globalAlpha = enemy.hitFlash > 0 ? 0.68 : 1;
@@ -1033,6 +1059,14 @@ export class Renderer {
         for (let point = 0; point < 6; point += 1) { const a = point * Math.PI / 3; const r = enemy.radius + 24; point ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
         ctx.closePath(); ctx.stroke();
         ctx.fillStyle = "#ffd1ef"; ctx.font = "800 9px 'Microsoft YaHei UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("猎杀标记", 0, -enemy.radius - 30); ctx.restore();
+      }
+
+      if ((enemy.weakpointTimer ?? 0) > 0) {
+        const pulse = 1 + Math.sin(this.time * 10 + enemy.id) * .08;
+        ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.scale(pulse, pulse); ctx.rotate(this.time * .9);
+        ctx.strokeStyle = "#fff0a8"; ctx.shadowColor = "#ffbd4a"; ctx.shadowBlur = 16; ctx.lineWidth = 2.4; ctx.setLineDash([5, 5]);
+        ctx.beginPath(); ctx.arc(0, 0, enemy.radius + 18, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = "#fff4ba"; ctx.font = "800 9px 'Microsoft YaHei UI',sans-serif"; ctx.textAlign = "center"; ctx.rotate(-this.time * .9); ctx.fillText(`弱点 ${enemy.weakpointTimer.toFixed(1)}s`, 0, -enemy.radius - 28); ctx.restore();
       }
 
       if (enemy.freezeTimer > 0) {
