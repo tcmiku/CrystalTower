@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { calculateRunScore, calculateStardust, collectCoinAt, createGameState, cycleTargetProtocol, getTechStatus, getTowerStats, getUpgradeCost, lockAnchorAt, purchaseUpgrade, setTargetProtocol, spawnEnemy, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyResearch, defaultSave, loadSave, researchCost, SAVE_KEY, sanitizePlayerName, writeSave } from "./storage.js";
+import { buyResearch, defaultSave, loadSave, researchCost, SAVE_KEY, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { AudioSynth } from "./audio.js";
 import { Renderer } from "./renderer.js";
@@ -64,7 +64,7 @@ for (const [id, label, value] of [["phaseText", "天象", "白昼"], ["waveText"
 
 const dom = Object.fromEntries([
   "gameCanvas", "healthText", "healthFill", "coinsText", "threatText", "timeText", "phaseText", "waveText", "upgradeList", "damageStat", "rateStat", "rangeStat", "droneEnergyStat",
-  "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
+  "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
   "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
@@ -196,7 +196,16 @@ if (previewMode === "colossus") {
 if (previewMode === "colossus-enrage") {
   state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = 15; state.time = 630; state.phase = "night";
   const colossus = spawnEnemy(state, "colossus", undefined, { orbitAngle: -0.72, colossusAffix: "prism" });
-  colossus.hp = colossus.maxHp * 0.46; colossus.enraged = true; colossus.intentSkill = "beam"; colossus.intentTimer = 0.8; colossus.skillSequence = 3;
+  colossus.hp = colossus.maxHp * 0.72; colossus.healthBar = 1; colossus.spawnShield = 0; colossus.enraged = true;
+  colossus.activeSkills = {
+    artillery: { timer: 2.4, tick: .3, summonsRemaining: 0 },
+    summon: { timer: 2.1, tick: .4, summonsRemaining: 3 },
+    beam: { timer: 1.8, tick: .25, summonsRemaining: 0 }
+  };
+  colossus.activeSkill = "artillery";
+  const shotAngle = Math.atan2(GAME_CONFIG.arena.centerY - colossus.y, GAME_CONFIG.arena.centerX - colossus.x);
+  state.hostileProjectiles.push({ id: state.nextId++, kind: "colossusMortar", x: colossus.x - 86, y: colossus.y + 72, vx: Math.cos(shotAngle) * 285, vy: Math.sin(shotAngle) * 285, targetX: GAME_CONFIG.arena.centerX, targetY: GAME_CONFIG.arena.centerY, radius: 11, life: 2, damage: 30 });
+  state.summonRifts.push({ id: state.nextId++, bossId: colossus.id, enemyType: "rammer", x: colossus.x - 95, y: colossus.y + 85, life: .22, maxLife: .62 });
   state.tower.upgrades.ascend = 3; state.tower.upgrades.damage = 8; state.tower.upgrades.rate = 5;
   state.tower.hp = getTowerStats(state).maxHp;
   state.paused = true;
@@ -302,6 +311,7 @@ let resumeAfterTechTree = false;
 let leaderboardModalOpen = false;
 let resumeAfterLeaderboard = false;
 let starfallAiming = false;
+let doubleSpeedActive = previewMode === "speed";
 const firstRunTutorial = save.records.totalKills === 0 && !previewMode;
 let tutorialStep = 0;
 const loadingStartedAt = performance.now();
@@ -640,9 +650,16 @@ function handleEvents(events) {
       audio.play(event.skill === "summon" ? "waveStart" : "boss");
       announce(`巨兽技能 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知异变"}${event.enraged ? " · 狂化强化" : ""}`);
     }
-    else if (event.type === "colossusEnrage") { audio.play("boss"); renderer.trigger("bossSpawn", 1.8); announce("生命过半 · 巨兽狂化 · 冰冻状态无效"); }
+    else if (event.type === "colossusEnrage") { audio.play("boss"); renderer.trigger("bossSpawn", 1.8); announce("第一命核破碎 · 第二血条开启 · 巨兽狂暴并行施法"); }
     else if (event.type === "colossusFreezeImmune") showToast("狂化巨兽免疫冰冻");
-    else if (event.type === "colossusDefeated") { audio.play("ascend"); renderer.trigger("ascend"); announce("虚环崩解 · 常规怪群恢复活动"); }
+    else if (event.type === "colossusDefeated") {
+      audio.play("ascend");
+      renderer.trigger("ascend");
+      const unlockedNow = unlockDoubleSpeed(save);
+      if (unlockedNow) save = writeSave(save);
+      announce(unlockedNow ? "虚环崩解 · 永久解锁 2× 时流" : "虚环崩解 · 常规怪群恢复活动");
+      if (unlockedNow) showToast("2× 倍速已永久解锁 · 点击右上角切换");
+    }
     else if (event.type === "eliteSpawn") { audio.play("waveStart"); renderer.trigger("eliteSpawn"); announce(`精英怪 · ${ELITE_AFFIX_NAMES[event.affix] ?? "异变"}`); }
     else if (event.type === "bossPhase") { audio.play("boss"); renderer.trigger("bossSpawn", 0.7); announce(`首领转化为${ELEMENT_NAMES[event.resistance]}抗性 · 锚点重生`); }
     else if (event.type === "towerCollectPulse" && event.count > 0) renderer.trigger("collectPulse");
@@ -751,10 +768,12 @@ function updateUi() {
 
   const colossus = state.enemies.find((enemy) => enemy.type === "colossus" && enemy.hp > 0);
   if (colossus) {
-    dom.objectiveTitle.textContent = colossus.enraged ? "巨兽狂化 · 冰冻无效" : `巨兽词条 · ${COLOSSUS_AFFIX_NAMES[colossus.colossusAffix] ?? "未知异变"}`;
+    const activeColossusSkills = Object.keys(colossus.activeSkills ?? {}).map((skill) => COLOSSUS_SKILL_NAMES[skill]).filter(Boolean);
+    dom.objectiveTitle.textContent = colossus.enraged ? `第二命核 · 狂暴并行 ${activeColossusSkills.length}/4` : colossus.spawnShield > 0 ? "首领护盾 · 优先击破" : `巨兽词条 · ${COLOSSUS_AFFIX_NAMES[colossus.colossusAffix] ?? "未知异变"}`;
     dom.objectiveText.textContent = colossus.intentSkill
       ? `攻击预兆：${COLOSSUS_SKILL_NAMES[colossus.intentSkill]}将在 ${Math.max(0, colossus.intentTimer).toFixed(1)} 秒后发动。`
-      : colossus.activeSkill ? `正在施放${COLOSSUS_SKILL_NAMES[colossus.activeSkill]} · 常规怪群已暂停。` : "技能间隙 · 集中全部火力攻击外圈巨兽。";
+      : activeColossusSkills.length ? `同时施放：${activeColossusSkills.join("、")} · 注意弹道与召唤法阵。`
+        : colossus.activeSkill ? `正在施放${COLOSSUS_SKILL_NAMES[colossus.activeSkill]} · 常规怪群已暂停。` : "技能间隙 · 集中全部火力攻击外圈巨兽。";
   } else if (state.wave.warningStarted || state.wave.active) {
     dom.objectiveTitle.textContent = state.wave.active ? "怪潮压境" : "怪潮预警";
     dom.objectiveText.textContent = state.wave.active ? "敌群正在集中涌入，使用技能清开塔下空间。" : "地图红光标出了主攻方向，准备星落与超载。";
@@ -770,6 +789,14 @@ function updateUi() {
   }
   dom.pauseButton.textContent = state.paused ? "▶" : "Ⅱ";
   dom.muteButton.textContent = save.settings.muted ? "静" : "声";
+  const doubleSpeedUnlocked = save.unlocks.doubleSpeed || previewMode === "speed";
+  dom.speedButton.textContent = doubleSpeedActive ? "2×" : "1×";
+  dom.speedButton.classList.toggle("active", doubleSpeedActive);
+  dom.speedButton.classList.toggle("locked", !doubleSpeedUnlocked);
+  dom.speedButton.setAttribute("aria-pressed", String(doubleSpeedActive));
+  dom.speedButton.setAttribute("aria-disabled", String(!doubleSpeedUnlocked));
+  dom.speedButton.setAttribute("aria-label", doubleSpeedUnlocked ? `当前 ${doubleSpeedActive ? "2" : "1"} 倍速，点击切换` : "2倍速未解锁");
+  dom.speedButton.title = doubleSpeedUnlocked ? "切换 1× / 2× 倍速（X）" : "击败威胁 XV 首领后永久解锁 2× 倍速";
 }
 
 function renderLeaderboardInto(list, count, highlightDate) {
@@ -900,6 +927,17 @@ function togglePause(force) {
   updateUi();
 }
 
+function toggleDoubleSpeed() {
+  if (!save.unlocks.doubleSpeed && previewMode !== "speed") {
+    showToast("击败威胁 XV 首领后永久解锁 2× 倍速");
+    return;
+  }
+  doubleSpeedActive = !doubleSpeedActive;
+  audio.play("purchase");
+  showToast(doubleSpeedActive ? "时流加速 · 2×" : "时流稳定 · 1×");
+  updateUi();
+}
+
 function restart() {
   cancelStarfallAim(false);
   runIndex += 1;
@@ -921,9 +959,9 @@ function loop(now) {
   const frameDelta = Math.min(0.1, (now - lastFrame) / 1000);
   lastFrame = now;
   if (!state.paused && !state.over) {
-    accumulator += frameDelta;
+    accumulator += frameDelta * (doubleSpeedActive ? 2 : 1);
     let steps = 0;
-    while (accumulator >= GAME_CONFIG.fixedStep && steps < 8) {
+    while (accumulator >= GAME_CONFIG.fixedStep && steps < 16) {
       updateGame(state, GAME_CONFIG.fixedStep);
       handleEvents(state.events);
       accumulator -= GAME_CONFIG.fixedStep;
@@ -972,6 +1010,7 @@ document.addEventListener("keydown", (event) => {
   else if (event.key.toLowerCase() === "e") activateSkill("starfall");
   else if (event.key.toLowerCase() === "f") activateSkill("coinVacuum");
   else if (event.key.toLowerCase() === "r") cycleProtocol();
+  else if (event.key.toLowerCase() === "x") toggleDoubleSpeed();
   else if (event.key.toLowerCase() === "t") setTechTreeOpen(!techTreeOpen, techTreeOpen);
   else if (event.key === "Escape" && techTreeOpen) setTechTreeOpen(false, true);
   else if (event.key.toLowerCase() === "p" || event.key === "Escape") togglePause();
@@ -987,6 +1026,7 @@ dom.techTreePanel.addEventListener("pointerdown", (event) => {
   if (event.target === dom.techTreePanel) setTechTreeOpen(false, true);
 });
 dom.pauseButton.addEventListener("click", () => togglePause());
+dom.speedButton.addEventListener("click", toggleDoubleSpeed);
 dom.gameCanvas.addEventListener("pointermove", (event) => {
   if (!starfallAiming) return;
   if (event.pointerType === "touch") event.preventDefault();
@@ -1029,10 +1069,12 @@ dom.clearSaveButton.addEventListener("click", () => {
   if (!confirm("清除全部星尘、永久研究和纪录？此操作无法撤销。")) return;
   localStorage.removeItem(SAVE_KEY);
   save = defaultSave();
+  doubleSpeedActive = false;
   audio.setMuted(false);
   renderResearch();
   renderLeaderboard(null);
   showToast("存档已清除");
+  updateUi();
 });
 window.addEventListener("blur", () => togglePause(true));
 document.addEventListener("pointerdown", () => audio.unlock(), { once: true });

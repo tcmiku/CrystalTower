@@ -18,6 +18,9 @@ export const GAME_CONFIG = Object.freeze({
   },
   colossus: {
     spawnThreat: 15,
+    healthBars: 2,
+    spawnShieldFraction: 0.42,
+    phaseBreakInvulnerability: 0.7,
     orbitRadiusX: 390,
     orbitRadiusY: 278,
     orbitSpeed: 0.12,
@@ -29,6 +32,8 @@ export const GAME_CONFIG = Object.freeze({
     enrageOrbitSpeedMultiplier: 1.55,
     enrageCooldownMultiplier: 0.62,
     enrageIntentMultiplier: 0.58,
+    enrageParallelStagger: 0.72,
+    enrageParallelCooldownMultiplier: 1.35,
     affixOrder: ["siege", "brood", "prism", "carapace"],
     affixes: {
       siege: { artilleryIntervalMultiplier: 0.7, artilleryDamageMultiplier: 1.22 },
@@ -36,8 +41,8 @@ export const GAME_CONFIG = Object.freeze({
       prism: { beamTickMultiplier: 0.68, beamDamageMultiplier: 1.22 },
       carapace: { healthMultiplier: 1.28, passiveDamageMultiplier: 0.88 }
     },
-    artillery: { duration: 3.2, interval: 0.52, projectileSpeed: 245, projectileLife: 3, damageMultiplier: 0.34, radius: 13 },
-    summon: { duration: 3.4, interval: 0.72, count: 5, types: ["runner", "crawler", "hexer", "rammer"] },
+    artillery: { duration: 3.2, interval: 0.52, projectileSpeed: 285, projectileLife: 3, damageMultiplier: 0.34, radius: 11 },
+    summon: { duration: 3.4, interval: 0.72, count: 5, telegraphDuration: 0.62, types: ["runner", "crawler", "hexer", "rammer"] },
     beam: { duration: 2.8, tickInterval: 0.42, damageMultiplier: 0.22 },
     bulwark: { duration: 3.6, damageMultiplier: 0.38, orbitSpeedMultiplier: 2.25 }
   },

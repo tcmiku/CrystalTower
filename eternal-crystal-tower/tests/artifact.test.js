@@ -11,7 +11,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
     "gameCanvas", "healthText", "coinsText", "threatText", "timeText", "upgradeList", "skillList",
     "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText",
     "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill",
-    "pauseButton", "muteButton", "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput",
+    "pauseButton", "muteButton", "speedButton", "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput",
     "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
     "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
     "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss"
@@ -26,6 +26,9 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(styles, /@media \(max-width: 1024px\)/);
   assert.match(styles, /env\(safe-area-inset-top\)/);
   assert.match(styles, /#gameCanvas[^}]*touch-action:\s*none/s);
+  assert.match(styles, /text-size-adjust:\s*100%/);
+  assert.match(styles, /Browser zoom reduces the CSS viewport/);
+  assert.match(styles, /\.status span,[\s\S]*\.leaderboard-list li \{ font-size: 10px; \}/);
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(main, /战利品已经掉落/);
   assert.match(main, /第一笔金币已到手/);
@@ -34,6 +37,9 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /路线 A · 疾旋炮刃/);
   assert.match(main, /路线 B · 弹射飞刃/);
   assert.match(main, /pointerType === "touch"/);
+  assert.match(main, /colossusDefeated[\s\S]*unlockDoubleSpeed/);
+  assert.match(main, /accumulator \+= frameDelta \* \(doubleSpeedActive \? 2 : 1\)/);
+  assert.match(main, /steps < 16/);
 });
 
 test("设计、构建与入口产物齐全", async () => {
@@ -44,6 +50,7 @@ test("设计、构建与入口产物齐全", async () => {
     "assets/generated/enemy-atlas.png", "assets/generated/crystal-saw.png",
     "assets/generated/arena-day.png", "assets/generated/enemy-wave-atlas.png",
     "assets/generated/boss-overlord.png", "assets/generated/boss-void-ring-colossus.png",
+    "assets/generated/boss-corruption-lance-ai.png",
     "assets/generated/projectile-frost-ai-v2.png",
     "assets/generated/projectile-fire-ai.png",
     "assets/generated/projectile-lightning-ai-v2.png",

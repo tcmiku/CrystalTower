@@ -915,6 +915,12 @@ test("陨晶炮击产生敌方弹体且巨兽死亡后恢复常规刷怪", () =>
   assert.equal(colossus.activeSkill, "artillery");
   updateGame(state, 0.01);
   assert.equal(state.hostileProjectiles[0]?.kind, "colossusMortar");
+  colossus.spawnShield = 0;
+  damageEnemy(state, colossus, colossus.maxHp * 2, "shot");
+  assert.equal(colossus.healthBar, 1);
+  assert.equal(colossus.enraged, true);
+  assert.equal(state.colossusEncounter.defeated, false);
+  colossus.phaseBreakInvulnerability = 0;
   damageEnemy(state, colossus, colossus.maxHp * 2, "shot");
   updateGame(state, 0.01);
   assert.equal(state.colossusEncounter.defeated, true);
@@ -926,8 +932,11 @@ test("召唤、射线与堡垒技能各自生效且不会串招", () => {
   const summonState = createGameState(119);
   summonState.threat = 15; summonState.spawnTimer = 999; summonState.wave.nextAt = 999; summonState.tower.fireCooldown = 999;
   const summoner = spawnEnemy(summonState, "colossus");
+  summoner.spawnShield = 0;
   summoner.activeSkill = "summon"; summoner.skillTimer = 2; summoner.skillTick = 0; summoner.summonsRemaining = 2;
   updateGame(summonState, 0.01);
+  assert.equal(summonState.summonRifts.length, 1);
+  updateGame(summonState, GAME_CONFIG.colossus.summon.telegraphDuration + 0.01);
   assert.ok(summonState.enemies.some((enemy) => enemy.type !== "colossus"));
   assert.equal(summonState.hostileProjectiles.length, 0);
 
@@ -945,6 +954,7 @@ test("召唤、射线与堡垒技能各自生效且不会串招", () => {
   openState.threat = shieldState.threat = 15;
   const openBoss = spawnEnemy(openState, "colossus", undefined, { colossusAffix: "siege" });
   const shieldBoss = spawnEnemy(shieldState, "colossus", undefined, { colossusAffix: "siege" });
+  openBoss.spawnShield = shieldBoss.spawnShield = 0;
   shieldBoss.activeSkill = "bulwark";
   damageEnemy(openState, openBoss, 100, "shot");
   damageEnemy(shieldState, shieldBoss, 100, "shot");
@@ -969,13 +979,22 @@ test("巨型首领血量强化并携带可复现的随机词条", () => {
   assert.ok(carapace.maxHp > normal.maxHp);
 });
 
-test("巨型首领半血狂化后清除并免疫冰冻", () => {
+test("巨型首领拥有登场护盾且第一命核破碎后开启第二血条狂暴", () => {
   const state = createGameState(124);
   state.threat = 15;
   const colossus = spawnEnemy(state, "colossus", undefined, { colossusAffix: "siege" });
-  colossus.hp = colossus.maxHp * 0.51;
+  assert.equal(colossus.healthBars, 2);
+  assert.equal(colossus.healthBar, 2);
+  assert.equal(colossus.spawnShield, colossus.maxHp * GAME_CONFIG.colossus.spawnShieldFraction);
+  const hpBeforeShield = colossus.hp;
+  damageEnemy(state, colossus, colossus.spawnShield * 0.5, "shot");
+  assert.equal(colossus.hp, hpBeforeShield);
+  assert.ok(colossus.spawnShield < colossus.spawnShieldMax);
+  colossus.spawnShield = 0;
   colossus.freezeTimer = 2;
-  damageEnemy(state, colossus, colossus.maxHp * 0.02, "shot");
+  damageEnemy(state, colossus, colossus.maxHp * 2, "shot");
+  assert.equal(colossus.healthBar, 1);
+  assert.equal(colossus.hp, colossus.maxHp);
   assert.equal(colossus.enraged, true);
   assert.equal(colossus.freezeTimer, 0);
   assert.ok(state.events.some((event) => event.type === "colossusEnrage"));
@@ -984,18 +1003,24 @@ test("巨型首领半血狂化后清除并免疫冰冻", () => {
   assert.ok(state.events.some((event) => event.type === "colossusFreezeImmune"));
 });
 
-test("巨型首领攻击先显示预兆且狂化会缩短预兆", () => {
+test("巨型首领第一阶段保留预兆且狂暴阶段可同时发动四项技能", () => {
   const state = createGameState(125);
   state.threat = 15; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   const colossus = spawnEnemy(state, "colossus", undefined, { colossusAffix: "prism" });
+  colossus.spawnShield = 0;
   colossus.skillCooldown = 0;
   updateGame(state, 0.01);
   assert.equal(colossus.intentSkill, "artillery");
   assert.equal(colossus.activeSkill, null);
   assert.equal(state.hostileProjectiles.length, 0);
-  const normalIntent = colossus.intentTimer;
-  colossus.enraged = true;
-  colossus.intentSkill = null; colossus.skillCooldown = 0;
+  damageEnemy(state, colossus, colossus.maxHp * 2, "shot");
+  colossus.phaseBreakInvulnerability = 0;
+  for (const skill of GAME_CONFIG.colossus.skillOrder) colossus.parallelCooldowns[skill] = 0;
+  const towerHp = state.tower.hp;
   updateGame(state, 0.01);
-  assert.ok(colossus.intentTimer < normalIntent);
+  assert.deepEqual(Object.keys(colossus.activeSkills).sort(), [...GAME_CONFIG.colossus.skillOrder].sort());
+  updateGame(state, 0.01);
+  assert.ok(state.hostileProjectiles.length > 0);
+  assert.ok(state.summonRifts.length > 0);
+  assert.ok(state.tower.hp < towerHp);
 });

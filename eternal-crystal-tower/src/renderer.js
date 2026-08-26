@@ -41,6 +41,7 @@ const GENERATED_ASSETS = {
   waveEnemies: "./assets/generated/enemy-wave-atlas.png",
   boss: "./assets/generated/boss-overlord.png",
   colossus: "./assets/generated/boss-void-ring-colossus.png",
+  bossProjectile: "./assets/generated/boss-corruption-lance-ai.png",
   saw: "./assets/generated/crystal-saw.png",
   projectileFrost: "./assets/generated/projectile-frost-ai-v2.png",
   projectileFire: "./assets/generated/projectile-fire-ai.png",
@@ -241,6 +242,7 @@ export class Renderer {
     this.drawWaveWarning(ctx, state);
     this.drawRange(ctx, state);
     this.drawCoins(ctx, state);
+    this.drawSummonRifts(ctx, state);
     this.drawProjectiles(ctx, state);
     this.drawHostileProjectiles(ctx, state);
     this.drawElementFx(ctx, state);
@@ -537,11 +539,65 @@ export class Renderer {
     }
   }
 
+  drawSummonRifts(ctx, state) {
+    for (const rift of state.summonRifts ?? []) {
+      const progress = 1 - Math.max(0, rift.life) / rift.maxLife;
+      const pulse = 0.5 + Math.sin(this.time * 18 + rift.id) * 0.5;
+      const radius = 20 + progress * 22;
+      ctx.save();
+      ctx.translate(rift.x, rift.y);
+      ctx.globalAlpha = 0.35 + progress * 0.55;
+      ctx.fillStyle = `rgba(107,24,151,${0.18 + progress * 0.18})`;
+      ctx.strokeStyle = progress > 0.72 ? "#ff6bcf" : "#d99aff";
+      ctx.shadowColor = "#b743ff";
+      ctx.shadowBlur = 18 + pulse * 10;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.rotate(this.time * 2.8 + rift.id);
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath(); ctx.arc(0, 0, radius * .72, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      for (let rune = 0; rune < 6; rune += 1) {
+        ctx.rotate(Math.PI / 3);
+        ctx.beginPath();
+        ctx.moveTo(radius * .55, -5); ctx.lineTo(radius * .78, 0); ctx.lineTo(radius * .55, 5);
+        ctx.stroke();
+      }
+      ctx.rotate(-this.time * 5.6);
+      ctx.strokeStyle = "#fff0ff"; ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(0, -radius * .42); ctx.lineTo(radius * .38, radius * .28); ctx.lineTo(-radius * .38, radius * .28); ctx.closePath(); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   drawHostileProjectiles(ctx, state) {
+
     for (const projectile of state.hostileProjectiles ?? []) {
       const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
       const ux = projectile.vx / speed;
+      if (projectile.kind === "colossusMortar" && imageReady(this.assets.bossProjectile)) {
       const uy = projectile.vy / speed;
+        const angle = Math.atan2(projectile.vy, projectile.vx);
+        const pulse = 0.72 + Math.sin(this.time * 24 + projectile.id) * 0.18;
+        ctx.save();
+        ctx.globalAlpha = .34 + pulse * .22;
+        ctx.strokeStyle = "#ff5b9f"; ctx.shadowColor = "#b237ff"; ctx.shadowBlur = 12; ctx.lineWidth = 2;
+        ctx.setLineDash([7, 7]);
+        ctx.beginPath(); ctx.arc(projectile.targetX, projectile.targetY, 28 + pulse * 9, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]); ctx.restore();
+        ctx.save();
+        const trail = ctx.createLinearGradient(projectile.x - ux * 70, projectile.y - uy * 70, projectile.x, projectile.y);
+        trail.addColorStop(0, "rgba(92,25,171,0)"); trail.addColorStop(.55, "rgba(198,54,255,.55)"); trail.addColorStop(1, "#fff3ff");
+        ctx.strokeStyle = trail; ctx.lineWidth = 11; ctx.shadowColor = "#d438ff"; ctx.shadowBlur = 22;
+        ctx.beginPath(); ctx.moveTo(projectile.x - ux * 70, projectile.y - uy * 70); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
+        ctx.translate(projectile.x, projectile.y); ctx.rotate(angle);
+        ctx.globalAlpha = .92 + pulse * .08;
+        ctx.shadowColor = "#ff42bb"; ctx.shadowBlur = 24;
+        ctx.drawImage(this.assets.bossProjectile, -66, -24, 132, 48);
+        ctx.restore();
+        continue;
+      }
       ctx.save();
       const trail = ctx.createLinearGradient(projectile.x - ux * 42, projectile.y - uy * 42, projectile.x, projectile.y);
       trail.addColorStop(0, "rgba(137,35,178,0)");
@@ -710,6 +766,25 @@ export class Renderer {
         ctx.restore();
       }
       if (enemy.type === "colossus") {
+        if ((enemy.spawnShield ?? 0) > 0) {
+          const shieldRatio = enemy.spawnShield / enemy.spawnShieldMax;
+          const pulse = 0.5 + Math.sin(this.time * 5.5) * 0.5;
+          ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(this.time * .55);
+          ctx.globalAlpha = .48 + shieldRatio * .34;
+          ctx.fillStyle = "rgba(91,170,255,.08)"; ctx.strokeStyle = "#89e8ff";
+          ctx.shadowColor = "#54a9ff"; ctx.shadowBlur = 22 + pulse * 12; ctx.lineWidth = 3.5;
+          ctx.setLineDash([18, 7]); ctx.beginPath(); ctx.ellipse(0, 0, enemy.radius + 78, enemy.radius + 44, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.rotate(-this.time * 1.1); ctx.strokeStyle = "#c6f8ff"; ctx.lineWidth = 1.5; ctx.setLineDash([4, 11]);
+          ctx.beginPath(); ctx.ellipse(0, 0, enemy.radius + 66, enemy.radius + 34, 0, 0, Math.PI * 2); ctx.stroke();
+          ctx.restore();
+        }
+        if ((enemy.phaseBreakInvulnerability ?? 0) > 0) {
+          const ratio = enemy.phaseBreakInvulnerability / GAME_CONFIG.colossus.phaseBreakInvulnerability;
+          ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.globalAlpha = ratio;
+          ctx.strokeStyle = "#fff3ff"; ctx.shadowColor = "#ff47bb"; ctx.shadowBlur = 28; ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.arc(0, 0, enemy.radius + 45 + (1 - ratio) * 80, 0, Math.PI * 2); ctx.stroke();
+          ctx.restore();
+        }
         const announcedSkill = enemy.intentSkill ?? enemy.activeSkill;
         const skillVisual = COLOSSUS_SKILLS[announcedSkill];
         const affixVisual = COLOSSUS_AFFIXES[enemy.colossusAffix] ?? { name: "未知异变", color: "#b865ff" };
@@ -1080,24 +1155,44 @@ export class Renderer {
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(18,4,20,.9)";
     ctx.strokeStyle = isColossus ? "rgba(255,74,132,.68)" : "rgba(255,180,95,.55)";
-    ctx.beginPath(); ctx.roundRect(width / 2 - barWidth / 2 - 12, y - 9, barWidth + 24, 49, 12); ctx.fill(); ctx.stroke();
+    const panelHeight = isColossus ? 76 : 49;
+    ctx.beginPath(); ctx.roundRect(width / 2 - barWidth / 2 - 12, y - 9, barWidth + 24, panelHeight, 12); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#ffd18a"; ctx.font = "800 12px 'Microsoft YaHei UI', sans-serif";
     const resistanceNames = { frost: "冰霜", fire: "火焰", lightning: "雷电" };
     const anchors = state.enemies.filter((enemy) => enemy.type === "anchor" && enemy.anchorBossId === boss.id && enemy.hp > 0);
     const anchorSummary = anchors.map((anchor) => ANCHOR_VISUALS[anchor.anchorRole]?.name ?? "未知").join("/") || "全毁";
     const colossusAffix = COLOSSUS_AFFIXES[boss.colossusAffix] ?? { name: "未知异变" };
+    const parallelSkills = Object.keys(boss.activeSkills ?? {}).map((skill) => COLOSSUS_SKILLS[skill]?.name).filter(Boolean);
     const colossusAction = boss.intentSkill
       ? `预兆:${COLOSSUS_SKILLS[boss.intentSkill]?.name} ${Math.max(0, boss.intentTimer).toFixed(1)}s`
-      : COLOSSUS_SKILLS[boss.activeSkill]?.name ?? "技能间隙";
+      : parallelSkills.length ? parallelSkills.join(" + ") : COLOSSUS_SKILLS[boss.activeSkill]?.name ?? "技能间隙";
     const title = isColossus
-      ? `虚环吞星兽 · ${colossusAffix.name} · ${boss.enraged ? "狂化/冰冻免疫" : colossusAction}`
+      ? `虚环吞星兽 · ${colossusAffix.name} · ${boss.enraged ? `狂暴并行 · ${colossusAction}` : colossusAction}`
       : `腐化晶核领主 · ${resistanceNames[boss.resistance] ?? "未知"}抗性 · ${anchorSummary}`;
     ctx.fillText(title, width / 2, y + 5);
-    ctx.fillStyle = "rgba(255,255,255,.1)"; ctx.fillRect(width / 2 - barWidth / 2, y + 14, barWidth, 10);
     const phaseColor = isColossus ? (boss.enraged ? "#ff4a2f" : COLOSSUS_AFFIXES[boss.colossusAffix]?.color ?? "#ff477c") : { frost: "#62dfff", fire: "#ff6749", lightning: "#aa83ff" }[boss.resistance] ?? "#ff4d67";
     const gradient = ctx.createLinearGradient(width / 2 - barWidth / 2, 0, width / 2 + barWidth / 2, 0);
     gradient.addColorStop(0, phaseColor); gradient.addColorStop(1, "#ffc45f");
-    ctx.fillStyle = gradient; ctx.fillRect(width / 2 - barWidth / 2, y + 14, barWidth * ratio, 10);
+    if (isColossus) {
+      const x = width / 2 - barWidth / 2;
+      const shieldRatio = Math.max(0, (boss.spawnShield ?? 0) / (boss.spawnShieldMax || 1));
+      ctx.fillStyle = "rgba(103,220,255,.13)"; ctx.fillRect(x, y + 13, barWidth, 4);
+      ctx.fillStyle = "#8eeeff"; ctx.shadowColor = "#4cb9ff"; ctx.shadowBlur = 7; ctx.fillRect(x, y + 13, barWidth * shieldRatio, 4); ctx.shadowBlur = 0;
+      const barRatios = boss.healthBar >= 2 ? [ratio, 1] : [0, ratio];
+      ["Ⅱ", "Ⅰ"].forEach((label, index) => {
+        const barY = y + 22 + index * 14;
+        ctx.fillStyle = "rgba(255,255,255,.1)"; ctx.fillRect(x, barY, barWidth, 9);
+        ctx.fillStyle = gradient; ctx.fillRect(x, barY, barWidth * barRatios[index], 9);
+        ctx.textAlign = "left"; ctx.fillStyle = "rgba(255,255,255,.8)"; ctx.font = "800 9px ui-monospace, monospace"; ctx.fillText(label, x + 5, barY + 8);
+      });
+      ctx.textAlign = "center"; ctx.font = "700 10px 'Microsoft YaHei UI', sans-serif";
+      ctx.fillStyle = shieldRatio > 0 ? "#a9f4ff" : boss.enraged ? "#ff9c71" : "#ddc6ff";
+      const status = shieldRatio > 0 ? `腐晶护盾 ${Math.ceil(shieldRatio * 100)}%` : boss.enraged ? `第二命核 · 冰冻免疫 · ${parallelSkills.length} 项技能并行` : "双生命核 · 第一阶段";
+      ctx.fillText(status, width / 2, y + 55);
+    } else {
+      ctx.fillStyle = "rgba(255,255,255,.1)"; ctx.fillRect(width / 2 - barWidth / 2, y + 14, barWidth, 10);
+      ctx.fillStyle = gradient; ctx.fillRect(width / 2 - barWidth / 2, y + 14, barWidth * ratio, 10);
+    }
     ctx.restore();
   }
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyResearch, defaultSave, loadSave, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, writeSave } from "../src/storage.js";
+import { buyResearch, defaultSave, loadSave, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -54,6 +54,21 @@ test("写入后能够无损读回有效存档", () => {
   assert.deepEqual(loadSave(storage), save);
 });
 
+
+test("威胁十五首领奖励会永久解锁二倍速且不能重复解锁", () => {
+  const storage = memoryStorage();
+  const save = defaultSave();
+  assert.equal(save.unlocks.doubleSpeed, false);
+  assert.equal(unlockDoubleSpeed(save), true);
+  assert.equal(unlockDoubleSpeed(save), false);
+  writeSave(save, storage);
+  assert.equal(loadSave(storage).unlocks.doubleSpeed, true);
+});
+
+test("旧存档与伪造的二倍速值安全回退为未解锁", () => {
+  assert.equal(sanitizeSave({ version: 1 }).unlocks.doubleSpeed, false);
+  assert.equal(sanitizeSave({ version: 1, unlocks: { doubleSpeed: 1 } }).unlocks.doubleSpeed, false);
+});
 
 test("排行榜清理姓名、按积分排序并只保留前十名", () => {
   const save = defaultSave();

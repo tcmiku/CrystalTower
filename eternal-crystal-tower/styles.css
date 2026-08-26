@@ -13,6 +13,7 @@
 }
 
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { margin: 0; min-width: 0; min-height: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); }
 button { font: inherit; }
 button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
@@ -78,6 +79,11 @@ h1, h2, p { margin: 0; }
 .top-actions { display: flex; gap: 7px; }
 .icon-button { width: 40px; height: 40px; border-radius: 11px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: var(--text); cursor: pointer; }
 .icon-button:hover { border-color: var(--violet); background: rgba(169,137,255,.12); }
+.speed-button { position: relative; font: 800 12px ui-monospace, "Cascadia Mono", monospace; transition: border-color .18s, background .18s, color .18s, box-shadow .18s; }
+.speed-button.active { border-color: rgba(255,201,107,.7); color: #fff0aa; background: rgba(255,201,107,.14); box-shadow: inset 0 0 14px rgba(255,201,107,.08), 0 0 16px rgba(255,201,107,.12); }
+.speed-button.locked { color: #737591; opacity: .72; }
+.speed-button.locked::after { content: ""; position: absolute; right: 5px; bottom: 5px; width: 5px; height: 4px; border: 1px solid currentColor; border-radius: 1px; }
+.speed-button.locked::before { content: ""; position: absolute; right: 6px; bottom: 9px; width: 3px; height: 3px; border: 1px solid currentColor; border-bottom: 0; border-radius: 3px 3px 0 0; }
 
 .play-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; min-height: 0; }
 .arena-wrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid rgba(130,116,232,.2); border-radius: 22px; background: #08091c; box-shadow: 0 22px 55px rgba(0,0,0,.3); }
@@ -463,6 +469,47 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .skill-key { width: 20px; }
   .skill-button small { display: none; }
   .leaderboard-list li { grid-template-columns: 20px minmax(52px, 1fr) 62px 48px 44px; font-size: 7px; }
+}
+
+/* Browser zoom reduces the CSS viewport and activates the compact layout.
+   Keep compact labels readable instead of shrinking them a second time. */
+@media (max-width: 1024px) {
+  .status span,
+  .score-hud span,
+  .panel-heading span,
+  .tech-overview span,
+  .tech-tree-launch small,
+  .tech-tree-eyebrow,
+  .tech-tree-resources span,
+  .blade-route-label span,
+  .tech-gate,
+  .objective small,
+  .tech-tree-header p,
+  .standalone-leaderboard-header p,
+  .leaderboard-list li { font-size: 10px; }
+
+  .protocol-grid small,
+  .skill-button small { font-size: 9px; }
+
+  .status strong,
+  .health-status strong { font-size: 13px; }
+  .cycle-status strong { font-size: 12px; }
+  .score-hud strong { font-size: 17px; }
+  .panel-heading h2 { font-size: 17px; }
+  .tech-tree-launch b,
+  .tech-overview strong,
+  .skill-button strong,
+  .drone-mode-button b { font-size: 12px; }
+  .protocol-grid b { font-size: 11px; }
+  .objective strong { font-size: 13px; }
+  .drone-mode-button small { font-size: 10px; }
+  .cooldown-text { font-size: 11px; }
+
+  .status strong,
+  .objective strong,
+  .objective small,
+  .skill-button strong,
+  .skill-button small { line-height: 1.35; }
 }
 
 @media (prefers-reduced-motion: reduce) {

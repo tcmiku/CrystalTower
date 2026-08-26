@@ -55,6 +55,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     launchedSaws: [],
     projectiles: [],
     hostileProjectiles: [],
+    summonRifts: [],
     coinOrbs: [],
     particles: [],
     elementFx: [],
@@ -267,6 +268,13 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
     enemy.skillSequence = 0;
     enemy.summonsRemaining = 0;
     enemy.enraged = false;
+    enemy.healthBars = GAME_CONFIG.colossus.healthBars;
+    enemy.healthBar = enemy.healthBars;
+    enemy.spawnShieldMax = enemy.maxHp * GAME_CONFIG.colossus.spawnShieldFraction;
+    enemy.spawnShield = enemy.spawnShieldMax;
+    enemy.phaseBreakInvulnerability = 0;
+    enemy.activeSkills = {};
+    enemy.parallelCooldowns = Object.fromEntries(GAME_CONFIG.colossus.skillOrder.map((skill, index) => [skill, index * GAME_CONFIG.colossus.enrageParallelStagger]));
     state.colossusEncounter.spawned = true;
   }
   if (type === "anchor") {
@@ -375,7 +383,7 @@ function rollProjectileElement(state) {
 }
 
 export function damageEnemy(state, enemy, damage, source = "shot") {
-  if (enemy.hp <= 0) return;
+  if (enemy.hp <= 0 || (enemy.phaseBreakInvulnerability ?? 0) > 0) return;
   let appliedDamage = damage;
   if (enemy.type === "boss") {
     if (bossAnchors(state, enemy).some((anchor) => anchor.anchorRole === "shield")) appliedDamage *= GAME_CONFIG.boss.shieldDamageMultiplier;
@@ -383,7 +391,12 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
   }
   if (enemy.type === "colossus") {
     if (enemy.colossusAffix === "carapace") appliedDamage *= GAME_CONFIG.colossus.affixes.carapace.passiveDamageMultiplier;
-    if (enemy.activeSkill === "bulwark") appliedDamage *= GAME_CONFIG.colossus.bulwark.damageMultiplier;
+    if (enemy.activeSkill === "bulwark" || enemy.activeSkills?.bulwark) appliedDamage *= GAME_CONFIG.colossus.bulwark.damageMultiplier;
+  if ((enemy.spawnShield ?? 0) > 0) {
+    const absorbed = Math.min(enemy.spawnShield, appliedDamage);
+    enemy.spawnShield -= absorbed;
+    appliedDamage -= absorbed;
+  }
   }
   if ((enemy.affixShield ?? 0) > 0) {
     const absorbed = Math.min(enemy.affixShield, appliedDamage);
@@ -395,12 +408,19 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
   const color = source === "starfall" ? "#fff1a8" : source === "drone" ? "#ffd36d" : source === "fire" ? "#ff9c5c" : source === "lightning" ? "#d9c5ff" : "#d9faff";
   state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius, text: appliedDamage > 0.5 ? `${Math.round(appliedDamage)}` : "格挡", life: 0.55, color });
   state.events.push({ type: "hit", source });
-  if (enemy.type === "colossus" && enemy.hp > 0 && !enemy.enraged && enemy.hp / enemy.maxHp <= GAME_CONFIG.colossus.enrageThreshold) {
+  if (enemy.type === "colossus" && enemy.hp <= 0 && enemy.healthBar > 1) {
+    enemy.healthBar -= 1;
+    enemy.hp = enemy.maxHp;
     enemy.enraged = true;
     enemy.freezeTimer = 0;
-    enemy.skillCooldown = Math.min(enemy.skillCooldown, 0.45);
-    if (enemy.intentSkill) enemy.intentTimer *= GAME_CONFIG.colossus.enrageIntentMultiplier;
-    state.events.push({ type: "colossusEnrage", enemyId: enemy.id, affix: enemy.colossusAffix, x: enemy.x, y: enemy.y });
+    enemy.phaseBreakInvulnerability = GAME_CONFIG.colossus.phaseBreakInvulnerability;
+    enemy.activeSkill = null;
+    enemy.intentSkill = null;
+    enemy.activeSkills = {};
+    enemy.parallelCooldowns = Object.fromEntries(GAME_CONFIG.colossus.skillOrder.map((skill, index) => [skill, index * GAME_CONFIG.colossus.enrageParallelStagger]));
+    state.hostileProjectiles.length = 0;
+    state.summonRifts.length = 0;
+    state.events.push({ type: "colossusEnrage", enemyId: enemy.id, affix: enemy.colossusAffix, healthBar: enemy.healthBar, x: enemy.x, y: enemy.y });
   }
   if (enemy.type === "boss" && enemy.hp > 0) {
     const ratio = enemy.hp / enemy.maxHp;
@@ -477,6 +497,7 @@ function resolveDeaths(state) {
       if (enemy.type === "colossus") {
         state.colossusEncounter.defeated = true;
         state.hostileProjectiles.length = 0;
+        state.summonRifts = state.summonRifts.filter((rift) => rift.bossId !== enemy.id);
         state.events.push({ type: "colossusDefeated", x: enemy.x, y: enemy.y });
       }
     }
@@ -665,14 +686,83 @@ function fireColossusArtillery(state, boss) {
   state.events.push({ type: "colossusArtillery", x: boss.x, y: boss.y, targetX, targetY });
 }
 
-function updateColossus(state, boss, dt) {
+function queueColossusSummon(state, boss, skillState) {
   const cfg = GAME_CONFIG.colossus;
   const affix = colossusAffixConfig(boss);
-  const speedMultiplier = (boss.activeSkill === "bulwark" ? cfg.bulwark.orbitSpeedMultiplier : 1) * (boss.enraged ? cfg.enrageOrbitSpeedMultiplier : 1);
+  if (skillState.summonsRemaining <= 0) return;
+  const totalSummons = cfg.summon.count + (affix.summonCountBonus ?? 0);
+  const type = cfg.summon.types[(totalSummons - skillState.summonsRemaining) % cfg.summon.types.length];
+  const angle = boss.orbitAngle + Math.PI + (state.rng.next() - 0.5) * 0.7;
+  const x = boss.x + Math.cos(angle) * 64;
+  const y = boss.y + Math.sin(angle) * 64;
+  skillState.summonsRemaining -= 1;
+  state.summonRifts.push({
+    id: state.nextId++, bossId: boss.id, enemyType: type, x, y,
+    life: cfg.summon.telegraphDuration, maxLife: cfg.summon.telegraphDuration
+  });
+  state.events.push({ type: "colossusSummonRift", enemyType: type, x, y, duration: cfg.summon.telegraphDuration });
+}
+
+function tickColossusSkill(state, boss, skill, skillState, dt) {
+  const cfg = GAME_CONFIG.colossus;
+  const affix = colossusAffixConfig(boss);
+  skillState.timer -= dt;
+  skillState.tick -= dt;
+  if (skill === "artillery" && skillState.tick <= 0) {
+    fireColossusArtillery(state, boss);
+    skillState.tick += cfg.artillery.interval * (affix.artilleryIntervalMultiplier ?? 1);
+  } else if (skill === "summon" && skillState.tick <= 0 && skillState.summonsRemaining > 0) {
+    queueColossusSummon(state, boss, skillState);
+    skillState.tick += cfg.summon.interval * (affix.summonIntervalMultiplier ?? 1);
+  } else if (skill === "beam" && skillState.tick <= 0) {
+    damageTower(state, boss.damage * cfg.beam.damageMultiplier * colossusAttackMultiplier(boss) * (affix.beamDamageMultiplier ?? 1), true, "colossusBeam");
+    boss.rangedFlash = Math.max(boss.rangedFlash, cfg.beam.tickInterval + 0.08);
+    skillState.tick += cfg.beam.tickInterval * (affix.beamTickMultiplier ?? 1);
+    state.events.push({ type: "colossusBeam", x: boss.x, y: boss.y });
+  }
+  return skillState.timer <= 0 || (skill === "summon" && skillState.summonsRemaining <= 0);
+}
+
+function startParallelColossusSkill(state, boss, skill) {
+  const cfg = GAME_CONFIG.colossus;
+  const affix = colossusAffixConfig(boss);
+  boss.activeSkills[skill] = {
+    timer: cfg[skill].duration,
+    tick: 0,
+    summonsRemaining: skill === "summon" ? cfg.summon.count + (affix.summonCountBonus ?? 0) : 0
+  };
+  state.events.push({ type: "colossusSkill", skill, enemyId: boss.id, duration: cfg[skill].duration, enraged: true, parallel: true });
+}
+
+function updateParallelColossusSkills(state, boss, dt) {
+  const cfg = GAME_CONFIG.colossus;
+  for (const skill of cfg.skillOrder) {
+    const active = boss.activeSkills[skill];
+    if (active) {
+      if (tickColossusSkill(state, boss, skill, active, dt)) {
+        delete boss.activeSkills[skill];
+        boss.parallelCooldowns[skill] = cfg.skillCooldown * cfg.enrageCooldownMultiplier * cfg.enrageParallelCooldownMultiplier;
+      }
+      continue;
+    }
+    boss.parallelCooldowns[skill] -= dt;
+    if (boss.parallelCooldowns[skill] <= 0) startParallelColossusSkill(state, boss, skill);
+  }
+  boss.activeSkill = Object.keys(boss.activeSkills)[0] ?? null;
+}
+
+function updateColossus(state, boss, dt) {
+  const cfg = GAME_CONFIG.colossus;
+  const bulwarkActive = boss.activeSkill === "bulwark" || Boolean(boss.activeSkills?.bulwark);
+  const speedMultiplier = (bulwarkActive ? cfg.bulwark.orbitSpeedMultiplier : 1) * (boss.enraged ? cfg.enrageOrbitSpeedMultiplier : 1);
   const freezeMultiplier = !boss.enraged && boss.freezeTimer > 0 ? 0.35 : 1;
   boss.orbitAngle += cfg.orbitSpeed * speedMultiplier * freezeMultiplier * dt;
   boss.x = GAME_CONFIG.arena.centerX + Math.cos(boss.orbitAngle) * cfg.orbitRadiusX;
   boss.y = GAME_CONFIG.arena.centerY + Math.sin(boss.orbitAngle) * cfg.orbitRadiusY;
+  if (boss.enraged) {
+    updateParallelColossusSkills(state, boss, dt);
+    return;
+  }
   if (boss.intentSkill) {
     boss.intentTimer -= dt;
     if (boss.intentTimer <= 0) startColossusSkill(state, boss);
@@ -683,28 +773,12 @@ function updateColossus(state, boss, dt) {
     if (boss.skillCooldown <= 0) beginColossusIntent(state, boss);
     return;
   }
-  boss.skillTimer -= dt;
-  boss.skillTick -= dt;
-  if (boss.activeSkill === "artillery" && boss.skillTick <= 0) {
-    fireColossusArtillery(state, boss);
-    boss.skillTick += cfg.artillery.interval * (affix.artilleryIntervalMultiplier ?? 1);
-  } else if (boss.activeSkill === "summon" && boss.skillTick <= 0 && boss.summonsRemaining > 0) {
-    const totalSummons = cfg.summon.count + (affix.summonCountBonus ?? 0);
-    const type = cfg.summon.types[(totalSummons - boss.summonsRemaining) % cfg.summon.types.length];
-    const angle = boss.orbitAngle + Math.PI + (state.rng.next() - 0.5) * 0.7;
-    const summoned = spawnEnemy(state, type, { x: boss.x + Math.cos(angle) * 54, y: boss.y + Math.sin(angle) * 54 }, { summonedByColossus: true });
-    if (summoned) {
-      boss.summonsRemaining -= 1;
-      state.events.push({ type: "colossusSummon", enemyId: summoned.id, enemyType: type, x: summoned.x, y: summoned.y });
-    }
-    boss.skillTick += cfg.summon.interval * (affix.summonIntervalMultiplier ?? 1);
-  } else if (boss.activeSkill === "beam" && boss.skillTick <= 0) {
-    damageTower(state, boss.damage * cfg.beam.damageMultiplier * colossusAttackMultiplier(boss) * (affix.beamDamageMultiplier ?? 1), true, "colossusBeam");
-    boss.rangedFlash = Math.max(boss.rangedFlash, cfg.beam.tickInterval + 0.08);
-    boss.skillTick += cfg.beam.tickInterval * (affix.beamTickMultiplier ?? 1);
-    state.events.push({ type: "colossusBeam", x: boss.x, y: boss.y });
-  }
-  if (boss.skillTimer <= 0 || (boss.activeSkill === "summon" && boss.summonsRemaining <= 0)) finishColossusSkill(boss);
+  const skillState = { timer: boss.skillTimer, tick: boss.skillTick, summonsRemaining: boss.summonsRemaining };
+  const finished = tickColossusSkill(state, boss, boss.activeSkill, skillState, dt);
+  boss.skillTimer = skillState.timer;
+  boss.skillTick = skillState.tick;
+  boss.summonsRemaining = skillState.summonsRemaining;
+  if (finished) finishColossusSkill(boss);
 }
 
 function updateHostileProjectiles(state, dt) {
@@ -725,6 +799,18 @@ function updateHostileProjectiles(state, dt) {
   state.hostileProjectiles = state.hostileProjectiles.filter((projectile) => projectile.life > 0 && projectile.x > -80 && projectile.x < width + 80 && projectile.y > -80 && projectile.y < height + 80);
 }
 
+function updateSummonRifts(state, dt) {
+  for (const rift of state.summonRifts) {
+    rift.life -= dt;
+    if (rift.life > 0) continue;
+    const boss = state.enemies.find((enemy) => enemy.id === rift.bossId && enemy.type === "colossus" && enemy.hp > 0);
+    if (!boss) continue;
+    const summoned = spawnEnemy(state, rift.enemyType, { x: rift.x, y: rift.y }, { summonedByColossus: true });
+    if (summoned) state.events.push({ type: "colossusSummon", enemyId: summoned.id, enemyType: rift.enemyType, x: summoned.x, y: summoned.y });
+  }
+  state.summonRifts = state.summonRifts.filter((rift) => rift.life > 0);
+}
+
 function updateEnemies(state, dt) {
   const { centerX, centerY } = GAME_CONFIG.arena;
   const towerRadius = GAME_CONFIG.tower.radius + state.tower.upgrades.ascend * 5;
@@ -732,6 +818,7 @@ function updateEnemies(state, dt) {
     enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
     enemy.rangedFlash = Math.max(0, (enemy.rangedFlash ?? 0) - dt);
     enemy.sawCooldown = Math.max(0, enemy.sawCooldown - dt);
+    enemy.phaseBreakInvulnerability = Math.max(0, (enemy.phaseBreakInvulnerability ?? 0) - dt);
     enemy.freezeTimer = Math.max(0, (enemy.freezeTimer ?? 0) - dt);
     enemy.markTimer = Math.max(0, (enemy.markTimer ?? 0) - dt);
     if (enemy.elite && enemy.affix === "devour") {
@@ -1304,6 +1391,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   updateProjectiles(state, dt);
   updateHostileProjectiles(state, dt);
   resolveDeaths(state);
+  updateSummonRifts(state, dt);
   updateCoinOrbs(state, dt);
   updateTransient(state, dt);
   spawnEventParticles(state);
@@ -1323,6 +1411,7 @@ export function snapshotState(state) {
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
     enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null]),
     hostileProjectiles: state.hostileProjectiles.map((projectile) => [projectile.kind, Number(projectile.x.toFixed(2)), Number(projectile.y.toFixed(2)), Number(projectile.life.toFixed(2))]),
+    summonRifts: state.summonRifts.map((rift) => [rift.enemyType, Number(rift.x.toFixed(2)), Number(rift.y.toFixed(2)), Number(rift.life.toFixed(2))]),
     kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over
   };
 }

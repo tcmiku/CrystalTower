@@ -250,3 +250,20 @@ Lighting/mood: dramatic cyan-violet rim light, gentle volumetric rays, mysteriou
 Color palette: midnight navy, deep indigo, amethyst violet, electric cyan, small warm gold and ember-orange highlights.
 Constraints: absolutely no text, letters, numbers, UI elements, logos, borders, loading bars, watermark, characters, enemies, or checkerboard background. Fill the entire canvas with finished artwork.
 ```
+
+## 威胁 XV 首领远程腐晶长矛
+
+生成方式：OpenAI 内置生图模型，`stylized-concept`。
+
+```text
+Use case: stylized-concept
+Asset type: transparent 2D game projectile sprite for a top-down fantasy tower-defense game
+Primary request: a single intimidating ranged projectile fired by a corrupted crystal overlord, traveling horizontally to the right
+Subject: long spear-shaped shard of corrupted crystal energy, brilliant white-violet core, deep purple faceted shell, thin hot crimson outer accents, sharp arrowhead silhouette, luminous broken-rune fragments and a long tapering comet trail
+Style/medium: polished hand-painted fantasy game VFX sprite, matching a dark indigo magical wasteland and cyan-purple crystal tower, readable at small size
+Composition/framing: centered horizontal projectile, clear left-to-right direction, generous transparent padding, no cropping, no perspective scene
+Lighting/mood: extremely high contrast and threatening; readable over both bright daytime stone and dark nighttime terrain
+Constraints: genuinely transparent background; exactly one projectile; no character, no environment, no UI, no text, no border, no watermark; direction must unmistakably point right; clean alpha edges; suitable for scaling to about 90 by 34 pixels in Canvas 2D
+```
+
+集成调整：实际显示尺寸取 132×48，以保持威胁 XV 首领炮击相对普通弹丸的压迫感；主轴跟随速度方向，命中或抵达目标后立即移除。程序化尾迹和落点环用于增强动态可读性，不修改位图主体。
