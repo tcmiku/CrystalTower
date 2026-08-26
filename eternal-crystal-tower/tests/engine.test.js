@@ -840,6 +840,62 @@ test("解锁元素科技后晶塔会实际发射元素晶矢", () => {
   assert.ok(seen.size >= 2);
 });
 
+test("普通怪超过二百四十个后压缩且完整保留战斗与结算总量", () => {
+  const state = createGameState(116);
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.fireCooldown = 999;
+  state.tower.hp = 1_000_000;
+  for (let index = 0; index < 1000; index += 1) spawnEnemy(state, "wisp", { x: 700, y: 300 });
+
+  assert.equal(state.enemies.length, GAME_CONFIG.combat.normalEnemyBudget);
+  assert.equal(state.enemies.reduce((sum, enemy) => sum + enemy.unitCount, 0), 1000);
+  assert.equal(state.enemies.reduce((sum, enemy) => sum + enemy.maxHp, 0), GAME_CONFIG.enemies.wisp.hp * 1000);
+  assert.equal(state.enemies.reduce((sum, enemy) => sum + enemy.damage, 0), GAME_CONFIG.enemies.wisp.damage * 1000);
+  assert.equal(state.enemies.reduce((sum, enemy) => sum + enemy.reward, 0), GAME_CONFIG.enemies.wisp.reward * 1000);
+  assert.ok(state.enemies.some((enemy) => enemy.radius > GAME_CONFIG.enemies.wisp.radius));
+
+  for (const enemy of state.enemies) enemy.hp = 0;
+  updateGame(state, GAME_CONFIG.fixedStep);
+  assert.equal(state.stats.kills, 1000);
+  assert.equal(state.stats.score, GAME_CONFIG.score.enemy.wisp * 1000);
+  assert.equal(state.coinOrbs.length, GAME_CONFIG.coins.maxOrbs);
+  assert.equal(state.coinOrbs.reduce((sum, orb) => sum + orb.value, 0), GAME_CONFIG.enemies.wisp.reward * 1000);
+  assert.equal(state.coinOrbs.reduce((sum, orb) => sum + orb.pileCount, 0), 1000);
+});
+
+test("金币达到八十枚后合并最近金币堆且不刷新十秒寿命", () => {
+  const state = createGameState(117);
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.fireCooldown = 999;
+  const oldest = { x: 700, y: 300, renderX: 700, renderY: 300, value: 2, pileCount: 1, age: 8.4, collectAge: 0, collector: null, droneIndex: 0 };
+  state.coinOrbs.push(oldest);
+  for (let index = 1; index < GAME_CONFIG.coins.maxOrbs; index += 1) {
+    state.coinOrbs.push({ x: 40 + index, y: 40, renderX: 40 + index, renderY: 40, value: 1, pileCount: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  }
+  const enemy = spawnEnemy(state, "wisp", { x: 702, y: 300 });
+  enemy.hp = 0;
+  updateGame(state, 0.01);
+
+  assert.equal(state.coinOrbs.length, GAME_CONFIG.coins.maxOrbs);
+  assert.equal(oldest.value, 2 + GAME_CONFIG.enemies.wisp.reward);
+  assert.equal(oldest.pileCount, 2);
+  assert.ok(oldest.age >= 8.4);
+});
+
+test("精英、首领和锚点不会被普通怪预算压缩", () => {
+  const state = createGameState(118);
+  for (let index = 0; index < GAME_CONFIG.combat.normalEnemyBudget; index += 1) spawnEnemy(state, "wisp", { x: 700, y: 300 });
+  const elite = spawnEnemy(state, "brute", { x: 720, y: 320 }, { elite: true, affix: "shield" });
+  const boss = spawnEnemy(state, "boss", { x: 760, y: 360 });
+  assert.equal(elite.elite, true);
+  assert.equal(elite.unitCount, 1);
+  assert.equal(boss.type, "boss");
+  assert.equal(state.enemies.filter((enemy) => enemy.type === "anchor").length, 4);
+  assert.equal(state.enemies.filter((enemy) => enemy.elite).length, 1);
+});
+
 test("威胁十五触发虚环吞星兽并冻结常规刷怪与怪潮", () => {
   const state = createGameState(115);
   state.time = GAME_CONFIG.threat.duration * 14 - 0.05;

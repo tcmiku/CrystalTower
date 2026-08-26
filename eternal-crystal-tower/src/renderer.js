@@ -414,12 +414,21 @@ export class Renderer {
         ctx.scale(scale, scale);
         ctx.translate(-x, -y);
       }
+      const pileCount = orb.pileCount ?? 1;
+      const coinRadius = Math.min(9, 5 + Math.log2(pileCount) * 0.9);
       ctx.shadowColor = "#ffc96b";
       ctx.shadowBlur = 12;
       ctx.fillStyle = "#ffe09a";
-      ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, coinRadius, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#9e5f24";
-      ctx.fillRect(x - 1, y - 3, 2, 6);
+      ctx.fillRect(x - 1, y - coinRadius * 0.62, 2, coinRadius * 1.24);
+      if (pileCount > 1) {
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = "#fff1af";
+        ctx.font = "800 9px ui-monospace, monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(`×${pileCount}`, x, y - coinRadius - 6);
+      }
       if (!orb.collector) {
         ctx.globalAlpha = 0.5 + Math.sin(this.time * 5 + orb.age) * 0.25;
         ctx.strokeStyle = "#ffe09a";
@@ -822,6 +831,16 @@ export class Renderer {
         ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(Math.atan2(GAME_CONFIG.arena.centerY - enemy.y, GAME_CONFIG.arena.centerX - enemy.x));
         ctx.fillStyle = "#ffd66d"; ctx.shadowColor = "#ff8b3d"; ctx.shadowBlur = 7;
         ctx.beginPath(); ctx.moveTo(enemy.radius + 9, 0); ctx.lineTo(enemy.radius - 2, -6); ctx.lineTo(enemy.radius - 2, 6); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+      if ((enemy.unitCount ?? 1) > 1) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "900 10px ui-monospace, monospace";
+        ctx.fillStyle = "#ffe49a";
+        ctx.shadowColor = "#8c3d18";
+        ctx.shadowBlur = 7;
+        ctx.fillText(`怪群 ×${enemy.unitCount}`, enemy.x, enemy.y - enemy.radius - 17);
         ctx.restore();
       }
       if (enemy.elite) {

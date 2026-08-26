@@ -30,6 +30,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(styles, /Browser zoom reduces the CSS viewport/);
   assert.match(styles, /\.status span,[\s\S]*\.leaderboard-list li \{ font-size: 10px; \}/);
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const renderer = await readFile(new URL("../src/renderer.js", import.meta.url), "utf8");
   assert.match(main, /战利品已经掉落/);
   assert.match(main, /第一笔金币已到手/);
   assert.match(main, /晶刃 · 近身防御/);
@@ -40,6 +41,8 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /colossusDefeated[\s\S]*unlockDoubleSpeed/);
   assert.match(main, /accumulator \+= frameDelta \* \(doubleSpeedActive \? 2 : 1\)/);
   assert.match(main, /steps < 16/);
+  assert.match(renderer, /怪群 ×/);
+  assert.match(renderer, /pileCount/);
 });
 
 test("设计、构建与入口产物齐全", async () => {

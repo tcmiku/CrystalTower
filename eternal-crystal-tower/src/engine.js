@@ -204,6 +204,39 @@ function spawnPosition(rng, forcedSide = null) {
   return { x: -margin, y: rng.next() * height };
 }
 
+function isCrowdUnit(enemy) {
+  return enemy && enemy.hp > 0 && !enemy.elite && !isBossEnemy(enemy) && enemy.type !== "anchor";
+}
+
+function mergeCrowdEnemy(state, incoming) {
+  let target = null;
+  let bestTypePenalty = Infinity;
+  let bestDistance = Infinity;
+  for (const enemy of state.enemies) {
+    if (!isCrowdUnit(enemy)) continue;
+    const typePenalty = enemy.type === incoming.type ? 0 : 1;
+    const dx = enemy.x - incoming.x;
+    const dy = enemy.y - incoming.y;
+    const distance = dx * dx + dy * dy;
+    if (typePenalty < bestTypePenalty || (typePenalty === bestTypePenalty && distance < bestDistance)) {
+      target = enemy;
+      bestTypePenalty = typePenalty;
+      bestDistance = distance;
+    }
+  }
+  if (!target) return null;
+  target.hp += incoming.hp;
+  target.maxHp += incoming.maxHp;
+  target.damage += incoming.damage;
+  target.reward += incoming.reward;
+  target.scoreValue = (target.scoreValue ?? 0) + (incoming.scoreValue ?? 0);
+  target.unitCount = (target.unitCount ?? 1) + (incoming.unitCount ?? 1);
+  const baseRadius = target.baseRadius ?? target.radius;
+  const radiusMultiplier = Math.min(GAME_CONFIG.combat.crowdMaxRadiusMultiplier, 1 + Math.log2(target.unitCount) * GAME_CONFIG.combat.crowdRadiusPerDoubling);
+  target.radius = baseRadius * radiusMultiplier;
+  return target;
+}
+
 export function spawnEnemy(state, type = chooseEnemyType(state), position, options = {}) {
   const bossType = type === "boss" || type === "colossus";
   const elite = Boolean(options.elite) && !bossType;
@@ -219,15 +252,20 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
   const hpScale = GAME_CONFIG.threat.hpGrowth ** (state.threat - 1);
   const damageScale = GAME_CONFIG.threat.damageGrowth ** (state.threat - 1);
   const rewardScale = GAME_CONFIG.threat.rewardGrowth ** (state.threat - 1);
-  const hpMultiplier = elite ? GAME_CONFIG.waves.eliteHpMultiplier : 1;
-  const damageMultiplier = elite ? GAME_CONFIG.waves.eliteDamageMultiplier : 1;
-  const rewardMultiplier = elite ? GAME_CONFIG.waves.eliteRewardMultiplier : 1;
+  const splitConfig = options.splitChild ? GAME_CONFIG.eliteAffixes.split : null;
+  const hpMultiplier = (elite ? GAME_CONFIG.waves.eliteHpMultiplier : 1) * (splitConfig?.hpMultiplier ?? 1);
+  const damageMultiplier = (elite ? GAME_CONFIG.waves.eliteDamageMultiplier : 1) * (splitConfig?.damageMultiplier ?? 1);
+  const rewardMultiplier = (elite ? GAME_CONFIG.waves.eliteRewardMultiplier : 1) * (splitConfig?.rewardMultiplier ?? 1);
+  const radiusMultiplier = splitConfig?.radiusMultiplier ?? 1;
+  const speedMultiplier = splitConfig?.speedMultiplier ?? 1;
   const enemy = {
     id: state.nextId++, type, x: pos.x, y: pos.y,
     hp: base.hp * hpScale * hpMultiplier, maxHp: base.hp * hpScale * hpMultiplier,
-    speed: base.speed, damage: base.damage * damageScale * damageMultiplier,
+    speed: base.speed * speedMultiplier, damage: base.damage * damageScale * damageMultiplier,
     reward: Math.max(1, Math.round(base.reward * rewardScale * rewardMultiplier)),
-    radius: base.radius, attackCooldown: 0, sawCooldown: 0, hitFlash: 0,
+    scoreValue: GAME_CONFIG.score.enemy[type] ?? 100,
+    unitCount: 1, baseRadius: base.radius * radiusMultiplier,
+    radius: base.radius * radiusMultiplier, attackCooldown: 0, sawCooldown: 0, hitFlash: 0,
     attackRange: base.attackRange ?? 0, rangedFlash: 0,
     freezeTimer: 0, burnTimer: 0, burnTickCooldown: 0, burnDamagePerTick: 0,
     markTimer: 0,
@@ -282,6 +320,13 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
     enemy.anchorRole = GAME_CONFIG.boss.anchorRoles.includes(options.anchorRole) ? options.anchorRole : GAME_CONFIG.boss.anchorRoles[0];
     enemy.effectCooldown = enemy.anchorRole === "summon" ? GAME_CONFIG.boss.summonInterval * 0.5 : 0;
     enemy.effectPulse = 0;
+  }
+  if (isCrowdUnit(enemy)) {
+    const visibleNormals = state.enemies.reduce((count, current) => count + Number(isCrowdUnit(current)), 0);
+    if (visibleNormals >= GAME_CONFIG.combat.normalEnemyBudget) {
+      const merged = mergeCrowdEnemy(state, enemy);
+      if (merged) return merged;
+    }
   }
   state.enemies.push(enemy);
   if (type === "boss") {
@@ -474,6 +519,28 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
   return true;
 }
 
+function addCoinDrop(state, enemy) {
+  const dropCount = enemy.unitCount ?? 1;
+  const drop = { x: enemy.x, y: enemy.y, renderX: enemy.x, renderY: enemy.y, value: enemy.reward, pileCount: dropCount, age: 0, collectAge: 0, collector: null, droneIndex: 0 };
+  if (state.coinOrbs.length < GAME_CONFIG.coins.maxOrbs) {
+    state.coinOrbs.push(drop);
+    return;
+  }
+  let target = null;
+  let bestDistance = Infinity;
+  for (const orb of state.coinOrbs) {
+    if (orb.expired || orb.collected) continue;
+    const dx = (orb.renderX ?? orb.x) - enemy.x;
+    const dy = (orb.renderY ?? orb.y) - enemy.y;
+    const distance = dx * dx + dy * dy;
+    if (distance < bestDistance) { target = orb; bestDistance = distance; }
+  }
+  target ??= state.coinOrbs[0];
+  if (!target) return;
+  target.value += drop.value;
+  target.pileCount = (target.pileCount ?? 1) + dropCount;
+}
+
 function resolveDeaths(state) {
   for (const enemy of state.enemies) {
     if (enemy.hp > 0 || enemy.deadHandled) continue;
@@ -486,8 +553,9 @@ function resolveDeaths(state) {
       state.events.push({ type: "anchorDestroyed", bossId: enemy.anchorBossId, role: enemy.anchorRole, x: enemy.x, y: enemy.y });
       continue;
     }
-    state.stats.kills += 1;
-    const baseScore = GAME_CONFIG.score.enemy[enemy.type] ?? 100;
+    const defeatedUnits = enemy.unitCount ?? 1;
+    state.stats.kills += defeatedUnits;
+    const baseScore = enemy.scoreValue ?? (GAME_CONFIG.score.enemy[enemy.type] ?? 100);
     const killScore = Math.round(baseScore * (enemy.elite ? GAME_CONFIG.score.eliteMultiplier : 1));
     state.stats.score += killScore;
     state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius - 12, text: `+${killScore} 分`, life: 0.85, color: enemy.elite || isBossEnemy(enemy) ? "#ffe07a" : "#ffd7a0" });
@@ -501,25 +569,13 @@ function resolveDeaths(state) {
         state.events.push({ type: "colossusDefeated", x: enemy.x, y: enemy.y });
       }
     }
-    if (state.coinOrbs.length >= GAME_CONFIG.coins.maxOrbs) {
-      const merged = state.coinOrbs.find((orb) => !orb.collector) ?? state.coinOrbs[0];
-      if (merged) merged.value += enemy.reward;
-    } else {
-      state.coinOrbs.push({ x: enemy.x, y: enemy.y, renderX: enemy.x, renderY: enemy.y, value: enemy.reward, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
-    }
-    state.events.push({ type: "kill", enemyType: enemy.type, elite: enemy.elite, score: killScore, x: enemy.x, y: enemy.y });
+    addCoinDrop(state, enemy);
+    state.events.push({ type: "kill", enemyType: enemy.type, elite: enemy.elite, units: defeatedUnits, score: killScore, x: enemy.x, y: enemy.y });
     if (enemy.elite && enemy.affix === "split") {
       const cfg = GAME_CONFIG.eliteAffixes.split;
       for (let index = 0; index < cfg.count; index += 1) {
         const angle = index * Math.PI * 2 / cfg.count + state.rng.next() * 0.35;
-        const child = spawnEnemy(state, enemy.type, { x: enemy.x + Math.cos(angle) * enemy.radius, y: enemy.y + Math.sin(angle) * enemy.radius }, { splitChild: true });
-        if (!child) continue;
-        child.maxHp *= cfg.hpMultiplier;
-        child.hp = child.maxHp;
-        child.damage *= cfg.damageMultiplier;
-        child.reward = Math.max(1, Math.round(child.reward * cfg.rewardMultiplier));
-        child.radius *= cfg.radiusMultiplier;
-        child.speed *= cfg.speedMultiplier;
+        spawnEnemy(state, enemy.type, { x: enemy.x + Math.cos(angle) * enemy.radius, y: enemy.y + Math.sin(angle) * enemy.radius }, { splitChild: true });
       }
       state.events.push({ type: "eliteSplit", x: enemy.x, y: enemy.y, count: cfg.count });
     }
@@ -1317,12 +1373,12 @@ export function useSkill(state, key, options = {}) {
     const absorbed = new Set(targets);
     const value = targets.reduce((sum, orb) => sum + Math.max(1, Math.round(orb.value * incomeMultiplier)), 0);
     skill.trails = targets.map((orb) => ({ x: orb.renderX ?? orb.x, y: orb.renderY ?? orb.y }));
-    skill.collected = targets.length;
+    skill.collected = targets.reduce((sum, orb) => sum + (orb.pileCount ?? 1), 0);
     skill.value = value;
     skill.active = config.activeDuration;
     state.coins += value;
     state.coinOrbs = state.coinOrbs.filter((orb) => !absorbed.has(orb));
-    state.events.push({ type: "coinVacuum", count: targets.length, value });
+    state.events.push({ type: "coinVacuum", count: skill.collected, value });
   }
   skill.cooldown = config.cooldown;
   state.events.push({ type: "skill", key, angle: skill.angle });
@@ -1409,7 +1465,7 @@ export function snapshotState(state) {
     towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), upgrades: { ...state.tower.upgrades }, droneMode: state.tower.droneMode, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId]),
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
-    enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null]),
+    enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1]),
     hostileProjectiles: state.hostileProjectiles.map((projectile) => [projectile.kind, Number(projectile.x.toFixed(2)), Number(projectile.y.toFixed(2)), Number(projectile.life.toFixed(2))]),
     summonRifts: state.summonRifts.map((rift) => [rift.enemyType, Number(rift.x.toFixed(2)), Number(rift.y.toFixed(2)), Number(rift.life.toFixed(2))]),
     kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over

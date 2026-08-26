@@ -89,6 +89,34 @@ if (previewMode === "boss") {
   state.wave.nextAt = 450;
   state.time = 404.65;
 }
+if (previewMode === "performance") {
+  state.threat = 20;
+  state.phase = "night";
+  state.time = 855;
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  const types = ["wisp", "runner", "crawler", "brute", "sentinel", "hexer", "rammer"];
+  for (let index = 0; index < 420; index += 1) {
+    const angle = index * Math.PI * 2 / 420;
+    const radius = 245 + index % 5 * 22;
+    spawnEnemy(state, types[index % types.length], {
+      x: GAME_CONFIG.arena.centerX + Math.cos(angle) * radius,
+      y: GAME_CONFIG.arena.centerY + Math.sin(angle) * radius * 0.72
+    });
+  }
+  for (let index = 0; index < GAME_CONFIG.coins.maxOrbs; index += 1) {
+    const angle = index * Math.PI * 2 / GAME_CONFIG.coins.maxOrbs;
+    const pileCount = 1 + index % 6;
+    state.coinOrbs.push({
+      x: GAME_CONFIG.arena.centerX + Math.cos(angle) * (165 + index % 3 * 18),
+      y: GAME_CONFIG.arena.centerY + Math.sin(angle) * (125 + index % 3 * 14),
+      renderX: GAME_CONFIG.arena.centerX + Math.cos(angle) * (165 + index % 3 * 18),
+      renderY: GAME_CONFIG.arena.centerY + Math.sin(angle) * (125 + index % 3 * 14),
+      value: pileCount * 9, pileCount, age: index % 4, collectAge: 0, collector: null, droneIndex: 0
+    });
+  }
+  state.paused = true;
+}
 if (previewMode === "tech") {
   state.threat = 9;
   state.phase = "day";

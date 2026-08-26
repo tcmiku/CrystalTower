@@ -79,7 +79,7 @@ export const GAME_CONFIG = Object.freeze({
     fire: { branch: "element", costs: [420], maxLevel: 1, threat: [6], towerLevel: 2, requires: { damage: 4 } },
     lightning: { branch: "element", costs: [760], maxLevel: 1, threat: [8], towerLevel: 3, requires: { rate: 3 } }
   },
-  coins: { clickRadius: 24, maxOrbs: 240, collectDuration: 0.42, lifetime: 10, blinkStart: 7, droneInterval: 1.25, droneOrbitRadius: 148, towerInterval: 5 },
+  coins: { clickRadius: 24, maxOrbs: 80, collectDuration: 0.42, lifetime: 10, blinkStart: 7, droneInterval: 1.25, droneOrbitRadius: 148, towerInterval: 5 },
   score: {
     enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, boss: 5000, colossus: 20000 },
     eliteMultiplier: 4,
@@ -112,7 +112,7 @@ export const GAME_CONFIG = Object.freeze({
     anchor: { hp: 115, speed: 0, damage: 0, reward: 0, radius: 17 }
   },
   research: { bonusPerLevel: 0.05, maxLevel: 10 },
-  combat: { enemyAttackInterval: 0.7, maxEnemies: 420 }
+  combat: { enemyAttackInterval: 0.7, maxEnemies: 420, normalEnemyBudget: 240, crowdRadiusPerDoubling: 0.14, crowdMaxRadiusMultiplier: 1.55 }
 });
 
 export const TECH_ORDER = ["damage", "rate", "ascend", "saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
