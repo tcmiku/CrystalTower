@@ -69,7 +69,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     colossusEncounter: { spawned: false, defeated: false },
     sovereignEncounter: { spawned: false, defeated: false },
     endlessMode: false,
-    threatSeals: { equipped: threatSealModifiers.ids, modifiers: threatSealModifiers },
+    threatSeals: { equipped: threatSealModifiers.ids, modifiers: threatSealModifiers, resourceCarry: { echo: 0, core: 0 } },
     tower: {
       hp: 0,
       shield: 0,
@@ -149,15 +149,15 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
   return state;
 }
 
-export function getDayPhase(threat) {
-  const { dayWaves, nightWaves } = GAME_CONFIG.threat;
-  return ((Math.max(1, threat) - 1) % (dayWaves + nightWaves)) < dayWaves ? "day" : "night";
+export function getDayPhase(threat, nightWaves = GAME_CONFIG.threat.nightWaves) {
+  const { dayWaves } = GAME_CONFIG.threat;
+  const resolvedNightWaves = Math.max(1, Math.floor(Number(nightWaves) || GAME_CONFIG.threat.nightWaves));
+  return ((Math.max(1, threat) - 1) % (dayWaves + resolvedNightWaves)) < dayWaves ? "day" : "night";
 }
 
 function getStateDayPhase(state, threat) {
-  const dayWaves = GAME_CONFIG.threat.dayWaves;
   const nightWaves = state.threatSeals?.modifiers?.nightWaves ?? GAME_CONFIG.threat.nightWaves;
-  return ((Math.max(1, threat) - 1) % (dayWaves + nightWaves)) < dayWaves ? "day" : "night";
+  return getDayPhase(threat, nightWaves);
 }
 
 export function getTowerPosition(state) {
@@ -514,7 +514,7 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
     spawnBossAnchors(state, enemy);
     state.events.push({ type: "bossSpawn", resistance: enemy.resistance });
   }
-  if (type === "colossus") state.events.push({ type: "colossusSpawn", enemyId: enemy.id, affix: enemy.colossusAffix, x: enemy.x, y: enemy.y });
+  if (type === "colossus") state.events.push({ type: "colossusSpawn", enemyId: enemy.id, affix: enemy.colossusAffix, threat: state.threat, x: enemy.x, y: enemy.y });
   if (type === "sovereign") state.events.push({ type: "sovereignSpawn", enemyId: enemy.id, x: enemy.x, y: enemy.y, duration: GAME_CONFIG.sovereign.entryDuration });
   if (elite) state.events.push({ type: "eliteSpawn", enemyType: type, affix: enemy.affix, x: enemy.x, y: enemy.y });
   return enemy;
@@ -1024,7 +1024,11 @@ function updateEmberZones(state, dt) {
 export function spawnPermanentResourceDrop(state, resourceType, value = 1, x = GAME_CONFIG.arena.centerX, y = GAME_CONFIG.arena.centerY, metadata = {}) {
   if (resourceType !== "echo" && resourceType !== "core") return null;
   if (value <= 0) return null;
-  const dropValue = Math.max(1, Math.ceil(value * (state.threatSeals?.modifiers?.resourceMultiplier ?? 1)));
+  const multiplier = state.threatSeals?.modifiers?.resourceMultiplier ?? 1;
+  const resourceCarry = state.threatSeals?.resourceCarry ?? (state.threatSeals.resourceCarry = { echo: 0, core: 0 });
+  const scaledValue = value * multiplier + (Number(resourceCarry[resourceType]) || 0);
+  const dropValue = Math.max(1, Math.floor(scaledValue + 1e-9));
+  resourceCarry[resourceType] = Math.max(0, scaledValue - dropValue);
   if (state.resourceDrops.length >= GAME_CONFIG.permanentResources.maxDrops) {
     const target = state.resourceDrops
       .filter((drop) => drop.resourceType === resourceType)
@@ -1219,9 +1223,13 @@ function resolveDeaths(state) {
     if (enemy.elite && !state.endlessMode) {
       spawnPermanentResourceDrop(state, "echo", GAME_CONFIG.permanentResources.eliteEcho, enemy.x - 10, enemy.y, { source: "elite" });
       if (enemy.waveElite) offerRelicChoice(state, "eliteWave");
-      else if ((state.threatSeals?.modifiers?.relicChanceBonus ?? 0) > 0 && state.rng.next() < state.threatSeals.modifiers.relicChanceBonus) {
-        offerRelicChoice(state, "sealElite");
-        state.events.push({ type: "sealRelicDrop", x: enemy.x, y: enemy.y });
+      const relicChanceBonus = state.threatSeals?.modifiers?.relicChanceBonus ?? 0;
+      if (relicChanceBonus > 0 && state.rng.next() < relicChanceBonus) {
+        const queuedBefore = state.relics.rewardQueue.length;
+        const offered = offerRelicChoice(state, "sealElite");
+        if (offered || state.relics.rewardQueue.length > queuedBefore) {
+          state.events.push({ type: "sealRelicDrop", x: enemy.x, y: enemy.y });
+        }
       }
     }
     if (isBossEnemy(enemy)) {
@@ -2557,6 +2565,7 @@ export function calculateRunScore(state) {
 }
 
 export function calculateAchievementProgress(state) {
+  if (!state.threatSeals?.equipped?.length) return 0;
   const base = Math.max(0, state.stats.kills + state.stats.bossKills * 25);
   return Math.round(base * (state.threatSeals?.modifiers?.achievementMultiplier ?? 1));
 }
@@ -2643,7 +2652,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 
 export function snapshotState(state) {
   return {
-    time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped],
+    time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry },
     towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3))]),
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getTechStatus, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { applyElementalHit, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG } from "../src/config.js";
 
 test("基础塔属性符合策划", () => {
@@ -2005,4 +2005,104 @@ test("棱光替身在诱饵爆炸后为晶塔生成护盾", () => {
   updateGame(state, 1 / 60);
   assert.ok(state.tower.shield > 0);
   assert.ok(state.events.some((event) => event.type === "relicDecoyWard"));
+});
+
+test("威胁封印叠加公共收益，并只在装备时推进封印成就", () => {
+  const modifiers = getThreatSealModifiers(["longNight", "severedSupply", "frenzy", "colossus", "flawless", "unknown", "frenzy"]);
+  assert.deepEqual(modifiers.ids, ["longNight", "severedSupply", "frenzy", "colossus", "flawless"]);
+  assert.equal(modifiers.resourceMultiplier, 1.67);
+  assert.equal(modifiers.scoreMultiplier, 1.76);
+  assert.equal(modifiers.relicChanceBonus, 0.33);
+  assert.equal(modifiers.achievementMultiplier, 2.1);
+
+  const equipped = createGameState(9701, undefined, undefined, undefined, undefined, ["longNight", "frenzy"]);
+  equipped.stats.kills = 40;
+  equipped.stats.bossKills = 2;
+  assert.equal(calculateAchievementProgress(equipped), Math.round((40 + 50) * 1.4));
+
+  const plain = createGameState(9702);
+  plain.stats.kills = 40;
+  plain.stats.bossKills = 2;
+  assert.equal(calculateAchievementProgress(plain), 0);
+});
+
+test("长夜、狂潮与断供封印实际改写昼夜、怪潮、遗物和金币规则", () => {
+  assert.equal(getDayPhase(5, 3), "night");
+  assert.equal(getDayPhase(6, 3), "day");
+
+  const longNight = createGameState(9703, undefined, undefined, undefined, undefined, ["longNight"]);
+  longNight.phase = "night";
+  const frozen = spawnEnemy(longNight, "wisp", { x: 650, y: 360 });
+  applyElementalHit(longNight, frozen, "frost", 20);
+  assert.equal(frozen.freezeTimer, GAME_CONFIG.elements.frost.freezeDuration * GAME_CONFIG.threatSeals.longNight.elementMultiplier);
+
+  const frenzy = createGameState(9704, undefined, { ward: true, decoy: true, lunar: true, mirror: true }, 4, undefined, ["frenzy"]);
+  assert.equal(offerRelicChoice(frenzy, "boss"), true);
+  assert.equal(frenzy.relicChoice.choices.length, 4);
+  frenzy.relicChoice = null;
+  frenzy.spawnTimer = 999; frenzy.tower.fireCooldown = 999;
+  frenzy.time = GAME_CONFIG.waves.firstAt - 0.01;
+  updateGame(frenzy, 0.02);
+  const waveStart = frenzy.events.find((event) => event.type === "waveStart");
+  assert.equal(waveStart.count, Math.ceil((GAME_CONFIG.waves.baseCount + frenzy.threat * GAME_CONFIG.waves.countPerThreat) * GAME_CONFIG.threatSeals.frenzy.waveCountMultiplier));
+
+  const severed = createGameState(9705, undefined, undefined, undefined, undefined, ["severedSupply"]);
+  severed.spawnTimer = 999; severed.wave.nextAt = 999; severed.tower.fireCooldown = 999;
+  const target = spawnEnemy(severed, "wisp", { x: 650, y: 360 });
+  damageEnemy(severed, target, target.maxHp * 2, "shot");
+  updateGame(severed, 0.01);
+  assert.equal(severed.coinOrbs[0].value, target.reward * GAME_CONFIG.threatSeals.severedSupply.coinMultiplier);
+  severed.tower.upgrades.drone = 1;
+  severed.tower.droneCooldown = 0;
+  severed.coinOrbs.push({ x: 350, y: 300, renderX: 350, renderY: 300, value: 5, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  updateGame(severed, 1);
+  assert.equal(severed.coinOrbs.every((orb) => !orb.collector || orb.collector !== "drone"), true);
+});
+
+test("封印会给标准怪潮精英排队额外特殊遗物，而不是跳过它", () => {
+  const state = createGameState(9706, undefined, { ward: true, decoy: true, lunar: true, mirror: true }, 4, undefined, ["frenzy"]);
+  state.rng.next = () => 0;
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  const elite = spawnEnemy(state, "wisp", { x: 650, y: 360 }, { elite: true, waveElite: true, waveIndex: 1 });
+  damageEnemy(state, elite, elite.maxHp * 2, "shot");
+  updateGame(state, 0.01);
+  assert.equal(state.relicChoice?.source, "eliteWave");
+  assert.deepEqual(state.relics.rewardQueue, ["sealElite"]);
+  assert.ok(state.events.some((event) => event.type === "sealRelicDrop"));
+  assert.equal(chooseRelic(state, state.relicChoice.choices[0]), true);
+  assert.equal(state.relicChoice?.source, "sealElite");
+});
+
+test("巨兽与无伤封印分别提前首领、补发核心并强化技能代价", () => {
+  const colossusState = createGameState(9707, undefined, undefined, undefined, undefined, ["colossus"]);
+  colossusState.spawnTimer = 999; colossusState.wave.nextAt = 999; colossusState.tower.fireCooldown = 999;
+  colossusState.time = GAME_CONFIG.threat.duration * 11 - 0.01;
+  updateGame(colossusState, 0.02);
+  const colossus = colossusState.enemies.find((enemy) => enemy.type === "colossus");
+  assert.equal(colossusState.threat, GAME_CONFIG.threatSeals.colossus.spawnThreat);
+  assert.ok(colossus);
+  assert.ok(colossusState.events.some((event) => event.type === "colossusSpawn" && event.threat === GAME_CONFIG.threatSeals.colossus.spawnThreat));
+  colossus.spawnShield = 0;
+  damageEnemy(colossusState, colossus, colossus.maxHp * 3, "shot");
+  colossus.phaseBreakInvulnerability = 0;
+  damageEnemy(colossusState, colossus, colossus.maxHp * 3, "shot");
+  updateGame(colossusState, 0.01);
+  assert.ok(colossusState.resourceDrops.some((drop) => drop.source === "emberCore" && drop.value >= GAME_CONFIG.threatSeals.colossus.emberCoreBonus));
+
+  const flawless = createGameState(9708, undefined, undefined, undefined, undefined, ["flawless"]);
+  flawless.tower.hp = 200;
+  assert.equal(useSkill(flawless, "heal"), true);
+  assert.equal(flawless.skills.heal.cooldown, GAME_CONFIG.skills.heal.cooldown * GAME_CONFIG.threatSeals.flawless.healCooldownMultiplier);
+  const target = spawnEnemy(flawless, "brute", { x: 650, y: 360 });
+  target.hp = target.maxHp = 1_000;
+  const hpBefore = target.hp;
+  assert.equal(useSkill(flawless, "starfall", { angle: 0 }), true);
+  assert.equal(target.hp, hpBefore - getTowerStats(flawless).damage * GAME_CONFIG.skills.starfall.damageMultiplier * GAME_CONFIG.threatSeals.flawless.skillDamageMultiplier);
+});
+
+test("永久资源倍率通过余数累计，避免低值掉落被向上取整失衡", () => {
+  const state = createGameState(9709, undefined, undefined, undefined, undefined, ["longNight"]);
+  const drops = Array.from({ length: 7 }, () => spawnPermanentResourceDrop(state, "echo", 2));
+  assert.deepEqual(drops.map((drop) => drop.value), [2, 2, 2, 2, 2, 2, 3]);
+  assert.ok(Math.abs(state.threatSeals.resourceCarry.echo - 0.12) < 1e-9);
 });

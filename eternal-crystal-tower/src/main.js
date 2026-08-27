@@ -107,7 +107,7 @@ const RELIC_SET_META = {
 const THREAT_SEAL_META = {
   longNight: { name: "长夜封印", type: "天象扭曲", risk: "长夜由 2 个威胁阶段延长至 3 个；夜间元素效果 +25%", reward: "资源 +8% · 排名 +8% · 特殊遗物 +3% · 成就 ×1.15", art: 0 },
   severedSupply: { name: "断供封印", type: "后勤封锁", risk: "无人机无法拾取金币；手动拾币与金潮归塔仍可使用", reward: "敌人金币 ×2 · 资源 +12% · 排名 +15% · 成就 ×1.20", art: 1 },
-  frenzy: { name: "狂潮封印", type: "怪潮增殖", risk: "每轮怪潮敌人数量 +30%", reward: "遗物候选 +1 · 特殊遗物 +12% · 排名 +18% · 成就 ×1.25", art: 2 },
+  frenzy: { name: "狂潮封印", type: "怪潮增殖", risk: "每轮怪潮敌人数量 +30%", reward: "高品质遗物候选 +1 · 资源 +15% · 特殊遗物 +12% · 排名 +18% · 成就 ×1.25", art: 2 },
   colossus: { name: "巨兽封印", type: "灾厄召引", risk: "虚环吞星兽由威胁 XV 提前至威胁 XII", reward: "击败后额外掉落余烬核心 · 资源 +20% · 排名 +20% · 成就 ×1.30", art: 3 },
   flawless: { name: "无伤封印", type: "治疗禁约", risk: "晶愈冷却 +65%", reward: "伤害型技能 +30% · 资源 +12% · 排名 +15% · 成就 ×1.20", art: 4 }
 };
@@ -1736,8 +1736,9 @@ function renderRelicChoice() {
     : numericOnly
     ? `栏位缺口 · 数值强化`
     : `模块 ${state.relics.picks} / ${state.relics.slots}${state.relics.lockedChoice ? " · 已锁定 1 项" : ""}`;
-  dom.relicChoiceKeys.textContent = endlessChoice ? "按数字键 1 选择" : "按数字键 1 / 2 / 3 选择";
+  dom.relicChoiceKeys.textContent = endlessChoice ? "按数字键 1 选择" : `按数字键 ${state.relicChoice.choices.map((_, index) => index + 1).join(" / ")} 选择`;
   dom.relicChoiceList.classList.toggle("single-choice", endlessChoice);
+  dom.relicChoiceList.classList.toggle("four-choice", state.relicChoice.choices.length === 4);
   dom.relicChoiceList.replaceChildren();
   state.relicChoice.choices.forEach((id, index) => {
     const meta = RELIC_META[id];
@@ -1835,7 +1836,7 @@ function handleEvents(events) {
     else if (event.type === "ascend") { audio.play("ascend"); renderer.trigger("ascend"); announce(`塔阶苏醒 · ${getTowerStats(state).name}`); }
     else if (event.type === "towerHit") { audio.play("towerHit"); renderer.trigger("towerHit", event.heavy ? 1.7 : 1); }
     else if (event.type === "bossSpawn") { audio.play("boss"); renderer.trigger("bossSpawn"); announce("腐化王冠踏入战场"); }
-    else if (event.type === "colossusSpawn") { audio.play("boss"); renderer.trigger("bossSpawn", 1.5); announce(`威胁 XV · 虚环吞星兽 · ${COLOSSUS_AFFIX_NAMES[event.affix] ?? "未知异变"}`); }
+    else if (event.type === "colossusSpawn") { audio.play("boss"); renderer.trigger("bossSpawn", 1.5); announce(`威胁 ${formatThreat(event.threat ?? state.threat)} · 虚环吞星兽 · ${COLOSSUS_AFFIX_NAMES[event.affix] ?? "未知异变"}`); }
     else if (event.type === "colossusIntent") {
       audio.play("waveWarning"); renderer.trigger("waveWarning");
       announce(`攻击预兆 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知异变"} · ${COLOSSUS_COUNTER_HINTS[event.skill] ?? "准备反制"}`);
@@ -2422,7 +2423,7 @@ document.addEventListener("keydown", (event) => {
   if (tag === "INPUT" || tag === "TEXTAREA") return;
   if (relicChoiceOpen) {
     const index = Number(event.key) - 1;
-    if (index >= 0 && index < 3) selectRunRelic(state.relicChoice.choices[index]);
+    if (index >= 0 && index < (state.relicChoice?.choices.length ?? 0)) selectRunRelic(state.relicChoice.choices[index]);
     return;
   }
   if (firstFailureFlow) {

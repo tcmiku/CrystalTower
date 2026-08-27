@@ -1287,6 +1287,7 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .relic-choice-header > strong { flex:none; padding:10px 14px; border:1px solid rgba(255,220,118,.3); border-radius:12px; color:#ffe38a; font-size:13px; }
 .relic-choice-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:clamp(10px,1.5vw,18px); }
 .relic-choice-list.single-choice { grid-template-columns:minmax(280px,420px); justify-content:center; }
+.relic-choice-list.four-choice { grid-template-columns:repeat(4,minmax(0,1fr)); }
 .relic-card { position:relative; display:flex; min-height:428px; overflow:hidden; padding:0; border:1px solid rgba(141,209,255,.24); border-radius:20px; background:linear-gradient(160deg,rgba(28,35,80,.97),rgba(12,13,43,.98)); color:inherit; text-align:left; cursor:pointer; isolation:isolate; transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease; }
 .relic-card::before { content:""; position:absolute; z-index:1; inset:28% 15% 48%; border-radius:50%; background:var(--relic-glow,rgba(108,224,255,.26)); filter:blur(34px); pointer-events:none; }
 .relic-card:hover,.relic-card:focus-visible { transform:translateY(-7px); border-color:#9eeeff; box-shadow:0 20px 52px rgba(0,0,0,.42),0 0 28px rgba(104,223,255,.12); outline:none; }
@@ -1314,6 +1315,7 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .relic-choice-header { align-items:flex-start; margin-bottom:14px; }
   .relic-choice-header p { display:none; }
   .relic-choice-list { grid-template-columns:1fr; }
+  .relic-choice-list.four-choice { grid-template-columns:1fr; }
   .relic-card { min-height:128px; }
   .relic-card-art { width:88px; height:100%; }
   .relic-card-art::after { background:linear-gradient(90deg,transparent 48%,rgba(12,13,43,.95) 100%); }
@@ -1542,11 +1544,11 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .seal-reward-summary small { color:#9890b8; font:800 9px ui-monospace,monospace; letter-spacing:.1em; }
 .seal-reward-summary b { margin-top:4px; color:#f1c6ff; font:900 16px ui-monospace,monospace; }
 .threat-seal-list { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }
-.threat-seal-card { min-width:0; min-height:310px; position:relative; display:flex; flex-direction:column; align-items:stretch; padding:0 12px 13px; overflow:hidden; border:1px solid rgba(211,130,255,.2); border-radius:15px; color:#f5efff; background:linear-gradient(170deg,rgba(43,18,72,.82),rgba(8,8,28,.96)); text-align:left; cursor:pointer; transition:.2s ease; }
+.threat-seal-card { min-width:0; min-height:426px; position:relative; display:flex; flex-direction:column; align-items:stretch; padding:0 12px 13px; overflow:hidden; border:1px solid rgba(211,130,255,.2); border-radius:15px; color:#f5efff; background:linear-gradient(170deg,rgba(43,18,72,.82),rgba(8,8,28,.96)); text-align:left; cursor:pointer; transition:.2s ease; }
 .threat-seal-card:hover:not(:disabled) { transform:translateY(-3px); border-color:rgba(231,157,255,.7); box-shadow:0 12px 34px rgba(80,18,119,.3); }
 .threat-seal-card:disabled { filter:saturate(.25); opacity:.52; cursor:not-allowed; }
 .threat-seal-card.equipped { border-color:rgba(255,151,109,.8); background:linear-gradient(165deg,rgba(102,30,66,.82),rgba(24,11,44,.98)); box-shadow:inset 0 0 35px rgba(255,75,91,.08),0 0 24px rgba(200,68,255,.11); }
-.threat-seal-art { --seal-index:0; display:block; flex:none; width:100%; aspect-ratio:1; background-image:url('./assets/generated/threat-seals-atlas-ai.png'); background-size:500% auto; background-position:calc(var(--seal-index) * 25%) center; background-repeat:no-repeat; filter:drop-shadow(0 7px 12px rgba(0,0,0,.55)); }
+.threat-seal-art { --seal-index:0; display:block; flex:none; width:clamp(88px,10vw,142px); max-width:100%; margin:0 auto; aspect-ratio:2073 / 3790; background-image:url('./assets/generated/threat-seals-atlas-ai.png'); background-size:500% auto; background-position:calc(var(--seal-index) * 25%) center; background-repeat:no-repeat; filter:drop-shadow(0 7px 12px rgba(0,0,0,.55)); }
 .threat-seal-card > span { display:block; min-width:0; }
 .threat-seal-card small,.threat-seal-card strong,.threat-seal-card p,.threat-seal-card b { display:block; }
 .threat-seal-card small { color:#c58ee8; font:800 9px ui-monospace,monospace; letter-spacing:.11em; }
@@ -1560,16 +1562,18 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .seal-panel-footer b { color:#ffdd9b; font:900 11px ui-monospace,monospace; }
 .threat-seal-hud { position:absolute; z-index:7; top:54px; left:10px; display:flex; flex-wrap:wrap; gap:5px; max-width:52%; pointer-events:none; }
 .seal-hud-chip { height:31px; display:flex; align-items:center; gap:4px; padding:2px 8px 2px 3px; border:1px solid rgba(222,135,255,.32); border-radius:999px; background:rgba(18,7,38,.82); box-shadow:0 5px 14px rgba(0,0,0,.28); }
-.seal-hud-chip .threat-seal-art { width:26px; height:26px; }
+.seal-hud-chip .threat-seal-art { width:14px; height:26px; margin:0; }
 .seal-hud-chip b { color:#ecc6ff; font-size:9px; }
 .score-multiplier { margin-left:8px; color:#e4a7ff; font:900 10px ui-monospace,monospace; }
 
 @media (max-width:1180px) {
+  .relic-choice-list.four-choice { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .threat-seal-list { grid-template-columns:repeat(3,minmax(0,1fr)); }
-  .threat-seal-card { min-height:290px; }
+  .threat-seal-card { min-height:410px; }
   .base-room.seal-room { left:2%; top:5%; }
 }
 @media (max-width:760px) {
+  .relic-choice-list.four-choice { grid-template-columns:1fr; }
   .seal-reward-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .threat-seal-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .threat-seal-hud { max-width:70%; }
@@ -1578,6 +1582,7 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 @media (max-width:500px) {
   .threat-seal-list { grid-template-columns:1fr; }
   .threat-seal-card { min-height:0; display:grid; grid-template-columns:108px minmax(0,1fr); gap:8px; padding:8px 11px; }
+  .threat-seal-card > .threat-seal-art { width:96px; margin:0; }
   .threat-seal-card > em { grid-column:2; }
   .threat-seal-hud { display:none; }
 }
