@@ -315,3 +315,19 @@ Constraints: genuine alpha transparency; no backdrop, checkerboard, ground, cast
 ```text
 Create a production-ready transparent-background 2D game boss sprite for a dark neon sci-fi fantasy tower-defense / survivor game. Subject: an apocalyptic super-giant half-body demon called “Rift Sovereign”, shown from the upper torso upward because its body is unimaginably huge. It is fixed at the TOP of the battlefield and looms downward toward the player. Massive broad silhouette occupying most of a wide combat screen, colossal horned skull-like head, layered obsidian armor fused with pale crystal ribs, four glowing crimson-violet core scars across the chest suggesting four health bars, enormous clawed forearms braced at both sides, several spatial rift apertures opening behind shoulders and palms for summoning hordes. Strong oppressive scale and intimidating presence; readable silhouette at game scale; asymmetrical battle damage; high-detail painterly sprite with sharp hard-surface accents, violet-black shadows, ember-red highlights, cyan edge glints matching a neon UI. Front-facing with a slight top-down battlefield perspective, designed to rise vertically into view from above. Show only the monster, no scenery, no ground, no frame, no UI, no health bar, no text, no logos. Fully transparent alpha background, clean isolated edges, generous transparent padding around horns and hands. Landscape-friendly composition, centered, 3:2 aspect feel, game asset sprite sheet quality but a single character only.
 ```
+
+## 中枢能源修复计划横幅
+
+生成方式：OpenAI 内置生图模型，`stylized-concept`。
+
+```text
+16:7 暗黑科幻奇幻游戏章节面板背景：地下晶体堡垒中的悬浮青紫色多面中枢能源核心，四个放射状能源插槽中第一枚已点亮并连通、其余三枚保持休眠；黑曜金属、透明晶体和蚀刻导管材质，对称庄严构图，左右保留深色 HTML 卡片安全区。无人物、文字、字母、徽标、按钮、边框或水印。
+```
+
+## 无尽专属遗物“无界增幅核”
+
+生成方式：OpenAI 内置生图模型，`stylized-concept`。
+
+```text
+Create a premium dark sci-fi fantasy game relic card illustration, portrait orientation. A single luminous cyan-violet faceted crystal power core floats at the center, encircled by multiple repeating gold-white upward arrow rings that recede toward an infinite vanishing point, clearly conveying endlessly stacking attack power and attack speed. Obsidian mechanical supports, etched energy conduits, deep midnight navy background, restrained violet haze, crisp silhouette and intense central glow, polished AAA game concept art, designed to remain readable when cropped into a relic card. No text, letters, numbers, logo, watermark, character, enemy, UI, card border or frame.
+```

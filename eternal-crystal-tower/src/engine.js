@@ -24,9 +24,10 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     over: false,
     paused: false,
     spawnTimer: 0.65,
-    wave: { index: 0, nextAt: GAME_CONFIG.waves.firstAt, warningStarted: false, active: false, remaining: 0, spawnTimer: 0, direction: null, elitePending: false },
+    wave: { index: 0, nextAt: GAME_CONFIG.waves.firstAt, warningStarted: false, active: false, remaining: 0, spawnTimer: 0, direction: null, elitePending: false, pendingClear: [] },
     colossusEncounter: { spawned: false, defeated: false },
     sovereignEncounter: { spawned: false, defeated: false },
+    endlessMode: false,
     tower: {
       hp: 0,
       shield: 0,
@@ -87,6 +88,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       picks: 0,
       damageBonus: 0,
       rateBonus: 0,
+      endlessStacks: 0,
       mirrorShots: 0,
       wardKills: 0,
       phaseBuff: 0,
@@ -137,9 +139,10 @@ export function getTowerStats(state) {
   const rawRate = cfg.tower.fireRate * (cfg.upgrades.rate.multiplier ** tower.upgrades.rate) * cfg.upgrades.ascend.rate[level];
   const relicRate = (1 + (state.relics?.rateBonus ?? 0)) * ((state.relics?.phaseBuff ?? 0) > 0 ? cfg.relics.lunar.transitionRateMultiplier : 1);
   const suppression = (tower.fireRateSuppression ?? 0) > 0 ? cfg.sovereign.rangedSlowMultiplier : 1;
+  const relicRateCap = state.endlessMode ? Infinity : cfg.upgrades.rate.cap * 1.5;
   return {
     damage,
-    fireRate: Math.min(cfg.upgrades.rate.cap * 1.5, Math.min(cfg.upgrades.rate.cap, rawRate) * relicRate) * suppression,
+    fireRate: Math.min(relicRateCap, Math.min(cfg.upgrades.rate.cap, rawRate) * relicRate) * suppression,
     range: cfg.tower.range + cfg.upgrades.ascend.rangePerLevel * level,
     maxHp: (cfg.tower.maxHp + cfg.upgrades.ascend.hpPerLevel * level) * permanentHealth,
     projectileCount: level >= 3 ? 3 : level >= 2 ? 2 : 1,
@@ -310,6 +313,7 @@ function mergeCrowdEnemy(state, incoming) {
   let bestDistance = Infinity;
   for (const enemy of state.enemies) {
     if (!isCrowdUnit(enemy)) continue;
+    if ((enemy.waveIndex ?? null) !== (incoming.waveIndex ?? null)) continue;
     const typePenalty = enemy.type === incoming.type ? 0 : 1;
     const dx = enemy.x - incoming.x;
     const dy = enemy.y - incoming.y;
@@ -488,6 +492,7 @@ function spawnBossAnchors(state, boss) {
 
 const MECHANIC_RELIC_IDS = [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)];
 const NUMERIC_RELIC_IDS = ["boost:damage", "boost:rate", "boost:hybrid"];
+const ENDLESS_RELIC_ID = "boost:endless";
 
 function shuffledRelicIds(state, values) {
   const result = [...values];
@@ -540,7 +545,7 @@ export function offerRelicChoice(state, source = "eliteWave") {
     state.relics.rewardQueue.push(source);
     return false;
   }
-  const choices = buildRelicChoices(state);
+  const choices = source === "endlessWave" ? [ENDLESS_RELIC_ID] : buildRelicChoices(state);
   if (!choices.length || (state.relics.picks >= state.relics.slots && !choices.some((id) => id.startsWith("boost:")))) return false;
   state.relicChoice = { source, choices };
   state.events.push({ type: "relicChoice", source, choices: [...state.relicChoice.choices], picks: state.relics.picks });
@@ -558,7 +563,12 @@ export function chooseRelic(state, id) {
   if (!state.relicChoice || !state.relicChoice.choices.includes(id)) return false;
   if (id.startsWith("boost:")) {
     const cfg = GAME_CONFIG.relics.numeric;
-    if (id === "boost:damage") state.relics.damageBonus += cfg.damage;
+    if (id === ENDLESS_RELIC_ID) {
+      const endless = GAME_CONFIG.relics.endless;
+      state.relics.damageBonus += endless.damagePerStack;
+      state.relics.rateBonus += endless.ratePerStack;
+      state.relics.endlessStacks += 1;
+    } else if (id === "boost:damage") state.relics.damageBonus += cfg.damage;
     else if (id === "boost:rate") state.relics.rateBonus += cfg.rate;
     else {
       state.relics.damageBonus += cfg.hybridDamage;
@@ -1109,25 +1119,25 @@ function resolveDeaths(state) {
         if (state.tower.shield > before) state.events.push({ type: "relicWard", value: state.tower.shield - before });
       }
     }
-    if (enemy.elite) {
+    if (enemy.elite && !state.endlessMode) {
       spawnPermanentResourceDrop(state, "echo", GAME_CONFIG.permanentResources.eliteEcho, enemy.x - 10, enemy.y, { source: "elite" });
       if (enemy.waveElite) offerRelicChoice(state, "eliteWave");
     }
     if (isBossEnemy(enemy)) {
       state.stats.bossKills += 1;
       const coreValue = enemy.type === "sovereign" ? GAME_CONFIG.permanentResources.sovereignCore : enemy.type === "colossus" ? GAME_CONFIG.permanentResources.colossusCore : GAME_CONFIG.permanentResources.bossCore;
-      spawnPermanentResourceDrop(state, "core", coreValue, enemy.x, enemy.y, { source: enemy.type });
+      if (!state.endlessMode) spawnPermanentResourceDrop(state, "core", coreValue, enemy.x, enemy.y, { source: enemy.type });
       if (enemy.type === "boss") {
         for (const anchor of bossAnchors(state, enemy)) anchor.deadHandled = true;
         state.events.push({ type: "bossDefeated", threat: state.threat, x: enemy.x, y: enemy.y });
-        offerRelicChoice(state, "boss");
+        if (!state.endlessMode) offerRelicChoice(state, "boss");
       }
       if (enemy.type === "colossus") {
         state.colossusEncounter.defeated = true;
         state.hostileProjectiles.length = 0;
         state.summonRifts = state.summonRifts.filter((rift) => rift.bossId !== enemy.id);
         state.events.push({ type: "colossusDefeated", x: enemy.x, y: enemy.y });
-        offerRelicChoice(state, "colossusDefeat");
+        if (!state.endlessMode) offerRelicChoice(state, "colossusDefeat");
       }
       if (enemy.type === "sovereign") {
         state.sovereignEncounter.defeated = true;
@@ -1135,7 +1145,8 @@ function resolveDeaths(state) {
         state.summonRifts = state.summonRifts.filter((rift) => rift.bossId !== enemy.id);
         state.tower.fireRateSuppression = 0;
         state.events.push({ type: "sovereignDefeated", x: enemy.x, y: enemy.y });
-        offerRelicChoice(state, "colossusDefeat");
+        // The chapter-ending sovereign grants campaign energy through the
+        // persistent progression layer, never a transient relic choice.
       }
     }
     addCoinDrop(state, enemy);
@@ -1144,7 +1155,7 @@ function resolveDeaths(state) {
       const cfg = GAME_CONFIG.eliteAffixes.split;
       for (let index = 0; index < cfg.count; index += 1) {
         const angle = index * Math.PI * 2 / cfg.count + state.rng.next() * 0.35;
-        spawnEnemy(state, enemy.type, { x: enemy.x + Math.cos(angle) * enemy.radius, y: enemy.y + Math.sin(angle) * enemy.radius }, { splitChild: true });
+        spawnEnemy(state, enemy.type, { x: enemy.x + Math.cos(angle) * enemy.radius, y: enemy.y + Math.sin(angle) * enemy.radius }, { splitChild: true, waveIndex: enemy.waveIndex });
       }
       state.events.push({ type: "eliteSplit", x: enemy.x, y: enemy.y, count: cfg.count });
     }
@@ -1223,7 +1234,23 @@ function updateWave(state, dt) {
   if (wave.remaining <= 0) {
     wave.active = false;
     wave.direction = null;
+    if (!wave.pendingClear.includes(wave.index)) wave.pendingClear.push(wave.index);
     state.events.push({ type: "waveEnd", index: wave.index });
+  }
+}
+
+function resolveWaveClears(state) {
+  const pending = state.wave.pendingClear;
+  if (!pending.length) return;
+  for (let index = 0; index < pending.length;) {
+    const waveIndex = pending[index];
+    if (state.enemies.some((enemy) => enemy.hp > 0 && enemy.waveIndex === waveIndex)) {
+      index += 1;
+      continue;
+    }
+    pending.splice(index, 1);
+    state.events.push({ type: "waveCleared", index: waveIndex, endless: state.endlessMode });
+    if (state.endlessMode) offerRelicChoice(state, "endlessWave");
   }
 }
 
@@ -2445,6 +2472,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
     updateEmberZones(state, dt);
   }
   resolveDeaths(state);
+  resolveWaveClears(state);
   if (!entryCombatLocked) updateSummonRifts(state, dt);
   updateCoinOrbs(state, dt);
   updatePermanentResourceDrops(state, dt);
@@ -2468,9 +2496,9 @@ export function snapshotState(state) {
     hostileProjectiles: state.hostileProjectiles.map((projectile) => [projectile.kind, Number(projectile.x.toFixed(2)), Number(projectile.y.toFixed(2)), Number(projectile.life.toFixed(2))]),
     summonRifts: state.summonRifts.map((rift) => [rift.enemyType, Number(rift.x.toFixed(2)), Number(rift.y.toFixed(2)), Number(rift.life.toFixed(2)), rift.attackable, rift.targetId, Boolean(rift.elite)]),
     resourceDrops: state.resourceDrops.map((drop) => [drop.resourceType, drop.value, Number(drop.x.toFixed(2)), Number(drop.y.toFixed(2)), drop.source, drop.threatLevel]),
-    relics: { owned: { ...state.relics.owned }, available: [...state.relics.available], disabledRelic: state.relics.disabledRelic, discovered: { ...state.relics.discovered }, registeredSets: { ...state.relics.registeredSets }, lockedChoice: state.relics.lockedChoice, slots: state.relics.slots, picks: state.relics.picks, damageBonus: Number(state.relics.damageBonus.toFixed(3)), rateBonus: Number(state.relics.rateBonus.toFixed(3)), mirrorShots: state.relics.mirrorShots, wardKills: state.relics.wardKills, phaseBuff: Number(state.relics.phaseBuff.toFixed(3)), choice: state.relicChoice?.choices ?? null },
+    relics: { owned: { ...state.relics.owned }, available: [...state.relics.available], disabledRelic: state.relics.disabledRelic, discovered: { ...state.relics.discovered }, registeredSets: { ...state.relics.registeredSets }, lockedChoice: state.relics.lockedChoice, slots: state.relics.slots, picks: state.relics.picks, damageBonus: Number(state.relics.damageBonus.toFixed(3)), rateBonus: Number(state.relics.rateBonus.toFixed(3)), endlessStacks: state.relics.endlessStacks, mirrorShots: state.relics.mirrorShots, wardKills: state.relics.wardKills, phaseBuff: Number(state.relics.phaseBuff.toFixed(3)), choice: state.relicChoice?.choices ?? null },
     decoys: state.decoys.map((decoy) => [Number(decoy.x.toFixed(2)), Number(decoy.y.toFixed(2)), Number(decoy.hp.toFixed(2)), decoy.waveIndex]),
     emberZones: state.emberZones.map((zone) => [Number(zone.x.toFixed(2)), Number(zone.y.toFixed(2)), Number(zone.life.toFixed(2)), Boolean(zone.frostfire)]),
-    kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, permanentResources: [state.stats.echoShards, state.stats.coreFragments], wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over
+    kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, permanentResources: [state.stats.echoShards, state.stats.coreFragments], wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending, [...state.wave.pendingClear]], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over
   };
 }

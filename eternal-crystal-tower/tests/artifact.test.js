@@ -17,7 +17,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
     "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
     "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
     "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
-    "openBaseCampButton", "baseRecoveryModal", "recoveryContinueButton", "baseCampModal", "closeBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseCampEchoShardText", "baseCampCoreFragmentText", "researchBayRoom", "relicResearchPanel", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver"
+    "openBaseCampButton", "baseRecoveryModal", "recoveryContinueButton", "baseCampModal", "closeBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseCampEchoShardText", "baseCampCoreFragmentText", "campaignRoom", "campaignPanel", "chapterNodeList", "chapterCompleteModal", "finishExpeditionButton", "startEndlessButton", "endEndlessButton", "researchBayRoom", "relicResearchPanel", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver"
   ];
   for (const id of requiredIds) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.doesNotMatch(html, /(?:src|href)=["']https?:\/\//i);
@@ -52,6 +52,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(styles, /\.relic-run-chip:hover[\s\S]*\.relic-run-tooltip/);
   assert.match(styles, /\.relic-run-chip[\s\S]*pointer-events:\s*auto/);
   assert.match(styles, /leaderboard-podium[\s\S]*leaderboard-podium-ai\.png/);
+  assert.match(styles, /\.base-room\.research-room\.active \{ left:38%; right:auto;/);
   assert.match(styles, /\.status span,[\s\S]*\.leaderboard-list li \{ font-size: 10px; \}/);
   assert.match(styles, /update-warning/);
   assert.match(styles, /\.podium-message/);
@@ -152,9 +153,9 @@ test("设计、构建与入口产物齐全", async () => {
     "assets/generated/effect-frost-hex-ai.png",
     "assets/generated/effect-fire-ember-ring-ai.png",
     "assets/generated/effect-lightning-chain-ai.png",
-    "assets/generated/relic-decoy-ai.png", "assets/generated/relic-lunar-ai.png", "assets/generated/relic-mirror-ai.png", "assets/generated/relic-ember-ai.png", "assets/generated/relic-boost-ai.png",
+    "assets/generated/relic-decoy-ai.png", "assets/generated/relic-lunar-ai.png", "assets/generated/relic-mirror-ai.png", "assets/generated/relic-ember-ai.png", "assets/generated/relic-boost-ai.png", "assets/generated/relic-endless-amplifier-ai.png",
     "assets/generated/leaderboard-podium-ai.png",
-    "assets/generated/resource-echo-shard-ai.png", "assets/generated/resource-core-fragment-ai.png", "assets/generated/basecamp-core-room-ai.png",
+    "assets/generated/resource-echo-shard-ai.png", "assets/generated/resource-core-fragment-ai.png", "assets/generated/basecamp-core-room-ai.png", "assets/generated/campaign-core-nexus-ai.png",
     "assets/generated/ASSET_MANIFEST.md", "assets/generated/PROMPTS.md"
   ];
   await Promise.all(paths.map((path) => access(new URL(`../${path}`, import.meta.url))));

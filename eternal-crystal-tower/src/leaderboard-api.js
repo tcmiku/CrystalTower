@@ -6,8 +6,8 @@ async function readJson(response) {
   return data;
 }
 
-export async function fetchLeaderboard() {
-  const response = await fetch(ENDPOINT, { headers: { Accept: "application/json" } });
+export async function fetchLeaderboard(chapter = 1) {
+  const response = await fetch(`${ENDPOINT}?chapter=${encodeURIComponent(chapter)}`, { headers: { Accept: "application/json" } });
   const data = await readJson(response);
   return Array.isArray(data?.entries) ? data.entries : [];
 }

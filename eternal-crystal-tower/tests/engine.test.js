@@ -1338,6 +1338,22 @@ test("精英只掉遗响碎片而核心残片只由首领掉落", () => {
   assert.equal(state.resourceDrops.some((drop) => drop.resourceType === "core" && drop.source === "specialElite"), false);
   assert.ok(state.resourceDrops.some((drop) => drop.resourceType === "core" && drop.source === "boss"));
 });
+test("无尽挑战中的精英和首领只计分且不再掉专属资源或遗物", () => {
+  const state = createGameState(9103);
+  state.endlessMode = true;
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.fireCooldown = 999;
+  const elite = spawnEnemy(state, "sentinel", { x: 300, y: 300 }, { elite: true, waveElite: true, affix: "shield" });
+  const boss = spawnEnemy(state, "boss", { x: 700, y: 300 });
+  elite.hp = 0;
+  boss.hp = 0;
+  updateGame(state, GAME_CONFIG.fixedStep);
+  assert.equal(state.resourceDrops.length, 0);
+  assert.equal(state.relicChoice, null);
+  assert.ok(state.stats.score > 0);
+  assert.ok(state.stats.kills >= 2);
+});
 test("炮击预兆锚点被摧毁后会削减炮弹预算", () => {
   const state = createGameState(9301);
   state.threat = 15; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
@@ -1431,6 +1447,36 @@ test("栏位多于已解锁遗物时才出现低幅数值强化", () => {
   const filledPool = createGameState(94012, undefined, { ward: true, decoy: true }, 2);
   assert.equal(offerRelicChoice(filledPool), true);
   assert.equal(filledPool.relicChoice.choices.some((id) => id.startsWith("boost:")), false);
+});
+
+test("无尽怪潮彻底肃清后获得不占栏位且可无限叠加的无界增幅核", () => {
+  const state = createGameState(94013);
+  state.endlessMode = true;
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.wave.pendingClear = [7];
+  state.tower.fireCooldown = 999;
+  const finalEnemy = spawnEnemy(state, "wisp", { x: 700, y: 360 }, { waveIndex: 7 });
+
+  updateGame(state, 0.01);
+  assert.equal(state.relicChoice, null);
+  damageEnemy(state, finalEnemy, finalEnemy.maxHp * 2, "shot");
+  updateGame(state, 0.01);
+  assert.deepEqual(state.relicChoice, { source: "endlessWave", choices: ["boost:endless"] });
+  assert.ok(state.events.some((event) => event.type === "waveCleared" && event.index === 7 && event.endless));
+
+  const slotsBefore = state.relics.slots;
+  const picksBefore = state.relics.picks;
+  assert.equal(chooseRelic(state, "boost:endless"), true);
+  assert.deepEqual([state.relics.slots, state.relics.picks, state.relics.endlessStacks], [slotsBefore, picksBefore, 1]);
+  assert.equal(state.relics.damageBonus, GAME_CONFIG.relics.endless.damagePerStack);
+  assert.equal(state.relics.rateBonus, GAME_CONFIG.relics.endless.ratePerStack);
+
+  assert.equal(offerRelicChoice(state, "endlessWave"), true);
+  assert.equal(chooseRelic(state, "boost:endless"), true);
+  assert.equal(state.relics.endlessStacks, 2);
+  assert.equal(state.relics.damageBonus, GAME_CONFIG.relics.endless.damagePerStack * 2);
+  assert.equal(state.relics.rateBonus, GAME_CONFIG.relics.endless.ratePerStack * 2);
 });
 
 test("怪潮精英、普通首领与巨兽阶段会触发临时遗物奖励", () => {

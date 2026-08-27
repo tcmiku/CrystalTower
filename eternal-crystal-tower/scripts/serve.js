@@ -98,7 +98,10 @@ export function createGameServer({
         return methodNotAllowed(response, ["GET", "PUT"]);
       }
       if (url.pathname === "/api/leaderboard") {
-        if (request.method === "GET") return json(response, 200, { entries: await leaderboard.read() });
+        if (request.method === "GET") {
+          const chapter = Math.max(1, Math.min(999, Number.parseInt(url.searchParams.get("chapter") || "1", 10) || 1));
+          return json(response, 200, { entries: await leaderboard.read(chapter) });
+        }
         if (request.method === "POST") return json(response, 201, await leaderboard.submit(await readJsonBody(request)));
         return methodNotAllowed(response, ["GET", "POST"]);
       }

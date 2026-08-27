@@ -8,11 +8,12 @@ export class LeaderboardStore {
     this.queue = Promise.resolve();
   }
 
-  async read() {
+  async read(chapter = null) {
     try {
       const parsed = JSON.parse(await readFile(this.file, "utf8"));
       if (!Array.isArray(parsed)) return [];
-      return parsed.map(normalizeLeaderboardEntry).sort(compareLeaderboardEntries);
+      const entries = parsed.map(normalizeLeaderboardEntry).sort(compareLeaderboardEntries);
+      return chapter === null ? entries : entries.filter((entry) => entry.chapter === chapter);
     } catch (error) {
       if (error?.code === "ENOENT" || error instanceof SyntaxError) return [];
       throw error;
@@ -27,7 +28,8 @@ export class LeaderboardStore {
       const temporary = `${this.file}.${process.pid}.tmp`;
       await writeFile(temporary, JSON.stringify(entries, null, 2), "utf8");
       await rename(temporary, this.file);
-      return { entry, rank: entries.indexOf(entry) + 1, entries };
+      const chapterEntries = entries.filter((candidate) => candidate.chapter === entry.chapter);
+      return { entry, rank: chapterEntries.indexOf(entry) + 1, entries: chapterEntries };
     });
     this.queue = operation.catch(() => {});
     return operation;

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, discoverHiddenRelic, grantPermanentResource, loadSave, markBaseRecoverySeen, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
+import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, repairChapterNode, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -135,6 +135,19 @@ test("两类永久资源按类型安全累积", () => {
   assert.equal(grantPermanentResource(save, "core", 2), true);
   assert.equal(grantPermanentResource(save, "unknown", 6), false);
   assert.deepEqual(save.resources, { echoShards: 4, coreFragments: 2 });
+});
+
+test("威胁二十通关立即保护章节能源且修复节点不消耗资源", () => {
+  const save = defaultSave();
+  assert.equal(grantChapterCoreEnergy(save, 1, { time: 900, kills: 300, score: 50000 }), true);
+  assert.equal(save.campaign.coreEnergy[1], true);
+  assert.equal(save.campaign.chapterRecords[1].clears, 1);
+  assert.equal(grantChapterCoreEnergy(save, 1, { time: 1200, kills: 500, score: 90000 }), false);
+  assert.equal(save.campaign.chapterRecords[1].clears, 2);
+  assert.equal(repairChapterNode(save, 1), true);
+  assert.equal(save.campaign.repairedNodes[1], true);
+  assert.equal(save.campaign.unlockedChapters[2], true);
+  assert.equal(repairChapterNode(save, 1), false);
 });
 
 test("研究舱消耗遗响碎片并永久解锁临时遗物", () => {

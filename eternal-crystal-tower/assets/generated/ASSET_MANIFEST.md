@@ -107,3 +107,15 @@
 用途：威胁 20 超巨型首领“裂界魔君”的 1536×1024 RGBA 半身素材。四枚胸腔命核对应四条生命，双侧巨爪与肩后裂隙强化召唤特征；游戏中以 760 战场单位宽度固定在画面上方，并在 3.2 秒登场动画中由上向下升起。由 OpenAI 内置生图模型生成，项目内保留副本；实际预览确认背景与长夜地图融合、血条和战斗提示保持可读。
 
 源文件：`/Users/mac/.codex/generated_images/01a03d1a-2f6b-7781-8c31-f1dd13235c9c/exec-1bdeca5b-c306-4100-a8e9-a21f151ce136.png`。另行尝试的抠图版本出现烘焙棋盘底，未进入项目。
+
+## campaign-core-nexus-ai.png（2026-08-27）
+
+用途：中枢能源修复计划的章节面板和威胁 20 通关抉择界面背景。画面为地下晶体堡垒中的四节点悬浮能源核心，第一节点点亮、其余节点休眠；章节名称、状态、按钮和进度全部由 HTML 叠加。由 OpenAI 内置生图模型生成，无文字、徽标或 UI。
+
+源文件：`/Users/mac/.codex/generated_images/01a0427f-2259-7320-9dc4-d6759dc567aa/exec-3d888345-f901-40d5-a17b-90447a3fcecf.png`，项目内副本为 `assets/generated/campaign-core-nexus-ai.png`。
+
+## relic-endless-amplifier-ai.png（2026-08-27）
+
+用途：无尽模式专属遗物“无界增幅核”的竖版卡面。青紫晶体能源核与向无限远点重复延伸的金白增幅轨道，表达每波叠加攻击力与攻击速度；名称、层数与数值全部由 HTML 叠加。由 OpenAI 内置生图模型生成，无文字、徽标、边框或 UI。
+
+源文件：`/Users/mac/.codex/generated_images/01a0427f-2259-7320-9dc4-d6759dc567aa/exec-8fb6f2da-0f73-4c21-b828-4f5ddac2a096.png`，项目内副本为 `assets/generated/relic-endless-amplifier-ai.png`。

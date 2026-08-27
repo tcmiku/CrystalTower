@@ -44,6 +44,7 @@
         <div class="top-actions">
           <button id="openBaseCampButton" class="icon-button basecamp-button hidden" type="button" aria-label="打开大本营核心室" title="大本营"><svg class="top-icon basecamp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 7v10l-7 4-7-4V7l7-4Z"></path><path d="M9 21V11h6v10M7 8l5 3 5-3"></path></svg></button>
           <button id="speedButton" class="icon-button speed-button locked" type="button" aria-label="2倍速未解锁" aria-disabled="true" aria-pressed="false" title="击败威胁 Ⅹ 首领后永久解锁 2× 倍速">1×</button>
+          <button id="endEndlessButton" class="endless-exit-button hidden" type="button">结束无尽</button>
           <button id="openUpdatesButton" class="icon-button updates-button" type="button" aria-label="查看游戏更新公告" aria-haspopup="dialog" aria-controls="updatesModal" aria-expanded="false" title="游戏更新公告"><svg class="top-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14l-1.6-2.2V10a5.4 5.4 0 0 0-10.8 0v4.8L5 17Z"></path><path d="M9.4 20h5.2"></path></svg></button>
           <button id="accountButton" class="icon-button account-button" type="button" aria-label="游客账号" aria-haspopup="dialog" aria-controls="accountModal" aria-expanded="false" title="登录或注册"><svg class="top-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"></circle><path d="M5.2 20c.8-3.1 3.2-4.8 6.8-4.8s6 1.7 6.8 4.8"></path></svg></button>
           <button id="muteButton" class="icon-button" type="button" aria-label="静音"><svg class="top-icon sound-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h3l4 3V7l-4 3H4Z"></path><path class="sound-wave" d="M15 9.2a4.3 4.3 0 0 1 0 5.6M17.7 6.7a8 8 0 0 1 0 10.6"></path><path class="sound-mute" d="m15.5 9 5 6m0-6-5 6"></path></svg></button>
@@ -205,7 +206,7 @@
           <strong id="relicChoiceSlots">模块 0 / 3</strong>
         </header>
         <div id="relicChoiceList" class="relic-choice-list" aria-live="polite"></div>
-        <footer><span>按数字键 1 / 2 / 3 选择</span><b>选择期间战斗已暂停</b></footer>
+        <footer><span id="relicChoiceKeys">按数字键 1 / 2 / 3 选择</span><b>选择期间战斗已暂停</b></footer>
       </div>
     </section>
     <section id="leaderboardModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="globalLeaderboardTitle">
@@ -247,11 +248,19 @@
         </header>
         <div class="basecamp-stage">
           <div class="basecamp-recovery-beam" aria-hidden="true"></div>
+          <button id="campaignRoom" class="base-room campaign-room" type="button"><span>主线 · 中枢修复</span><strong>能源核心</strong><small>装配章节能源并选择远征地图</small></button>
           <button id="coreNexusRoom" class="base-room core-room active" type="button"><span>01 · 初始开放</span><strong>晶核中枢</strong><small>永久研究与核心档案</small></button>
           <button id="researchBayRoom" class="base-room research-room" type="button"><span>02 · 遗物研究</span><strong>研究舱</strong><small>解锁临时遗物并加入战局池</small></button>
           <button id="relicArchiveRoom" class="base-room archive-room" type="button"><span>03 · 构筑管理</span><strong>遗物档案馆</strong><small>禁用、图鉴、组合与套装登记</small></button>
           <div class="future-room"><span>预留扩建接口</span><b>未来建筑</b></div>
         </div>
+        <section id="campaignPanel" class="nexus-panel campaign-panel hidden" aria-labelledby="campaignPanelTitle">
+          <div class="campaign-core-hero">
+            <div><span>CAMPAIGN NEXUS</span><h3 id="campaignPanelTitle">中枢能源修复计划</h3><p>击败每章终局首领，带回不会因无尽挑战失败而遗失的核心能源。</p></div>
+            <strong id="campaignProgressText">0 / 4 节点修复</strong>
+          </div>
+          <div id="chapterNodeList" class="chapter-node-list"></div>
+        </section>
         <section id="nexusPanel" class="nexus-panel" aria-labelledby="nexusResearchTitle">
           <div class="research-heading"><div><span>晶核中枢</span><h3 id="nexusResearchTitle">永久研究</h3></div><strong>可用星尘 <b id="stardustText">0</b></strong></div>
           <p>研究结果会应用到下一轮守望。大本营后续建筑将在这里继续接入。</p>
@@ -272,6 +281,18 @@
             <section class="archive-block"><header><span>SET REGISTRY</span><h4>套装登记</h4><small>登记后，持有一件时会优先补出同套装组件。</small></header><div id="relicArchiveSetList" class="archive-set-list"></div></section>
           </div>
         </section>
+      </div>
+    </section>
+    <section id="chapterCompleteModal" class="modal chapter-complete-modal hidden" role="dialog" aria-modal="true" aria-labelledby="chapterCompleteTitle">
+      <div class="chapter-complete-card">
+        <span class="chapter-complete-eyebrow">CHAPTER I · TERMINAL CLEARED</span>
+        <h2 id="chapterCompleteTitle">永恒晶塔 · 远征完成</h2>
+        <p>裂界魔君已陨落。本章“核心能源”已自动写入永久存档。</p>
+        <div class="core-energy-award"><i aria-hidden="true"></i><div><small>主线战利品 · 已保护</small><strong>永恒晶塔核心能源</strong><span id="chapterCoreAwardStatus">首次获得 · 无尽失败不会丢失</span></div></div>
+        <div class="chapter-choice-grid">
+          <button id="finishExpeditionButton" class="chapter-choice finish" type="button"><small>安全结算</small><strong>结束远征</strong><span>记录本章通关，立即返回大本营修复中枢。</span></button>
+          <button id="startEndlessButton" class="chapter-choice endless" type="button"><small>排行榜模式</small><strong>进入无尽挑战</strong><span>保留当前构筑；只记录时间、击杀与分数，不再掉落专属道具。</span></button>
+        </div>
       </div>
     </section>
     <section id="gameOverModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">

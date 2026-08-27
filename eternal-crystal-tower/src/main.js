@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, discoverHiddenRelic, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, toggleRelicSet, unlockDoubleSpeed, writeSave } from "./storage.js";
+import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, toggleRelicSet, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
@@ -94,7 +94,8 @@ const RELIC_META = {
   decoyWard: { icon: "◈⬡", art: "./assets/generated/relic-decoy-ai.png", name: "棱光替身", type: "隐藏 · 防御回路", description: "诱饵被摧毁后将爆炸余波转化为晶塔护盾。", effect: "诱饵爆炸后获得 18% 最大生命护盾" },
   "boost:damage": { icon: "✦", art: "./assets/generated/relic-boost-ai.png", name: "晶矢增幅", type: "缺口强化", description: "栏位多于已解锁遗物，将富余能量灌注主炮。", effect: "本局攻击力 +8% · 可重复" },
   "boost:rate": { icon: "⌁", art: "./assets/generated/relic-boost-ai.png", name: "咏唱增幅", type: "缺口强化", description: "栏位多于已解锁遗物，以富余能量缩短咏唱。", effect: "本局攻击速度 +6% · 可重复" },
-  "boost:hybrid": { icon: "✧", art: "./assets/generated/relic-boost-ai.png", name: "双相增幅", type: "缺口强化", description: "栏位多于已解锁遗物，将富余能量均衡分配。", effect: "本局攻击力 +4% · 攻速 +3%" }
+  "boost:hybrid": { icon: "✧", art: "./assets/generated/relic-boost-ai.png", name: "双相增幅", type: "缺口强化", description: "栏位多于已解锁遗物，将富余能量均衡分配。", effect: "本局攻击力 +4% · 攻速 +3%" },
+  "boost:endless": { icon: "∞", art: "./assets/generated/relic-endless-amplifier-ai.png", name: "无界增幅核", type: "无尽专属 · 无限叠层", description: "每肃清一轮无尽怪潮，核心便复制一层火力回路；不占用遗物栏位。", effect: "每层攻击力 +8% · 攻击速度 +5%" }
 };
 const RELIC_SET_META = {
   prismArc: { name: "雷镜折光套", hint: "镜面裂片 + 雷脉导体", effect: "发现折光雷晶；登记后优先补齐三件套" },
@@ -104,7 +105,8 @@ const RELIC_SET_META = {
   eliteWave: "怪潮精英已被肃清，选择一项回路继续守望。",
   boss: "腐化首领已经倒下，回收一项战场模块。",
   colossusPhase: "巨兽命核破碎，从暴露的回路中夺取一项模块。",
-  colossusDefeat: "虚环吞星兽崩解，选择最后一项战利品。"
+  colossusDefeat: "虚环吞星兽崩解，选择最后一项战利品。",
+  endlessWave: "无尽怪潮已被完全肃清。无界增幅核正在复制下一层火力回路。"
 };
 const ELITE_AFFIX_NAMES = { shield: "护盾", sprint: "狂奔", devour: "吞金", split: "分裂" };
 const COLOSSUS_AFFIX_NAMES = { siege: "灾厄炮膛", brood: "裂殖母巢", prism: "噬光棱镜", carapace: "不灭甲壳" };
@@ -138,12 +140,12 @@ const dom = Object.fromEntries([
   "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
-  "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
+  "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "gameOverTitle", "gameOverLine", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore", "endEndlessButton",
   "scoreEntryForm", "playerNameInput", "playerMessageInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
-  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "coreNexusRoom", "researchBayRoom", "relicArchiveRoom", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments",
-  "relicRunHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList"
+  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "campaignRoom", "coreNexusRoom", "researchBayRoom", "relicArchiveRoom", "campaignPanel", "campaignProgressText", "chapterNodeList", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "chapterCompleteModal", "chapterCoreAwardStatus", "finishExpeditionButton", "startEndlessButton",
+  "relicRunHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList", "relicChoiceKeys"
 ].map((id) => [id, document.getElementById(id)]));
 
 let save = loadSave();
@@ -489,6 +491,13 @@ if (previewMode === "leaderboard" || previewMode === "leaderboard-messages") {
   state.coins = 237;
   state.tower.hp = 0;
 }
+if (previewMode === "chapter-complete") {
+  state.threat = 20;
+  state.time = 900;
+  state.paused = true;
+  save.baseCamp.unlocked = true;
+  save.campaign.coreEnergy[1] = true;
+}
 let runSettled = false;
 let scoreSubmitted = false;
 let scoreSubmitting = false;
@@ -518,7 +527,7 @@ let cloudSaveQueue = Promise.resolve();
 let accountAuthMode = "login";
 let resumeAfterLeaderboard = false;
 let baseCampOpen = false;
-let baseCampRoom = "nexus";
+let baseCampRoom = "campaign";
 let resumeAfterBaseCamp = false;
 let relicChoiceOpen = false;
 let resumeAfterRelicChoice = false;
@@ -529,6 +538,8 @@ let starfallAiming = false;
 let doubleSpeedActive = previewMode === "speed";
 let sovereignSpeedLocked = false;
 let restoreDoubleSpeedAfterSovereign = false;
+let chapterCompleteOpen = false;
+let chapterClearWasFirst = false;
 const firstRunTutorial = save.records.totalKills === 0 && !previewMode;
 let tutorialStep = 0;
 const loadingStartedAt = performance.now();
@@ -1185,20 +1196,68 @@ function updatePermanentResourceUi() {
 
 function renderBaseCamp() {
   updatePermanentResourceUi();
+  renderCampaign();
   renderResearch();
   renderRelicResearch();
   renderRelicArchive();
   setBaseCampRoom(baseCampRoom);
 }
 
+function renderCampaign() {
+  const repaired = save.campaign.repairedNodes[1] === true;
+  const energy = save.campaign.coreEnergy[1] === true;
+  const record = save.campaign.chapterRecords[1];
+  dom.campaignProgressText.textContent = `${repaired ? 1 : 0} / 4 节点修复`;
+  dom.chapterNodeList.replaceChildren();
+  const chapters = [
+    { id: 1, name: "永恒晶塔", kicker: "第一章", status: repaired ? "已修复" : energy ? "能源待装配" : "远征进行中", description: record.cleared ? `通关 ${record.clears} 次 · 最高击杀 ${record.bestKills}` : "挑战威胁 XX 的四阶段终局首领。" },
+    { id: 2, name: "极夜航道", kicker: "第二章", status: repaired ? "开发中…" : "未激活", description: repaired ? "能源通路已建立，地图仍在开发中。" : "修复永恒晶塔节点后解锁。" },
+    { id: 3, name: "腐蚀矿区", kicker: "第三章", status: "未激活", description: "等待前置能源节点。" },
+    { id: 4, name: "破碎王座", kicker: "第四章", status: "未激活", description: "等待前置能源节点。" }
+  ];
+  for (const chapter of chapters) {
+    const card = document.createElement("article");
+    card.className = `chapter-node chapter-${chapter.id}`;
+    if (chapter.id === 1 && energy) card.classList.add("energized");
+    if (chapter.id === 1 && repaired) card.classList.add("repaired");
+    card.innerHTML = `<div class="chapter-node-index">0${chapter.id}</div><div><small>${chapter.kicker}</small><strong>${chapter.name}</strong><p>${chapter.description}</p></div><span>${chapter.status}</span>`;
+    const action = document.createElement("button");
+    action.type = "button";
+    if (chapter.id === 1 && energy && !repaired) {
+      action.textContent = "修复能源节点";
+      action.addEventListener("click", () => {
+        if (!repairChapterNode(save, 1)) return;
+        persistSave();
+        audio.play("ascend");
+        renderer.trigger("ascend", 2.5);
+        dom.campaignPanel.classList.add("repairing");
+        setTimeout(() => dom.campaignPanel.classList.remove("repairing"), 1500);
+        renderCampaign();
+        announce("永恒晶塔能源节点修复完成 · 极夜航道已解锁");
+      });
+    } else if (chapter.id === 1) {
+      action.textContent = record.cleared ? "再次挑战" : "进入远征";
+      action.addEventListener("click", () => { restart(); setBaseCampOpen(false); });
+    } else {
+      action.textContent = chapter.id === 2 && repaired ? "开发中…" : "尚未解锁";
+      action.disabled = true;
+    }
+    card.append(action);
+    dom.chapterNodeList.append(card);
+  }
+}
+
 function setBaseCampRoom(room) {
-  baseCampRoom = room === "relics" || room === "archive" ? room : "nexus";
+  baseCampRoom = ["campaign", "relics", "archive"].includes(room) ? room : "nexus";
+  const campaignOpen = baseCampRoom === "campaign";
   const relicsOpen = baseCampRoom === "relics";
   const archiveOpen = baseCampRoom === "archive";
-  dom.nexusPanel.classList.toggle("hidden", relicsOpen || archiveOpen);
+  dom.campaignPanel.classList.toggle("hidden", !campaignOpen);
+  dom.nexusPanel.classList.toggle("hidden", campaignOpen || relicsOpen || archiveOpen);
   dom.relicResearchPanel.classList.toggle("hidden", !relicsOpen);
   dom.relicArchivePanel.classList.toggle("hidden", !archiveOpen);
-  dom.coreNexusRoom.classList.toggle("active", !relicsOpen && !archiveOpen);
+  dom.campaignRoom.classList.toggle("active", campaignOpen);
+  dom.coreNexusRoom.classList.toggle("active", !campaignOpen && !relicsOpen && !archiveOpen);
   dom.researchBayRoom.classList.toggle("active", relicsOpen);
   dom.relicArchiveRoom.classList.toggle("active", archiveOpen);
 }
@@ -1528,7 +1587,8 @@ function createRelicHudChip({ icon, name, label = name, description, effect }) {
 
 function renderRelicHud() {
   const owned = Object.entries(state.relics.owned).filter(([, active]) => active).map(([id]) => id);
-  const signature = [owned.join(","), state.relics.damageBonus.toFixed(3), state.relics.rateBonus.toFixed(3)].join("|");
+  const endlessStacks = state.relics.endlessStacks ?? 0;
+  const signature = [owned.join(","), state.relics.damageBonus.toFixed(3), state.relics.rateBonus.toFixed(3), endlessStacks].join("|");
   if (signature === relicHudSignature) return;
   relicHudSignature = signature;
   dom.relicRunHud.replaceChildren();
@@ -1536,9 +1596,22 @@ function renderRelicHud() {
     const meta = RELIC_META[id];
     dom.relicRunHud.append(createRelicHudChip(meta));
   }
-  if (state.relics.damageBonus > 0 || state.relics.rateBonus > 0) {
-    const damage = Math.round(state.relics.damageBonus * 100);
-    const rate = Math.round(state.relics.rateBonus * 100);
+  if (endlessStacks > 0) {
+    const damage = Math.round(endlessStacks * GAME_CONFIG.relics.endless.damagePerStack * 100);
+    const rate = Math.round(endlessStacks * GAME_CONFIG.relics.endless.ratePerStack * 100);
+    dom.relicRunHud.append(createRelicHudChip({
+      icon: "∞",
+      name: "无界增幅核",
+      label: `无界增幅核 ×${endlessStacks}`,
+      description: "无尽怪潮奖励，可无限叠加且不占用遗物栏位。",
+      effect: `累计攻击力 +${damage}% · 攻速 +${rate}%`
+    }));
+  }
+  const regularDamageBonus = state.relics.damageBonus - endlessStacks * GAME_CONFIG.relics.endless.damagePerStack;
+  const regularRateBonus = state.relics.rateBonus - endlessStacks * GAME_CONFIG.relics.endless.ratePerStack;
+  if (regularDamageBonus > 0.0001 || regularRateBonus > 0.0001) {
+    const damage = Math.round(regularDamageBonus * 100);
+    const rate = Math.round(regularRateBonus * 100);
     dom.relicRunHud.append(createRelicHudChip({
       icon: "✧",
       name: "数值增幅",
@@ -1551,11 +1624,17 @@ function renderRelicHud() {
 
 function renderRelicChoice() {
   if (!state.relicChoice) return;
+  const endlessChoice = state.relicChoice.source === "endlessWave";
+  dom.relicChoiceTitle.textContent = endlessChoice ? "无尽回路增幅" : "战场遗物选择";
   dom.relicChoiceSource.textContent = RELIC_SOURCE_TEXT[state.relicChoice.source] ?? "回收一项战场模块。";
   const numericOnly = state.relicChoice.choices.every((id) => id.startsWith("boost:"));
-  dom.relicChoiceSlots.textContent = numericOnly
+  dom.relicChoiceSlots.textContent = endlessChoice
+    ? `无视栏位 · 当前 ${state.relics.endlessStacks ?? 0} 层`
+    : numericOnly
     ? `栏位缺口 · 数值强化`
     : `模块 ${state.relics.picks} / ${state.relics.slots}${state.relics.lockedChoice ? " · 已锁定 1 项" : ""}`;
+  dom.relicChoiceKeys.textContent = endlessChoice ? "按数字键 1 选择" : "按数字键 1 / 2 / 3 选择";
+  dom.relicChoiceList.classList.toggle("single-choice", endlessChoice);
   dom.relicChoiceList.replaceChildren();
   state.relicChoice.choices.forEach((id, index) => {
     const meta = RELIC_META[id];
@@ -1567,7 +1646,8 @@ function renderRelicChoice() {
     button.type = "button";
     button.className = "relic-card";
     button.dataset.relic = id;
-    button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" aria-hidden="true" decoding="async"></span><span class="relic-card-index">0${index + 1}</span><span class="relic-card-icon">${meta.icon}</span><span class="relic-card-body"><span class="relic-card-type">${meta.type}</span><h3>${meta.name}</h3><p>${meta.description}</p><span class="relic-card-effect">${meta.effect}</span></span>`;
+    const effect = id === "boost:endless" ? `${meta.effect} · 选择后达到 ${(state.relics.endlessStacks ?? 0) + 1} 层` : meta.effect;
+    button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" aria-hidden="true" decoding="async"></span><span class="relic-card-index">0${index + 1}</span><span class="relic-card-icon">${meta.icon}</span><span class="relic-card-body"><span class="relic-card-type">${meta.type}</span><h3>${meta.name}</h3><p>${meta.description}</p><span class="relic-card-effect">${effect}</span></span>`;
     button.addEventListener("click", () => selectRunRelic(id));
     wrapper.append(button);
     if (!id.startsWith("boost:")) {
@@ -1628,7 +1708,7 @@ function handleEvents(events) {
       renderRelicArchive();
     }
     else if (event.type === "relicChoiceLocked") showToast(event.locked ? `${RELIC_META[event.id].name} · 将保留至下次奖励` : "遗物选项已解除锁定");
-    else if (event.type === "relicChosen") announce(`${RELIC_META[event.id]?.name ?? "战场回路"} · 已接入本局构筑`);
+    else if (event.type === "relicChosen") announce(event.id === "boost:endless" ? `无界增幅核 · 当前 ${state.relics.endlessStacks} 层` : `${RELIC_META[event.id]?.name ?? "战场回路"} · 已接入本局构筑`);
     else if (event.type === "relicDecoyExplode") { audio.play("overload"); renderer.trigger("overloadRelease", 0.7); announce("诡光诱饵崩解 · 爆炸清场"); }
     else if (event.type === "relicDecoySurvived") { audio.play("coin"); showToast(`诡光诱饵存活 · 转化金币 ${event.value}`); }
     else if (event.type === "relicPhaseBuff") { renderer.trigger("ascend", 0.45); showToast("月相调律 · 短暂火力强化"); }
@@ -1683,7 +1763,15 @@ function handleEvents(events) {
       doubleSpeedActive = restoreDoubleSpeedAfterSovereign && save.unlocks.doubleSpeed;
       restoreDoubleSpeedAfterSovereign = false;
       accumulator = 0;
-      audio.play("ascend"); renderer.trigger("ascend", 2); announce(`裂界魔君陨落 · 威胁 XX 已突破${doubleSpeedActive ? " · 时流恢复 2×" : " · 时流控制恢复"}`);
+      const chapterScore = calculateRunScore(state).total;
+      chapterClearWasFirst = grantChapterCoreEnergy(save, 1, { time: state.time, kills: state.stats.kills, score: chapterScore });
+      persistSave();
+      state.paused = true;
+      chapterCompleteOpen = true;
+      dom.chapterCoreAwardStatus.textContent = chapterClearWasFirst ? "首次获得 · 无尽失败不会丢失" : "已再次确认 · 主线进度保持安全";
+      dom.chapterCompleteModal.classList.remove("hidden");
+      dom.finishExpeditionButton.focus({ preventScroll: true });
+      audio.play("ascend"); renderer.trigger("ascend", 2); announce("裂界魔君陨落 · 永恒晶塔核心能源已永久入账");
     }
     else if (event.type === "bossDefeated") {
       audio.play("ascend");
@@ -1719,6 +1807,7 @@ function handleEvents(events) {
     else if (event.type === "phase") { audio.play("phase"); announce(event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场"); }
     else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce("侦测到大规模怪潮"); }
     else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(`第 ${event.index} 次怪潮抵达`); }
+    else if (event.type === "waveCleared" && event.endless) showToast(`无尽怪潮 ${String(event.index).padStart(2, "0")} 已肃清 · 获得增幅选择`);
     else if (event.type === "overloadRelease") { audio.play("overload"); renderer.trigger("overloadRelease", event.overheated ? 1.5 : 1); announce(event.overheated ? "热浪爆发 · 晶塔过热" : event.early ? "超载中断 · 提前释放冲击" : "超载冲击释放"); }
     else if (event.type === "shieldBurst") { audio.play("hit"); renderer.trigger("shieldBurst"); announce(`满盾反击 · 晶片命中 ${event.hits}`); }
     else if (event.type === "anchorLocked") { audio.play("purchase"); renderer.trigger("anchorLocked"); announce(`锁定 ${ANCHOR_ROLE_NAMES[event.role]} · ${event.duration.toFixed(0)} 秒`); }
@@ -1957,7 +2046,7 @@ async function refreshLeaderboard() {
     return;
   }
   try {
-    leaderboardEntries = await fetchLeaderboard();
+    leaderboardEntries = await fetchLeaderboard(save.campaign.currentChapter);
   } catch {
     leaderboardError = "全服排行榜暂时无法连接";
   } finally {
@@ -1968,7 +2057,7 @@ async function refreshLeaderboard() {
 
 async function submitCurrentScore(event) {
   event.preventDefault();
-  if (!currentRunScore || scoreSubmitted || scoreSubmitting) return;
+  if (!state.endlessMode || !currentRunScore || scoreSubmitted || scoreSubmitting) return;
   scoreSubmitting = true;
   const date = Date.now();
   dom.playerNameInput.disabled = true;
@@ -1983,6 +2072,8 @@ async function submitCurrentScore(event) {
       time: state.time,
       coins: Math.floor(state.coins),
       message: sanitizeLeaderboardMessage(dom.playerMessageInput.value),
+      chapter: save.campaign.currentChapter,
+      mode: "endless",
       date
     });
     save.settings.playerName = result.entry.name;
@@ -2002,15 +2093,45 @@ async function submitCurrentScore(event) {
   }
 }
 
-function settleRun(stardust) {
+function finishChapterExpedition() {
+  if (!chapterCompleteOpen) return;
+  chapterCompleteOpen = false;
+  dom.chapterCompleteModal.classList.add("hidden");
+  state.over = true;
+  state.paused = true;
+  settleRun(calculateStardust(state), "victory");
+}
+
+function startEndlessChallenge() {
+  if (!chapterCompleteOpen) return;
+  chapterCompleteOpen = false;
+  dom.chapterCompleteModal.classList.add("hidden");
+  state.endlessMode = true;
+  state.paused = false;
+  dom.endEndlessButton.classList.remove("hidden");
+  announce("无尽挑战启动 · 专属掉落与主线推进已关闭");
+  showToast("核心能源已受保护 · 本章排行榜开始计分");
+}
+
+function finishEndlessChallenge() {
+  if (!state.endlessMode || state.over) return;
+  state.over = true;
+  state.paused = true;
+  dom.endEndlessButton.classList.add("hidden");
+  audio.play("gameOver");
+  settleRun(calculateStardust(state), "endless");
+}
+
+function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat") {
   if (runSettled) return;
+  dom.endEndlessButton.classList.add("hidden");
   cancelStarfallAim(false);
   runSettled = true;
   currentRunScore = calculateRunScore(state);
   scoreSubmitted = false;
   currentEntryDate = null;
   save.stardust += stardust;
-  const firstFailure = previewMode ? false : registerFailure(save);
+  const firstFailure = outcome === "defeat" && !previewMode ? registerFailure(save) : false;
   const firstFailureCoreGift = firstFailure ? 1 : 0;
   if (firstFailureCoreGift) grantPermanentResource(save, "core", firstFailureCoreGift);
   save.records.highestThreat = Math.max(save.records.highestThreat, state.stats.highestThreat);
@@ -2026,16 +2147,20 @@ function settleRun(stardust) {
   dom.resultScore.textContent = formatScore(currentRunScore.total);
   dom.resultCombatScore.textContent = formatNumber(currentRunScore.combat);
   dom.resultCoinScore.textContent = `${Math.floor(state.coins)} × ${GAME_CONFIG.score.coinMultiplier} = ${formatNumber(currentRunScore.coinBonus)}`;
+  dom.gameOverTitle.textContent = outcome === "victory" ? "远征凯旋" : outcome === "endless" ? "无尽挑战结束" : "晶光熄灭";
+  dom.gameOverLine.textContent = outcome === "victory" ? "核心能源已带回大本营，等待装配。" : outcome === "endless" ? "排行榜数据已锁定，主线核心能源完好无损。" : "裂隙吞没了最后一道光。";
+  dom.scoreEntryForm.classList.toggle("hidden", outcome !== "endless");
+  dom.scoreEntryStatus.textContent = outcome === "endless" ? "" : "仅无尽挑战可登记章节排行榜成绩";
   dom.playerNameInput.value = save.settings.playerName ?? "PLAYER";
   dom.playerMessageInput.value = "";
   dom.playerNameInput.disabled = false;
   dom.submitScoreButton.disabled = false;
-  dom.scoreEntryStatus.textContent = "";
   setTechTreeOpen(false);
   renderBaseCamp();
   refreshLeaderboard();
   setTimeout(() => {
     if (firstFailure) showBaseRecoveryEvent();
+    else if (outcome === "victory") setBaseCampOpen(true);
     else {
       dom.gameOverModal.classList.remove("hidden");
       dom.playerNameInput.focus({ preventScroll: true });
@@ -2102,6 +2227,10 @@ function restart() {
   relicChoiceOpen = false;
   resumeAfterRelicChoice = false;
   relicHudSignature = "";
+  chapterCompleteOpen = false;
+  chapterClearWasFirst = false;
+  dom.chapterCompleteModal.classList.add("hidden");
+  dom.endEndlessButton.classList.add("hidden");
   dom.relicChoiceModal.classList.add("hidden");
   runIndex += 1;
   state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive);
@@ -2156,6 +2285,11 @@ void restoreAccountSession();
 if (previewMode === "relics" || previewMode === "relic-lock") {
   offerRelicChoice(state, "eliteWave");
   if (previewMode === "relic-lock" && state.relicChoice?.choices[0]) lockRelicChoice(state, state.relicChoice.choices[0]);
+  handleEvents(state.events);
+}
+if (previewMode === "endless-relic") {
+  state.endlessMode = true;
+  offerRelicChoice(state, "endlessWave");
   handleEvents(state.events);
 }
 if (previewMode === "leaderboard") {
@@ -2224,12 +2358,16 @@ document.addEventListener("keydown", (event) => {
 });
 dom.openBaseCampButton.addEventListener("click", () => setBaseCampOpen(true));
 dom.openBaseCampFromGameOver.addEventListener("click", () => setBaseCampOpen(true));
+dom.campaignRoom.addEventListener("click", () => setBaseCampRoom("campaign"));
 dom.coreNexusRoom.addEventListener("click", () => setBaseCampRoom("nexus"));
 dom.researchBayRoom.addEventListener("click", () => setBaseCampRoom("relics"));
 dom.relicArchiveRoom.addEventListener("click", () => setBaseCampRoom("archive"));
 dom.closeBaseCampButton.addEventListener("click", () => setBaseCampOpen(false, true));
 dom.baseCampModal.addEventListener("pointerdown", (event) => { if (event.target === dom.baseCampModal) setBaseCampOpen(false, true); });
 dom.recoveryContinueButton.addEventListener("click", advanceBaseRecoveryEvent);
+dom.finishExpeditionButton.addEventListener("click", finishChapterExpedition);
+dom.startEndlessButton.addEventListener("click", startEndlessChallenge);
+dom.endEndlessButton.addEventListener("click", finishEndlessChallenge);
 dom.openLeaderboardButton.addEventListener("click", () => setLeaderboardOpen(true));
 dom.openUpdatesButton.addEventListener("click", () => setUpdatesOpen(true));
 dom.closeUpdatesButton.addEventListener("click", () => setUpdatesOpen(false, true));
@@ -2397,7 +2535,12 @@ dom.clearSaveButton.addEventListener("click", () => {
 document.addEventListener("pointerdown", () => audio.unlock(), { once: true });
 revealGameWhenReady().then(() => {
   const startupFlow = () => {
-    if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive") {
+    if (previewMode === "chapter-complete") {
+      chapterCompleteOpen = true;
+      dom.chapterCompleteModal.classList.remove("hidden");
+      dom.finishExpeditionButton.focus({ preventScroll: true });
+    }
+    else if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive") {
       if (previewMode === "relic-research") baseCampRoom = "relics";
       if (previewMode === "relic-archive") baseCampRoom = "archive";
       setBaseCampOpen(true);

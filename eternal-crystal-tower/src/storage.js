@@ -17,6 +17,13 @@ export function defaultSave() {
     },
     unlocks: { doubleSpeed: false },
     baseCamp: { unlocked: false, recoverySeen: false, coreEcho: false },
+    campaign: {
+      currentChapter: 1,
+      coreEnergy: { 1: false },
+      repairedNodes: { 1: false },
+      unlockedChapters: { 1: true, 2: false },
+      chapterRecords: { 1: { cleared: false, clears: 0, bestTime: 0, bestKills: 0, bestScore: 0 } }
+    },
     settings: { muted: false, playerName: "PLAYER", updatesDismissed: false },
     records: { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 },
     leaderboard: []
@@ -51,6 +58,18 @@ export function sanitizeSave(candidate) {
   safe.baseCamp.unlocked = candidate.baseCamp?.unlocked === true;
   safe.baseCamp.recoverySeen = safe.baseCamp.unlocked && candidate.baseCamp?.recoverySeen === true;
   safe.baseCamp.coreEcho = safe.baseCamp.unlocked && candidate.baseCamp?.coreEcho === true;
+  safe.campaign.currentChapter = candidate.campaign?.currentChapter === 2 && candidate.campaign?.unlockedChapters?.[2] === true ? 2 : 1;
+  safe.campaign.coreEnergy[1] = candidate.campaign?.coreEnergy?.[1] === true;
+  safe.campaign.repairedNodes[1] = safe.campaign.coreEnergy[1] && candidate.campaign?.repairedNodes?.[1] === true;
+  safe.campaign.unlockedChapters[2] = safe.campaign.repairedNodes[1] && candidate.campaign?.unlockedChapters?.[2] === true;
+  const chapterOne = candidate.campaign?.chapterRecords?.[1];
+  safe.campaign.chapterRecords[1] = {
+    cleared: safe.campaign.coreEnergy[1] || chapterOne?.cleared === true,
+    clears: boundedInt(chapterOne?.clears, 0, 1_000_000),
+    bestTime: Math.max(0, Number(chapterOne?.bestTime) || 0),
+    bestKills: boundedInt(chapterOne?.bestKills, 0, 1_000_000_000),
+    bestScore: boundedInt(chapterOne?.bestScore, 0, 2_000_000_000)
+  };
   safe.settings.muted = Boolean(candidate.settings?.muted);
   safe.settings.playerName = sanitizePlayerName(candidate.settings?.playerName ?? "PLAYER");
   safe.settings.updatesDismissed = candidate.settings?.updatesDismissed === true;
@@ -67,6 +86,8 @@ export function sanitizeSave(candidate) {
     time: Math.max(0, Number(entry?.time) || 0),
     coins: boundedInt(entry?.coins, 0, 1_000_000_000),
     message: sanitizeLeaderboardMessage(entry?.message),
+    chapter: boundedInt(entry?.chapter, 1, 999),
+    mode: entry?.mode === "endless" ? "endless" : "standard",
     date: boundedInt(entry?.date, 0, Number.MAX_SAFE_INTEGER)
   })).sort(compareLeaderboardEntries).slice(0, GAME_CONFIG.score.leaderboardSize);
   return safe;
@@ -100,6 +121,30 @@ export function grantPermanentResource(save, type, value = 1) {
   return true;
 }
 
+export function grantChapterCoreEnergy(save, chapter = 1, record = {}) {
+  if (chapter !== 1) return false;
+  save.campaign ??= defaultSave().campaign;
+  const firstClear = save.campaign.coreEnergy[1] !== true;
+  save.campaign.coreEnergy[1] = true;
+  const current = save.campaign.chapterRecords[1] ?? defaultSave().campaign.chapterRecords[1];
+  save.campaign.chapterRecords[1] = {
+    cleared: true,
+    clears: boundedInt((current.clears ?? 0) + (record.countClear === false ? 0 : 1), 0, 1_000_000),
+    bestTime: Math.max(Number(current.bestTime) || 0, Number(record.time) || 0),
+    bestKills: Math.max(boundedInt(current.bestKills, 0, 1_000_000_000), boundedInt(record.kills, 0, 1_000_000_000)),
+    bestScore: Math.max(boundedInt(current.bestScore, 0, 2_000_000_000), boundedInt(record.score, 0, 2_000_000_000))
+  };
+  save.baseCamp.unlocked = true;
+  return firstClear;
+}
+
+export function repairChapterNode(save, chapter = 1) {
+  if (chapter !== 1 || save.campaign?.coreEnergy?.[1] !== true || save.campaign?.repairedNodes?.[1] === true) return false;
+  save.campaign.repairedNodes[1] = true;
+  save.campaign.unlockedChapters[2] = true;
+  return true;
+}
+
 export function sanitizePlayerName(value) {
   const cleaned = String(value ?? "").trim().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}_\- ]/gu, "").slice(0, 12);
   return cleaned || "无名守望者";
@@ -127,6 +172,8 @@ export function normalizeLeaderboardEntry(entry) {
     time: Math.max(0, Number(entry?.time) || 0),
     coins: boundedInt(entry?.coins, 0, 1_000_000_000),
     message: sanitizeLeaderboardMessage(entry?.message),
+    chapter: boundedInt(entry?.chapter, 1, 999),
+    mode: entry?.mode === "endless" ? "endless" : "standard",
     date: boundedInt(entry?.date ?? Date.now(), 0, Number.MAX_SAFE_INTEGER)
   };
 }

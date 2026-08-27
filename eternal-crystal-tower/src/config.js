@@ -139,7 +139,8 @@ export const GAME_CONFIG = Object.freeze({
     prismArc: { chainCount: 3, chainRange: 190, chainMultiplier: 0.52 },
     frostfire: { freezeDuration: 0.55, damageMultiplier: 0.72 },
     decoyWard: { shieldFraction: 0.18 },
-    numeric: { damage: 0.08, rate: 0.06, hybridDamage: 0.04, hybridRate: 0.03 }
+    numeric: { damage: 0.08, rate: 0.06, hybridDamage: 0.04, hybridRate: 0.03 },
+    endless: { damagePerStack: 0.08, ratePerStack: 0.05 }
   },
   relicResearch: { ward: 0, decoy: 3, lunar: 4, mirror: 5, ember: 6, frostbloom: 7, stormglass: 9, gilded: 11, execution: 13, hourglass: 15 },
   relicCombos: {

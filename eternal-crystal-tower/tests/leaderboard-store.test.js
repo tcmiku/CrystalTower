@@ -43,3 +43,13 @@ test("并发提交不会互相覆盖", async () => {
   assert.equal(entries[0].score, 1900);
   assert.equal(entries.at(-1).score, 0);
 });
+
+test("每章排行榜独立读取和计算名次", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "crystal-tower-ranking-"));
+  const store = new LeaderboardStore(join(directory, "leaderboard.json"));
+  await store.submit({ name: "晶塔第一", chapter: 1, mode: "endless", score: 1000, threat: 21, kills: 10 });
+  const second = await store.submit({ name: "航道第一", chapter: 2, mode: "endless", score: 500, threat: 21, kills: 5 });
+  assert.equal(second.rank, 1);
+  assert.deepEqual((await store.read(1)).map((entry) => entry.name), ["晶塔第一"]);
+  assert.deepEqual((await store.read(2)).map((entry) => entry.name), ["航道第一"]);
+});
