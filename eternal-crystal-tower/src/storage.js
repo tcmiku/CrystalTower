@@ -54,6 +54,7 @@ export function sanitizeSave(candidate) {
     threat: boundedInt(entry?.threat, 1, 1_000_000),
     time: Math.max(0, Number(entry?.time) || 0),
     coins: boundedInt(entry?.coins, 0, 1_000_000_000),
+    message: sanitizeLeaderboardMessage(entry?.message),
     date: boundedInt(entry?.date, 0, Number.MAX_SAFE_INTEGER)
   })).sort(compareLeaderboardEntries).slice(0, GAME_CONFIG.score.leaderboardSize);
   return safe;
@@ -92,6 +93,15 @@ export function sanitizePlayerName(value) {
   return cleaned || "无名守望者";
 }
 
+export function sanitizeLeaderboardMessage(value) {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[^\p{L}\p{N}\p{P}\p{S} ]/gu, "")
+    .replace(/[<>]/g, "");
+  return Array.from(cleaned).slice(0, GAME_CONFIG.score.leaderboardMessageMaxLength).join("");
+}
+
 export function compareLeaderboardEntries(a, b) {
   return b.score - a.score || b.threat - a.threat || b.kills - a.kills || b.time - a.time || a.date - b.date;
 }
@@ -104,6 +114,7 @@ export function normalizeLeaderboardEntry(entry) {
     threat: boundedInt(entry?.threat, 1, 1_000_000),
     time: Math.max(0, Number(entry?.time) || 0),
     coins: boundedInt(entry?.coins, 0, 1_000_000_000),
+    message: sanitizeLeaderboardMessage(entry?.message),
     date: boundedInt(entry?.date ?? Date.now(), 0, Number.MAX_SAFE_INTEGER)
   };
 }

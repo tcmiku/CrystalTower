@@ -143,7 +143,7 @@ export const GAME_CONFIG = Object.freeze({
     enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, inkHound: 260, orbitMote: 390, rustBeetle: 520, porcelainWarden: 480, boss: 5000, colossus: 20000, sovereign: 50000 },
     eliteMultiplier: 4,
     coinMultiplier: 10,
-    leaderboardSize: 10
+    leaderboardSize: 10, leaderboardMessageMaxLength: 10
   },
   drones: {
     attackSpeed: 285, returnSpeed: 340, damageMultiplier: 0.22, hitInterval: 0.45, contactRadius: 13,

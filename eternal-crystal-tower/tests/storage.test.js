@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, researchCost, registerFailure, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
+import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -84,6 +84,11 @@ test("旧存档与伪造的二倍速值安全回退为未解锁", () => {
   assert.equal(sanitizeSave({ version: 1, unlocks: { doubleSpeed: 1 } }).unlocks.doubleSpeed, false);
 });
 
+test("排行榜留言会清洗并限制为十个字符", () => {
+  assert.equal(sanitizeLeaderboardMessage("守望者!<script>"), "守望者!script");
+  assert.equal(Array.from(sanitizeLeaderboardMessage("一二三四五六七八九十十一")).length, 10);
+  assert.equal(sanitizeLeaderboardMessage(""), "");
+});
 test("排行榜清理姓名、按积分排序并只保留前十名", () => {
   const save = defaultSave();
   assert.equal(sanitizePlayerName("  <ACE> 王!  "), "ACE 王");
@@ -106,9 +111,10 @@ test("排行榜清理姓名、按积分排序并只保留前十名", () => {
 test("排行榜随存档写入并安全读回", () => {
   const storage = memoryStorage();
   const save = defaultSave();
-  submitLeaderboardEntry(save, { name: "晶刃王", score: 9876, kills: 42, threat: 8, time: 300, coins: 17, date: 123 });
+  submitLeaderboardEntry(save, { name: "晶刃王", message: "守住核心", score: 9876, kills: 42, threat: 8, time: 300, coins: 17, date: 123 });
   writeSave(save, storage);
   assert.deepEqual(loadSave(storage).leaderboard, save.leaderboard);
+  assert.equal(loadSave(storage).leaderboard[0].message, "守住核心");
 });
 
 test("首次失败只解锁一次核心残响并开启大本营", () => {

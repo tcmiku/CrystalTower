@@ -284,9 +284,9 @@
         <section class="leaderboard-panel" aria-labelledby="leaderboardTitle">
           <div class="leaderboard-heading"><div><span>GLOBAL RANKING</span><h3 id="leaderboardTitle">永耀名人榜</h3></div><strong id="leaderboardCount">全服</strong></div>
           <form id="scoreEntryForm" class="score-entry-form">
-            <label for="playerNameInput">输入守望者姓名</label>
-            <div><input id="playerNameInput" name="playerName" maxlength="12" autocomplete="nickname" placeholder="PLAYER" aria-describedby="scoreEntryHint"><button id="submitScoreButton" type="submit">登记成绩</button></div>
-            <small id="scoreEntryHint">中文、字母或数字，最多 12 个字符</small>
+            <div class="score-entry-labels"><label for="playerNameInput">输入守望者姓名</label><label for="playerMessageInput">前三名留言</label></div>
+            <div class="score-entry-fields"><input id="playerNameInput" name="playerName" maxlength="12" autocomplete="nickname" placeholder="PLAYER" aria-describedby="scoreEntryHint"><input id="playerMessageInput" name="playerMessage" maxlength="10" autocomplete="off" placeholder="留言（最多10字）" aria-describedby="scoreEntryHint"><button id="submitScoreButton" type="submit">登记成绩</button></div>
+            <small id="scoreEntryHint">留言仅显示在排行榜前三名，最多 10 个字符；新成绩进入前三名时会覆盖对应榜位气泡</small>
           </form>
           <p id="scoreEntryStatus" class="score-entry-status" aria-live="polite"></p>
           <ol id="leaderboardList" class="leaderboard-list" aria-label="全服排行榜"></ol>

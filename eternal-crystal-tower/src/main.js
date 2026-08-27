@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { calculateRunScore, calculateStardust, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
+import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
@@ -105,7 +105,7 @@ const dom = Object.fromEntries([
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
   "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
-  "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
+  "scoreEntryForm", "playerNameInput", "playerMessageInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
   "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "coreNexusRoom", "researchBayRoom", "nexusPanel", "relicResearchPanel", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments",
@@ -423,7 +423,7 @@ if (previewMode === "skill-risk") {
   for (const enemy of state.enemies) enemy.speed = 0;
   state.paused = true;
 }
-if (previewMode === "leaderboard") {
+if (previewMode === "leaderboard" || previewMode === "leaderboard-messages") {
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.time = 367;
@@ -1587,6 +1587,13 @@ function renderLeaderboardPodium(container, highlightDate) {
     const rank = document.createElement("span");
     rank.className = "podium-rank";
     rank.textContent = "0" + slot.rank;
+    if (slot.entry?.message) {
+      const message = document.createElement("span");
+      message.className = "podium-message";
+      message.textContent = slot.entry.message;
+      message.title = slot.entry.message;
+      card.append(message);
+    }
     const name = document.createElement("b");
     name.className = "podium-name";
     name.textContent = slot.entry?.name ?? "等待记录";
@@ -1643,6 +1650,16 @@ async function refreshLeaderboard() {
   leaderboardLoading = true;
   leaderboardError = "";
   renderLeaderboard();
+  if (previewMode === "leaderboard-messages") {
+    leaderboardEntries = [
+      { name: "星尘旅者", message: "昼夜皆守", score: 998800, kills: 740, threat: 18, time: 984, coins: 2100, date: 3 },
+      { name: "晶刃回响", message: "锯刃开路", score: 882400, kills: 612, threat: 16, time: 841, coins: 1680, date: 2 },
+      { name: "守塔人", message: "十字符测试留言", score: 760200, kills: 508, threat: 14, time: 733, coins: 1290, date: 1 }
+    ];
+    leaderboardLoading = false;
+    renderLeaderboard();
+    return;
+  }
   try {
     leaderboardEntries = await fetchLeaderboard();
   } catch {
@@ -1669,9 +1686,11 @@ async function submitCurrentScore(event) {
       threat: state.stats.highestThreat,
       time: state.time,
       coins: Math.floor(state.coins),
+      message: sanitizeLeaderboardMessage(dom.playerMessageInput.value),
       date
     });
     save.settings.playerName = result.entry.name;
+    dom.playerMessageInput.value = result.entry.message ?? "";
     persistSave();
     leaderboardEntries = result.entries;
     scoreSubmitted = true;
@@ -1712,6 +1731,7 @@ function settleRun(stardust) {
   dom.resultCombatScore.textContent = formatNumber(currentRunScore.combat);
   dom.resultCoinScore.textContent = `${Math.floor(state.coins)} × ${GAME_CONFIG.score.coinMultiplier} = ${formatNumber(currentRunScore.coinBonus)}`;
   dom.playerNameInput.value = save.settings.playerName ?? "PLAYER";
+  dom.playerMessageInput.value = "";
   dom.playerNameInput.disabled = false;
   dom.submitScoreButton.disabled = false;
   dom.scoreEntryStatus.textContent = "";

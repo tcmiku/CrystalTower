@@ -13,7 +13,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
     "droneModeButton", "droneModeText", "droneModeHint", "droneProtocolButton", "droneProtocolText", "droneProtocolHint", "droneEnergyFill",
     "pauseButton", "muteButton", "speedButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate",
     "accountButton", "accountModal", "closeAccountButton", "loginForm", "showRegisterButton", "registerForm", "showLoginButton", "accountUserPanel", "saveChoicePanel", "useCloudSaveButton", "useLocalSaveButton", "logoutButton", "deleteAccountButton",
-    "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput",
+    "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput", "playerMessageInput",
     "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
     "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
     "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
@@ -54,9 +54,16 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(styles, /leaderboard-podium[\s\S]*leaderboard-podium-ai\.png/);
   assert.match(styles, /\.status span,[\s\S]*\.leaderboard-list li \{ font-size: 10px; \}/);
   assert.match(styles, /update-warning/);
+  assert.match(styles, /\.podium-message/);
+  assert.match(styles, /podium-bubble-float/);
+  assert.match(styles, /prefers-reduced-motion/);
+  assert.match(styles, /score-entry-labels/);
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(main, /pendingStartupFlow/);
   assert.match(main, /updatesDismissed/);
+  assert.match(main, /playerMessageInput/);
+  assert.match(main, /podium-message/);
+  assert.match(main, /leaderboard-messages/);
   assert.match(main, /现已上线登录功能/);
   assert.match(main, /warning\.className = "update-warning"/);
   const renderer = await readFile(new URL("../src/renderer.js", import.meta.url), "utf8");

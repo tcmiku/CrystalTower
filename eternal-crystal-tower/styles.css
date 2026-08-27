@@ -336,6 +336,66 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 }
 .podium-rank-1 .podium-rank { color: #ffe08a; background: rgba(94,61,20,.55); }
 .podium-rank-3 .podium-rank { color: #ffc0a5; background: rgba(96,45,42,.46); }
+.podium-message {
+  position: relative;
+  z-index: 1;
+  transform-origin: 50% 100%;
+  animation: podium-bubble-pop .42s cubic-bezier(.16,1,.3,1) both, podium-bubble-float 4s .42s ease-in-out infinite;
+  max-width: 100%;
+  margin-bottom: 8px;
+  padding: 5px 8px;
+  overflow: visible;
+  border: 1px solid rgba(220,242,255,.62);
+  border-radius: 12px 14px 11px 15px;
+  color: #10152f;
+  background: #e7f7ff;
+  box-shadow: 0 5px 14px rgba(0,0,0,.24), 0 0 12px rgba(124,238,255,.25);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.podium-message:hover { filter: brightness(1.08) saturate(1.08); }
+.podium-message::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 10%;
+  width: 54%;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.72);
+  opacity: .45;
+  filter: blur(.4px);
+  animation: podium-bubble-shine 2.8s ease-in-out infinite;
+}
+.podium-message::after {
+  content: "";
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 1px solid rgba(220,242,255,.62);
+  border-bottom: 1px solid rgba(220,242,255,.62);
+  background: #e7f7ff;
+  transform: translateX(-50%) rotate(45deg);
+  animation: podium-bubble-tail 2.8s ease-in-out infinite;
+}
+.podium-rank-2 .podium-message { animation-delay: .14s, .56s; }
+.podium-rank-3 .podium-message { animation-delay: .28s, .7s; }
+.podium-rank-1 .podium-message {
+  border-color: rgba(255,231,157,.85);
+  background: #ffe7a1;
+  box-shadow: 0 5px 16px rgba(0,0,0,.26), 0 0 15px rgba(255,210,115,.32);
+}
+.podium-rank-1 .podium-message::after { border-color: rgba(255,231,157,.85); background: #ffe7a1; }
+.podium-rank-3 .podium-message {
+  border-color: rgba(255,196,168,.78);
+  background: #ffd0bd;
+}
+.podium-rank-3 .podium-message::after { border-color: rgba(255,196,168,.78); background: #ffd0bd; }
 .podium-name {
   max-width: 100%;
   overflow: hidden;
@@ -382,9 +442,11 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .leaderboard-heading > strong { color: var(--gold); font: 800 12px ui-monospace, monospace; }
 .score-entry-form { margin-top: 12px; }
 .score-entry-form label, .score-entry-form small { display: block; color: var(--muted); font-size: 9px; }
-.score-entry-form > div { margin-top: 5px; display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+.score-entry-labels { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 7px; }
+.score-entry-form > div { margin-top: 5px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 7px; }
 .score-entry-form input { min-width: 0; height: 38px; padding: 0 12px; border: 1px solid rgba(255,255,255,.13); border-radius: 9px; outline: 0; color: var(--text); background: rgba(255,255,255,.045); font: 800 13px ui-monospace, "Microsoft YaHei UI", monospace; text-transform: uppercase; }
 .score-entry-form input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(124,238,255,.08); }
+.score-entry-form #playerMessageInput { text-transform: none; }
 .score-entry-form button { padding: 0 16px; border: 1px solid rgba(255,201,107,.36); border-radius: 9px; color: #15101a; background: linear-gradient(100deg, #ffd273, #bca0ff); font-weight: 800; cursor: pointer; }
 .score-entry-form button:disabled, .score-entry-form input:disabled { opacity: .5; cursor: not-allowed; }
 .score-entry-form small { margin-top: 5px; }
@@ -415,6 +477,8 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .danger-button { border: 1px solid rgba(255,111,117,.2); color: #f0a3a8; background: rgba(255,111,117,.05); }
 
 @media (max-width: 1180px) {
+  .score-entry-labels, .score-entry-form > div { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .score-entry-form > div button { grid-column: 1 / -1; min-height: 34px; }
   .game-shell { padding: 12px; grid-template-rows: 58px minmax(0, 1fr) 80px; }
   .play-layout { grid-template-columns: minmax(0, 1fr) 224px; }
   .upgrade-panel { padding: 13px; }
@@ -1147,4 +1211,28 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .updates-footer { padding:11px 14px; gap:8px; }
   .updates-footer-actions { gap:7px; }
   .updates-dismiss-button { padding:5px 7px; font-size:9px; }
+}
+@keyframes podium-bubble-pop {
+  0% { opacity: 0; transform: translateY(9px) scale(.72) rotate(-5deg); }
+  70% { opacity: 1; transform: translateY(-3px) scale(1.05) rotate(2deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(-1deg); }
+}
+@keyframes podium-bubble-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-5px) rotate(1.5deg); }
+}
+@keyframes podium-bubble-tail {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.2); }
+}
+@keyframes podium-bubble-shine {
+  0%, 100% { opacity: .24; transform: translateX(-4%); }
+  50% { opacity: .7; transform: translateX(56%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .podium-message,
+  .podium-message::before,
+  .podium-message::after {
+    animation: none !important;
+  }
 }
