@@ -105,3 +105,8 @@
 - 顶部新增公告按钮与独立 `updatesModal`；内容通过 `src/github-updates.js` 从 `tcmiku/CrystalTower` 的 GitHub Commits API 读取，`FALLBACK_UPDATE_ENTRIES` 仅在网络不可用时使用。
 - 公告按版本、日期、标题、正文和分类标签展示；首次启动自动弹出，支持“下次不再弹出”本地设置；面板打开时自动暂停，支持关闭按钮、遮罩点击和 `U` 键。
 - 桌面使用窄内容卡片和滚动更新列表，窄屏切换为全屏可滚动布局；公告内容不参与战斗、资源和单局存档，自动弹出偏好写入设置存档。
+## 威胁 XX 强化构建记录
+
+- `GAME_CONFIG.sovereign` 集中定义 65% 初始护盾、护盾破裂强制召唤、最终命核狂暴，以及第二命核后的 7 裂隙/5 波/词缀精英增殖参数。
+- 登场战斗锁以单一 `sovereignEntryActive` 判定冻结晶塔、无人机、晶刃、双方弹丸和伤害区域；主循环继续固定步推进登场计时。界面层保存进入首领战前的倍速，战斗期间强制并锁定 `1×`，胜利后恢复。
+- Canvas 增加青蓝双层降临护盾、独立护盾条、强化裂隙金紫外环、命核阶段与时流锁定状态文案；固定预览为 `?preview=sovereign-entry&seed=42` 和 `?preview=sovereign-skills&seed=42`。

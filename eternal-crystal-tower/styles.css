@@ -85,8 +85,9 @@ h1, h2, p { margin: 0; }
 .health-track { margin-top: 4px; height: 4px; border-radius: 4px; overflow: hidden; background: rgba(255,255,255,.08); }
 .health-track i { display: block; width: 100%; height: 100%; background: linear-gradient(90deg, #7ee8ff, #b48cff); box-shadow: 0 0 10px #7ee8ff; transition: width .2s, background .2s; }
 .top-actions { display: flex; gap: 7px; }
-.icon-button { width: 40px; height: 40px; border-radius: 11px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: var(--text); cursor: pointer; }
+.icon-button { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 11px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: var(--text); cursor: pointer; }
 .icon-button:hover { border-color: var(--violet); background: rgba(169,137,255,.12); }
+.top-icon { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .speed-button { position: relative; font: 800 12px ui-monospace, "Cascadia Mono", monospace; transition: border-color .18s, background .18s, color .18s, box-shadow .18s; }
 .speed-button.active { border-color: rgba(255,201,107,.7); color: #fff0aa; background: rgba(255,201,107,.14); box-shadow: inset 0 0 14px rgba(255,201,107,.08), 0 0 16px rgba(255,201,107,.12); }
 .speed-button.locked { color: #737591; opacity: .72; }
@@ -241,7 +242,12 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .skill-button.aiming { border-color: rgba(255,201,107,.75); background: linear-gradient(120deg, rgba(255,201,107,.15), rgba(169,137,255,.12)); box-shadow: 0 0 18px rgba(255,174,74,.16), inset 0 0 18px rgba(255,201,107,.06); }
 .skill-button:disabled { cursor: not-allowed; }
 .skill-key { position: absolute; left: 10px; top: 13px; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; font: 800 12px ui-monospace, monospace; }
-.skill-button strong, .skill-button small { display: block; position: relative; z-index: 2; }
+.skill-icon { position: absolute; z-index: 2; left: 50%; top: 50%; width: 38px; height: 38px; transform: translate(-50%, -50%); fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 7px currentColor); }
+
+.skill-button[data-skill="heal"] .skill-icon { color: #8bf0ce; }
+.skill-button[data-skill="overload"] .skill-icon { color: #ff8b7d; }
+.skill-button[data-skill="starfall"] .skill-icon { color: #d5c3ff; }
+.skill-button[data-skill="coinVacuum"] .skill-icon { color: #ffe08a; }
 .skill-button strong { font-size: 12px; }
 .skill-button small { color: var(--muted); margin-top: 4px; font-size: 9px; }
 .cooldown-mask { position: absolute; z-index: 1; inset: auto 0 0; height: 0; background: rgba(4,5,16,.77); border-top: 1px solid rgba(255,255,255,.08); }
@@ -504,7 +510,8 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .tech-branch { padding-right: 8px; }
   .upgrade-card { min-height: 94px; padding-top: 11px; padding-bottom: 9px; }
   .tech-node { min-height: 94px; margin-bottom: 9px; }
-  .skill-button { width: 130px; height: 58px; padding-left: 43px; padding-right: 8px; }
+  .skill-button { width: 130px; height: 58px; padding-left: 70px; padding-right: 8px; }
+  .skill-icon { width: 34px; height: 34px; }
   .skill-button small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .skill-bar { gap: 10px; }
   .brand { min-width: 205px; }
@@ -577,8 +584,9 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .objective small { margin-top: 2px; font-size: 8px; }
   .pulse-dot { width: 7px; height: 7px; }
   .skill-list { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-  .skill-button { width: 100%; min-width: 0; height: 58px; padding: 7px 5px 6px 31px; border-radius: 11px; }
+  .skill-button { width: 100%; min-width: 0; height: 58px; padding: 7px 5px 6px 64px; border-radius: 11px; }
   .skill-key { left: 5px; top: 14px; width: 22px; height: 28px; font-size: 10px; }
+  .skill-icon { width: 30px; height: 30px; }
   .skill-button strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
   .skill-button small { margin-top: 3px; overflow: hidden; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
   .cooldown-text { top: 5px; right: 5px; font-size: 9px; }
@@ -657,8 +665,9 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 @media (max-width: 390px) {
   .status span { font-size: 6px; }
   .status strong, .health-status strong { font-size: 10px; }
-  .skill-button { padding-left: 28px; }
+  .skill-button { padding-left: 59px; }
   .skill-key { width: 20px; }
+  .skill-icon { width: 27px; height: 27px; }
   .skill-button small { display: none; }
   .leaderboard-list li { grid-template-columns: 20px minmax(52px, 1fr) 62px 48px 44px; font-size: 7px; }
 }

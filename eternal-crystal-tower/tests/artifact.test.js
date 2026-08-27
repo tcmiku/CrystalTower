@@ -86,6 +86,9 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /bossDefeated[\s\S]*unlockDoubleSpeed/);
   assert.match(main, /威胁 Ⅹ · 时流加速解锁/);
   assert.match(main, /accumulator \+= frameDelta \* \(doubleSpeedActive \? 2 : 1\)/);
+  assert.match(main, /sovereignSpeedLocked/);
+  assert.match(main, /restoreDoubleSpeedAfterSovereign/);
+  assert.match(main, /时流锁定 1×/);
   assert.match(main, /steps < 16/);
   assert.match(main, /pointermove[\s\S]*collectCoinAt/);
   assert.match(main, /鼠标滑过/);

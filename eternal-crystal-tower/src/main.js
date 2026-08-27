@@ -73,10 +73,10 @@ const TECH_ART = {
   element: { sheet: "./assets/generated/tech-icons-element-v2.png", cols: 3, rows: 1 }
 };
 const SKILL_META = {
-  heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片", tooltip: "恢复晶塔生命；生命已满时转化为护盾，满盾受击会引爆晶片。" },
-  overload: { key: "W", name: "超载", description: "再按 W 提前释放冲击", tooltip: "短时间提升攻速并持续积热；再次按 W 可提前释放冲击。" },
-  starfall: { key: "E", name: "星落", description: "手动选择轰击方向", tooltip: "选择方向轰击敌群，造成范围伤害，并可打断巨兽射线。" },
-  coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币", tooltip: "立即吸收全场金币，将它们送回晶塔并触发金币结算。" }
+  heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片", tooltip: "恢复晶塔生命；生命已满时转化为护盾，满盾受击会引爆晶片。", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 6v5.2c0 4.2-2.7 7.6-7 9.8-4.3-2.2-7-5.6-7-9.8V6l7-3Z"></path><path d="M12 7v7M8.5 10.5h7"></path></svg>` },
+  overload: { key: "W", name: "超载", description: "再按 W 提前释放冲击", tooltip: "短时间提升攻速并持续积热；再次按 W 可提前释放冲击。", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13.4 2-7 10h5.2L10.8 22l7-11h-5.1L13.4 2Z"></path><path d="M4 6h2M18 18h2"></path></svg>` },
+  starfall: { key: "E", name: "星落", description: "手动选择轰击方向", tooltip: "选择方向轰击敌群，造成范围伤害，并可打断巨兽射线。", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2 1.5 5.2 5.3 1.4-5.3 1.5L13 15l-1.5-4.9-5.3-1.5 5.3-1.4L13 2Z"></path><path d="m19 14 .7 2.4 2.3.6-2.3.7L19 20l-.7-2.3-2.3-.7 2.3-.6L19 14ZM4 19l5-5"></path></svg>` },
+  coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币", tooltip: "立即吸收全场金币，将它们送回晶塔并触发金币结算。", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M12 5.8v4.4M10.4 8h3.2M5 16h12"></path><path d="m15 13 2.5 3-2.5 3M17.5 16H8"></path></svg>` }
 };
 const RELIC_META = {
   decoy: { icon: "◈", art: "./assets/generated/relic-decoy-ai.png", name: "诡光诱饵", type: "战术造物", description: "每波开始时在来袭方向生成诱饵。敌人会优先追逐它。", effect: "摧毁：爆炸 · 存活：转化为金币" },
@@ -355,15 +355,15 @@ if (previewMode === "sovereign-skills") {
   state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = GAME_CONFIG.sovereign.spawnThreat; state.time = 855; state.phase = "night";
   const sovereign = spawnEnemy(state, "sovereign");
   sovereign.entryTimer = 0; sovereign.phaseBreakInvulnerability = 0;
-  sovereign.hp = sovereign.maxHp * .72; sovereign.healthBar = 2;
-  sovereign.activeSkill = "summon"; sovereign.skillTimer = GAME_CONFIG.sovereign.summon.duration; sovereign.summonWavesRemaining = 1;
+  sovereign.hp = sovereign.maxHp * .72; sovereign.healthBar = 2; sovereign.spawnShield = 0;
+  sovereign.activeSkill = "summon"; sovereign.skillTimer = GAME_CONFIG.sovereign.summon.empoweredDuration; sovereign.summonWavesRemaining = 1;
   sovereign.skillTick = 999;
   state.tower.upgrades.ascend = 3; state.tower.upgrades.damage = 8; state.tower.upgrades.rate = 5;
   state.tower.fireRateSuppression = GAME_CONFIG.sovereign.rangedSlowDuration;
-  const riftPositions = [[155,260],[355,315],[605,315],[805,260]];
-  riftPositions.forEach(([x, y], index) => state.summonRifts.push({ id: state.nextId++, bossId: sovereign.id, enemyType: GAME_CONFIG.sovereign.summon.types[index], x, y, life: 1.8, maxLife: 1.8, attackable: false, targetId: null }));
+  const riftPositions = [[155,260],[355,315],[605,315],[805,260],[480,425],[245,410],[715,410]];
+  riftPositions.forEach(([x, y], index) => state.summonRifts.push({ id: state.nextId++, bossId: sovereign.id, enemyType: GAME_CONFIG.sovereign.summon.types[index % GAME_CONFIG.sovereign.summon.types.length], x, y, life: 1.8, maxLife: 1.8, attackable: false, targetId: null, elite: index === 0 }));
   state.hostileProjectiles.push({ id: state.nextId++, kind: "sovereignMortar", x: sovereign.x, y: sovereign.y + 48, vx: 0, vy: 0, targetX: 480, targetY: 540, radius: 13, life: 1.1, damage: 30 });
-  state.events.push({ type: "sovereignRiftWave", enemyId: sovereign.id, count: 4 });
+  state.events.push({ type: "sovereignRiftWave", enemyId: sovereign.id, count: 7, eliteCount: 1, empowered: true });
   state.tower.hp = getTowerStats(state).maxHp;
   state.paused = true;
 }
@@ -510,6 +510,8 @@ let recoveryEventStep = 0;
 let firstFailureFlow = false;
 let starfallAiming = false;
 let doubleSpeedActive = previewMode === "speed";
+let sovereignSpeedLocked = false;
+let restoreDoubleSpeedAfterSovereign = false;
 const firstRunTutorial = save.records.totalKills === 0 && !previewMode;
 let tutorialStep = 0;
 const loadingStartedAt = performance.now();
@@ -1245,7 +1247,8 @@ function createSkillUi() {
     button.type = "button";
     button.className = "skill-button";
     button.dataset.skill = key;
-    button.innerHTML = `<span class="skill-key">${meta.key}</span><strong>${meta.name}</strong><small>${meta.description}</small><i class="cooldown-mask"></i><span class="cooldown-text"></span><span class="skill-tooltip" role="tooltip"><b>${meta.key} · ${meta.name}</b><span>${meta.tooltip}</span></span>`;
+    button.setAttribute('aria-label', `${meta.key} · ${meta.name}：${meta.tooltip}`);
+    button.innerHTML = `<span class="skill-key">${meta.key}</span>${meta.icon}<i class="cooldown-mask"></i><span class="cooldown-text"></span><span class="skill-tooltip" role="tooltip"><b>${meta.key} · ${meta.name}</b><span>${meta.tooltip}</span></span>`;
     button.addEventListener("click", () => activateSkill(key));
     dom.skillList.append(button);
   }
@@ -1544,15 +1547,29 @@ function handleEvents(events) {
     }
     else if (event.type === "colossusEnrage") { audio.play("boss"); renderer.trigger("bossSpawn", 1.8); announce("第一命核破碎 · 第二血条开启 · 巨兽狂暴并行施法"); }
     else if (event.type === "colossusFreezeImmune") showToast("狂化巨兽免疫冰冻");
-    else if (event.type === "sovereignSpawn") { audio.play("boss"); renderer.trigger("bossSpawn", 2.6); announce("威胁 XX · 裂界魔君正在升起 · 战场清空"); }
+    else if (event.type === "sovereignSpawn") {
+      restoreDoubleSpeedAfterSovereign = doubleSpeedActive;
+      sovereignSpeedLocked = true;
+      doubleSpeedActive = false;
+      accumulator = 0;
+      audio.play("boss"); renderer.trigger("bossSpawn", 2.6); announce("威胁 XX · 时流锁定 1× · 首领登场期间双方停火");
+    }
     else if (event.type === "sovereignIntent") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce(`灭世预兆 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知技能"}`); }
     else if (event.type === "sovereignSkill") { audio.play(event.skill === "summon" ? "waveStart" : "boss"); announce(`裂界魔君 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知技能"}${event.enraged ? " · 狂暴强化" : ""}`); }
-    else if (event.type === "sovereignRiftWave") { renderer.trigger("waveStart", 1.25); showToast(`多重裂隙同时开启 · ${event.count} 处`); }
+    else if (event.type === "sovereignRiftWave") { renderer.trigger("waveStart", 1.25); showToast(`多重裂隙同时开启 · ${event.count} 处${event.eliteCount ? ` · ${event.eliteCount} 只词缀精英` : ""}`); }
     else if (event.type === "sovereignSuppress") { renderer.trigger("towerHit", 1.2); announce(`远程压制 · 晶矢攻击频率降低 ${Math.round((1 - event.multiplier) * 100)}%`); }
     else if (event.type === "sovereignPhase") { audio.play("boss"); renderer.trigger("bossSpawn", 1.35); announce(`命核破碎 · 剩余 ${event.healthBar} 管生命`); }
+    else if (event.type === "sovereignShieldBreak") { audio.play("waveStart"); renderer.trigger("waveStart", 1.7); announce("降临护盾破碎 · 裂界魔君被迫只施放召唤"); }
+    else if (event.type === "sovereignSummonEmpowered") { audio.play("boss"); renderer.trigger("bossSpawn", 1.8); announce("双命核崩解 · 裂隙增殖 · 词缀精英加入召唤"); }
     else if (event.type === "sovereignEnrage") { audio.play("boss"); renderer.trigger("bossSpawn", 2.4); announce("终末狂暴 · 元素强化与异常效果全部失效"); }
     else if (event.type === "sovereignElementImmune") showToast("终末狂暴 · 元素效果无效");
-    else if (event.type === "sovereignDefeated") { audio.play("ascend"); renderer.trigger("ascend", 2); announce("裂界魔君陨落 · 威胁 XX 已突破"); }
+    else if (event.type === "sovereignDefeated") {
+      sovereignSpeedLocked = false;
+      doubleSpeedActive = restoreDoubleSpeedAfterSovereign && save.unlocks.doubleSpeed;
+      restoreDoubleSpeedAfterSovereign = false;
+      accumulator = 0;
+      audio.play("ascend"); renderer.trigger("ascend", 2); announce(`裂界魔君陨落 · 威胁 XX 已突破${doubleSpeedActive ? " · 时流恢复 2×" : " · 时流控制恢复"}`);
+    }
     else if (event.type === "bossDefeated") {
       audio.play("ascend");
       renderer.trigger("ascend");
@@ -1683,24 +1700,17 @@ function updateUi() {
     button.querySelector(".cooldown-text").textContent = cooldown > 0 ? `${cooldown.toFixed(1)}s` : "";
     const tooltip = button.querySelector(".skill-tooltip span");
     if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
-    const description = button.querySelector("small");
-    if (key === "heal") description.textContent = state.skills.heal.shieldBurstArmed ? "晶片爆炸已装填" : state.tower.shield > 0.5 ? `护盾 ${Math.ceil(state.tower.shield)}` : SKILL_META[key].description;
-    else if (key === "overload") description.textContent = state.skills.overload.active > 0
-      ? `再按 W 释放 · 热量 ${Math.round(state.skills.overload.heat)}`
-      : state.skills.overload.slow > 0 ? `过热降速 ${state.skills.overload.slow.toFixed(1)}s` : SKILL_META[key].description;
-    else if (key === "starfall") description.textContent = starfallAiming ? "瞄准中 · 点击战场确认" : SKILL_META[key].description;
-    else description.textContent = state.skills.coinVacuum.active > 0 ? `${state.skills.coinVacuum.collected} 枚 · +${state.skills.coinVacuum.value}` : SKILL_META[key].description;
   }
 
   const sovereign = state.enemies.find((enemy) => enemy.type === "sovereign" && enemy.hp > 0);
   const colossus = state.enemies.find((enemy) => enemy.type === "colossus" && enemy.hp > 0);
   if (sovereign) {
-    dom.objectiveTitle.textContent = sovereign.enraged ? "终末狂暴 · 元素无效" : `裂界魔君 · 命核 ${sovereign.healthBar}/4`;
+    dom.objectiveTitle.textContent = sovereign.entryTimer > 0 ? "时流锁定 · 双方停火" : sovereign.enraged ? "终末狂暴 · 元素无效" : sovereign.healthBar <= 2 ? "裂隙增殖 · 精英召唤" : `裂界魔君 · 命核 ${sovereign.healthBar}/4`;
     dom.objectiveText.textContent = sovereign.entryTimer > 0
-      ? "战场已被清空，超巨型魔物正从画面上方升起。"
+      ? "战场已被清空并强制回归 1×，登场动画结束前双方无法攻击。"
       : sovereign.intentSkill === "summon" || sovereign.activeSkill === "summon" ? "多处裂隙将同时召唤怪群，优先清理靠近晶塔的目标。"
         : (state.tower.fireRateSuppression ?? 0) > 0 ? `远程压制生效中：晶矢攻击频率降低，剩余 ${state.tower.fireRateSuppression.toFixed(1)} 秒。`
-          : sovereign.enraged ? "最后命核低于 50%：冰冻、灼烧与雷电连锁无法作用于首领。" : "首领固定在战场上方，四条血量逐管击破。";
+          : sovereign.enraged ? "最后一管命核已进入狂暴：冰冻、灼烧与雷电连锁无法作用于首领。" : sovereign.healthBar <= 2 ? "召唤已强化：每波裂隙数量增加，并混入带词缀精英。" : sovereign.spawnShield > 0 ? "降临护盾存在；击破后首领下一招必定为召唤。" : "首领固定在战场上方，四条血量逐管击破。";
   } else if (colossus) {
     const activeColossusSkills = Object.keys(colossus.activeSkills ?? {}).map((skill) => COLOSSUS_SKILL_NAMES[skill]).filter(Boolean);
     dom.objectiveTitle.textContent = colossus.enraged ? `第二命核 · 狂暴并行 ${activeColossusSkills.length}/4` : colossus.spawnShield > 0 ? "首领护盾 · 优先击破" : `巨兽词条 · ${COLOSSUS_AFFIX_NAMES[colossus.colossusAffix] ?? "未知异变"}`;
@@ -1728,13 +1738,14 @@ function updateUi() {
   dom.muteButton.classList.toggle("is-muted", save.settings.muted);
   dom.muteButton.setAttribute("aria-label", save.settings.muted ? "解除静音" : "静音");
   const doubleSpeedUnlocked = save.unlocks.doubleSpeed || previewMode === "speed";
-  dom.speedButton.textContent = doubleSpeedActive ? "2×" : "1×";
-  dom.speedButton.classList.toggle("active", doubleSpeedActive);
-  dom.speedButton.classList.toggle("locked", !doubleSpeedUnlocked);
-  dom.speedButton.setAttribute("aria-pressed", String(doubleSpeedActive));
-  dom.speedButton.setAttribute("aria-disabled", String(!doubleSpeedUnlocked));
-  dom.speedButton.setAttribute("aria-label", doubleSpeedUnlocked ? `当前 ${doubleSpeedActive ? "2" : "1"} 倍速，点击切换` : "2倍速未解锁");
-  dom.speedButton.title = doubleSpeedUnlocked ? "切换 1× / 2× 倍速（X）" : "击败威胁 Ⅹ 首领后永久解锁 2× 倍速";
+  const speedForced = sovereignSpeedLocked || Boolean(sovereign);
+  dom.speedButton.textContent = speedForced ? "1×" : doubleSpeedActive ? "2×" : "1×";
+  dom.speedButton.classList.toggle("active", doubleSpeedActive && !speedForced);
+  dom.speedButton.classList.toggle("locked", !doubleSpeedUnlocked || speedForced);
+  dom.speedButton.setAttribute("aria-pressed", String(doubleSpeedActive && !speedForced));
+  dom.speedButton.setAttribute("aria-disabled", String(!doubleSpeedUnlocked || speedForced));
+  dom.speedButton.setAttribute("aria-label", speedForced ? "威胁20首领战期间强制1倍速" : doubleSpeedUnlocked ? `当前 ${doubleSpeedActive ? "2" : "1"} 倍速，点击切换` : "2倍速未解锁");
+  dom.speedButton.title = speedForced ? "威胁 XX 首领战期间时流锁定为 1×" : doubleSpeedUnlocked ? "切换 1× / 2× 倍速（X）" : "击败威胁 Ⅹ 首领后永久解锁 2× 倍速";
 }
 
 function renderLeaderboardPodium(container, highlightDate) {
@@ -1953,6 +1964,10 @@ function togglePause(force) {
 }
 
 function toggleDoubleSpeed() {
+  if (sovereignSpeedLocked || state.enemies.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0)) {
+    showToast("威胁 XX · 时流锁定 1×");
+    return;
+  }
   if (!save.unlocks.doubleSpeed && previewMode !== "speed") {
     showToast("击败威胁 Ⅹ 首领后永久解锁 2× 倍速");
     return;
@@ -1964,6 +1979,10 @@ function toggleDoubleSpeed() {
 }
 
 function restart() {
+  const resumeSpeed = restoreDoubleSpeedAfterSovereign && save.unlocks.doubleSpeed;
+  sovereignSpeedLocked = false;
+  restoreDoubleSpeedAfterSovereign = false;
+  doubleSpeedActive = resumeSpeed;
   cancelStarfallAim(false);
   relicChoiceOpen = false;
   resumeAfterRelicChoice = false;
@@ -2248,6 +2267,8 @@ dom.clearSaveButton.addEventListener("click", () => {
   save = defaultSave();
   persistSave();
   doubleSpeedActive = false;
+  sovereignSpeedLocked = false;
+  restoreDoubleSpeedAfterSovereign = false;
   audio.setMuted(false);
   setBaseCampOpen(false);
   renderBaseCamp();

@@ -707,6 +707,10 @@ export class Renderer {
       const radius = 20 + progress * 22;
       ctx.save();
       ctx.translate(rift.x, rift.y);
+      if (rift.elite) {
+        ctx.save(); ctx.rotate(-this.time * 1.8); ctx.strokeStyle = "#ffd45d"; ctx.shadowColor = "#ff5ac8"; ctx.shadowBlur = 20; ctx.lineWidth = 4; ctx.setLineDash([5, 8]);
+        ctx.beginPath(); ctx.arc(0, 0, radius + 10 + pulse * 4, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+      }
       ctx.globalAlpha = 0.35 + progress * 0.55;
       ctx.fillStyle = `rgba(107,24,151,${0.18 + progress * 0.18})`;
       ctx.strokeStyle = progress > 0.72 ? "#ff6bcf" : "#d99aff";
@@ -967,7 +971,15 @@ export class Renderer {
         ctx.setLineDash([]); ctx.textAlign = "center"; ctx.font = "900 13px 'Microsoft YaHei UI',sans-serif"; ctx.fillStyle = enemy.enraged ? "#ff6a4d" : skillVisual?.color ?? "#e8b8ff";
         const label = enemy.entryTimer > 0 ? "灾厄显现" : enemy.intentSkill ? `灭世预兆 · ${skillVisual?.name ?? "未知"} ${Math.max(0, enemy.intentTimer).toFixed(1)}s` : skillVisual?.name ?? "裂隙凝视";
         ctx.fillText(label, enemy.x, 287);
-        if (enemy.enraged) { ctx.fillStyle = "#ff4e39"; ctx.fillText("终末狂暴 · 元素效果无效", enemy.x, 306); }
+        if ((enemy.spawnShield ?? 0) > 0) {
+          const shieldRatio = enemy.spawnShield / Math.max(1, enemy.spawnShieldMax);
+          ctx.save(); ctx.translate(enemy.x, enemy.y + 30); ctx.rotate(this.time * .42);
+          ctx.globalAlpha = .44 + shieldRatio * .42; ctx.fillStyle = "rgba(84,205,255,.08)"; ctx.strokeStyle = "#87efff"; ctx.shadowColor = "#5e7dff"; ctx.shadowBlur = 30 + pulse * 16; ctx.lineWidth = 4;
+          ctx.setLineDash([22, 9]); ctx.beginPath(); ctx.ellipse(0, 0, 365, 158, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.rotate(-this.time * .84); ctx.strokeStyle = "#efe2ff"; ctx.lineWidth = 1.8; ctx.setLineDash([5, 13]); ctx.beginPath(); ctx.ellipse(0, 0, 348, 146, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+          ctx.fillStyle = "#a9f6ff"; ctx.fillText(`降临护盾 ${Math.ceil(shieldRatio * 100)}%`, enemy.x, 306);
+        } else if (enemy.enraged) { ctx.fillStyle = "#ff4e39"; ctx.fillText("终末狂暴 · 元素效果无效", enemy.x, 306); }
+        else if (enemy.healthBar <= 2) { ctx.fillStyle = "#ffd45d"; ctx.fillText("裂隙增殖 · 词缀精英加入", enemy.x, 306); }
         ctx.restore();
       }
       if (enemy.type === "colossus") {
@@ -1439,7 +1451,7 @@ export class Renderer {
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(18,4,20,.9)";
     ctx.strokeStyle = isSovereign ? "rgba(255,38,91,.9)" : isColossus ? "rgba(255,74,132,.68)" : "rgba(255,180,95,.55)";
-    const panelHeight = isSovereign ? 92 : isColossus ? 76 : 49;
+    const panelHeight = isSovereign ? 104 : isColossus ? 76 : 49;
     ctx.beginPath(); ctx.roundRect(width / 2 - barWidth / 2 - 12, y - 9, barWidth + 24, panelHeight, 12); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#ffd18a"; ctx.font = "800 12px 'Microsoft YaHei UI', sans-serif";
     const resistanceNames = { frost: "冰霜", fire: "火焰", lightning: "雷电" };
@@ -1461,19 +1473,22 @@ export class Renderer {
     gradient.addColorStop(0, phaseColor); gradient.addColorStop(1, "#ffc45f");
     if (isSovereign) {
       const x = width / 2 - barWidth / 2;
+      const shieldRatio = Math.max(0, (boss.spawnShield ?? 0) / (boss.spawnShieldMax || 1));
+      ctx.fillStyle = "rgba(103,220,255,.13)"; ctx.fillRect(x, y + 13, barWidth, 5);
+      ctx.fillStyle = "#8eeeff"; ctx.shadowColor = "#4c8dff"; ctx.shadowBlur = 9; ctx.fillRect(x, y + 13, barWidth * shieldRatio, 5); ctx.shadowBlur = 0;
       const labels = ["Ⅳ", "Ⅲ", "Ⅱ", "Ⅰ"];
       labels.forEach((label, index) => {
         const representedBar = 4 - index;
         const barRatio = boss.healthBar > representedBar ? 1 : boss.healthBar === representedBar ? ratio : 0;
-        const barY = y + 16 + index * 13;
+        const barY = y + 22 + index * 13;
         ctx.fillStyle = "rgba(255,255,255,.1)"; ctx.fillRect(x, barY, barWidth, 8);
         ctx.fillStyle = gradient; ctx.fillRect(x, barY, barWidth * barRatio, 8);
         ctx.textAlign = "left"; ctx.fillStyle = "rgba(255,255,255,.88)"; ctx.font = "900 9px ui-monospace, monospace"; ctx.fillText(label, x + 5, barY + 7);
       });
       ctx.textAlign = "center"; ctx.font = "800 10px 'Microsoft YaHei UI', sans-serif";
-      ctx.fillStyle = boss.enraged ? "#ff6b4e" : (state.tower.fireRateSuppression ?? 0) > 0 ? "#ff8d79" : "#e5b9ff";
-      const status = boss.entryTimer > 0 ? `灾厄升起 · ${boss.entryTimer.toFixed(1)}s` : boss.enraged ? "最后命核 50% 以下 · 元素强化与异常全部失效" : (state.tower.fireRateSuppression ?? 0) > 0 ? `晶矢频率受压制 · ${state.tower.fireRateSuppression.toFixed(1)}s` : `剩余命核 ${boss.healthBar}/4 · 优先施放多重裂隙`;
-      ctx.fillText(status, width / 2, y + 76);
+      ctx.fillStyle = shieldRatio > 0 ? "#a9f6ff" : boss.enraged ? "#ff6b4e" : boss.healthBar <= 2 ? "#ffd45d" : (state.tower.fireRateSuppression ?? 0) > 0 ? "#ff8d79" : "#e5b9ff";
+      const status = boss.entryTimer > 0 ? `时流锁定 1× · 双方停火 ${boss.entryTimer.toFixed(1)}s` : shieldRatio > 0 ? `降临护盾 ${Math.ceil(shieldRatio * 100)}% · 击破后强制召唤` : boss.enraged ? "最后命核开启 · 终末狂暴 · 元素与异常全部失效" : boss.healthBar <= 2 ? "裂隙增殖 · 每波混入词缀精英" : (state.tower.fireRateSuppression ?? 0) > 0 ? `晶矢频率受压制 · ${state.tower.fireRateSuppression.toFixed(1)}s` : `剩余命核 ${boss.healthBar}/4 · 优先施放多重裂隙`;
+      ctx.fillText(status, width / 2, y + 88);
     } else if (isColossus) {
       const x = width / 2 - barWidth / 2;
       const shieldRatio = Math.max(0, (boss.spawnShield ?? 0) / (boss.spawnShieldMax || 1));

@@ -1639,11 +1639,12 @@ test("威胁二十清空战场并只生成固定于顶部的超巨型首领", ()
   assert.equal(sovereign.x, GAME_CONFIG.sovereign.fixedX);
   assert.equal(sovereign.y, GAME_CONFIG.sovereign.fixedY);
   assert.equal(sovereign.healthBars, 4);
+  assert.equal(sovereign.spawnShield, sovereign.maxHp * GAME_CONFIG.sovereign.spawnShieldFraction);
   assert.ok(state.events.some((event) => event.type === "sovereignSpawn"));
   assert.equal(state.enemies.some((enemy) => enemy.type === "boss"), false);
 });
 
-test("裂界魔君拥有四管血且最后半管狂暴后免疫全部元素效果", () => {
+test("裂界魔君进入最后一管血时立即狂暴并免疫全部元素效果", () => {
   const state = createGameState(20002);
   const boss = spawnEnemy(state, "sovereign");
   boss.entryTimer = 0; boss.phaseBreakInvulnerability = 0;
@@ -1652,10 +1653,9 @@ test("裂界魔君拥有四管血且最后半管狂暴后免疫全部元素效�
     assert.equal(boss.healthBar, expectedBar);
     boss.phaseBreakInvulnerability = 0;
   }
-  assert.equal(boss.enraged, false);
-  damageEnemy(state, boss, boss.maxHp * 0.55, "shot");
   assert.equal(boss.enraged, true);
   assert.equal(boss.elementImmune, true);
+  assert.ok(state.events.some((event) => event.type === "sovereignEnrage"));
   for (const element of ["frost", "fire", "lightning"]) assert.equal(applyElementalHit(state, boss, element, 100), false);
   assert.equal(boss.freezeTimer, 0);
   assert.equal(boss.burnTimer, 0);
@@ -1671,6 +1671,52 @@ test("裂界魔君一次召唤会同时在四处开启裂隙", () => {
   updateGame(state, 0.01);
   assert.equal(state.summonRifts.length, GAME_CONFIG.sovereign.summon.portalsPerWave);
   assert.ok(state.events.some((event) => event.type === "sovereignRiftWave" && event.count === 4));
+});
+test("裂界魔君降临护盾击破后会取消当前技能并强制召唤", () => {
+  const state = createGameState(200031);
+  const boss = spawnEnemy(state, "sovereign");
+  boss.entryTimer = 0; boss.phaseBreakInvulnerability = 0;
+  boss.activeSkill = "beam";
+  state.hostileProjectiles.push({ id: state.nextId++, kind: "sovereignMortar", x: 100, y: 100, vx: 0, vy: 0, targetX: 100, targetY: 100, radius: 5, life: 2, damage: 1 });
+  damageEnemy(state, boss, boss.spawnShieldMax + 1, "shot");
+  assert.equal(boss.spawnShield, 0);
+  assert.equal(boss.activeSkill, null);
+  assert.equal(boss.intentSkill, "summon");
+  assert.equal(state.hostileProjectiles.length, 0);
+  assert.ok(state.events.some((event) => event.type === "sovereignShieldBreak" && event.forcedSkill === "summon"));
+});
+
+test("裂界魔君失去两管血后召唤七处裂隙且每波包含词缀精英", () => {
+  const state = createGameState(200032);
+  state.spawnTimer = 999; state.wave.nextAt = 999;
+  const boss = spawnEnemy(state, "sovereign");
+  boss.entryTimer = 0; boss.phaseBreakInvulnerability = 0; boss.spawnShield = 0;
+  boss.healthBar = GAME_CONFIG.sovereign.summon.empoweredHealthBar;
+  boss.intentSkill = "summon"; boss.intentTimer = 0;
+  updateGame(state, 0.01);
+  updateGame(state, 0.01);
+  assert.equal(state.summonRifts.length, GAME_CONFIG.sovereign.summon.empoweredPortalsPerWave);
+  assert.equal(state.summonRifts.filter((rift) => rift.elite).length, GAME_CONFIG.sovereign.summon.elitePerWave);
+  assert.ok(state.events.some((event) => event.type === "sovereignRiftWave" && event.empowered && event.eliteCount === 1));
+  boss.activeSkill = null; boss.skillCooldown = 999;
+  updateGame(state, GAME_CONFIG.sovereign.summon.telegraphDuration + 0.01);
+  const elite = state.enemies.find((enemy) => enemy.elite && enemy.type !== "sovereign");
+  assert.ok(elite);
+  assert.ok(GAME_CONFIG.eliteAffixes.order.includes(elite.affix));
+});
+
+test("裂界魔君登场动画期间冻结双方攻击但倒计时继续", () => {
+  const state = createGameState(200033);
+  state.spawnTimer = 999; state.wave.nextAt = 999;
+  const boss = spawnEnemy(state, "sovereign");
+  const before = boss.entryTimer;
+  state.tower.fireCooldown = 0;
+  assert.equal(useSkill(state, "starfall", { angle: -Math.PI / 2 }), false);
+  updateGame(state, 0.1);
+  assert.ok(boss.entryTimer < before);
+  assert.equal(state.projectiles.length, 0);
+  assert.equal(state.hostileProjectiles.length, 0);
+  assert.equal(boss.hp, boss.maxHp);
 });
 
 test("裂界魔君远程技能会暂时降低晶塔子弹攻击频率", () => {

@@ -422,6 +422,9 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
     enemy.summonWavesRemaining = 0;
     enemy.healthBars = cfg.healthBars;
     enemy.healthBar = cfg.healthBars;
+    enemy.spawnShieldMax = enemy.maxHp * cfg.spawnShieldFraction;
+    enemy.spawnShield = enemy.spawnShieldMax;
+    enemy.shieldBreakSummonTriggered = false;
     enemy.phaseBreakInvulnerability = cfg.entryDuration;
     enemy.entryTimer = cfg.entryDuration;
     enemy.enraged = false;
@@ -649,7 +652,29 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
       appliedDamage -= absorbed;
     }
   }
-  if (enemy.type === "sovereign" && enemy.activeSkill === "bulwark") appliedDamage *= GAME_CONFIG.sovereign.bulwark.damageMultiplier;
+  if (enemy.type === "sovereign") {
+    const cfg = GAME_CONFIG.sovereign;
+    if (enemy.activeSkill === "bulwark") appliedDamage *= cfg.bulwark.damageMultiplier;
+    if ((enemy.spawnShield ?? 0) > 0) {
+      const shieldBefore = enemy.spawnShield;
+      const absorbed = Math.min(enemy.spawnShield, appliedDamage);
+      enemy.spawnShield -= absorbed;
+      appliedDamage -= absorbed;
+      if (shieldBefore > 0 && enemy.spawnShield <= 0 && !enemy.shieldBreakSummonTriggered) {
+        enemy.shieldBreakSummonTriggered = true;
+        enemy.activeSkill = null;
+        enemy.intentSkill = "summon";
+        enemy.intentTimer = cfg.shieldBreakSummonDelay;
+        enemy.skillTimer = 0;
+        enemy.skillTick = 0;
+        enemy.skillCooldown = 0;
+        enemy.summonWavesRemaining = 0;
+        state.hostileProjectiles.length = 0;
+        state.summonRifts = state.summonRifts.filter((rift) => rift.bossId !== enemy.id);
+        state.events.push({ type: "sovereignShieldBreak", enemyId: enemy.id, forcedSkill: "summon", duration: enemy.intentTimer, x: enemy.x, y: enemy.y });
+      }
+    }
+  }
   if ((enemy.affixShield ?? 0) > 0) {
     const absorbed = Math.min(enemy.affixShield, appliedDamage);
     enemy.affixShield -= absorbed;
@@ -694,8 +719,11 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
     state.hostileProjectiles.length = 0;
     state.summonRifts = state.summonRifts.filter((rift) => rift.bossId !== enemy.id);
     state.events.push({ type: "sovereignPhase", enemyId: enemy.id, healthBar: enemy.healthBar, x: enemy.x, y: enemy.y });
+    if (enemy.healthBar === GAME_CONFIG.sovereign.summon.empoweredHealthBar) {
+      state.events.push({ type: "sovereignSummonEmpowered", enemyId: enemy.id, healthBar: enemy.healthBar, x: enemy.x, y: enemy.y });
+    }
   }
-  if (enemy.type === "sovereign" && enemy.hp > 0 && enemy.healthBar === 1 && !enemy.enraged && enemy.hp / enemy.maxHp <= GAME_CONFIG.sovereign.finalEnrageThreshold) {
+  if (enemy.type === "sovereign" && enemy.hp > 0 && enemy.healthBar === GAME_CONFIG.sovereign.enrageHealthBar && !enemy.enraged) {
     enemy.enraged = true;
     enemy.elementImmune = true;
     enemy.freezeTimer = 0;
@@ -1098,6 +1126,10 @@ function activeColossus(state) {
   return state.enemies.find((enemy) => (enemy.type === "colossus" || enemy.type === "sovereign") && enemy.hp > 0);
 }
 
+function sovereignEntryActive(state) {
+  return state.enemies.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0 && (enemy.entryTimer ?? 0) > 0);
+}
+
 function updateWave(state, dt) {
   const cfg = GAME_CONFIG.waves;
   const wave = state.wave;
@@ -1444,14 +1476,16 @@ function beginSovereignIntent(state, boss) {
 function startSovereignSkill(state, boss) {
   const cfg = GAME_CONFIG.sovereign;
   const skill = boss.intentSkill ?? cfg.skillOrder[boss.skillSequence++ % cfg.skillOrder.length];
+  const empoweredSummon = skill === "summon" && boss.healthBar <= cfg.summon.empoweredHealthBar;
   boss.intentSkill = null;
   boss.intentTimer = 0;
   boss.activeSkill = skill;
-  boss.skillTimer = cfg[skill].duration;
+  boss.skillTimer = empoweredSummon ? cfg.summon.empoweredDuration : cfg[skill].duration;
   boss.skillTick = 0;
-  boss.summonWavesRemaining = skill === "summon" ? cfg.summon.waves + (boss.enraged ? 1 : 0) : 0;
+  const summonWaves = empoweredSummon ? cfg.summon.empoweredWaves : cfg.summon.waves;
+  boss.summonWavesRemaining = skill === "summon" ? summonWaves + Number(boss.enraged) : 0;
   if (skill === "artillery" || skill === "beam") suppressTowerFire(state, boss, skill);
-  state.events.push({ type: "sovereignSkill", skill, enemyId: boss.id, duration: boss.skillTimer, enraged: boss.enraged });
+  state.events.push({ type: "sovereignSkill", skill, enemyId: boss.id, duration: boss.skillTimer, enraged: boss.enraged, empowered: empoweredSummon });
 }
 
 function finishSovereignSkill(boss) {
@@ -1480,21 +1514,26 @@ function fireSovereignArtillery(state, boss) {
 function queueSovereignRiftWave(state, boss) {
   const cfg = GAME_CONFIG.sovereign.summon;
   if (boss.summonWavesRemaining <= 0) return;
-  const waveIndex = cfg.waves + Number(boss.enraged) - boss.summonWavesRemaining;
+  const empowered = boss.healthBar <= cfg.empoweredHealthBar;
+  const totalWaves = (empowered ? cfg.empoweredWaves : cfg.waves) + Number(boss.enraged);
+  const waveIndex = totalWaves - boss.summonWavesRemaining;
   const positions = [
     [155, 260], [355, 315], [605, 315], [805, 260], [480, 425]
   ];
-  const count = cfg.portalsPerWave + Number(boss.enraged);
+  const count = (empowered ? cfg.empoweredPortalsPerWave : cfg.portalsPerWave) + Number(boss.enraged);
+  const eliteCount = empowered ? cfg.elitePerWave + (boss.enraged ? cfg.enragedEliteBonus : 0) : 0;
+  const eliteOffset = count > 0 ? waveIndex % count : 0;
   for (let index = 0; index < count; index += 1) {
     const [baseX, baseY] = positions[(index + waveIndex) % positions.length];
     const x = baseX + (state.rng.next() - 0.5) * 48;
     const y = baseY + (state.rng.next() - 0.5) * 36;
     const enemyType = cfg.types[(waveIndex * count + index) % cfg.types.length];
-    state.summonRifts.push({ id: state.nextId++, bossId: boss.id, enemyType, x, y, life: cfg.telegraphDuration, maxLife: cfg.telegraphDuration, attackable: false, targetId: null });
-    state.events.push({ type: "sovereignSummonRift", enemyType, x, y, duration: cfg.telegraphDuration });
+    const elite = empowered && ((index - eliteOffset + count) % count < eliteCount);
+    state.summonRifts.push({ id: state.nextId++, bossId: boss.id, enemyType, x, y, life: cfg.telegraphDuration, maxLife: cfg.telegraphDuration, attackable: false, targetId: null, elite });
+    state.events.push({ type: "sovereignSummonRift", enemyType, x, y, duration: cfg.telegraphDuration, elite });
   }
   boss.summonWavesRemaining -= 1;
-  state.events.push({ type: "sovereignRiftWave", enemyId: boss.id, count });
+  state.events.push({ type: "sovereignRiftWave", enemyId: boss.id, count, eliteCount, empowered });
 }
 
 function updateSovereign(state, boss, dt) {
@@ -1556,9 +1595,9 @@ function updateSummonRifts(state, dt) {
     const boss = state.enemies.find((enemy) => enemy.id === rift.bossId && (enemy.type === "colossus" || enemy.type === "sovereign") && enemy.hp > 0);
     if (!boss) continue;
     if (rift.targetId && !state.enemies.some((enemy) => enemy.id === rift.targetId && enemy.hp > 0)) continue;
-    const summoned = spawnEnemy(state, rift.enemyType, { x: rift.x, y: rift.y }, { summonedByColossus: true });
+    const summoned = spawnEnemy(state, rift.enemyType, { x: rift.x, y: rift.y }, { summonedByColossus: true, elite: Boolean(rift.elite) });
     if (rift.targetId) state.enemies = state.enemies.filter((enemy) => enemy.id !== rift.targetId);
-    if (summoned) state.events.push({ type: boss.type === "sovereign" ? "sovereignSummon" : "colossusSummon", enemyId: summoned.id, enemyType: rift.enemyType, x: summoned.x, y: summoned.y });
+    if (summoned) state.events.push({ type: boss.type === "sovereign" ? "sovereignSummon" : "colossusSummon", enemyId: summoned.id, enemyType: rift.enemyType, x: summoned.x, y: summoned.y, elite: summoned.elite, affix: summoned.affix ?? null });
   }
   state.summonRifts = state.summonRifts.filter((rift) => rift.life > 0);
 }
@@ -2199,6 +2238,7 @@ export function useSkill(state, key, options = {}) {
   const skill = state.skills[key];
   const config = GAME_CONFIG.skills[key];
   if (!skill || !config) return false;
+  if (sovereignEntryActive(state) && (key === "overload" || key === "starfall")) return false;
   if (key === "overload" && skill.active > 0) {
     if (counterColossusBulwark(state)) skill.heat = Math.min(config.heatCap, skill.heat + GAME_CONFIG.colossus.counters.bulwarkHeat);
     skill.active = 0;
@@ -2310,11 +2350,12 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   }
 
   const stats = getTowerStats(state);
+  const entryCombatLocked = sovereignEntryActive(state);
   // Do not carry cooldown debt across periods without a target. Otherwise a
   // tower that has been idle for a while fires once per simulation frame when
   // an enemy finally enters range.
   state.tower.fireCooldown = Math.max(0, state.tower.fireCooldown - dt);
-  if (state.tower.fireCooldown <= 0 && fireTower(state)) {
+  if (!entryCombatLocked && state.tower.fireCooldown <= 0 && fireTower(state)) {
     const rateMultiplier = overloadSkill.active > 0
       ? GAME_CONFIG.skills.overload.rateMultiplier
       : overloadSkill.slow > 0 ? GAME_CONFIG.skills.overload.slowRateMultiplier : 1;
@@ -2322,16 +2363,18 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   }
 
   updateEnemies(state, dt);
-  updateDrones(state, dt);
-  updateSaws(state, dt);
-  updateLaunchedSaws(state, dt);
-  updateSawGuns(state, dt);
-  updateProjectiles(state, dt);
-  updateHostileProjectiles(state, dt);
-  updateRelicDecoys(state, dt);
-  updateEmberZones(state, dt);
+  if (!entryCombatLocked) {
+    updateDrones(state, dt);
+    updateSaws(state, dt);
+    updateLaunchedSaws(state, dt);
+    updateSawGuns(state, dt);
+    updateProjectiles(state, dt);
+    updateHostileProjectiles(state, dt);
+    updateRelicDecoys(state, dt);
+    updateEmberZones(state, dt);
+  }
   resolveDeaths(state);
-  updateSummonRifts(state, dt);
+  if (!entryCombatLocked) updateSummonRifts(state, dt);
   updateCoinOrbs(state, dt);
   updatePermanentResourceDrops(state, dt);
   updateTransient(state, dt);
@@ -2352,7 +2395,7 @@ export function snapshotState(state) {
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
     enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1]),
     hostileProjectiles: state.hostileProjectiles.map((projectile) => [projectile.kind, Number(projectile.x.toFixed(2)), Number(projectile.y.toFixed(2)), Number(projectile.life.toFixed(2))]),
-    summonRifts: state.summonRifts.map((rift) => [rift.enemyType, Number(rift.x.toFixed(2)), Number(rift.y.toFixed(2)), Number(rift.life.toFixed(2)), rift.attackable, rift.targetId]),
+    summonRifts: state.summonRifts.map((rift) => [rift.enemyType, Number(rift.x.toFixed(2)), Number(rift.y.toFixed(2)), Number(rift.life.toFixed(2)), rift.attackable, rift.targetId, Boolean(rift.elite)]),
     resourceDrops: state.resourceDrops.map((drop) => [drop.resourceType, drop.value, Number(drop.x.toFixed(2)), Number(drop.y.toFixed(2)), drop.source, drop.threatLevel]),
     relics: { owned: { ...state.relics.owned }, available: [...state.relics.available], slots: state.relics.slots, picks: state.relics.picks, damageBonus: Number(state.relics.damageBonus.toFixed(3)), rateBonus: Number(state.relics.rateBonus.toFixed(3)), mirrorShots: state.relics.mirrorShots, wardKills: state.relics.wardKills, phaseBuff: Number(state.relics.phaseBuff.toFixed(3)), choice: state.relicChoice?.choices ?? null },
     decoys: state.decoys.map((decoy) => [Number(decoy.x.toFixed(2)), Number(decoy.y.toFixed(2)), Number(decoy.hp.toFixed(2)), decoy.waveIndex]),
