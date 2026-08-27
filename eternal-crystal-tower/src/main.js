@@ -40,10 +40,37 @@ const UPGRADE_META = {
   lightning: { icon: "ϟ", name: "雷鸣天球", description: "14% 概率连锁附近三名敌人", max: 1 }
 };
 const BRANCH_META = {
-  power: { name: "晶塔火力 · 炮膛专精（二选一）", keys: ["damage", "rate", "ascend", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonSplit", "cannonGrowth", "cannonEcho"] },
-  blade: { name: "环刃工事 · 二选一专精", keys: ["saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery"] },
-  economy: { name: "无人机协议", keys: ["drone", "droneScavenge", "autoCollect", "droneBattery", "droneIntercept", "droneHunt", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery"] },
-  element: { name: "元素共鸣", keys: ["frost", "fire", "lightning"] }
+  power: { icon: "✦", name: "晶塔火力", subtitle: "基础强化 · 炮膛专精", routes: ["路线 A · 破城炮膛", "路线 B · 裂晶炮膛"], keys: ["damage", "rate", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonSplit", "cannonGrowth", "cannonEcho", "ascend"] },
+  blade: { icon: "✺", name: "环刃工事", subtitle: "疾旋或弹射路线", routes: ["路线 A · 疾旋炮刃", "路线 B · 弹射飞刃"], keys: ["saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery"] },
+  economy: { icon: "⌁", name: "无人机协议", subtitle: "拾荒 · 战术 · 防御", routes: ["路线 A · 自爆猎杀", "路线 B · 防御护盾"], keys: ["drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery"] },
+  element: { icon: "◇", name: "元素共鸣", subtitle: "三元素可同时研究", keys: ["frost", "fire", "lightning"] }
+};
+const TECH_LAYOUT = {
+  power: {
+    rows: 4,
+    nodes: { damage: [2, 1], rate: [4, 1], cannonSiege: [1, 2], cannonSplit: [3, 2], cannonCharge: [1, 3], cannonPierce: [2, 3], cannonWeakpoint: [3, 3], cannonGrowth: [4, 3], cannonEcho: [5, 3], ascend: [3, 4] },
+    edges: [["damage", "rate"], ["damage", "cannonSiege"], ["damage", "cannonSplit"], ["cannonSiege", "cannonCharge"], ["cannonSiege", "cannonPierce"], ["cannonSiege", "cannonWeakpoint"], ["cannonSplit", "cannonGrowth"], ["cannonSplit", "cannonEcho"], ["rate", "ascend"]],
+    excludes: [["cannonSiege", "cannonSplit"]]
+  },
+  blade: {
+    rows: 3,
+    nodes: { saw: [3, 1], sawOverdrive: [2, 2], sawLaunch: [4, 2], sawGun: [2, 3], sawRicochet: [4, 3], sawRecovery: [5, 3] },
+    edges: [["saw", "sawOverdrive"], ["saw", "sawLaunch"], ["sawOverdrive", "sawGun"], ["sawLaunch", "sawRicochet"], ["sawLaunch", "sawRecovery"]],
+    excludes: [["sawOverdrive", "sawLaunch"]]
+  },
+  economy: {
+    rows: 5,
+    nodes: { drone: [3, 1], droneScavenge: [1, 2], autoCollect: [3, 2], droneIntercept: [5, 2], droneHunt: [2, 3], droneBattery: [4, 3], droneDetonate: [3, 4], droneGuard: [5, 4], droneDetonateRecovery: [3, 5], droneGuardRecovery: [5, 5] },
+    edges: [["drone", "droneScavenge"], ["drone", "autoCollect"], ["drone", "droneIntercept"], ["autoCollect", "droneHunt"], ["autoCollect", "droneBattery"], ["droneBattery", "droneDetonate"], ["droneBattery", "droneGuard"], ["droneDetonate", "droneDetonateRecovery"], ["droneGuard", "droneGuardRecovery"]],
+    excludes: [["droneDetonate", "droneGuard"]]
+  },
+  element: { rows: 3, nodes: { frost: [1, 2], fire: [3, 2], lightning: [5, 2] }, edges: [], excludes: [] }
+};
+const TECH_ART = {
+  power: { sheet: "./assets/generated/tech-icons-power-v2.png", cols: 5, rows: 2 },
+  blade: { sheet: "./assets/generated/tech-icons-blade-v2.png", cols: 3, rows: 2 },
+  economy: { sheet: "./assets/generated/tech-icons-drone-v2.png", cols: 5, rows: 2 },
+  element: { sheet: "./assets/generated/tech-icons-element-v2.png", cols: 3, rows: 1 }
 };
 const SKILL_META = {
   heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片", tooltip: "恢复晶塔生命；生命已满时转化为护盾，满盾受击会引爆晶片。" },
@@ -458,6 +485,8 @@ let accumulator = 0;
 let toastTimer = 0;
 let announcementTimer = 0;
 let techTreeOpen = false;
+let activeTechBranch = "power";
+let selectedTechKey = "damage";
 let resumeAfterTechTree = false;
 let leaderboardModalOpen = false;
 let updatesModalOpen = false;
@@ -736,6 +765,7 @@ function showFirstRunTutorial(step, force = false) {
     dom.tutorialDismiss.textContent = "我看见了";
   } else if (step === 2) {
     setTechTreeOpen(true);
+    selectTechBranch("power", false);
     dom.tutorialTitle.textContent = "第一笔金币已到手";
     dom.tutorialText.textContent = "继续拾取并攒够 20 金币。“淬亮晶矢”是所有路线的起点：提高基础伤害，并解锁晶刃与无人机科技。";
     dom.tutorialDismiss.textContent = "稍后研究";
@@ -747,8 +777,8 @@ function showFirstRunTutorial(step, force = false) {
     dom.tutorialText.textContent = "两条路线可以并行研究；先选哪条，取决于你现在更缺近身火力还是金币回收。";
     dom.tutorialChoices.innerHTML = `<div class="tutorial-choice blade"><strong>✺ 晶刃 · 近身防御</strong><span>环绕晶塔切割靠近的敌人，后续可升级晶刃炮膛补充火力。</span></div><div class="tutorial-choice drone"><strong>⌁ 无人机 · 经济自动化</strong><span>护航时自动回收金币，后续可切换攻击模式并发展战术协议。</span></div>`;
     dom.tutorialDismiss.textContent = "开始选择";
-    dom.upgradeList.querySelector('[data-upgrade="saw"]')?.classList.add("tutorial-focus");
-    dom.upgradeList.querySelector('[data-upgrade="drone"]')?.classList.add("tutorial-focus");
+    dom.upgradeList.querySelector('[data-branch-tab="blade"]')?.classList.add("tutorial-focus");
+    dom.upgradeList.querySelector('[data-branch-tab="economy"]')?.classList.add("tutorial-focus");
   } else if (step === 4) {
     dom.tutorialTitle.textContent = "威胁 Ⅹ · 时流加速解锁";
     dom.tutorialText.textContent = "你已击败威胁 Ⅹ 首领，永久解锁 2× 时流。点击右上角的 1× / 2× 按钮，或按 X 切换战斗速度。";
@@ -758,50 +788,196 @@ function showFirstRunTutorial(step, force = false) {
 
 function createUpgradeUi() {
   dom.upgradeList.replaceChildren();
+  const tabs = document.createElement("nav");
+  tabs.className = "tech-branch-tabs";
+  tabs.setAttribute("aria-label", "科技分支");
   for (const [branchKey, branch] of Object.entries(BRANCH_META)) {
-    const section = document.createElement("section");
-    section.className = `tech-branch ${branchKey}`;
-    section.innerHTML = `<h3>${branch.name}</h3>`;
-    for (const key of branch.keys) {
-      if (branchKey === "blade" && (key === "sawOverdrive" || key === "sawLaunch")) {
-        const route = document.createElement("div");
-        route.className = `blade-route-label ${key === "sawOverdrive" ? "orbit" : "launch"}`;
-        route.dataset.route = key === "sawOverdrive" ? "orbit" : "launch";
-        route.innerHTML = key === "sawOverdrive"
-          ? `<strong>路线 A · 疾旋炮刃</strong><span>持续环绕 · 加速增伤 · 保留弹幕</span>`
-          : `<strong>路线 B · 弹射飞刃</strong><span>离塔弹射 · 恢复重铸 · 禁用弹幕</span>`;
-        section.append(route);
-      } else if (branchKey === "economy" && (key === "droneDetonate" || key === "droneGuard")) {
-        const route = document.createElement("div");
-        const detonateRoute = key === "droneDetonate";
-        route.className = `blade-route-label ${detonateRoute ? "detonate" : "guard"}`;
-        route.dataset.route = detonateRoute ? "detonate" : "guard";
-        route.innerHTML = detonateRoute
-          ? `<strong>路线 A · 自爆猎杀</strong><span>主动开启 · 优先 Boss / 精英 · 接近自爆</span>`
-          : `<strong>路线 B · 防御护盾</strong><span>护航耗电 · 自动护盾 · 耗尽冷却</span>`;
-        section.append(route);
-      } else if (branchKey === "power" && (key === "cannonSiege" || key === "cannonSplit")) {
-        const route = document.createElement("div");
-        const siegeRoute = key === "cannonSiege";
-        route.className = `blade-route-label ${siegeRoute ? "siege" : "split"}`;
-        route.dataset.route = siegeRoute ? "cannonSiege" : "cannonSplit";
-        route.innerHTML = siegeRoute
-          ? `<strong>路线 A · 破城炮膛</strong><span>首领 / 精英 · 蓄能晶矢 · 贯星穿透 · 弱点校准</span>`
-          : `<strong>路线 B · 裂晶炮膛</strong><span>怪潮清场 · 晶矢分裂 · 碎片增殖 · 晶爆回响</span>`;
-        section.append(route);
-      }
-      const index = TECH_ORDER.indexOf(key);
-      const meta = UPGRADE_META[key];
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "upgrade-card tech-node";
-      button.dataset.upgrade = key;
-      button.innerHTML = `<span class="upgrade-icon">${meta.icon}</span><strong><span>${index + 1}. ${meta.name}</span><em></em></strong><p>${meta.description}</p><small class="tech-gate"></small><span class="level-pips"></span>`;
-      button.addEventListener("click", () => buyUpgrade(key));
-      section.append(button);
-    }
-    dom.upgradeList.append(section);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tech-branch-tab";
+    button.dataset.branchTab = branchKey;
+    button.innerHTML = `<span class="branch-tab-icon">${branch.icon}</span><span><strong>${branch.name}</strong><small>${branch.subtitle}</small></span><b class="branch-progress">0 / ${branch.keys.length}</b><i class="branch-ready-dot" aria-hidden="true"></i>`;
+    button.addEventListener("click", () => selectTechBranch(branchKey));
+    tabs.append(button);
   }
+
+  const workspace = document.createElement("div");
+  workspace.className = "tech-workspace";
+  const stage = document.createElement("section");
+  stage.className = "tech-tree-stage";
+  stage.setAttribute("aria-label", "当前科技分支");
+  const detail = document.createElement("aside");
+  detail.className = "tech-detail";
+  detail.innerHTML = `<div class="tech-detail-state"></div><div class="tech-detail-heading"><span class="tech-detail-icon"></span><div><small>当前节点</small><h3></h3></div></div><p class="tech-detail-description"></p><dl class="tech-detail-facts"></dl><div class="tech-detail-route hidden"></div><button class="tech-research-button" type="button"></button>`;
+  detail.querySelector(".tech-research-button").addEventListener("click", () => buyUpgrade(selectedTechKey));
+  workspace.append(stage, detail);
+  dom.upgradeList.append(tabs, workspace);
+  selectTechBranch(activeTechBranch, false);
+}
+
+function createTechEdge(svg, from, to, layout, exclusive = false) {
+  const [fromCol, fromRow] = layout.nodes[from];
+  const [toCol, toRow] = layout.nodes[to];
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  line.setAttribute("x1", `${(fromCol - 0.5) * 20}%`);
+  line.setAttribute("y1", `${(fromRow - 0.5) / layout.rows * 100}%`);
+  line.setAttribute("x2", `${(toCol - 0.5) * 20}%`);
+  line.setAttribute("y2", `${(toRow - 0.5) / layout.rows * 100}%`);
+  line.classList.add("tech-edge", exclusive ? "exclusive" : "requirement");
+  line.dataset.from = from;
+  line.dataset.to = to;
+  svg.append(line);
+}
+
+function applyTechIconArt(element, key) {
+  const branchKey = Object.keys(BRANCH_META).find((branch) => BRANCH_META[branch].keys.includes(key));
+  const art = TECH_ART[branchKey];
+  const index = BRANCH_META[branchKey].keys.indexOf(key);
+  element.style.setProperty("--tech-icon-sheet", `url("${art.sheet}")`);
+  element.style.setProperty("--tech-icon-cols", art.cols);
+  element.style.setProperty("--tech-icon-rows", art.rows);
+  element.style.setProperty("--tech-icon-size-x", `${art.cols * 100}%`);
+  element.style.setProperty("--tech-icon-size-y", `${art.rows * 100}%`);
+  element.style.setProperty("--tech-icon-x", index % art.cols);
+  element.style.setProperty("--tech-icon-y", Math.floor(index / art.cols));
+  element.style.setProperty("--tech-icon-pos-x", `${art.cols === 1 ? 50 : (index % art.cols) / (art.cols - 1) * 100}%`);
+  element.style.setProperty("--tech-icon-pos-y", `${art.rows === 1 ? 50 : Math.floor(index / art.cols) / (art.rows - 1) * 100}%`);
+}
+
+function selectTechBranch(branchKey, focusNode = true) {
+  if (!BRANCH_META[branchKey]) return;
+  activeTechBranch = branchKey;
+  const branch = BRANCH_META[branchKey];
+  if (!branch.keys.includes(selectedTechKey)) selectedTechKey = branch.keys[0];
+  for (const tab of dom.upgradeList.querySelectorAll(".tech-branch-tab")) {
+    const active = tab.dataset.branchTab === branchKey;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-current", active ? "page" : "false");
+  }
+  const stage = dom.upgradeList.querySelector(".tech-tree-stage");
+  if (!stage) return;
+  stage.replaceChildren();
+  stage.dataset.branch = branchKey;
+  const layout = TECH_LAYOUT[branchKey];
+  stage.style.setProperty("--tech-rows", layout.rows);
+  const heading = document.createElement("header");
+  heading.className = "tech-stage-heading";
+  heading.innerHTML = `<span>${branch.icon}</span><div><h3>${branch.name}</h3><p>${branch.routes?.join("　/　") || branch.subtitle}</p></div>`;
+  const graph = document.createElement("div");
+  graph.className = "tech-graph";
+  graph.style.setProperty("--tech-rows", layout.rows);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.classList.add("tech-edges");
+  svg.setAttribute("aria-hidden", "true");
+  for (const [from, to] of layout.edges) createTechEdge(svg, from, to, layout);
+  for (const [from, to] of layout.excludes) createTechEdge(svg, from, to, layout, true);
+  graph.append(svg);
+  for (const key of branch.keys) {
+    const meta = UPGRADE_META[key];
+    const [col, row] = layout.nodes[key];
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tech-node";
+    button.dataset.upgrade = key;
+    button.style.setProperty("--tech-col", col);
+    button.style.setProperty("--tech-row", row);
+    button.setAttribute("aria-label", meta.name);
+    button.innerHTML = `<span class="upgrade-icon" aria-hidden="true"></span><span class="tech-node-level"></span><span class="tech-node-mark" aria-hidden="true"></span>${key === "ascend" ? '<span class="tech-cross-badge" title="包含跨分支元素前置">元素</span>' : ""}<span class="tech-node-tooltip" role="tooltip"><b>${meta.name}</b><small></small></span>`;
+    applyTechIconArt(button.querySelector(".upgrade-icon"), key);
+    button.addEventListener("click", () => selectTechNode(key, true));
+    graph.append(button);
+  }
+  stage.append(heading, graph);
+  updateTechTreeUi();
+  if (focusNode) graph.querySelector(`[data-upgrade="${selectedTechKey}"]`)?.focus({ preventScroll: true });
+}
+
+function selectTechNode(key, tryPurchase = false) {
+  if (!UPGRADE_META[key]) return;
+  selectedTechKey = key;
+  updateTechTreeUi();
+  const status = getTechStatus(state, key);
+  if (tryPurchase && status.unlocked && !status.maxed && state.coins >= status.cost) buyUpgrade(key);
+}
+
+function techStateFor(key) {
+  const level = state.tower.upgrades[key];
+  const status = getTechStatus(state, key);
+  if (status.maxed) return "completed";
+  if (!status.unlocked && status.reason.startsWith("已选择")) return "exclusive";
+  if (!status.unlocked) return "locked";
+  if (state.coins < status.cost) return "poor";
+  return level > 0 ? "researched available" : "available";
+}
+
+function techRequirementsText(key) {
+  const cfg = GAME_CONFIG.techTree[key];
+  const level = state.tower.upgrades[key];
+  const requirements = cfg.requiresByLevel?.[level] ?? cfg.requires ?? {};
+  const parts = Object.entries(requirements).map(([requiredKey, requiredLevel]) => `${UPGRADE_META[requiredKey].name} ${requiredLevel} 级`);
+  return parts.length ? parts.join("、") : "无";
+}
+
+function updateTechDetail() {
+  const detail = dom.upgradeList.querySelector(".tech-detail");
+  if (!detail || !UPGRADE_META[selectedTechKey]) return;
+  const key = selectedTechKey;
+  const meta = UPGRADE_META[key];
+  const cfg = GAME_CONFIG.techTree[key];
+  const level = state.tower.upgrades[key];
+  const status = getTechStatus(state, key);
+  const stateName = techStateFor(key).split(" ")[0];
+  const stateLabels = { completed: "已研究完成", available: "可以研究", researched: "已研究", poor: `金币不足 · 还差 ${formatNumber(Math.max(0, status.cost - state.coins))}`, locked: "前置未满足", exclusive: "互斥路线锁定" };
+  detail.dataset.state = stateName;
+  detail.querySelector(".tech-detail-state").textContent = stateLabels[stateName] ?? stateLabels.available;
+  const detailIcon = detail.querySelector(".tech-detail-icon");
+  detailIcon.textContent = "";
+  applyTechIconArt(detailIcon, key);
+  detail.querySelector("h3").textContent = meta.name;
+  detail.querySelector(".tech-detail-description").textContent = meta.description;
+  const nextThreat = cfg.threat[level] ?? cfg.threat.at(-1);
+  detail.querySelector(".tech-detail-facts").innerHTML = `<div><dt>研究进度</dt><dd>${level} / ${meta.max}</dd></div><div><dt>本级效果</dt><dd>${level > 0 ? `${meta.description} · 已生效 ${level} 级` : "尚未研究"}</dd></div><div><dt>下一等级</dt><dd>${status.maxed ? "全部等级已完成" : meta.description}</dd></div><div><dt>金币成本</dt><dd>${status.maxed ? "—" : `${formatNumber(status.cost)} 金币`}</dd></div><div><dt>威胁要求</dt><dd>${status.maxed ? "已满足" : `威胁 ${formatThreat(nextThreat)}`}</dd></div><div><dt>晶塔等级</dt><dd>${cfg.towerLevel ? `${cfg.towerLevel} 级` : "无"}</dd></div><div><dt>前置科技</dt><dd>${techRequirementsText(key)}</dd></div><div><dt>互斥科技</dt><dd>${cfg.excludes?.map((excluded) => UPGRADE_META[excluded].name).join("、") || "无"}</dd></div>`;
+  const route = detail.querySelector(".tech-detail-route");
+  route.classList.toggle("hidden", !status.reason || status.unlocked || status.maxed);
+  route.textContent = !status.unlocked && !status.maxed ? `首要缺口 · ${status.reason}` : "";
+  const researchButton = detail.querySelector(".tech-research-button");
+  researchButton.disabled = state.over || status.maxed || !status.unlocked || state.coins < status.cost;
+  researchButton.textContent = status.maxed ? "研究完成" : !status.unlocked ? status.reason : state.coins < status.cost ? `还差 ${formatNumber(status.cost - state.coins)} 金币` : `研究 · ${formatNumber(status.cost)} 金币`;
+}
+
+function updateTechTreeUi() {
+  for (const [branchKey, branch] of Object.entries(BRANCH_META)) {
+    const tab = dom.upgradeList.querySelector(`[data-branch-tab="${branchKey}"]`);
+    if (!tab) continue;
+    const researched = branch.keys.filter((key) => state.tower.upgrades[key] > 0).length;
+    const ready = branch.keys.some((key) => { const status = getTechStatus(state, key); return status.unlocked && !status.maxed && state.coins >= status.cost; });
+    tab.querySelector(".branch-progress").textContent = `${researched} / ${branch.keys.length}`;
+    tab.classList.toggle("has-ready", ready);
+  }
+  for (const button of dom.upgradeList.querySelectorAll(".tech-node")) {
+    const key = button.dataset.upgrade;
+    const level = state.tower.upgrades[key];
+    const status = getTechStatus(state, key);
+    const classes = techStateFor(key).split(" ");
+    button.className = `tech-node ${classes.join(" ")}${key === selectedTechKey ? " selected" : ""}`;
+    button.setAttribute("aria-label", `${UPGRADE_META[key].name}，${status.maxed ? "研究完成" : status.reason}${status.unlocked && state.coins < status.cost ? "，金币不足" : ""}`);
+    button.setAttribute("aria-pressed", String(key === selectedTechKey));
+    button.style.setProperty("--tech-progress", `${level / UPGRADE_META[key].max * 360}deg`);
+    button.querySelector(".tech-node-level").textContent = status.maxed ? "✓" : `${level}/${UPGRADE_META[key].max}`;
+    button.querySelector(".tech-node-mark").textContent = status.maxed ? "✓" : !status.unlocked ? "⌕" : "";
+    button.querySelector(".tech-node-tooltip small").textContent = status.maxed ? "研究完成" : status.unlocked ? `${formatNumber(status.cost)} 金币 · ${level}/${UPGRADE_META[key].max}` : status.reason;
+  }
+  for (const line of dom.upgradeList.querySelectorAll(".tech-edge")) {
+    const fromLevel = state.tower.upgrades[line.dataset.from] ?? 0;
+    const toLevel = state.tower.upgrades[line.dataset.to] ?? 0;
+    const targetCfg = GAME_CONFIG.techTree[line.dataset.to];
+    const targetLevel = state.tower.upgrades[line.dataset.to] ?? 0;
+    const targetRequirements = targetCfg.requiresByLevel?.[targetLevel] ?? targetCfg.requires ?? {};
+    const requiredSourceLevel = targetRequirements[line.dataset.from] ?? 1;
+    line.classList.toggle("active", line.classList.contains("exclusive") ? (fromLevel > 0 || toLevel > 0) : fromLevel >= requiredSourceLevel);
+    line.classList.toggle("broken", line.classList.contains("exclusive") && (fromLevel > 0 || toLevel > 0));
+  }
+  updateTechDetail();
 }
 
 function setTechTreeOpen(open, restoreFocus = false) {
@@ -1490,26 +1666,7 @@ function updateUi() {
   }
   dom.targetProtocolHint.textContent = TARGET_PROTOCOL_META[state.tower.targetProtocol].hint;
 
-  for (const button of dom.upgradeList.querySelectorAll(".tech-node")) {
-    const key = button.dataset.upgrade;
-    const level = state.tower.upgrades[key];
-    const max = UPGRADE_META[key].max;
-    const status = getTechStatus(state, key);
-    const cost = status.cost;
-    button.disabled = state.over || status.maxed || !status.unlocked || state.coins < cost;
-    button.classList.toggle("locked", !status.unlocked && !status.maxed);
-    button.classList.toggle("researched", level > 0);
-    button.querySelector("em").textContent = status.maxed ? "已满" : status.unlocked ? `${formatNumber(cost)} 金` : "锁定";
-    const towerGate = GAME_CONFIG.techTree[key].towerLevel ? ` · 晶塔 ${GAME_CONFIG.techTree[key].towerLevel} 级` : "";
-    button.querySelector(".tech-gate").textContent = status.maxed ? "科技完成" : status.unlocked ? `威胁 ${status.requiredThreat}${towerGate} · 可研究` : status.reason;
-    button.querySelector(".level-pips").innerHTML = Array.from({ length: Math.min(max, 12) }, (_, index) => `<i class="${index < level ? "on" : ""}"></i>`).join("");
-  }
-  dom.upgradeList.querySelector('[data-route="orbit"]')?.classList.toggle("chosen", state.tower.upgrades.sawOverdrive > 0 || state.tower.upgrades.sawGun > 0);
-  dom.upgradeList.querySelector('[data-route="launch"]')?.classList.toggle("chosen", state.tower.upgrades.sawLaunch > 0);
-  dom.upgradeList.querySelector('[data-route="detonate"]')?.classList.toggle("chosen", state.tower.upgrades.droneDetonate > 0);
-  dom.upgradeList.querySelector('[data-route="guard"]')?.classList.toggle("chosen", state.tower.upgrades.droneGuard > 0);
-  dom.upgradeList.querySelector('[data-route="cannonSiege"]')?.classList.toggle("chosen", state.tower.upgrades.cannonSiege > 0);
-  dom.upgradeList.querySelector('[data-route="cannonSplit"]')?.classList.toggle("chosen", state.tower.upgrades.cannonSplit > 0);
+  updateTechTreeUi();
 
   for (const button of dom.skillList.children) {
     const key = button.dataset.skill;
@@ -1905,7 +2062,20 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" || event.key.toLowerCase() === "e") cancelStarfallAim();
     return;
   }
-  if (event.key >= "1" && event.key <= "9") buyUpgrade(TECH_ORDER[Number(event.key) - 1]);
+  if (techTreeOpen && event.key >= "1" && event.key <= "4") {
+    selectTechBranch(Object.keys(BRANCH_META)[Number(event.key) - 1]);
+  } else if (techTreeOpen && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+    event.preventDefault();
+    const keys = BRANCH_META[activeTechBranch].keys;
+    const currentIndex = Math.max(0, keys.indexOf(selectedTechKey));
+    const delta = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1;
+    selectedTechKey = keys[(currentIndex + delta + keys.length) % keys.length];
+    updateTechTreeUi();
+    dom.upgradeList.querySelector(`[data-upgrade="${selectedTechKey}"]`)?.focus({ preventScroll: true });
+  } else if (techTreeOpen && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    buyUpgrade(selectedTechKey);
+  } else if (!techTreeOpen && event.key >= "1" && event.key <= "9") buyUpgrade(TECH_ORDER[Number(event.key) - 1]);
   else if (event.key.toLowerCase() === "q") activateSkill("heal");
   else if (event.key.toLowerCase() === "w") activateSkill("overload");
   else if (event.key.toLowerCase() === "e") activateSkill("starfall");
