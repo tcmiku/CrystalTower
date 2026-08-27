@@ -501,12 +501,12 @@ export class Renderer {
       ctx.translate(zone.x, zone.y);
       ctx.globalAlpha = Math.min(1, ratio * 1.6);
       const glow = ctx.createRadialGradient(0, 0, 4, 0, 0, zone.radius);
-      glow.addColorStop(0, "rgba(255,214,111,.36)");
-      glow.addColorStop(.45, "rgba(255,92,43,.2)");
-      glow.addColorStop(1, "rgba(97,16,32,0)");
+      glow.addColorStop(0, zone.frostfire ? "rgba(220,248,255,.42)" : "rgba(255,214,111,.36)");
+      glow.addColorStop(.45, zone.frostfire ? "rgba(255,91,48,.23)" : "rgba(255,92,43,.2)");
+      glow.addColorStop(1, zone.frostfire ? "rgba(72,151,255,0)" : "rgba(97,16,32,0)");
       ctx.fillStyle = glow;
       ctx.beginPath(); ctx.arc(0, 0, zone.radius, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(255,126,61,.7)";
+      ctx.strokeStyle = zone.frostfire ? "rgba(128,226,255,.86)" : "rgba(255,126,61,.7)";
       ctx.lineWidth = 1.5;
       ctx.setLineDash([5, 9]);
       ctx.rotate(this.time * .8 + zone.id);
@@ -516,7 +516,7 @@ export class Renderer {
         const angle = ember * Math.PI / 4 + this.time * .5;
         const distance = zone.radius * (.22 + (ember % 3) * .18);
         const lift = Math.sin(this.time * 5 + ember) * 5;
-        ctx.fillStyle = ember % 2 ? "#ff6a38" : "#ffd16e";
+        ctx.fillStyle = zone.frostfire ? (ember % 2 ? "#ff6838" : "#8cecff") : ember % 2 ? "#ff6a38" : "#ffd16e";
         ctx.beginPath(); ctx.arc(Math.cos(angle) * distance, Math.sin(angle) * distance + lift, 1.5 + ember % 2, 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();

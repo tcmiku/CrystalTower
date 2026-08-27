@@ -10,6 +10,11 @@ export function defaultSave() {
     research: { damage: 0, health: 0, income: 0 },
     relicUnlocks: Object.fromEntries(Object.keys(GAME_CONFIG.relicResearch).map((key) => [key, key === "ward"])),
     relicSlots: GAME_CONFIG.relics.initialSlots,
+    relicArchive: {
+      disabledRelic: null,
+      discovered: Object.fromEntries(Object.keys(GAME_CONFIG.relicCombos).map((key) => [key, false])),
+      registeredSets: Object.fromEntries(Object.keys(GAME_CONFIG.relicCombos).map((key) => [key, false]))
+    },
     unlocks: { doubleSpeed: false },
     baseCamp: { unlocked: false, recoverySeen: false, coreEcho: false },
     settings: { muted: false, playerName: "PLAYER", updatesDismissed: false },
@@ -35,6 +40,13 @@ export function sanitizeSave(candidate) {
   for (const key of Object.keys(safe.relicUnlocks)) safe.relicUnlocks[key] = candidate.relicUnlocks?.[key] === true;
   safe.relicUnlocks.ward = true;
   safe.relicSlots = boundedInt(candidate.relicSlots, GAME_CONFIG.relics.initialSlots, GAME_CONFIG.relics.maxSlots);
+  for (const key of Object.keys(GAME_CONFIG.relicCombos)) {
+    safe.relicArchive.discovered[key] = candidate.relicArchive?.discovered?.[key] === true;
+    safe.relicArchive.registeredSets[key] = safe.relicArchive.discovered[key] && candidate.relicArchive?.registeredSets?.[key] === true;
+  }
+  const disabledRelic = typeof candidate.relicArchive?.disabledRelic === "string" ? candidate.relicArchive.disabledRelic : null;
+  const disabledKnown = safe.relicUnlocks[disabledRelic] === true || safe.relicArchive.discovered[disabledRelic] === true;
+  safe.relicArchive.disabledRelic = disabledKnown ? disabledRelic : null;
   safe.unlocks.doubleSpeed = candidate.unlocks?.doubleSpeed === true;
   safe.baseCamp.unlocked = candidate.baseCamp?.unlocked === true;
   safe.baseCamp.recoverySeen = safe.baseCamp.unlocked && candidate.baseCamp?.recoverySeen === true;
@@ -171,5 +183,33 @@ export function buyRelicSlot(save) {
   if (!Number.isFinite(cost) || save.resources.coreFragments < cost) return false;
   save.resources.coreFragments -= cost;
   save.relicSlots = slots + 1;
+  return true;
+}
+
+export function setDisabledRelic(save, id = null) {
+  save.relicArchive ??= defaultSave().relicArchive;
+  if (id == null || id === save.relicArchive.disabledRelic) {
+    save.relicArchive.disabledRelic = null;
+    return true;
+  }
+  const available = save.relicUnlocks?.[id] === true || save.relicArchive.discovered?.[id] === true;
+  if (!available) return false;
+  save.relicArchive.disabledRelic = id;
+  return true;
+}
+
+export function discoverHiddenRelic(save, id) {
+  if (!GAME_CONFIG.relicCombos[id]) return false;
+  save.relicArchive ??= defaultSave().relicArchive;
+  if (save.relicArchive.discovered[id]) return false;
+  save.relicArchive.discovered[id] = true;
+  return true;
+}
+
+export function toggleRelicSet(save, id) {
+  if (!GAME_CONFIG.relicCombos[id]) return false;
+  save.relicArchive ??= defaultSave().relicArchive;
+  if (!save.relicArchive.discovered[id]) return false;
+  save.relicArchive.registeredSets[id] = !save.relicArchive.registeredSets[id];
   return true;
 }

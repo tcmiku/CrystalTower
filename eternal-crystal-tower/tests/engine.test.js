@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getTechStatus, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getTechStatus, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG } from "../src/config.js";
 
 test("基础塔属性符合策划", () => {
@@ -1760,4 +1760,86 @@ test("tower health bar timer starts after a hit and expires", () => {
   state.enemies = [];
   updateGame(state, GAME_CONFIG.tower.healthBarDuration);
   assert.equal(state.tower.healthBarTimer, 0);
+});
+test("档案馆禁用会从本局遗物池排除唯一目标", () => {
+  const state = createGameState(9601, undefined, { ward: true, decoy: true }, 2, { disabledRelic: "ward" });
+  assert.deepEqual(state.relics.available, ["decoy"]);
+  offerRelicChoice(state);
+  assert.equal(state.relicChoice.choices.includes("ward"), false);
+  assert.equal(state.relicChoice.choices.includes("decoy"), true);
+});
+
+test("锁定的遗物选项会跨过本轮选择保留到下一次奖励", () => {
+  const state = createGameState(9602, undefined, { ward: true, decoy: true, lunar: true }, 4);
+  offerRelicChoice(state);
+  const locked = state.relicChoice.choices[0];
+  const chosen = state.relicChoice.choices.find((id) => id !== locked && !id.startsWith("boost:"));
+  assert.equal(lockRelicChoice(state, locked), true);
+  assert.equal(chooseRelic(state, chosen), true);
+  assert.equal(state.relics.lockedChoice, locked);
+  assert.equal(offerRelicChoice(state, "boss"), true);
+  assert.equal(state.relicChoice.choices[0], locked);
+  assert.equal(chooseRelic(state, locked), true);
+  assert.equal(state.relics.lockedChoice, null);
+});
+
+test("两件基础遗物共存会发现隐藏遗物并永久加入当前候选池", () => {
+  const state = createGameState(9603, undefined, { mirror: true, stormglass: true }, 4);
+  state.relicChoice = { source: "test", choices: ["mirror"] };
+  assert.equal(chooseRelic(state, "mirror"), true);
+  state.relicChoice = { source: "test", choices: ["stormglass"] };
+  assert.equal(chooseRelic(state, "stormglass"), true);
+  assert.equal(state.relics.discovered.prismArc, true);
+  assert.equal(state.relics.available.includes("prismArc"), true);
+  assert.ok(state.events.some((event) => event.type === "relicComboDiscovered" && event.id === "prismArc"));
+});
+
+test("登记套装后持有组件会优先补出同套装遗物", () => {
+  const archive = { discovered: { prismArc: true }, registeredSets: { prismArc: true } };
+  const state = createGameState(9604, undefined, { mirror: true, stormglass: true }, 4, archive);
+  state.relics.owned.mirror = true; state.relics.picks = 1;
+  offerRelicChoice(state);
+  assert.equal(state.relicChoice.choices[0], "stormglass");
+});
+
+test("折光雷晶让镜面折射继续生成可见连锁闪电", () => {
+  const state = createGameState(9605, undefined, { mirror: true, stormglass: true }, 4, { discovered: { prismArc: true } });
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  state.relics.owned.mirror = true; state.relics.owned.prismArc = true;
+  const first = spawnEnemy(state, "brute", { x: 520, y: 360 });
+  const second = spawnEnemy(state, "brute", { x: 580, y: 360 });
+  const third = spawnEnemy(state, "brute", { x: 630, y: 360 });
+  for (const enemy of [first, second, third]) { enemy.speed = 0; enemy.hp = enemy.maxHp = 1000; }
+  state.projectiles.push({ id: state.nextId++, x: first.x, y: first.y, vx: 0, vy: 0, damage: 100, radius: 5, pierce: 0, life: 1, tier: 1, mirrorReady: true });
+  updateGame(state, 1 / 60);
+  assert.ok(state.events.some((event) => event.type === "relicPrismArc" && event.chains >= 1));
+  assert.ok(state.elementFx.some((effect) => effect.element === "lightning"));
+  assert.ok(third.hp < third.maxHp);
+});
+
+test("霜烬共生核让霜葬击杀生成冻结与灼烧并存的区域", () => {
+  const state = createGameState(9606, undefined, { frostbloom: true, ember: true }, 4, { discovered: { frostfire: true } });
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  state.relics.owned.frostbloom = true; state.relics.owned.frostfire = true;
+  const frozen = spawnEnemy(state, "wisp", { x: 520, y: 360 });
+  const nearby = spawnEnemy(state, "brute", { x: 560, y: 360 });
+  frozen.speed = 0; nearby.speed = 0; frozen.freezeTimer = 2; nearby.hp = nearby.maxHp = 1000;
+  damageEnemy(state, frozen, frozen.maxHp * 2, "frost");
+  updateGame(state, 1 / 60);
+  assert.ok(state.emberZones.some((zone) => zone.frostfire));
+  updateGame(state, GAME_CONFIG.relics.ember.tickInterval + 0.01);
+  assert.ok(nearby.hp < nearby.maxHp);
+  assert.ok(nearby.freezeTimer > 0);
+});
+
+test("棱光替身在诱饵爆炸后为晶塔生成护盾", () => {
+  const state = createGameState(9607, undefined, { decoy: true, ward: true }, 4, { discovered: { decoyWard: true } });
+  state.relics.owned.decoy = true; state.relics.owned.decoyWard = true;
+  state.tower.shield = 0; state.time = GAME_CONFIG.waves.firstAt; state.wave.nextAt = GAME_CONFIG.waves.firstAt;
+  updateGame(state, 1 / 60);
+  assert.ok(state.decoys.length > 0);
+  state.decoys[0].hp = 0;
+  updateGame(state, 1 / 60);
+  assert.ok(state.tower.shield > 0);
+  assert.ok(state.events.some((event) => event.type === "relicDecoyWard"));
 });

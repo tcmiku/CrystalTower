@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
+import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, discoverHiddenRelic, grantPermanentResource, loadSave, markBaseRecoverySeen, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -160,4 +160,25 @@ test("遗物栏位初始一格并消耗核心残片逐步扩展至四格", () =>
   assert.equal(buyRelicSlot(save), true);
   assert.deepEqual([save.relicSlots, save.resources.coreFragments], [4, 0]);
   assert.equal(buyRelicSlot(save), false);
+});
+
+test("遗物档案馆安全保存单件禁用、隐藏发现与套装登记", () => {
+  const save = defaultSave();
+  save.relicUnlocks.decoy = true;
+  assert.equal(setDisabledRelic(save, "decoy"), true);
+  assert.equal(save.relicArchive.disabledRelic, "decoy");
+  assert.equal(setDisabledRelic(save, "decoy"), true);
+  assert.equal(save.relicArchive.disabledRelic, null);
+  assert.equal(setDisabledRelic(save, "prismArc"), false);
+  assert.equal(discoverHiddenRelic(save, "prismArc"), true);
+  assert.equal(discoverHiddenRelic(save, "prismArc"), false);
+  assert.equal(setDisabledRelic(save, "prismArc"), true);
+  assert.equal(toggleRelicSet(save, "prismArc"), true);
+  const safe = sanitizeSave(save);
+  assert.equal(safe.relicArchive.disabledRelic, "prismArc");
+  assert.equal(safe.relicArchive.discovered.prismArc, true);
+  assert.equal(safe.relicArchive.registeredSets.prismArc, true);
+  const forged = sanitizeSave({ ...save, relicArchive: { disabledRelic: "unknown", discovered: { prismArc: false }, registeredSets: { prismArc: true } } });
+  assert.equal(forged.relicArchive.disabledRelic, null);
+  assert.equal(forged.relicArchive.registeredSets.prismArc, false);
 });

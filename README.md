@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/generated/loading-splash.png" alt="永耀晶塔" width="680" />
+  <img src="eternal-crystal-tower/assets/generated/loading-splash.png" alt="永耀晶塔" width="680" />
 </p>
 
 <h1 align="center">永耀晶塔 ETERNAL CRYSTAL TOWER</h1>
@@ -30,9 +30,9 @@
     <td align="center"><strong>科技面板</strong></td>
   </tr>
   <tr>
-    <td><img src="qa/screenshots/performance-crowds-1440x900.png" alt="怪潮围攻" width="420" /></td>
-    <td><img src="../boss-anchors-1440x900.png" alt="首领对决" width="420" /></td>
-    <td><img src="../drone-energy-attack-1024x720.png" alt="科技树面板" width="420" /></td>
+    <td><img src="eternal-crystal-tower/qa/screenshots/performance-crowds-1440x900.png" alt="怪潮围攻" width="420" /></td>
+    <td><img src="boss-anchors-1440x900.png" alt="首领对决" width="420" /></td>
+    <td><img src="drone-energy-attack-1024x720.png" alt="科技树面板" width="420" /></td>
   </tr>
   <tr>
     <td align="center"><strong>精英词缀</strong></td>
@@ -40,9 +40,9 @@
     <td align="center"><strong>威胁 XV 巨兽狂暴</strong></td>
   </tr>
   <tr>
-    <td><img src="../elite-affixes-1024x720.png" alt="精英词缀" width="420" /></td>
-    <td><img src="../target-protocols-1024x720.png" alt="目标协议" width="420" /></td>
-    <td><img src="qa/screenshots/colossus-enrage-1440x900.png" alt="威胁 XV 巨兽狂暴" width="420" /></td>
+    <td><img src="elite-affixes-1024x720.png" alt="精英词缀" width="420" /></td>
+    <td><img src="target-protocols-1024x720.png" alt="目标协议" width="420" /></td>
+    <td><img src="eternal-crystal-tower/qa/screenshots/colossus-enrage-1440x900.png" alt="威胁 XV 巨兽狂暴" width="420" /></td>
   </tr>
 </table>
 
@@ -53,6 +53,7 @@
 需要 **Node.js 18+**。
 
 ```bash
+cd eternal-crystal-tower
 npm start
 ```
 
@@ -269,18 +270,26 @@ npm start
 ### 项目结构
 
 ```
-eternal-crystal-tower/
-├── assets/generated/    # 程序化生成的美术素材
-├── build/               # 构建产物
-├── data/                # 排行榜与账号数据
-├── design/              # 设计文档
-├── qa/                  # QA 截图与测试报告
-├── scripts/             # 开发脚本（serve.js）
-├── src/                 # 游戏源码
-├── tests/               # 测试
-├── index.html           # 入口页面
-├── styles.css           # 主样式
-└── package.json
+TUI/
+├── boss-anchors-1440x900.png      # Boss 战截图
+├── boss-anchors.png
+├── drone-energy-attack-1024x720.png  # 科技树截图
+├── elite-affixes-1024x720.png     # 精英词缀截图
+├── elite-affixes.png
+├── elite-affixes-2.png
+├── target-protocols-1024x720.png  # 目标协议截图
+├── eternal-crystal-tower/         # 游戏主体
+│   ├── assets/generated/          # 程序化生成的美术素材
+│   ├── build/                     # 构建产物
+│   ├── data/                      # 排行榜与账号数据
+│   ├── design/                    # 设计文档
+│   ├── qa/                        # QA 截图与测试报告
+│   ├── scripts/                   # 开发脚本
+│   ├── src/                       # 游戏源码
+│   ├── tests/                     # 测试
+│   ├── index.html                 # 入口页面
+│   └── package.json
+└── skills/                        # 技能相关配置
 ```
 
 ---
@@ -288,6 +297,7 @@ eternal-crystal-tower/
 ## 测试
 
 ```bash
+cd eternal-crystal-tower
 npm test
 ```
 
@@ -296,5 +306,6 @@ npm test
 ### 压力模拟
 
 ```bash
+cd eternal-crystal-tower
 npm run test:sim
 ```

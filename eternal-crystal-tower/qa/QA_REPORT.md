@@ -142,3 +142,8 @@
 - 自动验证：`npm test` 129/129 通过；新增断言覆盖初始护盾、护盾击破强制召唤、第二命核 7 裂隙与词缀精英、最终命核立即狂暴、元素免疫和登场阶段双方停火。
 - HTTP 烟测：`/?preview=sovereign-skills&seed=42`、`src/main.js`、`src/engine.js`、`src/renderer.js` 与首领 PNG 均返回 200。
 - 视觉预览：提供 `?preview=sovereign-entry&seed=42` 检查降临护盾与 1× 停火提示，提供 `?preview=sovereign-skills&seed=42` 检查 7 处裂隙和精英外环。当前 Windows 沙箱辅助进程启动失败，无法建立自动化浏览器截图会话，因此本轮不把 Canvas 构图标记为已自动通过，需在已打开的应用内预览人工确认。
+## 2026-08-27 · 遗物档案馆
+
+- 自动验证：`npm test` 137/137 通过，包含 15 分钟压力模拟。新增规则断言覆盖单件禁用、跨奖励锁定、隐藏发现、登记套装优先补件、三项隐藏战斗效果、存档容错与伪造状态清理。
+- HTTP 烟测：档案馆预览、入口 HTML、CSS、`main.js`、`engine.js`、`storage.js`、`renderer.js` 以及三张复用遗物 PNG 均返回 200 和正确 MIME；HTML 包含房间、面板、禁用列表、图鉴列表与套装列表五个关键入口。
+- 视觉预览：`?preview=relic-archive&seed=42` 固定展示全图鉴、已禁用余烬回收和已登记雷镜折光套；`?preview=relic-lock&seed=42` 固定展示三张卡与一张锁定态。当前 Windows 沙箱辅助进程仍无法启动浏览器自动化会话，因此没有新增截图，响应式构图不标记为已自动通过，保留人工预览检查。

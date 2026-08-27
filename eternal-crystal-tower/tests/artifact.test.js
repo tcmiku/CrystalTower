@@ -104,6 +104,13 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /showBaseRecoveryEvent/);
   assert.match(main, /等级 \$\{level\}\/\$\{GAME_CONFIG\.research\.maxLevel\}/);
   assert.match(main, /createRelicHudChip/);
+  assert.match(html, /relicArchiveRoom/);
+  assert.match(html, /relicArchivePanel/);
+  assert.match(main, /renderRelicArchive/);
+  assert.match(main, /relic-lock/);
+  assert.match(main, /折光雷晶/);
+  assert.match(main, /霜烬共生核/);
+  assert.match(main, /棱光替身/);
   assert.match(main, /setAttribute\("aria-label"/);
   assert.match(main, /chip\.title = effect/);
   assert.match(main, /firstFailureCoreGift = firstFailure \? 1 : 0/);

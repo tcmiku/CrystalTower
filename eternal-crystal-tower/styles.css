@@ -1384,3 +1384,74 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
     animation: none !important;
   }
 }
+
+/* Relic archive and draft locking */
+.base-room.core-room { left:4%; bottom:13%; }
+.base-room.research-room { left:38%; right:auto; bottom:13%; }
+.base-room.archive-room { right:4%; bottom:13%; border-color:rgba(191,139,255,.28); }
+.base-room.archive-room.active { border-color:rgba(204,146,255,.68); box-shadow:0 0 34px rgba(159,80,255,.18); }
+.base-room.archive-room.active::before { background:#d695ff; box-shadow:0 0 12px #9e5dff; }
+.relic-archive-panel { overflow:auto; }
+.archive-layout { display:grid; grid-template-columns:minmax(210px,.72fr) minmax(0,1.65fr) minmax(230px,.82fr); gap:14px; min-height:0; }
+.archive-block { min-width:0; padding:14px; border:1px solid rgba(151,220,255,.13); border-radius:16px; background:rgba(7,10,33,.76); }
+.archive-block header { margin-bottom:11px; }
+.archive-block header span { color:#80eaff; font:800 9px ui-monospace,monospace; letter-spacing:.15em; }
+.archive-block header h4 { margin:4px 0; font-size:17px; }
+.archive-block header small { color:#9da5c6; font-size:10px; line-height:1.45; }
+.archive-disable-list,.archive-set-list { display:flex; flex-direction:column; gap:8px; }
+.archive-disable-card,.archive-set-card { width:100%; min-height:60px; display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.1); border-radius:12px; color:#eef7ff; background:rgba(255,255,255,.035); text-align:left; cursor:pointer; }
+.archive-disable-card:hover,.archive-set-card:hover:not(:disabled) { border-color:#9beeff; transform:translateY(-1px); }
+.archive-disable-card.active { border-color:#ff856f; background:rgba(255,83,70,.11); box-shadow:0 0 18px rgba(255,70,54,.1); }
+.archive-disable-card.clear.active { border-color:#76e6c6; background:rgba(75,207,167,.08); }
+.archive-disable-card i { flex:none; width:32px; color:#ffe394; font-style:normal; font-size:19px; text-align:center; }
+.archive-disable-card span,.archive-set-card span { min-width:0; }
+.archive-disable-card strong,.archive-disable-card small,.archive-set-card strong,.archive-set-card small,.archive-set-card p { display:block; }
+.archive-disable-card strong,.archive-set-card strong { font-size:12px; }
+.archive-disable-card small,.archive-set-card small,.archive-set-card p { margin:2px 0 0; color:#9da5c6; font-size:9px; line-height:1.35; }
+.archive-codex-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.archive-codex-card { min-height:112px; overflow:hidden; display:grid; grid-template-columns:78px minmax(0,1fr); border:1px solid rgba(151,220,255,.15); border-radius:13px; background:rgba(19,24,58,.76); }
+.archive-codex-card img,.archive-silhouette { width:78px; height:100%; object-fit:cover; }
+.archive-silhouette { display:grid; place-items:center; color:#777c9d; background:radial-gradient(circle,rgba(127,86,188,.18),rgba(4,6,23,.92)); font:900 34px ui-monospace,monospace; }
+.archive-codex-card > span { min-width:0; padding:10px; }
+.archive-codex-card small,.archive-codex-card strong,.archive-codex-card p,.archive-codex-card b { display:block; }
+.archive-codex-card small { color:#7feaff; font-size:8px; }
+.archive-codex-card strong { margin:3px 0; font-size:13px; }
+.archive-codex-card p { margin:0; color:#adb3ce; font-size:9px; line-height:1.42; }
+.archive-codex-card b { margin-top:6px; color:#ffe08a; font-size:9px; }
+.archive-codex-card.locked { filter:saturate(.45); opacity:.75; }
+.archive-codex-card.hidden-relic.discovered { border-color:rgba(212,146,255,.42); box-shadow:inset 0 0 24px rgba(158,77,255,.08); }
+.archive-set-card { justify-content:space-between; }
+.archive-set-card > b { flex:none; color:#ffe08a; font-size:9px; }
+.archive-set-card.registered { border-color:#d794ff; background:rgba(157,80,244,.12); }
+.archive-set-card:disabled { opacity:.5; cursor:not-allowed; }
+.relic-card-wrap { position:relative; min-width:0; display:flex; flex-direction:column; gap:0; }
+.relic-card-wrap .relic-card { width:100%; flex:1; }
+.relic-card-wrap .relic-card-index { right:auto; left:15px; }
+.relic-card-wrap.locked .relic-card { border-color:#ffe084; box-shadow:0 0 28px rgba(255,213,92,.14); }
+.relic-lock-button { position:absolute; z-index:6; top:12px; right:14px; display:grid; place-items:center; width:40px; height:40px; min-height:0; padding:0; border:1px solid rgba(205,221,255,.3); border-radius:12px; color:#dce7ff; background:rgba(14,18,46,.78); box-shadow:0 7px 18px rgba(4,7,24,.35); backdrop-filter:blur(7px); cursor:pointer; transition:transform .18s ease, color .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease; }
+.relic-lock-button svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+.relic-lock-button:hover { transform:translateY(-2px) scale(1.04); color:#fff; border-color:rgba(230,238,255,.64); background:rgba(29,35,75,.92); }
+.relic-lock-button:focus-visible { outline:2px solid #a9d8ff; outline-offset:3px; }
+.relic-lock-button[aria-pressed="true"] { color:#ffe397; border-color:#ffe081; background:rgba(94,65,18,.82); box-shadow:0 0 20px rgba(255,206,76,.28), inset 0 0 12px rgba(255,231,142,.08); }
+@media (max-width:1100px) {
+  .archive-layout { grid-template-columns:1fr; }
+  .archive-codex-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .base-room { min-width:190px; }
+  .base-room.core-room { left:2%; }
+  .base-room.research-room { left:35%; }
+  .base-room.archive-room { right:2%; }
+}
+@media (max-width:720px) {
+  .basecamp-stage { min-height:310px; }
+  .base-room { min-width:0; width:31%; padding:9px; }
+  .base-room.core-room { left:1%; bottom:8%; }
+  .base-room.research-room { left:34.5%; bottom:8%; }
+  .base-room.archive-room { right:1%; bottom:8%; }
+  .base-room small { display:none; }
+  .archive-codex-list { grid-template-columns:1fr; }
+  .archive-block { padding:10px; }
+  .relic-card-wrap { min-height:166px; }
+  .relic-card-wrap .relic-card-index { left:9px; }
+  .relic-lock-button { top:8px; right:9px; width:34px; height:34px; border-radius:10px; }
+  .relic-lock-button svg { width:18px; height:18px; }
+}

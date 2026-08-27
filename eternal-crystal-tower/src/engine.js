@@ -4,8 +4,15 @@ import { SeededRng } from "./rng.js";
 const ASCEND_NAMES = ["晶芽", "晶柱", "晶冠", "万象晶塔"];
 const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", cannonSiege: "破城炮膛", cannonCharge: "蓄能晶矢", cannonPierce: "贯星穿透", cannonWeakpoint: "弱点校准", cannonSplit: "裂晶炮膛", cannonGrowth: "碎片增殖", cannonEcho: "晶爆回响", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
 
-export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots) {
+export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots, relicArchive = {}) {
   const rng = new SeededRng(seed);
+  const hiddenRelicIds = Object.keys(GAME_CONFIG.relicCombos);
+  const discoveredRelics = Object.fromEntries(hiddenRelicIds.map((id) => [id, relicArchive.discovered?.[id] === true]));
+  const disabledRelic = typeof relicArchive.disabledRelic === "string" ? relicArchive.disabledRelic : null;
+  const relicAvailable = [...new Set([
+    ...Object.entries(relicUnlocks).filter(([, unlocked]) => unlocked === true).map(([id]) => id),
+    ...hiddenRelicIds.filter((id) => discoveredRelics[id])
+  ])].filter((id) => id !== disabledRelic);
   const state = {
     seed: seed >>> 0 || 1,
     rng,
@@ -70,8 +77,12 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     emberZones: [],
     relicChoice: null,
     relics: {
-      owned: { decoy: false, lunar: false, mirror: false, ember: false, ward: false, frostbloom: false, stormglass: false, gilded: false, execution: false, hourglass: false },
-      available: Object.entries(relicUnlocks).filter(([, unlocked]) => unlocked === true).map(([id]) => id),
+      owned: Object.fromEntries([...Object.keys(GAME_CONFIG.relicResearch), ...hiddenRelicIds].map((id) => [id, false])),
+      available: relicAvailable,
+      disabledRelic,
+      discovered: discoveredRelics,
+      registeredSets: Object.fromEntries(hiddenRelicIds.map((id) => [id, relicArchive.registeredSets?.[id] === true && discoveredRelics[id]])),
+      lockedChoice: null,
       slots: Math.min(GAME_CONFIG.relics.maxSlots, Math.max(GAME_CONFIG.relics.initialSlots, Math.floor(Number(relicSlots) || GAME_CONFIG.relics.initialSlots))),
       picks: 0,
       damageBonus: 0,
@@ -475,7 +486,7 @@ function spawnBossAnchors(state, boss) {
   state.events.push({ type: "bossAnchors", bossId: boss.id, count, phase: boss.bossPhase });
 }
 
-const MECHANIC_RELIC_IDS = ["ward", "decoy", "lunar", "mirror", "ember", "frostbloom", "stormglass", "gilded", "execution", "hourglass"];
+const MECHANIC_RELIC_IDS = [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)];
 const NUMERIC_RELIC_IDS = ["boost:damage", "boost:rate", "boost:hybrid"];
 
 function shuffledRelicIds(state, values) {
@@ -490,8 +501,20 @@ function shuffledRelicIds(state, values) {
 function buildRelicChoices(state) {
   const unlocked = new Set(state.relics.available);
   const pool = MECHANIC_RELIC_IDS.filter((id) => unlocked.has(id));
-  const available = shuffledRelicIds(state, pool.filter((id) => !state.relics.owned[id]));
-  const choices = available.slice(0, 3);
+  const eligible = pool.filter((id) => !state.relics.owned[id]);
+  const choices = [];
+  if (eligible.includes(state.relics.lockedChoice)) choices.push(state.relics.lockedChoice);
+  for (const [setId, combo] of Object.entries(GAME_CONFIG.relicCombos)) {
+    if (!state.relics.registeredSets[setId] || !combo.set.some((id) => state.relics.owned[id])) continue;
+    const missing = combo.set.find((id) => eligible.includes(id) && !choices.includes(id));
+    if (missing) choices.push(missing);
+    if (choices.length >= 3) break;
+  }
+  const available = shuffledRelicIds(state, eligible.filter((id) => !choices.includes(id)));
+  for (const id of available) {
+    if (choices.length >= 3) break;
+    choices.push(id);
+  }
   const numericAllowed = state.relics.slots > pool.length;
   if (numericAllowed) {
     for (const boost of shuffledRelicIds(state, NUMERIC_RELIC_IDS)) {
@@ -500,6 +523,15 @@ function buildRelicChoices(state) {
     }
   }
   return choices;
+}
+
+function discoverRelicCombos(state) {
+  for (const [id, combo] of Object.entries(GAME_CONFIG.relicCombos)) {
+    if (state.relics.discovered[id] || !combo.requires.every((required) => state.relics.owned[required])) continue;
+    state.relics.discovered[id] = true;
+    if (state.relics.disabledRelic !== id && !state.relics.available.includes(id)) state.relics.available.push(id);
+    state.events.push({ type: "relicComboDiscovered", id, requires: [...combo.requires] });
+  }
 }
 
 export function offerRelicChoice(state, source = "eliteWave") {
@@ -515,6 +547,13 @@ export function offerRelicChoice(state, source = "eliteWave") {
   return true;
 }
 
+export function lockRelicChoice(state, id) {
+  if (!state.relicChoice || !state.relicChoice.choices.includes(id) || id.startsWith("boost:")) return false;
+  state.relics.lockedChoice = state.relics.lockedChoice === id ? null : id;
+  state.relicChoice.lockedId = state.relics.lockedChoice;
+  state.events.push({ type: "relicChoiceLocked", id, locked: state.relics.lockedChoice === id });
+  return true;
+}
 export function chooseRelic(state, id) {
   if (!state.relicChoice || !state.relicChoice.choices.includes(id)) return false;
   if (id.startsWith("boost:")) {
@@ -529,6 +568,8 @@ export function chooseRelic(state, id) {
     if (state.relics.owned[id] || state.relics.picks >= state.relics.slots) return false;
     state.relics.owned[id] = true;
     state.relics.picks += 1;
+    if (state.relics.lockedChoice === id) state.relics.lockedChoice = null;
+    discoverRelicCombos(state);
   }
   const source = state.relicChoice.source;
   state.relicChoice = null;
@@ -855,6 +896,12 @@ function updateRelicDecoys(state, dt) {
       }
       decoy.resolved = true;
       state.events.push({ type: "relicDecoyExplode", x: decoy.x, y: decoy.y, radius: cfg.explosionRadius });
+      if (state.relics.owned.decoyWard) {
+        const maxHp = getTowerStats(state).maxHp;
+        const before = state.tower.shield;
+        state.tower.shield = Math.min(maxHp * GAME_CONFIG.relics.ward.maxShieldFraction, state.tower.shield + maxHp * GAME_CONFIG.relics.decoyWard.shieldFraction);
+        state.events.push({ type: "relicDecoyWard", value: state.tower.shield - before, x: decoy.x, y: decoy.y });
+      }
       continue;
     }
     const waveEnemiesRemain = state.enemies.some((enemy) => enemy.hp > 0 && enemy.waveIndex === decoy.waveIndex);
@@ -867,9 +914,9 @@ function updateRelicDecoys(state, dt) {
   state.decoys = state.decoys.filter((decoy) => !decoy.resolved);
 }
 
-function spawnEmberZone(state, x, y) {
+function spawnEmberZone(state, x, y, frostfire = false) {
   const cfg = GAME_CONFIG.relics.ember;
-  state.emberZones.push({ id: state.nextId++, x, y, radius: cfg.radius, life: cfg.duration, maxLife: cfg.duration, tick: 0 });
+  state.emberZones.push({ id: state.nextId++, x, y, radius: cfg.radius, life: cfg.duration, maxLife: cfg.duration, tick: 0, frostfire });
   if (state.emberZones.length > cfg.maxZones) state.emberZones.splice(0, state.emberZones.length - cfg.maxZones);
   state.events.push({ type: "relicEmber", x, y, radius: cfg.radius });
 }
@@ -881,9 +928,15 @@ function updateEmberZones(state, dt) {
     zone.tick -= dt;
     if (zone.life <= 0 || zone.tick > 0) continue;
     zone.tick += cfg.tickInterval;
-    const damage = getTowerStats(state).damage * cfg.damageMultiplier;
+    const damageMultiplier = zone.frostfire ? GAME_CONFIG.relics.frostfire.damageMultiplier : cfg.damageMultiplier;
+    const damage = getTowerStats(state).damage * damageMultiplier;
     for (const enemy of state.enemies) {
-      if (enemy.hp > 0 && Math.hypot(enemy.x - zone.x, enemy.y - zone.y) <= zone.radius + enemy.radius) damageEnemy(state, enemy, damage, "ember");
+      if (enemy.hp <= 0 || Math.hypot(enemy.x - zone.x, enemy.y - zone.y) > zone.radius + enemy.radius) continue;
+      damageEnemy(state, enemy, damage, zone.frostfire ? "frostfire" : "ember");
+      if (zone.frostfire && (enemy.type !== "colossus" || !enemy.enraged) && (enemy.type !== "sovereign" || !enemy.elementImmune)) {
+        const bossScale = isBossEnemy(enemy) ? GAME_CONFIG.elements.frost.bossEffectMultiplier : 1;
+        enemy.freezeTimer = Math.max(enemy.freezeTimer ?? 0, GAME_CONFIG.relics.frostfire.freezeDuration * bossScale);
+      }
     }
   }
   state.emberZones = state.emberZones.filter((zone) => zone.life > 0);
@@ -1040,6 +1093,10 @@ function resolveDeaths(state) {
         if ((target.type !== "colossus" || !target.enraged) && (target.type !== "sovereign" || !target.elementImmune)) target.freezeTimer = Math.max(target.freezeTimer ?? 0, cfg.freezeDuration * (isBossEnemy(target) ? GAME_CONFIG.elements.frost.bossEffectMultiplier : 1));
       }
       state.events.push({ type: "relicFrostbloom", x: enemy.x, y: enemy.y, radius: cfg.radius });
+      if (state.relics.owned.frostfire) {
+        spawnEmberZone(state, enemy.x, enemy.y, true);
+        state.events.push({ type: "relicFrostfire", x: enemy.x, y: enemy.y, radius: GAME_CONFIG.relics.ember.radius });
+      }
     }
     if (state.relics.owned.ward) {
       const cfg = GAME_CONFIG.relics.ward;
@@ -1843,6 +1900,20 @@ function updateProjectiles(state, dt) {
               pierce: 0, life: 0.7, tier: projectile.tier, mirrorRefraction: true, hitIds: new Set([enemy.id])
             });
             state.events.push({ type: "relicMirror", x1: enemy.x, y1: enemy.y, x2: second.x, y2: second.y });
+            if (state.relics.owned.prismArc) {
+              const arcCfg = GAME_CONFIG.relics.prismArc;
+              const arcTargets = state.enemies
+                .filter((candidate) => candidate !== enemy && candidate !== second && candidate.hp > 0 && Math.hypot(candidate.x - second.x, candidate.y - second.y) <= arcCfg.chainRange)
+                .sort((a, b) => Math.hypot(a.x - second.x, a.y - second.y) - Math.hypot(b.x - second.x, b.y - second.y) || a.id - b.id)
+                .slice(0, arcCfg.chainCount);
+              let from = second;
+              arcTargets.forEach((target, index) => {
+                damageEnemy(state, target, damage * (arcCfg.chainMultiplier ** (index + 1)), "lightning");
+                state.elementFx.push({ element: "lightning", x1: from.x, y1: from.y, x2: target.x, y2: target.y, life: 0.2, maxLife: 0.2 });
+                from = target;
+              });
+              state.events.push({ type: "relicPrismArc", x: second.x, y: second.y, chains: arcTargets.length });
+            }
           }
         }
         if (projectile.splitLevel > 0 && !projectile.splitChild) {
@@ -2397,9 +2468,9 @@ export function snapshotState(state) {
     hostileProjectiles: state.hostileProjectiles.map((projectile) => [projectile.kind, Number(projectile.x.toFixed(2)), Number(projectile.y.toFixed(2)), Number(projectile.life.toFixed(2))]),
     summonRifts: state.summonRifts.map((rift) => [rift.enemyType, Number(rift.x.toFixed(2)), Number(rift.y.toFixed(2)), Number(rift.life.toFixed(2)), rift.attackable, rift.targetId, Boolean(rift.elite)]),
     resourceDrops: state.resourceDrops.map((drop) => [drop.resourceType, drop.value, Number(drop.x.toFixed(2)), Number(drop.y.toFixed(2)), drop.source, drop.threatLevel]),
-    relics: { owned: { ...state.relics.owned }, available: [...state.relics.available], slots: state.relics.slots, picks: state.relics.picks, damageBonus: Number(state.relics.damageBonus.toFixed(3)), rateBonus: Number(state.relics.rateBonus.toFixed(3)), mirrorShots: state.relics.mirrorShots, wardKills: state.relics.wardKills, phaseBuff: Number(state.relics.phaseBuff.toFixed(3)), choice: state.relicChoice?.choices ?? null },
+    relics: { owned: { ...state.relics.owned }, available: [...state.relics.available], disabledRelic: state.relics.disabledRelic, discovered: { ...state.relics.discovered }, registeredSets: { ...state.relics.registeredSets }, lockedChoice: state.relics.lockedChoice, slots: state.relics.slots, picks: state.relics.picks, damageBonus: Number(state.relics.damageBonus.toFixed(3)), rateBonus: Number(state.relics.rateBonus.toFixed(3)), mirrorShots: state.relics.mirrorShots, wardKills: state.relics.wardKills, phaseBuff: Number(state.relics.phaseBuff.toFixed(3)), choice: state.relicChoice?.choices ?? null },
     decoys: state.decoys.map((decoy) => [Number(decoy.x.toFixed(2)), Number(decoy.y.toFixed(2)), Number(decoy.hp.toFixed(2)), decoy.waveIndex]),
-    emberZones: state.emberZones.map((zone) => [Number(zone.x.toFixed(2)), Number(zone.y.toFixed(2)), Number(zone.life.toFixed(2))]),
+    emberZones: state.emberZones.map((zone) => [Number(zone.x.toFixed(2)), Number(zone.y.toFixed(2)), Number(zone.life.toFixed(2)), Boolean(zone.frostfire)]),
     kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, permanentResources: [state.stats.echoShards, state.stats.coreFragments], wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over
   };
 }

@@ -249,6 +249,7 @@
           <div class="basecamp-recovery-beam" aria-hidden="true"></div>
           <button id="coreNexusRoom" class="base-room core-room active" type="button"><span>01 · 初始开放</span><strong>晶核中枢</strong><small>永久研究与核心档案</small></button>
           <button id="researchBayRoom" class="base-room research-room" type="button"><span>02 · 遗物研究</span><strong>研究舱</strong><small>解锁临时遗物并加入战局池</small></button>
+          <button id="relicArchiveRoom" class="base-room archive-room" type="button"><span>03 · 构筑管理</span><strong>遗物档案馆</strong><small>禁用、图鉴、组合与套装登记</small></button>
           <div class="future-room"><span>预留扩建接口</span><b>未来建筑</b></div>
         </div>
         <section id="nexusPanel" class="nexus-panel" aria-labelledby="nexusResearchTitle">
@@ -261,6 +262,15 @@
           <p>遗响碎片解锁遗物，核心残片扩展栏位。初始仅开放棱镜护佑与 1 个槽位。</p>
           <div id="relicSlotResearch" class="relic-slot-research"></div>
           <div id="relicResearchList" class="relic-research-list"></div>
+        </section>
+        <section id="relicArchivePanel" class="nexus-panel relic-archive-panel hidden" aria-labelledby="relicArchiveTitle">
+          <div class="research-heading"><div><span>遗物档案馆</span><h3 id="relicArchiveTitle">构筑管理</h3></div><strong>图鉴 <b id="relicArchiveProgress">0 / 13</b></strong></div>
+          <p>为下一局禁用一件遗物；发现组合后解锁隐藏遗物，并可登记三件套来提高后续补件优先级。</p>
+          <div class="archive-layout">
+            <section class="archive-block"><header><span>EXCLUSION PROTOCOL</span><h4>下局禁用</h4><small>同一时间最多禁用一件已发现遗物。</small></header><div id="relicArchiveDisabledList" class="archive-disable-list"></div></section>
+            <section class="archive-block archive-codex-block"><header><span>RELIC CODEX</span><h4>遗物图鉴</h4><small>未发现的隐藏回路只显示组合线索。</small></header><div id="relicArchiveCodexList" class="archive-codex-list"></div></section>
+            <section class="archive-block"><header><span>SET REGISTRY</span><h4>套装登记</h4><small>登记后，持有一件时会优先补出同套装组件。</small></header><div id="relicArchiveSetList" class="archive-set-list"></div></section>
+          </div>
         </section>
       </div>
     </section>

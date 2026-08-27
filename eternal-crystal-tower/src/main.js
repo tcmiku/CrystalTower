@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
-import { calculateRunScore, calculateStardust, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
+import { calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
+import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, discoverHiddenRelic, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, toggleRelicSet, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
@@ -89,11 +89,18 @@ const RELIC_META = {
   gilded: { icon: "¤", art: "./assets/generated/relic-boost-ai.png", name: "拾金脉冲", type: "经济回路", description: "金币回到晶塔时有概率触发共振，额外复制部分价值。", effect: "24% 概率额外获得 75% 金币" },
   execution: { icon: "✥", art: "./assets/generated/relic-ember-ai.png", name: "断罪刻印", type: "猎杀回路", description: "对生命低于 35% 的敌人造成更高伤害，包括首领。", effect: "残血目标伤害 +40%" },
   hourglass: { icon: "⌛", art: "./assets/generated/relic-lunar-ai.png", name: "逆时沙漏", type: "时序回路", description: "战术技能的冷却时间以更快速度恢复。", effect: "Q / W / E / F 冷却恢复 +22%" },
+  prismArc: { icon: "ϟ◇", art: "./assets/generated/relic-mirror-ai.png", name: "折光雷晶", type: "隐藏 · 折射回路", description: "镜面折射命中后，从第二目标继续释放折线闪电。", effect: "折射后额外连锁 3 个目标" },
+  frostfire: { icon: "❉♨", art: "./assets/generated/relic-ember-ai.png", name: "霜烬共生核", type: "隐藏 · 冰火回路", description: "霜葬爆发会在原地留下同时冻结与灼烧的冰火区域。", effect: "霜爆生成持续冰火区域" },
+  decoyWard: { icon: "◈⬡", art: "./assets/generated/relic-decoy-ai.png", name: "棱光替身", type: "隐藏 · 防御回路", description: "诱饵被摧毁后将爆炸余波转化为晶塔护盾。", effect: "诱饵爆炸后获得 18% 最大生命护盾" },
   "boost:damage": { icon: "✦", art: "./assets/generated/relic-boost-ai.png", name: "晶矢增幅", type: "缺口强化", description: "栏位多于已解锁遗物，将富余能量灌注主炮。", effect: "本局攻击力 +8% · 可重复" },
   "boost:rate": { icon: "⌁", art: "./assets/generated/relic-boost-ai.png", name: "咏唱增幅", type: "缺口强化", description: "栏位多于已解锁遗物，以富余能量缩短咏唱。", effect: "本局攻击速度 +6% · 可重复" },
   "boost:hybrid": { icon: "✧", art: "./assets/generated/relic-boost-ai.png", name: "双相增幅", type: "缺口强化", description: "栏位多于已解锁遗物，将富余能量均衡分配。", effect: "本局攻击力 +4% · 攻速 +3%" }
 };
-const RELIC_SOURCE_TEXT = {
+const RELIC_SET_META = {
+  prismArc: { name: "雷镜折光套", hint: "镜面裂片 + 雷脉导体", effect: "发现折光雷晶；登记后优先补齐三件套" },
+  frostfire: { name: "霜烬轮回套", hint: "霜葬花冠 + 余烬回收", effect: "发现霜烬共生核；登记后优先补齐三件套" },
+  decoyWard: { name: "棱光诱饵套", hint: "诡光诱饵 + 棱镜护佑", effect: "发现棱光替身；登记后优先补齐三件套" }
+};const RELIC_SOURCE_TEXT = {
   eliteWave: "怪潮精英已被肃清，选择一项回路继续守望。",
   boss: "腐化首领已经倒下，回收一项战场模块。",
   colossusPhase: "巨兽命核破碎，从暴露的回路中夺取一项模块。",
@@ -135,14 +142,14 @@ const dom = Object.fromEntries([
   "scoreEntryForm", "playerNameInput", "playerMessageInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
-  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "coreNexusRoom", "researchBayRoom", "nexusPanel", "relicResearchPanel", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments",
+  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "coreNexusRoom", "researchBayRoom", "relicArchiveRoom", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments",
   "relicRunHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList"
 ].map((id) => [id, document.getElementById(id)]));
 
 let save = loadSave();
 let runIndex = 0;
 const baseSeed = seedFromUrl(location.search);
-let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots);
+let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive);
 const previewMode = new URLSearchParams(location.search).get("preview");
 if (previewMode === "wave-warning") state.time = GAME_CONFIG.waves.firstAt - GAME_CONFIG.waves.warning - 0.35;
 if (previewMode === "wave") state.time = GAME_CONFIG.waves.firstAt - 0.35;
@@ -248,14 +255,24 @@ if (previewMode === "resources") {
   spawnPermanentResourceDrop(state, "core", 1, 580, 315, { source: "boss" });
   state.paused = true;
 }
-if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "recovery") {
+if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "recovery") {
   save.baseCamp.unlocked = true;
   save.baseCamp.coreEcho = true;
-  save.baseCamp.recoverySeen = previewMode === "basecamp" || previewMode === "relic-research";
+  save.baseCamp.recoverySeen = previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive";
   save.resources.echoShards = Math.max(save.resources.echoShards, 42);
   save.resources.coreFragments = Math.max(save.resources.coreFragments, 7);
   save.resources.echoShards = Math.max(save.resources.echoShards, 28);
   save.resources.coreFragments = Math.max(save.resources.coreFragments, 9);
+  if (previewMode === "relic-archive") {
+    for (const id of Object.keys(save.relicUnlocks)) save.relicUnlocks[id] = true;
+    for (const id of Object.keys(GAME_CONFIG.relicCombos)) save.relicArchive.discovered[id] = true;
+    save.relicArchive.registeredSets.prismArc = true;
+    save.relicArchive.disabledRelic = "ember";
+  }
+}
+if (previewMode === "relic-lock") {
+  state.relics.available = ["mirror", "ember", "lunar"];
+  state.relics.slots = 3;
 }
 if (previewMode === "elements" || previewMode === "element-tech") {
   state.threat = 9;
@@ -1170,16 +1187,20 @@ function renderBaseCamp() {
   updatePermanentResourceUi();
   renderResearch();
   renderRelicResearch();
+  renderRelicArchive();
   setBaseCampRoom(baseCampRoom);
 }
 
 function setBaseCampRoom(room) {
-  baseCampRoom = room === "relics" ? "relics" : "nexus";
+  baseCampRoom = room === "relics" || room === "archive" ? room : "nexus";
   const relicsOpen = baseCampRoom === "relics";
-  dom.nexusPanel.classList.toggle("hidden", relicsOpen);
+  const archiveOpen = baseCampRoom === "archive";
+  dom.nexusPanel.classList.toggle("hidden", relicsOpen || archiveOpen);
   dom.relicResearchPanel.classList.toggle("hidden", !relicsOpen);
-  dom.coreNexusRoom.classList.toggle("active", !relicsOpen);
+  dom.relicArchivePanel.classList.toggle("hidden", !archiveOpen);
+  dom.coreNexusRoom.classList.toggle("active", !relicsOpen && !archiveOpen);
   dom.researchBayRoom.classList.toggle("active", relicsOpen);
+  dom.relicArchiveRoom.classList.toggle("active", archiveOpen);
 }
 
 function setBaseCampOpen(open, restoreFocus = false) {
@@ -1309,7 +1330,7 @@ function renderRelicResearch() {
     button.addEventListener("click", () => {
       if (!buyRelicUnlock(save, key)) return;
       persistSave();
-      state.relics.available = Object.entries(save.relicUnlocks).filter(([, active]) => active).map(([id]) => id);
+      state.relics.available = configuredRelicIds().filter((id) => (save.relicUnlocks[id] === true || save.relicArchive.discovered[id] === true) && id !== state.relics.disabledRelic);
       audio.play("purchase");
       showToast(`${meta.name} · 已加入临时遗物池`);
       renderBaseCamp();
@@ -1318,6 +1339,70 @@ function renderRelicResearch() {
   }
 }
 
+function configuredRelicIds() {
+  return [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)];
+}
+
+function renderRelicArchive() {
+  if (!dom.relicArchivePanel) return;
+  const hiddenIds = new Set(Object.keys(GAME_CONFIG.relicCombos));
+  const discovered = (id) => hiddenIds.has(id) ? save.relicArchive.discovered[id] === true : save.relicUnlocks[id] === true;
+  const discoveredCount = configuredRelicIds().filter(discovered).length;
+  dom.relicArchiveProgress.textContent = `${discoveredCount} / ${configuredRelicIds().length}`;
+
+  dom.relicArchiveDisabledList.replaceChildren();
+  const clear = document.createElement("button");
+  clear.type = "button"; clear.className = "archive-disable-card clear";
+  clear.classList.toggle("active", !save.relicArchive.disabledRelic);
+  clear.innerHTML = `<strong>不禁用</strong><small>保持完整遗物池</small>`;
+  clear.addEventListener("click", () => { setDisabledRelic(save, null); persistSave(); renderRelicArchive(); });
+  dom.relicArchiveDisabledList.append(clear);
+  for (const id of configuredRelicIds().filter(discovered)) {
+    const meta = RELIC_META[id];
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "archive-disable-card";
+    button.classList.toggle("active", save.relicArchive.disabledRelic === id);
+    button.innerHTML = `<i>${meta.icon}</i><span><strong>${meta.name}</strong><small>${save.relicArchive.disabledRelic === id ? "已从下一局候选池排除" : "点击设为下局唯一禁用"}</small></span>`;
+    button.addEventListener("click", () => { setDisabledRelic(save, id); persistSave(); audio.play("purchase"); renderRelicArchive(); });
+    dom.relicArchiveDisabledList.append(button);
+  }
+
+  dom.relicArchiveCodexList.replaceChildren();
+  for (const id of configuredRelicIds()) {
+    const meta = RELIC_META[id];
+    const known = discovered(id);
+    const hidden = hiddenIds.has(id);
+    const card = document.createElement("article");
+    card.className = `archive-codex-card${known ? " discovered" : " locked"}${hidden ? " hidden-relic" : ""}`;
+    const combo = hidden ? RELIC_SET_META[id] : null;
+    card.innerHTML = known
+      ? `<img src="${meta.art}" alt=""><span><small>${meta.type}</small><strong>${meta.name}</strong><p>${meta.description}</p><b>${meta.effect}</b></span>`
+      : hidden
+        ? `<div class="archive-silhouette">?</div><span><small>隐藏回路 · 未发现</small><strong>未知遗物</strong><p>组合线索：${combo.hint}</p><b>在同一局装配两件基础遗物</b></span>`
+        : `<div class="archive-silhouette">◇</div><span><small>研究未完成</small><strong>${meta.name}</strong><p>前往研究舱解锁并加入战局池。</p><b>${GAME_CONFIG.relicResearch[id]} 遗响碎片</b></span>`;
+    dom.relicArchiveCodexList.append(card);
+  }
+
+  dom.relicArchiveSetList.replaceChildren();
+  for (const [id, combo] of Object.entries(GAME_CONFIG.relicCombos)) {
+    const meta = RELIC_SET_META[id];
+    const found = save.relicArchive.discovered[id] === true;
+    const registered = save.relicArchive.registeredSets[id] === true;
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "archive-set-card";
+    button.classList.toggle("registered", registered);
+    button.disabled = !found;
+    const members = combo.set.map((member) => RELIC_META[member].name).join(" · ");
+    button.innerHTML = `<span><small>${found ? "三件套已发现" : "组合尚未发现"}</small><strong>${found ? meta.name : "未命名套装"}</strong><p>${found ? members : meta.hint + " + 未知遗物"}</p></span><b>${!found ? "发现隐藏遗物后开放" : registered ? "已登记 · 点击取消" : "登记套装"}</b>`;
+    button.addEventListener("click", () => {
+      if (!toggleRelicSet(save, id)) return;
+      state.relics.registeredSets[id] = save.relicArchive.registeredSets[id];
+      persistSave(); audio.play("purchase"); renderRelicArchive();
+      showToast(`${meta.name} · ${save.relicArchive.registeredSets[id] ? "已登记" : "已取消登记"}`);
+    });
+    dom.relicArchiveSetList.append(button);
+  }
+}
 function buyUpgrade(key) {
   audio.ensureContext()?.resume();
   if (purchaseUpgrade(state, key)) {
@@ -1470,21 +1555,41 @@ function renderRelicChoice() {
   const numericOnly = state.relicChoice.choices.every((id) => id.startsWith("boost:"));
   dom.relicChoiceSlots.textContent = numericOnly
     ? `栏位缺口 · 数值强化`
-    : `模块 ${state.relics.picks} / ${state.relics.slots}`;
+    : `模块 ${state.relics.picks} / ${state.relics.slots}${state.relics.lockedChoice ? " · 已锁定 1 项" : ""}`;
   dom.relicChoiceList.replaceChildren();
   state.relicChoice.choices.forEach((id, index) => {
     const meta = RELIC_META[id];
+    const isLocked = state.relics.lockedChoice === id;
+    const wrapper = document.createElement("div");
+    wrapper.className = "relic-card-wrap";
+    wrapper.classList.toggle("locked", isLocked);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "relic-card";
     button.dataset.relic = id;
     button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" aria-hidden="true" decoding="async"></span><span class="relic-card-index">0${index + 1}</span><span class="relic-card-icon">${meta.icon}</span><span class="relic-card-body"><span class="relic-card-type">${meta.type}</span><h3>${meta.name}</h3><p>${meta.description}</p><span class="relic-card-effect">${meta.effect}</span></span>`;
     button.addEventListener("click", () => selectRunRelic(id));
-    dom.relicChoiceList.append(button);
+    wrapper.append(button);
+    if (!id.startsWith("boost:")) {
+      const lock = document.createElement("button");
+      lock.type = "button"; lock.className = "relic-lock-button";
+      lock.setAttribute("aria-pressed", String(isLocked));
+      lock.setAttribute("aria-label", isLocked ? `解除锁定：${meta.name}` : `锁定至下次奖励：${meta.name}`);
+      lock.title = isLocked ? "解除锁定" : "锁定至下次奖励";
+      lock.innerHTML = isLocked
+        ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10V7a4 4 0 0 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2.5"></path></svg>`
+        : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10V7.7a4 4 0 0 1 7.5-2"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2.5"></path></svg>`;
+      lock.addEventListener("click", () => {
+        if (!lockRelicChoice(state, id)) return;
+        audio.play("purchase");
+        renderRelicChoice();
+      });
+      wrapper.append(lock);
+    }
+    dom.relicChoiceList.append(wrapper);
   });
-  dom.relicChoiceList.firstElementChild?.focus({ preventScroll: true });
+  dom.relicChoiceList.querySelector(".relic-card")?.focus({ preventScroll: true });
 }
-
 function setRelicChoiceOpen(open) {
   const nextOpen = Boolean(open) && Boolean(state.relicChoice);
   if (nextOpen && !relicChoiceOpen) {
@@ -1516,11 +1621,21 @@ function selectRunRelic(id) {
 function handleEvents(events) {
   for (const event of events) {
     if (event.type === "relicChoice") setRelicChoiceOpen(true);
+    else if (event.type === "relicComboDiscovered") {
+      if (discoverHiddenRelic(save, event.id)) persistSave();
+      const meta = RELIC_META[event.id];
+      audio.play("ascend"); renderer.trigger("ascend", 1.2); announce(`组合发现 · ${meta.name} 已写入遗物档案馆`);
+      renderRelicArchive();
+    }
+    else if (event.type === "relicChoiceLocked") showToast(event.locked ? `${RELIC_META[event.id].name} · 将保留至下次奖励` : "遗物选项已解除锁定");
     else if (event.type === "relicChosen") announce(`${RELIC_META[event.id]?.name ?? "战场回路"} · 已接入本局构筑`);
     else if (event.type === "relicDecoyExplode") { audio.play("overload"); renderer.trigger("overloadRelease", 0.7); announce("诡光诱饵崩解 · 爆炸清场"); }
     else if (event.type === "relicDecoySurvived") { audio.play("coin"); showToast(`诡光诱饵存活 · 转化金币 ${event.value}`); }
     else if (event.type === "relicPhaseBuff") { renderer.trigger("ascend", 0.45); showToast("月相调律 · 短暂火力强化"); }
     else if (event.type === "relicMirror") renderer.trigger("targetProtocol");
+    else if (event.type === "relicPrismArc") { renderer.trigger("targetProtocol"); showToast(`折光雷晶 · 连锁 ${event.chains} 个目标`); }
+    else if (event.type === "relicFrostfire") { renderer.trigger("ascend", .45); showToast("霜烬共生核 · 冰火区域展开"); }
+    else if (event.type === "relicDecoyWard") showToast(`棱光替身 · 护盾 +${Math.round(event.value)}`);
     else if (event.type === "cannonWeakpoint") { renderer.trigger("cannonWeakpoint"); showToast("弱点校准 · 目标暴露"); }
     else if (event.type === "cannonSplit") renderer.trigger("cannonSplit");
     else if (event.type === "cannonEcho") renderer.trigger("cannonEcho");
@@ -1989,7 +2104,7 @@ function restart() {
   relicHudSignature = "";
   dom.relicChoiceModal.classList.add("hidden");
   runIndex += 1;
-  state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots);
+  state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive);
   runSettled = false;
   scoreSubmitted = false;
   currentRunScore = null;
@@ -2038,8 +2153,9 @@ if (previewMode === "tech" || previewMode === "drones" || previewMode === "eleme
 announce("守住中央晶塔");
 refreshLeaderboard();
 void restoreAccountSession();
-if (previewMode === "relics") {
+if (previewMode === "relics" || previewMode === "relic-lock") {
   offerRelicChoice(state, "eliteWave");
+  if (previewMode === "relic-lock" && state.relicChoice?.choices[0]) lockRelicChoice(state, state.relicChoice.choices[0]);
   handleEvents(state.events);
 }
 if (previewMode === "leaderboard") {
@@ -2110,6 +2226,7 @@ dom.openBaseCampButton.addEventListener("click", () => setBaseCampOpen(true));
 dom.openBaseCampFromGameOver.addEventListener("click", () => setBaseCampOpen(true));
 dom.coreNexusRoom.addEventListener("click", () => setBaseCampRoom("nexus"));
 dom.researchBayRoom.addEventListener("click", () => setBaseCampRoom("relics"));
+dom.relicArchiveRoom.addEventListener("click", () => setBaseCampRoom("archive"));
 dom.closeBaseCampButton.addEventListener("click", () => setBaseCampOpen(false, true));
 dom.baseCampModal.addEventListener("pointerdown", (event) => { if (event.target === dom.baseCampModal) setBaseCampOpen(false, true); });
 dom.recoveryContinueButton.addEventListener("click", advanceBaseRecoveryEvent);
@@ -2280,8 +2397,9 @@ dom.clearSaveButton.addEventListener("click", () => {
 document.addEventListener("pointerdown", () => audio.unlock(), { once: true });
 revealGameWhenReady().then(() => {
   const startupFlow = () => {
-    if (previewMode === "basecamp" || previewMode === "relic-research") {
+    if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive") {
       if (previewMode === "relic-research") baseCampRoom = "relics";
+      if (previewMode === "relic-archive") baseCampRoom = "archive";
       setBaseCampOpen(true);
     }
     else if (previewMode === "recovery" || (save.baseCamp.unlocked && !save.baseCamp.recoverySeen)) showBaseRecoveryEvent();

@@ -136,9 +136,17 @@ export const GAME_CONFIG = Object.freeze({
     gilded: { chance: 0.24, bonusMultiplier: 0.75 },
     execution: { hpThreshold: 0.35, damageMultiplier: 1.4 },
     hourglass: { cooldownRateMultiplier: 1.22 },
+    prismArc: { chainCount: 3, chainRange: 190, chainMultiplier: 0.52 },
+    frostfire: { freezeDuration: 0.55, damageMultiplier: 0.72 },
+    decoyWard: { shieldFraction: 0.18 },
     numeric: { damage: 0.08, rate: 0.06, hybridDamage: 0.04, hybridRate: 0.03 }
   },
   relicResearch: { ward: 0, decoy: 3, lunar: 4, mirror: 5, ember: 6, frostbloom: 7, stormglass: 9, gilded: 11, execution: 13, hourglass: 15 },
+  relicCombos: {
+    prismArc: { requires: ["mirror", "stormglass"], set: ["mirror", "stormglass", "prismArc"] },
+    frostfire: { requires: ["frostbloom", "ember"], set: ["frostbloom", "ember", "frostfire"] },
+    decoyWard: { requires: ["decoy", "ward"], set: ["decoy", "ward", "decoyWard"] }
+  },
   relicSlotResearch: { costs: [2, 4, 7] },
   permanentResources: { clickRadius: 30, maxDrops: 72, eliteEcho: 2, bossCore: 3, colossusCore: 8, sovereignCore: 15 },
   score: {
