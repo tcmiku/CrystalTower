@@ -2,9 +2,49 @@ import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, UPGRADE_ORDER } from "./config.js";
 import { SeededRng } from "./rng.js";
 
 const ASCEND_NAMES = ["晶芽", "晶柱", "晶冠", "万象晶塔"];
-const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", cannonSiege: "破城炮膛", cannonCharge: "蓄能晶矢", cannonPierce: "贯星穿透", cannonWeakpoint: "弱点校准", cannonSplit: "裂晶炮膛", cannonGrowth: "碎片增殖", cannonEcho: "晶爆回响", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
+const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", cannonSiege: "破城炮膛", cannonCharge: "蓄能晶矢", cannonPierce: "贯星穿透", cannonWeakpoint: "弱点校准", cannonStarPiercer: "贯星炮", cannonSplit: "裂晶炮膛", cannonGrowth: "碎片增殖", cannonEcho: "晶爆回响", cannonCascade: "裂界连爆", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
+const SKILL_DAMAGE_SOURCES = new Set(["starfall", "overload", "shieldBurst"]);
 
-export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots, relicArchive = {}) {
+export function getThreatSealModifiers(equipped = []) {
+  const ids = [...new Set((Array.isArray(equipped) ? equipped : []).filter((key) => Object.hasOwn(GAME_CONFIG.threatSeals, key)))];
+  const modifiers = {
+    resourceMultiplier: 1, scoreMultiplier: 1, relicChanceBonus: 0, achievementMultiplier: 1,
+    nightWaves: GAME_CONFIG.threat.nightWaves, elementMultiplier: 1, coinMultiplier: 1,
+    waveCountMultiplier: 1, relicChoiceBonus: 0, colossusSpawnThreat: GAME_CONFIG.colossus.spawnThreat,
+    emberCoreBonus: 0, healCooldownMultiplier: 1, skillDamageMultiplier: 1,
+    severedSupply: false
+  };
+  for (const id of ids) {
+    const seal = GAME_CONFIG.threatSeals[id];
+    modifiers.resourceMultiplier += seal.resourceBonus ?? 0;
+    modifiers.scoreMultiplier += seal.scoreBonus ?? 0;
+    modifiers.relicChanceBonus += seal.relicChanceBonus ?? 0;
+    modifiers.achievementMultiplier += seal.achievementBonus ?? 0;
+  }
+  if (ids.includes("longNight")) {
+    modifiers.nightWaves = GAME_CONFIG.threatSeals.longNight.nightWaves;
+    modifiers.elementMultiplier = GAME_CONFIG.threatSeals.longNight.elementMultiplier;
+  }
+  if (ids.includes("severedSupply")) {
+    modifiers.severedSupply = true;
+    modifiers.coinMultiplier = GAME_CONFIG.threatSeals.severedSupply.coinMultiplier;
+  }
+  if (ids.includes("frenzy")) {
+    modifiers.waveCountMultiplier = GAME_CONFIG.threatSeals.frenzy.waveCountMultiplier;
+    modifiers.relicChoiceBonus = GAME_CONFIG.threatSeals.frenzy.relicChoiceBonus;
+  }
+  if (ids.includes("colossus")) {
+    modifiers.colossusSpawnThreat = GAME_CONFIG.threatSeals.colossus.spawnThreat;
+    modifiers.emberCoreBonus = GAME_CONFIG.threatSeals.colossus.emberCoreBonus;
+  }
+  if (ids.includes("flawless")) {
+    modifiers.healCooldownMultiplier = GAME_CONFIG.threatSeals.flawless.healCooldownMultiplier;
+    modifiers.skillDamageMultiplier = GAME_CONFIG.threatSeals.flawless.skillDamageMultiplier;
+  }
+  return { ids, ...modifiers };
+}
+
+export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots, relicArchive = {}, equippedSeals = []) {
   const rng = new SeededRng(seed);
   const hiddenRelicIds = Object.keys(GAME_CONFIG.relicCombos);
   const discoveredRelics = Object.fromEntries(hiddenRelicIds.map((id) => [id, relicArchive.discovered?.[id] === true]));
@@ -13,6 +53,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     ...Object.entries(relicUnlocks).filter(([, unlocked]) => unlocked === true).map(([id]) => id),
     ...hiddenRelicIds.filter((id) => discoveredRelics[id])
   ])].filter((id) => id !== disabledRelic);
+  const threatSealModifiers = getThreatSealModifiers(equippedSeals);
   const state = {
     seed: seed >>> 0 || 1,
     rng,
@@ -28,6 +69,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     colossusEncounter: { spawned: false, defeated: false },
     sovereignEncounter: { spawned: false, defeated: false },
     endlessMode: false,
+    threatSeals: { equipped: threatSealModifiers.ids, modifiers: threatSealModifiers },
     tower: {
       hp: 0,
       shield: 0,
@@ -52,8 +94,10 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       priorityTargetIds: [],
       siegeTargetId: null,
       siegeStreak: 0,
+      cannonEchoChain: 0,
+      cannonEchoChainTimer: 0,
       sawAngle: 0,
-      upgrades: { damage: 0, rate: 0, ascend: 0, cannonSiege: 0, cannonCharge: 0, cannonPierce: 0, cannonWeakpoint: 0, cannonSplit: 0, cannonGrowth: 0, cannonEcho: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
+      upgrades: { damage: 0, rate: 0, ascend: 0, cannonSiege: 0, cannonCharge: 0, cannonPierce: 0, cannonWeakpoint: 0, cannonStarPiercer: 0, cannonSplit: 0, cannonGrowth: 0, cannonEcho: 0, cannonCascade: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
     },
     skills: {
       heal: { cooldown: 0, active: 0, burst: 0, shieldBurstArmed: false },
@@ -107,6 +151,12 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
 
 export function getDayPhase(threat) {
   const { dayWaves, nightWaves } = GAME_CONFIG.threat;
+  return ((Math.max(1, threat) - 1) % (dayWaves + nightWaves)) < dayWaves ? "day" : "night";
+}
+
+function getStateDayPhase(state, threat) {
+  const dayWaves = GAME_CONFIG.threat.dayWaves;
+  const nightWaves = state.threatSeals?.modifiers?.nightWaves ?? GAME_CONFIG.threat.nightWaves;
   return ((Math.max(1, threat) - 1) % (dayWaves + nightWaves)) < dayWaves ? "day" : "night";
 }
 
@@ -504,6 +554,7 @@ function shuffledRelicIds(state, values) {
 }
 
 function buildRelicChoices(state) {
+  const choiceLimit = 3 + (state.threatSeals?.modifiers?.relicChoiceBonus ?? 0);
   const unlocked = new Set(state.relics.available);
   const pool = MECHANIC_RELIC_IDS.filter((id) => unlocked.has(id));
   const eligible = pool.filter((id) => !state.relics.owned[id]);
@@ -513,17 +564,17 @@ function buildRelicChoices(state) {
     if (!state.relics.registeredSets[setId] || !combo.set.some((id) => state.relics.owned[id])) continue;
     const missing = combo.set.find((id) => eligible.includes(id) && !choices.includes(id));
     if (missing) choices.push(missing);
-    if (choices.length >= 3) break;
+    if (choices.length >= choiceLimit) break;
   }
   const available = shuffledRelicIds(state, eligible.filter((id) => !choices.includes(id)));
   for (const id of available) {
-    if (choices.length >= 3) break;
+    if (choices.length >= choiceLimit) break;
     choices.push(id);
   }
   const numericAllowed = state.relics.slots > pool.length;
   if (numericAllowed) {
     for (const boost of shuffledRelicIds(state, NUMERIC_RELIC_IDS)) {
-      if (choices.length >= 3) break;
+      if (choices.length >= choiceLimit) break;
       choices.push(boost);
     }
   }
@@ -620,6 +671,14 @@ function rankTargets(state, candidates) {
   });
 }
 
+function fireStarPiercer(state, target, damage) {
+  const cfg = GAME_CONFIG.cannon.siege;
+  const { x, y } = getTowerPosition(state);
+  damageEnemy(state, target, damage * cfg.starPiercerDamageMultiplier, "starPiercer");
+  state.elementFx.push({ element: "starPiercer", x1: x, y1: y, x2: target.x, y2: target.y, life: cfg.starPiercerDuration, maxLife: cfg.starPiercerDuration });
+  state.events.push({ type: "cannonStarPiercer", targetId: target.id, enemyType: target.type, elite: target.elite, x1: x, y1: y, x2: target.x, y2: target.y, damage: damage * cfg.starPiercerDamageMultiplier });
+}
+
 function fireTower(state) {
   const stats = getTowerStats(state);
   const targets = findTargets(state, stats.projectileCount);
@@ -629,12 +688,15 @@ function fireTower(state) {
   const siegeLevel = state.tower.upgrades.cannonSiege;
   const chargeLevel = state.tower.upgrades.cannonCharge;
   let chargeMultiplier = 1;
+  let fullCharge = false;
   if (siegeLevel > 0 && chargeLevel > 0) {
     const primaryId = targets[0].id;
     state.tower.siegeStreak = state.tower.siegeTargetId === primaryId ? state.tower.siegeStreak + 1 : 0;
     state.tower.siegeTargetId = primaryId;
     const cfg = GAME_CONFIG.cannon.siege;
-    const stacks = Math.min(cfg.maxChargeStacks + chargeLevel - 1, state.tower.siegeStreak);
+    const maxStacks = cfg.maxChargeStacks + chargeLevel - 1;
+    const stacks = Math.min(maxStacks, state.tower.siegeStreak);
+    fullCharge = stacks >= maxStacks;
     chargeMultiplier += stacks * cfg.chargeBonusPerStack;
   } else {
     state.tower.siegeTargetId = null;
@@ -650,6 +712,11 @@ function fireTower(state) {
   }
   for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
     const target = targets[targetIndex];
+    if (targetIndex === 0 && fullCharge && state.tower.upgrades.cannonStarPiercer > 0 && (target.elite || isBossEnemy(target))) {
+      fireStarPiercer(state, target, stats.damage * chargeMultiplier);
+      state.tower.siegeStreak = 0;
+      continue;
+    }
     const angle = Math.atan2(target.y - centerY, target.x - centerX);
     const element = rollProjectileElement(state);
     state.projectiles.push({
@@ -684,20 +751,21 @@ function rollProjectileElement(state) {
 
 export function damageEnemy(state, enemy, damage, source = "shot") {
   if (enemy.hp <= 0 || (enemy.phaseBreakInvulnerability ?? 0) > 0) return;
-  let appliedDamage = damage;
+  let appliedDamage = damage * (SKILL_DAMAGE_SOURCES.has(source) ? state.threatSeals?.modifiers?.skillDamageMultiplier ?? 1 : 1);
+  const shieldPiercing = source === "starPiercer";
   if (state.relics.owned.execution && enemy.hp / Math.max(1, enemy.maxHp) <= GAME_CONFIG.relics.execution.hpThreshold) {
     appliedDamage *= GAME_CONFIG.relics.execution.damageMultiplier;
   }
   if ((enemy.weakpointTimer ?? 0) > 0) appliedDamage *= GAME_CONFIG.cannon.siege.weakpointDamageMultiplier;
   if (enemy.type === "boss") {
-    if (bossAnchors(state, enemy).some((anchor) => anchor.anchorRole === "shield")) appliedDamage *= GAME_CONFIG.boss.shieldDamageMultiplier;
+    if (!shieldPiercing && bossAnchors(state, enemy).some((anchor) => anchor.anchorRole === "shield")) appliedDamage *= GAME_CONFIG.boss.shieldDamageMultiplier;
     if (source === enemy.resistance) appliedDamage *= GAME_CONFIG.boss.elementDamageMultiplier;
   }
   if (enemy.type === "colossus") {
     if (enemy.colossusAffix === "carapace") appliedDamage *= GAME_CONFIG.colossus.affixes.carapace.passiveDamageMultiplier;
     if ((enemy.exposedTimer ?? 0) > 0) appliedDamage *= GAME_CONFIG.colossus.counters.exposedDamageMultiplier;
-    if (enemy.activeSkill === "bulwark" || enemy.activeSkills?.bulwark) appliedDamage *= GAME_CONFIG.colossus.bulwark.damageMultiplier;
-    if ((enemy.spawnShield ?? 0) > 0) {
+    if (!shieldPiercing && (enemy.activeSkill === "bulwark" || enemy.activeSkills?.bulwark)) appliedDamage *= GAME_CONFIG.colossus.bulwark.damageMultiplier;
+    if (!shieldPiercing && (enemy.spawnShield ?? 0) > 0) {
       const absorbed = Math.min(enemy.spawnShield, appliedDamage);
       enemy.spawnShield -= absorbed;
       appliedDamage -= absorbed;
@@ -705,8 +773,8 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
   }
   if (enemy.type === "sovereign") {
     const cfg = GAME_CONFIG.sovereign;
-    if (enemy.activeSkill === "bulwark") appliedDamage *= cfg.bulwark.damageMultiplier;
-    if ((enemy.spawnShield ?? 0) > 0) {
+    if (!shieldPiercing && enemy.activeSkill === "bulwark") appliedDamage *= cfg.bulwark.damageMultiplier;
+    if (!shieldPiercing && (enemy.spawnShield ?? 0) > 0) {
       const shieldBefore = enemy.spawnShield;
       const absorbed = Math.min(enemy.spawnShield, appliedDamage);
       enemy.spawnShield -= absorbed;
@@ -726,7 +794,7 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
       }
     }
   }
-  if ((enemy.affixShield ?? 0) > 0) {
+  if (!shieldPiercing && (enemy.affixShield ?? 0) > 0) {
     const absorbed = Math.min(enemy.affixShield, appliedDamage);
     enemy.affixShield -= absorbed;
     appliedDamage -= absorbed;
@@ -734,7 +802,7 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
   enemy.hp -= appliedDamage;
   if (appliedDamage > 0) enemy.lastDamageSource = source;
   enemy.hitFlash = 0.09;
-  const color = source === "starfall" ? "#fff1a8" : source === "drone" ? "#ffd36d" : source === "fire" ? "#ff9c5c" : source === "lightning" ? "#d9c5ff" : "#d9faff";
+  const color = source === "starPiercer" ? "#fff3a8" : source === "starfall" ? "#fff1a8" : source === "drone" ? "#ffd36d" : source === "fire" ? "#ff9c5c" : source === "lightning" ? "#d9c5ff" : "#d9faff";
   state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius, text: appliedDamage > 0.5 ? `${Math.round(appliedDamage)}` : "格挡", life: 0.55, color });
   state.events.push({ type: "hit", source });
   if (enemy.type === "colossus" && enemy.hp <= 0 && enemy.healthBar > 1) {
@@ -807,7 +875,8 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
     return false;
   }
   const bossScale = isBossEnemy(enemy) ? cfg.bossEffectMultiplier : 1;
-  const lunarScale = state.relics.owned.lunar && state.phase === "night" ? GAME_CONFIG.relics.lunar.nightElementMultiplier : 1;
+  const lunarScale = (state.relics.owned.lunar && state.phase === "night" ? GAME_CONFIG.relics.lunar.nightElementMultiplier : 1)
+    * (state.phase === "night" ? state.threatSeals?.modifiers?.elementMultiplier ?? 1 : 1);
   if (element === "frost") {
     if (enemy.type === "colossus" && enemy.enraged) {
       enemy.freezeTimer = 0;
@@ -851,7 +920,8 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
 function addCoinDrop(state, enemy) {
   const dropCount = enemy.unitCount ?? 1;
   const lunarValue = state.relics.owned.lunar && state.phase === "day" ? GAME_CONFIG.relics.lunar.dayCoinMultiplier : 1;
-  const drop = { x: enemy.x, y: enemy.y, renderX: enemy.x, renderY: enemy.y, value: Math.max(1, Math.round(enemy.reward * lunarValue)), pileCount: dropCount, age: 0, collectAge: 0, collector: null, droneIndex: 0 };
+  const sealCoinMultiplier = state.threatSeals?.modifiers?.coinMultiplier ?? 1;
+  const drop = { x: enemy.x, y: enemy.y, renderX: enemy.x, renderY: enemy.y, value: Math.max(1, Math.round(enemy.reward * lunarValue * sealCoinMultiplier)), pileCount: dropCount, age: 0, collectAge: 0, collector: null, droneIndex: 0 };
   if (state.coinOrbs.length < GAME_CONFIG.coins.maxOrbs) {
     state.coinOrbs.push(drop);
     return;
@@ -954,7 +1024,7 @@ function updateEmberZones(state, dt) {
 export function spawnPermanentResourceDrop(state, resourceType, value = 1, x = GAME_CONFIG.arena.centerX, y = GAME_CONFIG.arena.centerY, metadata = {}) {
   if (resourceType !== "echo" && resourceType !== "core") return null;
   if (value <= 0) return null;
-  const dropValue = Math.max(1, Math.floor(value));
+  const dropValue = Math.max(1, Math.ceil(value * (state.threatSeals?.modifiers?.resourceMultiplier ?? 1)));
   if (state.resourceDrops.length >= GAME_CONFIG.permanentResources.maxDrops) {
     const target = state.resourceDrops
       .filter((drop) => drop.resourceType === resourceType)
@@ -1052,6 +1122,23 @@ function updatePermanentResourceDrops(state, dt) {
   state.events.push({ type: "towerCollectPulse", count: drops.length });
 }
 
+function triggerCannonCascade(state, enemy) {
+  const cfg = GAME_CONFIG.cannon.split;
+  const damage = getTowerStats(state).damage * cfg.cascadeDamageMultiplier;
+  const targets = [];
+  for (const target of state.enemies) {
+    if (target === enemy || target.hp <= 0 || Math.hypot(target.x - enemy.x, target.y - enemy.y) > cfg.cascadeRadius + target.radius) continue;
+    targets.push({ x: target.x, y: target.y });
+    damageEnemy(state, target, damage, "cannonCascade");
+  }
+  const effect = {
+    element: "cannonCascade", x: enemy.x, y: enemy.y, radius: cfg.cascadeRadius,
+    targets: targets.slice(0, 12), life: cfg.cascadeDuration, maxLife: cfg.cascadeDuration
+  };
+  state.elementFx.push(effect);
+  state.events.push({ type: "cannonCascade", x: enemy.x, y: enemy.y, radius: cfg.cascadeRadius, damage, hits: targets.length, targets: effect.targets });
+}
+
 function resolveDeaths(state) {
   for (const enemy of state.enemies) {
     if (enemy.hp > 0 || enemy.deadHandled) continue;
@@ -1080,6 +1167,16 @@ function resolveDeaths(state) {
     const killScore = Math.round(baseScore * (enemy.elite ? GAME_CONFIG.score.eliteMultiplier : 1));
     state.stats.score += killScore;
     state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius - 12, text: `+${killScore} 分`, life: 0.85, color: enemy.elite || isBossEnemy(enemy) ? "#ffe07a" : "#ffd7a0" });
+    if (state.tower.upgrades.cannonCascade > 0 && enemy.lastDamageSource === "cannonEcho") {
+      const cfg = GAME_CONFIG.cannon.split;
+      state.tower.cannonEchoChain = state.tower.cannonEchoChainTimer > 0 ? state.tower.cannonEchoChain + defeatedUnits : defeatedUnits;
+      state.tower.cannonEchoChainTimer = cfg.cascadeWindow;
+      if (state.tower.cannonEchoChain >= cfg.cascadeKills) {
+        state.tower.cannonEchoChain = 0;
+        state.tower.cannonEchoChainTimer = 0;
+        triggerCannonCascade(state, enemy);
+      }
+    }
     if (state.relics.owned.ember && (enemy.lastDamageSource === "fire" || enemy.lastDamageSource === "explosion")) {
       spawnEmberZone(state, enemy.x, enemy.y);
     }
@@ -1122,6 +1219,10 @@ function resolveDeaths(state) {
     if (enemy.elite && !state.endlessMode) {
       spawnPermanentResourceDrop(state, "echo", GAME_CONFIG.permanentResources.eliteEcho, enemy.x - 10, enemy.y, { source: "elite" });
       if (enemy.waveElite) offerRelicChoice(state, "eliteWave");
+      else if ((state.threatSeals?.modifiers?.relicChanceBonus ?? 0) > 0 && state.rng.next() < state.threatSeals.modifiers.relicChanceBonus) {
+        offerRelicChoice(state, "sealElite");
+        state.events.push({ type: "sealRelicDrop", x: enemy.x, y: enemy.y });
+      }
     }
     if (isBossEnemy(enemy)) {
       state.stats.bossKills += 1;
@@ -1137,6 +1238,11 @@ function resolveDeaths(state) {
         state.hostileProjectiles.length = 0;
         state.summonRifts = state.summonRifts.filter((rift) => rift.bossId !== enemy.id);
         state.events.push({ type: "colossusDefeated", x: enemy.x, y: enemy.y });
+        if (!state.endlessMode && (state.threatSeals?.modifiers?.emberCoreBonus ?? 0) > 0) {
+          const bonus = state.threatSeals.modifiers.emberCoreBonus;
+          const emberCore = spawnPermanentResourceDrop(state, "core", bonus, enemy.x + 22, enemy.y, { source: "emberCore" });
+          state.events.push({ type: "sealEmberCore", value: emberCore?.value ?? bonus, x: enemy.x, y: enemy.y });
+        }
         if (!state.endlessMode) offerRelicChoice(state, "colossusDefeat");
       }
       if (enemy.type === "sovereign") {
@@ -1167,7 +1273,7 @@ function updateThreat(state) {
   const nextThreat = Math.floor(state.time / GAME_CONFIG.threat.duration) + 1;
   if (nextThreat === state.threat) return;
   state.threat = nextThreat;
-  const nextPhase = getDayPhase(nextThreat);
+  const nextPhase = getStateDayPhase(state, nextThreat);
   if (nextPhase !== state.phase) {
     state.events.push({ type: "phase", phase: nextPhase });
     if (state.relics.owned.lunar) {
@@ -1178,7 +1284,7 @@ function updateThreat(state) {
   state.phase = nextPhase;
   state.stats.highestThreat = Math.max(state.stats.highestThreat, nextThreat);
   state.events.push({ type: "threat", level: nextThreat });
-  if (nextThreat === GAME_CONFIG.colossus.spawnThreat && !state.colossusEncounter.spawned) spawnEnemy(state, "colossus");
+  if (nextThreat === (state.threatSeals?.modifiers?.colossusSpawnThreat ?? GAME_CONFIG.colossus.spawnThreat) && !state.colossusEncounter.spawned) spawnEnemy(state, "colossus");
   if (nextThreat === GAME_CONFIG.sovereign.spawnThreat && !state.sovereignEncounter.spawned) {
     state.enemies.length = 0;
     state.hostileProjectiles.length = 0;
@@ -1228,7 +1334,7 @@ function updateWave(state, dt) {
   }
   if (!wave.active && state.time >= wave.nextAt) {
     wave.active = true;
-    wave.remaining = cfg.baseCount + state.threat * cfg.countPerThreat;
+    wave.remaining = Math.ceil((cfg.baseCount + state.threat * cfg.countPerThreat) * (state.threatSeals?.modifiers?.waveCountMultiplier ?? 1));
     wave.spawnTimer = 0;
     wave.index += 1;
     wave.nextAt += cfg.interval;
@@ -2218,7 +2324,7 @@ function updateCoinOrbs(state, dt) {
   const incomeMultiplier = 1 + state.research.income * GAME_CONFIG.research.bonusPerLevel;
   const droneCount = state.tower.upgrades.drone;
   const guardMode = state.tower.droneMode === "collect";
-  if (guardMode && droneCount > 0) {
+  if (guardMode && droneCount > 0 && !state.threatSeals?.modifiers?.severedSupply) {
     state.tower.droneCooldown -= dt;
     if (state.tower.droneCooldown <= 0) {
       const orb = state.coinOrbs.find((item) => !item.collector);
@@ -2292,6 +2398,23 @@ function spawnEventParticles(state) {
         const angle = state.rng.next() * Math.PI * 2;
         const speed = 55 + state.rng.next() * 100;
         state.particles.push({ x: event.x, y: event.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.3 + state.rng.next() * 0.25, maxLife: 0.55, color: "#c89cff", size: 2 + state.rng.next() * 3 });
+      }
+      continue;
+    }
+    if (event.type === "cannonStarPiercer") {
+      for (let i = 0; i < 24; i += 1) {
+        const angle = state.rng.next() * Math.PI * 2;
+        const speed = 70 + state.rng.next() * 155;
+        const origin = i < 8 ? { x: event.x1, y: event.y1 } : { x: event.x2, y: event.y2 };
+        state.particles.push({ x: origin.x, y: origin.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: .28 + state.rng.next() * .3, maxLife: .58, color: i % 3 ? "#ffe47c" : "#ffffff", size: 2 + state.rng.next() * 3.5 });
+      }
+      continue;
+    }
+    if (event.type === "cannonCascade") {
+      for (let i = 0; i < 56; i += 1) {
+        const angle = state.rng.next() * Math.PI * 2;
+        const speed = 85 + state.rng.next() * 220;
+        state.particles.push({ x: event.x, y: event.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: .45 + state.rng.next() * .45, maxLife: .9, color: i % 5 === 0 ? "#fff1ff" : i % 2 ? "#e285ff" : "#9a4dff", size: 2.5 + state.rng.next() * 5 });
       }
       continue;
     }
@@ -2416,19 +2539,26 @@ export function useSkill(state, key, options = {}) {
     state.coinOrbs = state.coinOrbs.filter((orb) => !absorbed.has(orb));
     state.events.push({ type: "coinVacuum", count: skill.collected, value });
   }
-  skill.cooldown = config.cooldown;
+  skill.cooldown = config.cooldown * (key === "heal" ? state.threatSeals?.modifiers?.healCooldownMultiplier ?? 1 : 1);
   state.events.push({ type: "skill", key, angle: skill.angle });
   return true;
 }
 
 export function calculateStardust(state) {
-  return Math.max(1, Math.floor(state.stats.kills / 25) + state.stats.bossKills * 3);
+  const base = Math.max(1, Math.floor(state.stats.kills / 25) + state.stats.bossKills * 3);
+  return Math.max(1, Math.round(base * (state.threatSeals?.modifiers?.resourceMultiplier ?? 1)));
 }
 
 export function calculateRunScore(state) {
   const combat = Math.max(0, Math.floor(state.stats.score));
   const coinBonus = Math.max(0, Math.floor(state.coins)) * GAME_CONFIG.score.coinMultiplier;
-  return { combat, coinBonus, total: combat + coinBonus };
+  const total = Math.round((combat + coinBonus) * (state.threatSeals?.modifiers?.scoreMultiplier ?? 1));
+  return { combat, coinBonus, total };
+}
+
+export function calculateAchievementProgress(state) {
+  const base = Math.max(0, state.stats.kills + state.stats.bossKills * 25);
+  return Math.round(base * (state.threatSeals?.modifiers?.achievementMultiplier ?? 1));
 }
 
 export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
@@ -2449,6 +2579,8 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   state.relics.phaseBuff = Math.max(0, state.relics.phaseBuff - dt);
   state.tower.fireRateSuppression = Math.max(0, (state.tower.fireRateSuppression ?? 0) - dt);
   state.tower.healthBarTimer = Math.max(0, (state.tower.healthBarTimer ?? 0) - dt);
+  state.tower.cannonEchoChainTimer = Math.max(0, (state.tower.cannonEchoChainTimer ?? 0) - dt);
+  if (state.tower.cannonEchoChainTimer <= 0) state.tower.cannonEchoChain = 0;
   if (state.skills.coinVacuum.active <= 0) state.skills.coinVacuum.trails = [];
   if (state.tower.anchorLockTimer > 0) {
     state.tower.anchorLockTimer = Math.max(0, state.tower.anchorLockTimer - dt);
@@ -2511,8 +2643,8 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 
 export function snapshotState(state) {
   return {
-    time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins,
-    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
+    time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped],
+    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3))]),
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
     enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1]),

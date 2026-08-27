@@ -758,6 +758,7 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .tech-node.selected { z-index: 3; transform: translateY(-3px) scale(1.08); filter: brightness(1.14) drop-shadow(0 0 13px rgba(124,238,255,.48)); }
 .tech-node.selected::after { border-color: rgba(225,251,255,.9); box-shadow: inset 0 0 14px rgba(3,5,20,.7),0 0 0 3px rgba(124,238,255,.15); }
 .tech-node .upgrade-icon,.tech-detail-icon { background-image: var(--tech-icon-sheet); background-size: var(--tech-icon-size-x) var(--tech-icon-size-y); background-position: var(--tech-icon-pos-x) var(--tech-icon-pos-y); background-repeat: no-repeat; }
+.tech-node .upgrade-icon.tech-icon-terminal,.tech-detail-icon.tech-icon-terminal { display:grid; place-items:center; background-image:none; color:#fff5c6; font-size:22px; font-weight:900; text-shadow:0 0 12px currentColor; }
 .tech-node .upgrade-icon { position: absolute; z-index: 1; inset: 6px; width: auto; height: auto; display: block; border: 0; border-radius: 50%; background-color: #090b24; box-shadow: inset 0 0 16px rgba(2,3,15,.7); }
 .tech-node-level { position: absolute; z-index: 3; left: 50%; bottom: -5px; transform: translateX(-50%); min-width: 28px; padding: 2px 5px; border: 1px solid rgba(159,219,238,.26); border-radius: 99px; color: #d4f8ff; background: rgba(4,6,22,.94); font: 800 8px ui-monospace,monospace; box-shadow: 0 3px 9px rgba(0,0,0,.5); }
 .tech-node-mark { position: absolute; z-index: 3; left: 0; top: 0; width: 17px; height: 17px; display: grid; place-items: center; border: 1px solid rgba(211,231,255,.2); border-radius: 50%; color: #ced0df; background: #151735; font-size: 9px; }
@@ -906,6 +907,7 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .tech-branch.power .tech-node[data-upgrade="cannonCharge"],
 .tech-branch.power .tech-node[data-upgrade="cannonPierce"],
 .tech-branch.power .tech-node[data-upgrade="cannonWeakpoint"] { border-color: rgba(255,111,117,.34); background: linear-gradient(120deg, rgba(255,75,91,.08), rgba(255,255,255,.025)); }
+.tech-branch.power .tech-node[data-upgrade="cannonStarPiercer"] { border-color:rgba(255,211,111,.62); background:linear-gradient(120deg,rgba(255,94,76,.16),rgba(255,220,124,.07)); box-shadow:0 0 22px rgba(255,105,72,.12); }
 .tech-branch.power .tech-node[data-upgrade="cannonSiege"] .upgrade-icon,
 .tech-branch.power .tech-node[data-upgrade="cannonCharge"] .upgrade-icon,
 .tech-branch.power .tech-node[data-upgrade="cannonPierce"] .upgrade-icon,
@@ -913,6 +915,7 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .tech-branch.power .tech-node[data-upgrade="cannonSplit"],
 .tech-branch.power .tech-node[data-upgrade="cannonGrowth"],
 .tech-branch.power .tech-node[data-upgrade="cannonEcho"] { border-color: rgba(207,151,255,.34); background: linear-gradient(120deg, rgba(150,92,225,.09), rgba(255,255,255,.025)); }
+.tech-branch.power .tech-node[data-upgrade="cannonCascade"] { border-color:rgba(218,162,255,.66); background:linear-gradient(120deg,rgba(122,65,220,.2),rgba(255,119,223,.08)); box-shadow:0 0 22px rgba(184,102,255,.14); }
 .tech-branch.power .tech-node[data-upgrade="cannonSplit"] .upgrade-icon,
 .tech-branch.power .tech-node[data-upgrade="cannonGrowth"] .upgrade-icon,
 .tech-branch.power .tech-node[data-upgrade="cannonEcho"] .upgrade-icon { color: #d8b4ff; border-color: rgba(207,151,255,.5); background: rgba(140,103,255,.13); }
@@ -1525,4 +1528,56 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .relic-card-wrap .relic-card-index { left:9px; }
   .relic-lock-button { top:8px; right:9px; width:34px; height:34px; border-radius:10px; }
   .relic-lock-button svg { width:18px; height:18px; }
+}
+
+/* Threat seals: post-Chapter-I risk/reward loadout */
+.base-room.seal-room { left:4%; top:8%; border-color:rgba(196,104,255,.3); background:linear-gradient(120deg,rgba(35,12,64,.9),rgba(86,29,48,.84)); }
+.base-room.seal-room.active { border-color:rgba(226,137,255,.72); box-shadow:0 0 36px rgba(190,63,255,.2),0 0 18px rgba(255,93,86,.12); }
+.base-room.seal-room.active::before { background:#e598ff; box-shadow:0 0 14px #c35cff; }
+.base-room.seal-room.locked { filter:saturate(.35); opacity:.62; }
+.threat-seal-panel { position:relative; overflow:hidden; background:radial-gradient(circle at 50% 0,rgba(120,42,164,.13),transparent 48%); }
+.seal-reward-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:16px 0; }
+.seal-reward-summary > span { padding:11px 13px; border:1px solid rgba(218,139,255,.2); border-radius:11px; background:rgba(112,45,145,.08); }
+.seal-reward-summary small,.seal-reward-summary b { display:block; }
+.seal-reward-summary small { color:#9890b8; font:800 9px ui-monospace,monospace; letter-spacing:.1em; }
+.seal-reward-summary b { margin-top:4px; color:#f1c6ff; font:900 16px ui-monospace,monospace; }
+.threat-seal-list { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }
+.threat-seal-card { min-width:0; min-height:310px; position:relative; display:flex; flex-direction:column; align-items:stretch; padding:0 12px 13px; overflow:hidden; border:1px solid rgba(211,130,255,.2); border-radius:15px; color:#f5efff; background:linear-gradient(170deg,rgba(43,18,72,.82),rgba(8,8,28,.96)); text-align:left; cursor:pointer; transition:.2s ease; }
+.threat-seal-card:hover:not(:disabled) { transform:translateY(-3px); border-color:rgba(231,157,255,.7); box-shadow:0 12px 34px rgba(80,18,119,.3); }
+.threat-seal-card:disabled { filter:saturate(.25); opacity:.52; cursor:not-allowed; }
+.threat-seal-card.equipped { border-color:rgba(255,151,109,.8); background:linear-gradient(165deg,rgba(102,30,66,.82),rgba(24,11,44,.98)); box-shadow:inset 0 0 35px rgba(255,75,91,.08),0 0 24px rgba(200,68,255,.11); }
+.threat-seal-art { --seal-index:0; display:block; flex:none; width:100%; aspect-ratio:1; background-image:url('./assets/generated/threat-seals-atlas-ai.png'); background-size:500% auto; background-position:calc(var(--seal-index) * 25%) center; background-repeat:no-repeat; filter:drop-shadow(0 7px 12px rgba(0,0,0,.55)); }
+.threat-seal-card > span { display:block; min-width:0; }
+.threat-seal-card small,.threat-seal-card strong,.threat-seal-card p,.threat-seal-card b { display:block; }
+.threat-seal-card small { color:#c58ee8; font:800 9px ui-monospace,monospace; letter-spacing:.11em; }
+.threat-seal-card strong { margin:4px 0 7px; font-size:17px; }
+.threat-seal-card p { min-height:48px; margin:0; color:#aaa4c1; font-size:10px; line-height:1.55; }
+.threat-seal-card b { margin-top:8px; color:#ffcf99; font-size:10px; line-height:1.5; }
+.threat-seal-card em { display:block; margin-top:auto; padding-top:10px; color:#d89bff; font:800 9px ui-monospace,monospace; font-style:normal; letter-spacing:.06em; }
+.threat-seal-card.equipped em { color:#ffbe8c; }
+.seal-panel-footer { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-top:14px; padding:12px 14px; border:1px solid rgba(255,255,255,.08); border-radius:11px; background:rgba(5,5,21,.62); }
+.seal-panel-footer span { color:#c7c1d8; font-size:11px; }
+.seal-panel-footer b { color:#ffdd9b; font:900 11px ui-monospace,monospace; }
+.threat-seal-hud { position:absolute; z-index:7; top:54px; left:10px; display:flex; flex-wrap:wrap; gap:5px; max-width:52%; pointer-events:none; }
+.seal-hud-chip { height:31px; display:flex; align-items:center; gap:4px; padding:2px 8px 2px 3px; border:1px solid rgba(222,135,255,.32); border-radius:999px; background:rgba(18,7,38,.82); box-shadow:0 5px 14px rgba(0,0,0,.28); }
+.seal-hud-chip .threat-seal-art { width:26px; height:26px; }
+.seal-hud-chip b { color:#ecc6ff; font-size:9px; }
+.score-multiplier { margin-left:8px; color:#e4a7ff; font:900 10px ui-monospace,monospace; }
+
+@media (max-width:1180px) {
+  .threat-seal-list { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .threat-seal-card { min-height:290px; }
+  .base-room.seal-room { left:2%; top:5%; }
+}
+@media (max-width:760px) {
+  .seal-reward-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .threat-seal-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .threat-seal-hud { max-width:70%; }
+  .seal-panel-footer { align-items:flex-start; flex-direction:column; gap:5px; }
+}
+@media (max-width:500px) {
+  .threat-seal-list { grid-template-columns:1fr; }
+  .threat-seal-card { min-height:0; display:grid; grid-template-columns:108px minmax(0,1fr); gap:8px; padding:8px 11px; }
+  .threat-seal-card > em { grid-column:2; }
+  .threat-seal-hud { display:none; }
 }

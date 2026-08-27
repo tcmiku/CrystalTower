@@ -185,6 +185,8 @@ export class Renderer {
     if (type === "cannonWeakpoint") { this.flash = Math.max(this.flash, 0.1); this.flashColor = "#fff0a8"; }
     if (type === "cannonSplit") { this.flash = Math.max(this.flash, 0.06); this.flashColor = "#d5b3ff"; }
     if (type === "cannonEcho") { this.shake = Math.max(this.shake, 3.5); this.flash = Math.max(this.flash, 0.12); this.flashColor = "#c89cff"; }
+    if (type === "cannonStarPiercer") { this.shake = Math.max(this.shake, 8); this.flash = Math.max(this.flash, 0.3); this.flashColor = "#fff0a0"; }
+    if (type === "cannonCascade") { this.shake = Math.max(this.shake, 11); this.flash = Math.max(this.flash, 0.42); this.flashColor = "#dc79ff"; }
     if (type === "waveWarning") { this.shake = 3; this.flash = 0.12; this.flashColor = "#ff796f"; }
     if (type === "waveStart") { this.shake = 10; this.flash = 0.34; this.flashColor = "#ff4f70"; }
     if (type === "gameOver") { this.shake = 12; this.flash = 0.55; this.flashColor = "#8a143d"; }
@@ -795,6 +797,81 @@ export class Renderer {
 
   drawElementFx(ctx, state) {
     for (const effect of state.elementFx) {
+      if (effect.element === "starPiercer") {
+        const alpha = Math.max(0, effect.life / effect.maxLife);
+        const progress = 1 - alpha;
+        const dx = effect.x2 - effect.x1;
+        const dy = effect.y2 - effect.y1;
+        const length = Math.hypot(dx, dy) || 1;
+        const ux = dx / length;
+        const uy = dy / length;
+        const endX = effect.x2 + ux * 70;
+        const endY = effect.y2 + uy * 70;
+        const pulse = 1 + Math.sin(this.time * 64) * .12;
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.lineCap = "round";
+        for (const [width, color, opacity, blur] of [[24, "#ff9d38", .18, 30], [13, "#ffd85e", .48, 22], [6, "#fff6bf", .9, 12], [2, "#ffffff", 1, 5]]) {
+          ctx.globalAlpha = alpha * opacity;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width * pulse;
+          ctx.shadowColor = color;
+          ctx.shadowBlur = blur;
+          ctx.beginPath(); ctx.moveTo(effect.x1, effect.y1); ctx.lineTo(endX, endY); ctx.stroke();
+        }
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = "#fff3a2";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 8]);
+        ctx.beginPath(); ctx.arc(effect.x2, effect.y2, 22 + progress * 42, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#ffffff";
+        ctx.globalAlpha = alpha * .9;
+        ctx.beginPath(); ctx.arc(effect.x1, effect.y1, 7 + alpha * 8, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        continue;
+      }
+      if (effect.element === "cannonCascade") {
+        const alpha = Math.max(0, effect.life / effect.maxLife);
+        const progress = 1 - alpha;
+        const radius = effect.radius * (.24 + progress * .76);
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const gradient = ctx.createRadialGradient(effect.x, effect.y, 0, effect.x, effect.y, Math.max(1, radius));
+        gradient.addColorStop(0, `rgba(255,255,255,${.9 * alpha})`);
+        gradient.addColorStop(.18, `rgba(255,180,255,${.72 * alpha})`);
+        gradient.addColorStop(.55, `rgba(178,75,255,${.34 * alpha})`);
+        gradient.addColorStop(1, "rgba(85,20,150,0)");
+        ctx.fillStyle = gradient;
+        ctx.beginPath(); ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2); ctx.fill();
+        for (const scale of [1, .68]) {
+          ctx.globalAlpha = alpha * (scale === 1 ? .9 : .65);
+          ctx.strokeStyle = scale === 1 ? "#ec9cff" : "#fff0ff";
+          ctx.lineWidth = scale === 1 ? 5 : 2;
+          ctx.shadowColor = "#b64cff";
+          ctx.shadowBlur = 22;
+          ctx.beginPath(); ctx.arc(effect.x, effect.y, radius * scale, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.strokeStyle = "#f4b0ff";
+        ctx.lineWidth = 3;
+        for (let index = 0; index < 16; index += 1) {
+          const angle = index * Math.PI / 8 + this.time * (index % 2 ? .7 : -.45);
+          const inner = radius * (.22 + (index % 3) * .05);
+          const outer = radius * (.78 + (index % 4) * .08);
+          ctx.globalAlpha = alpha * (.45 + (index % 3) * .15);
+          ctx.beginPath();
+          ctx.moveTo(effect.x + Math.cos(angle) * inner, effect.y + Math.sin(angle) * inner);
+          ctx.lineTo(effect.x + Math.cos(angle) * outer, effect.y + Math.sin(angle) * outer);
+          ctx.stroke();
+        }
+        ctx.setLineDash([8, 7]);
+        for (const target of effect.targets ?? []) {
+          ctx.globalAlpha = alpha * .72;
+          ctx.beginPath(); ctx.moveTo(effect.x, effect.y); ctx.lineTo(target.x, target.y); ctx.stroke();
+        }
+        ctx.restore();
+        continue;
+      }
       if (effect.element !== "lightning") continue;
       const alpha = Math.max(0, effect.life / effect.maxLife);
       const dx = effect.x2 - effect.x1;

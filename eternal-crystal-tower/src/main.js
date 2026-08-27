@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
-import { calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
+import { calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, toggleRelicSet, unlockDoubleSpeed, writeSave } from "./storage.js";
+import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
@@ -16,9 +16,11 @@ const UPGRADE_META = {
   cannonCharge: { icon: "◈", name: "蓄能晶矢", description: "连续攻击同一目标，每层使后续晶矢伤害 +12%", max: 3 },
   cannonPierce: { icon: "➤", name: "贯星穿透", description: "晶矢穿透敌人；每级提高穿透次数并使首领伤害 +18%", max: 3 },
   cannonWeakpoint: { icon: "⌖", name: "弱点校准", description: "攻击首领或精英有概率暴露弱点，短时间承伤 +35%", max: 3 },
+  cannonStarPiercer: { icon: "━", name: "贯星炮", description: "蓄能满层时，对 Boss 或精英发射无视护盾的贯星激光", max: 1 },
   cannonSplit: { icon: "✣", name: "裂晶炮膛", description: "群体专精：命中后分裂晶矢，开启增殖与晶爆路线", max: 1 },
   cannonGrowth: { icon: "✧", name: "碎片增殖", description: "分裂晶矢命中后继续寻找附近目标，逐级增加追击次数", max: 3 },
   cannonEcho: { icon: "✹", name: "晶爆回响", description: "击杀敌人时产生小范围晶爆，对周围敌人造成伤害", max: 3 },
+  cannonCascade: { icon: "✺", name: "裂界连爆", description: "晶爆在短时间内连续击杀 3 个敌人后，触发大型连锁爆炸", max: 1 },
   saw: { icon: "✺", name: "环绕晶刃", description: "增加一枚近身晶刃", max: 5 },
   sawOverdrive: { icon: "◌", name: "疾旋锻刃", description: "专精：提高环速与接触伤害", max: 3 },
   sawGun: { icon: "➶", name: "晶刃炮膛", description: "疾旋分支：保留并强化金色弹幕", max: 3 },
@@ -40,7 +42,7 @@ const UPGRADE_META = {
   lightning: { icon: "ϟ", name: "雷鸣天球", description: "14% 概率连锁附近三名敌人", max: 1 }
 };
 const BRANCH_META = {
-  power: { icon: "✦", name: "晶塔火力", subtitle: "基础强化 · 炮膛专精", routes: ["路线 A · 破城炮膛", "路线 B · 裂晶炮膛"], keys: ["damage", "rate", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonSplit", "cannonGrowth", "cannonEcho", "ascend"] },
+  power: { icon: "✦", name: "晶塔火力", subtitle: "基础强化 · 炮膛专精", routes: ["路线 A · 破城炮膛", "路线 B · 裂晶炮膛"], keys: ["damage", "rate", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonStarPiercer", "cannonSplit", "cannonGrowth", "cannonEcho", "cannonCascade", "ascend"] },
   blade: { icon: "✺", name: "环刃工事", subtitle: "疾旋或弹射路线", routes: ["路线 A · 疾旋炮刃", "路线 B · 弹射飞刃"], keys: ["saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery"] },
   economy: { icon: "⌁", name: "无人机协议", subtitle: "拾荒 · 战术 · 防御", routes: ["路线 A · 自爆猎杀", "路线 B · 防御护盾"], keys: ["drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery"] },
   element: { icon: "◇", name: "元素共鸣", subtitle: "三元素可同时研究", keys: ["frost", "fire", "lightning"] }
@@ -48,8 +50,8 @@ const BRANCH_META = {
 const TECH_LAYOUT = {
   power: {
     rows: 4,
-    nodes: { damage: [2, 1], rate: [4, 1], cannonSiege: [1, 2], cannonSplit: [3, 2], cannonCharge: [1, 3], cannonPierce: [2, 3], cannonWeakpoint: [3, 3], cannonGrowth: [4, 3], cannonEcho: [5, 3], ascend: [3, 4] },
-    edges: [["damage", "rate"], ["damage", "cannonSiege"], ["damage", "cannonSplit"], ["cannonSiege", "cannonCharge"], ["cannonSiege", "cannonPierce"], ["cannonSiege", "cannonWeakpoint"], ["cannonSplit", "cannonGrowth"], ["cannonSplit", "cannonEcho"], ["rate", "ascend"]],
+    nodes: { damage: [2, 1], rate: [4, 1], cannonSiege: [1, 2], cannonSplit: [3, 2], cannonCharge: [1, 3], cannonPierce: [2, 3], cannonWeakpoint: [3, 3], cannonGrowth: [4, 3], cannonEcho: [5, 3], cannonStarPiercer: [1, 4], cannonCascade: [5, 4], ascend: [3, 4] },
+    edges: [["damage", "rate"], ["damage", "cannonSiege"], ["damage", "cannonSplit"], ["cannonSiege", "cannonCharge"], ["cannonSiege", "cannonPierce"], ["cannonSiege", "cannonWeakpoint"], ["cannonCharge", "cannonStarPiercer"], ["cannonPierce", "cannonStarPiercer"], ["cannonWeakpoint", "cannonStarPiercer"], ["cannonSplit", "cannonGrowth"], ["cannonSplit", "cannonEcho"], ["cannonGrowth", "cannonCascade"], ["cannonEcho", "cannonCascade"], ["rate", "ascend"]],
     excludes: [["cannonSiege", "cannonSplit"]]
   },
   blade: {
@@ -101,11 +103,20 @@ const RELIC_SET_META = {
   prismArc: { name: "雷镜折光套", hint: "镜面裂片 + 雷脉导体", effect: "发现折光雷晶；登记后优先补齐三件套" },
   frostfire: { name: "霜烬轮回套", hint: "霜葬花冠 + 余烬回收", effect: "发现霜烬共生核；登记后优先补齐三件套" },
   decoyWard: { name: "棱光诱饵套", hint: "诡光诱饵 + 棱镜护佑", effect: "发现棱光替身；登记后优先补齐三件套" }
-};const RELIC_SOURCE_TEXT = {
+};
+const THREAT_SEAL_META = {
+  longNight: { name: "长夜封印", type: "天象扭曲", risk: "长夜由 2 个威胁阶段延长至 3 个；夜间元素效果 +25%", reward: "资源 +8% · 排名 +8% · 特殊遗物 +3% · 成就 ×1.15", art: 0 },
+  severedSupply: { name: "断供封印", type: "后勤封锁", risk: "无人机无法拾取金币；手动拾币与金潮归塔仍可使用", reward: "敌人金币 ×2 · 资源 +12% · 排名 +15% · 成就 ×1.20", art: 1 },
+  frenzy: { name: "狂潮封印", type: "怪潮增殖", risk: "每轮怪潮敌人数量 +30%", reward: "遗物候选 +1 · 特殊遗物 +12% · 排名 +18% · 成就 ×1.25", art: 2 },
+  colossus: { name: "巨兽封印", type: "灾厄召引", risk: "虚环吞星兽由威胁 XV 提前至威胁 XII", reward: "击败后额外掉落余烬核心 · 资源 +20% · 排名 +20% · 成就 ×1.30", art: 3 },
+  flawless: { name: "无伤封印", type: "治疗禁约", risk: "晶愈冷却 +65%", reward: "伤害型技能 +30% · 资源 +12% · 排名 +15% · 成就 ×1.20", art: 4 }
+};
+const RELIC_SOURCE_TEXT = {
   eliteWave: "怪潮精英已被肃清，选择一项回路继续守望。",
   boss: "腐化首领已经倒下，回收一项战场模块。",
   colossusPhase: "巨兽命核破碎，从暴露的回路中夺取一项模块。",
   colossusDefeat: "虚环吞星兽崩解，选择最后一项战利品。",
+  sealElite: "威胁封印撕开了特殊回路，选择一项额外遗物。",
   endlessWave: "无尽怪潮已被完全肃清。无界增幅核正在复制下一层火力回路。"
 };
 const ELITE_AFFIX_NAMES = { shield: "护盾", sprint: "狂奔", devour: "吞金", split: "分裂" };
@@ -140,18 +151,18 @@ const dom = Object.fromEntries([
   "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
-  "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "gameOverTitle", "gameOverLine", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore", "endEndlessButton",
+  "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "gameOverTitle", "gameOverLine", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore", "resultScoreMultiplier", "resultSealAchievement", "endEndlessButton",
   "scoreEntryForm", "playerNameInput", "playerMessageInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
-  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "campaignRoom", "coreNexusRoom", "researchBayRoom", "relicArchiveRoom", "campaignPanel", "campaignProgressText", "chapterNodeList", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "chapterCompleteModal", "chapterCoreAwardStatus", "finishExpeditionButton", "startEndlessButton",
-  "relicRunHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList", "relicChoiceKeys"
+  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "campaignRoom", "coreNexusRoom", "researchBayRoom", "relicArchiveRoom", "threatSealRoom", "campaignPanel", "campaignProgressText", "chapterNodeList", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "threatSealPanel", "threatSealUnlockStatus", "threatSealList", "sealScoreMultiplier", "sealResourceMultiplier", "sealRelicChance", "sealAchievementMultiplier", "sealEquippedSummary", "sealAchievementProgress", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "chapterCompleteModal", "chapterCoreAwardStatus", "finishExpeditionButton", "startEndlessButton",
+  "relicRunHud", "threatSealHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList", "relicChoiceKeys"
 ].map((id) => [id, document.getElementById(id)]));
 
 let save = loadSave();
 let runIndex = 0;
 const baseSeed = seedFromUrl(location.search);
-let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive);
+let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped);
 const previewMode = new URLSearchParams(location.search).get("preview");
 if (previewMode === "wave-warning") state.time = GAME_CONFIG.waves.firstAt - GAME_CONFIG.waves.warning - 0.35;
 if (previewMode === "wave") state.time = GAME_CONFIG.waves.firstAt - 0.35;
@@ -257,10 +268,10 @@ if (previewMode === "resources") {
   spawnPermanentResourceDrop(state, "core", 1, 580, 315, { source: "boss" });
   state.paused = true;
 }
-if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "recovery") {
+if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals" || previewMode === "recovery") {
   save.baseCamp.unlocked = true;
   save.baseCamp.coreEcho = true;
-  save.baseCamp.recoverySeen = previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive";
+  save.baseCamp.recoverySeen = previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals";
   save.resources.echoShards = Math.max(save.resources.echoShards, 42);
   save.resources.coreFragments = Math.max(save.resources.coreFragments, 7);
   save.resources.echoShards = Math.max(save.resources.echoShards, 28);
@@ -270,6 +281,12 @@ if (previewMode === "basecamp" || previewMode === "relic-research" || previewMod
     for (const id of Object.keys(GAME_CONFIG.relicCombos)) save.relicArchive.discovered[id] = true;
     save.relicArchive.registeredSets.prismArc = true;
     save.relicArchive.disabledRelic = "ember";
+  }
+  if (previewMode === "threat-seals") {
+    save.campaign.coreEnergy[1] = true;
+    save.campaign.chapterRecords[1].cleared = true;
+    save.threatSeals.unlocked = true;
+    save.threatSeals.equipped = ["longNight", "frenzy", "colossus"];
   }
 }
 if (previewMode === "relic-lock") {
@@ -310,6 +327,27 @@ if (previewMode === "projectiles") {
     { id: 9004, x: 750, y: 185, vx: 1, vy: 0, damage: 1, radius: 7, pierce: 0, life: 999, tier: 2, element: "lightning" }
   );
   state.paused = true;
+}
+if (previewMode === "cannon-star") {
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.paused = true; state.threat = 13; state.phase = "night";
+  state.tower.upgrades.ascend = 3;
+  const elite = spawnEnemy(state, "brute", { x: 735, y: 275 }, { elite: true, affix: "shield" });
+  elite.speed = 0;
+  const tower = getTowerPosition(state);
+  state.elementFx.push({ element: "starPiercer", x1: tower.x, y1: tower.y, x2: elite.x, y2: elite.y, life: 999, maxLife: 999 });
+}
+if (previewMode === "cannon-cascade") {
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.paused = true; state.threat = 13; state.phase = "night";
+  state.tower.upgrades.ascend = 3;
+  const center = { x: 650, y: 360 };
+  const targets = [];
+  for (let index = 0; index < 7; index += 1) {
+    const angle = index * Math.PI * 2 / 7;
+    const enemy = spawnEnemy(state, index % 2 ? "runner" : "brute", { x: center.x + Math.cos(angle) * 125, y: center.y + Math.sin(angle) * 125 });
+    enemy.speed = 0;
+    targets.push({ x: enemy.x, y: enemy.y });
+  }
+  state.elementFx.push({ element: "cannonCascade", x: center.x, y: center.y, radius: GAME_CONFIG.cannon.split.cascadeRadius, targets, life: .42, maxLife: .72 });
 }
 if (previewMode === "elite-wave") {
   state.threat = 8;
@@ -533,6 +571,7 @@ let resumeAfterBaseCamp = false;
 let relicChoiceOpen = false;
 let resumeAfterRelicChoice = false;
 let relicHudSignature = "";
+let sealHudSignature = "";
 let recoveryEventStep = 0;
 let firstFailureFlow = false;
 let starfallAiming = false;
@@ -861,9 +900,17 @@ function createTechEdge(svg, from, to, layout, exclusive = false) {
 }
 
 function applyTechIconArt(element, key) {
+  if (key === "cannonStarPiercer" || key === "cannonCascade") {
+    element.classList.add("tech-icon-terminal");
+    element.textContent = UPGRADE_META[key].icon;
+    return;
+  }
+  element.classList.remove("tech-icon-terminal");
+  element.textContent = "";
   const branchKey = Object.keys(BRANCH_META).find((branch) => BRANCH_META[branch].keys.includes(key));
   const art = TECH_ART[branchKey];
-  const index = BRANCH_META[branchKey].keys.indexOf(key);
+  const artKeys = BRANCH_META[branchKey].keys.filter((candidate) => candidate !== "cannonStarPiercer" && candidate !== "cannonCascade");
+  const index = artKeys.indexOf(key);
   element.style.setProperty("--tech-icon-sheet", `url("${art.sheet}")`);
   element.style.setProperty("--tech-icon-cols", art.cols);
   element.style.setProperty("--tech-icon-rows", art.rows);
@@ -1201,7 +1248,40 @@ function renderBaseCamp() {
   renderResearch();
   renderRelicResearch();
   renderRelicArchive();
+  renderThreatSeals();
   setBaseCampRoom(baseCampRoom);
+}
+
+function renderThreatSeals() {
+  const unlocked = save.threatSeals?.unlocked === true;
+  const equipped = unlocked ? save.threatSeals.equipped : [];
+  const modifiers = getThreatSealModifiers(equipped);
+  dom.threatSealUnlockStatus.textContent = unlocked ? `已装备 ${equipped.length} / ${Object.keys(THREAT_SEAL_META).length}` : "通过第一章威胁 XX 后解锁";
+  dom.sealScoreMultiplier.textContent = `×${modifiers.scoreMultiplier.toFixed(2)}`;
+  dom.sealResourceMultiplier.textContent = `×${modifiers.resourceMultiplier.toFixed(2)}`;
+  dom.sealRelicChance.textContent = `+${Math.round(modifiers.relicChanceBonus * 100)}%`;
+  dom.sealAchievementMultiplier.textContent = `×${modifiers.achievementMultiplier.toFixed(2)}`;
+  dom.sealEquippedSummary.textContent = equipped.length ? `下一次远征：${equipped.map((key) => THREAT_SEAL_META[key].name).join(" · ")}` : unlocked ? "下一次远征：未装备封印" : "封印圣坛尚未响应";
+  dom.sealAchievementProgress.textContent = `封印征服进度 ${formatNumber(save.records.sealAchievementProgress ?? 0)}`;
+  dom.threatSealList.replaceChildren();
+  for (const [key, meta] of Object.entries(THREAT_SEAL_META)) {
+    const active = equipped.includes(key);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "threat-seal-card";
+    button.classList.toggle("equipped", active);
+    button.disabled = !unlocked;
+    button.setAttribute("aria-pressed", String(active));
+    button.innerHTML = `<i class="threat-seal-art" style="--seal-index:${meta.art}" aria-hidden="true"></i><span><small>${meta.type}</small><strong>${meta.name}</strong><p>${meta.risk}</p><b>${meta.reward}</b></span><em>${unlocked ? active ? "已装备 · 点击卸下" : "点击装备" : "完成第一章后解锁"}</em>`;
+    button.addEventListener("click", () => {
+      if (!toggleThreatSeal(save, key)) return;
+      persistSave();
+      audio.play("purchase");
+      renderThreatSeals();
+      showToast(`${meta.name} · ${save.threatSeals.equipped.includes(key) ? "将在下一次远征生效" : "已从下一次远征卸下"}`);
+    });
+    dom.threatSealList.append(button);
+  }
 }
 
 function renderCampaign() {
@@ -1249,18 +1329,22 @@ function renderCampaign() {
 }
 
 function setBaseCampRoom(room) {
-  baseCampRoom = ["campaign", "relics", "archive"].includes(room) ? room : "nexus";
+  baseCampRoom = ["campaign", "relics", "archive", "seals"].includes(room) ? room : "nexus";
   const campaignOpen = baseCampRoom === "campaign";
   const relicsOpen = baseCampRoom === "relics";
   const archiveOpen = baseCampRoom === "archive";
+  const sealsOpen = baseCampRoom === "seals";
   dom.campaignPanel.classList.toggle("hidden", !campaignOpen);
-  dom.nexusPanel.classList.toggle("hidden", campaignOpen || relicsOpen || archiveOpen);
+  dom.nexusPanel.classList.toggle("hidden", campaignOpen || relicsOpen || archiveOpen || sealsOpen);
   dom.relicResearchPanel.classList.toggle("hidden", !relicsOpen);
   dom.relicArchivePanel.classList.toggle("hidden", !archiveOpen);
+  dom.threatSealPanel.classList.toggle("hidden", !sealsOpen);
   dom.campaignRoom.classList.toggle("active", campaignOpen);
-  dom.coreNexusRoom.classList.toggle("active", !campaignOpen && !relicsOpen && !archiveOpen);
+  dom.coreNexusRoom.classList.toggle("active", !campaignOpen && !relicsOpen && !archiveOpen && !sealsOpen);
   dom.researchBayRoom.classList.toggle("active", relicsOpen);
   dom.relicArchiveRoom.classList.toggle("active", archiveOpen);
+  dom.threatSealRoom.classList.toggle("active", sealsOpen);
+  dom.threatSealRoom.classList.toggle("locked", save.threatSeals?.unlocked !== true);
 }
 
 function setBaseCampOpen(open, restoreFocus = false) {
@@ -1623,6 +1707,24 @@ function renderRelicHud() {
   }
 }
 
+function renderThreatSealHud() {
+  const equipped = state.threatSeals?.equipped ?? [];
+  const signature = equipped.join(",");
+  if (signature === sealHudSignature) return;
+  sealHudSignature = signature;
+  dom.threatSealHud.replaceChildren();
+  dom.threatSealHud.classList.toggle("hidden", equipped.length === 0);
+  for (const key of equipped) {
+    const meta = THREAT_SEAL_META[key];
+    if (!meta) continue;
+    const chip = document.createElement("span");
+    chip.className = "seal-hud-chip";
+    chip.title = `${meta.name}：${meta.risk}`;
+    chip.innerHTML = `<i class="threat-seal-art" style="--seal-index:${meta.art}" aria-hidden="true"></i><b>${meta.name.replace("封印", "")}</b>`;
+    dom.threatSealHud.append(chip);
+  }
+}
+
 function renderRelicChoice() {
   if (!state.relicChoice) return;
   const endlessChoice = state.relicChoice.source === "endlessWave";
@@ -1693,6 +1795,7 @@ function selectRunRelic(id) {
   audio.play("ascend");
   handleEvents(state.events);
   renderRelicHud();
+  renderThreatSealHud();
   if (state.relicChoice) {
     relicChoiceOpen = true;
     dom.relicChoiceModal.classList.remove("hidden");
@@ -1720,6 +1823,8 @@ function handleEvents(events) {
     else if (event.type === "cannonWeakpoint") { renderer.trigger("cannonWeakpoint"); showToast("弱点校准 · 目标暴露"); }
     else if (event.type === "cannonSplit") renderer.trigger("cannonSplit");
     else if (event.type === "cannonEcho") renderer.trigger("cannonEcho");
+    else if (event.type === "cannonStarPiercer") { audio.play("ascend"); renderer.trigger("cannonStarPiercer"); showToast("破城终点 · 贯星炮穿透护盾"); }
+    else if (event.type === "cannonCascade") { audio.play("overload"); renderer.trigger("cannonCascade"); showToast(`裂晶终点 · 大型连锁爆炸 · 命中 ${event.hits}`); }
     else if (event.type === "shoot") audio.play("shoot");
     else if (event.type === "sawShoot") audio.play("sawShoot");
     else if (event.type === "sawLaunch" || event.type === "sawBounce") audio.play("sawShoot");
@@ -1769,7 +1874,7 @@ function handleEvents(events) {
       persistSave();
       state.paused = true;
       chapterCompleteOpen = true;
-      dom.chapterCoreAwardStatus.textContent = chapterClearWasFirst ? "首次获得 · 无尽失败不会丢失" : "已再次确认 · 主线进度保持安全";
+      dom.chapterCoreAwardStatus.textContent = chapterClearWasFirst ? "首次获得 · 威胁封印圣坛已解锁" : "已再次确认 · 主线进度保持安全";
       dom.chapterCompleteModal.classList.remove("hidden");
       dom.finishExpeditionButton.focus({ preventScroll: true });
       audio.play("ascend"); renderer.trigger("ascend", 2); announce("裂界魔君陨落 · 永恒晶塔核心能源已永久入账");
@@ -1787,6 +1892,8 @@ function handleEvents(events) {
       renderer.trigger("ascend");
       announce("虚环崩解 · 常规怪群恢复活动");
     }
+    else if (event.type === "sealRelicDrop") showToast("威胁封印共鸣 · 发现额外特殊遗物");
+    else if (event.type === "sealEmberCore") { renderer.trigger("ascend", 1.2); announce(`巨兽封印兑现 · 余烬核心 +${event.value}`); }
     else if (event.type === "eliteSpawn") { audio.play("waveStart"); renderer.trigger("eliteSpawn"); announce(`精英怪 · ${ELITE_AFFIX_NAMES[event.affix] ?? "异变"}`); }
     else if (event.type === "bossPhase") { audio.play("boss"); renderer.trigger("bossSpawn", 0.7); announce(`首领转化为${ELEMENT_NAMES[event.resistance]}抗性 · 锚点重生`); }
     else if (event.type === "towerCollectPulse" && event.count > 0) renderer.trigger("collectPulse");
@@ -1804,7 +1911,7 @@ function handleEvents(events) {
     else if (event.type === "relicWard") showToast(`棱镜护佑 · 护盾 +${Math.round(event.value)}`);
     else if (event.type === "relicFrostbloom") renderer.trigger("targetProtocol");
     else if (event.type === "relicGilded") showToast(`拾金脉冲 · 额外金币 +${event.value}`);
-    else if (event.type === "threat") { announce(event.level === GAME_CONFIG.sovereign.spawnThreat ? `威胁 ${formatThreat(event.level)} · 超巨型灾厄来袭` : event.level === GAME_CONFIG.colossus.spawnThreat ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
+    else if (event.type === "threat") { announce(event.level === GAME_CONFIG.sovereign.spawnThreat ? `威胁 ${formatThreat(event.level)} · 超巨型灾厄来袭` : event.level === (state.threatSeals?.modifiers?.colossusSpawnThreat ?? GAME_CONFIG.colossus.spawnThreat) ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
     else if (event.type === "phase") { audio.play("phase"); announce(event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场"); }
     else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce("侦测到大规模怪潮"); }
     else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(event.endless ? `无尽怪潮 ${event.index} 抵达 · 精英信号 ${event.eliteCount}` : `第 ${event.index} 次怪潮抵达`); }
@@ -1873,6 +1980,9 @@ function updateUi() {
           ? (defenseCooldown > 0 ? `防御护盾冷却 ${defenseCooldown.toFixed(1)}s` : `防御护盾 ${Math.round(state.tower.droneGuardShield)} · 电力持续消耗`)
           : `资源磁吸充能 · 金币手动/无人机可用 · ${Math.max(0, state.tower.autoCollectCooldown).toFixed(1)}s${interceptText}`)
     : "研究晶塔磁吸核心后开放";
+  if (droneModeUnlocked && state.threatSeals?.modifiers?.severedSupply && !droneAttacking && !detonateActive) {
+    dom.droneModeHint.textContent = "断供封印生效 · 无人机无法拾币 · 手动拾取仍可用";
+  }
   dom.droneEnergyFill.style.width = `${Math.max(0, Math.min(100, state.tower.droneEnergy / droneEnergyMax * 100))}%`;
   dom.droneProtocolButton.classList.toggle("hidden", !detonateUnlocked);
   dom.droneProtocolButton.classList.toggle("active", detonateActive);
@@ -1893,7 +2003,7 @@ function updateUi() {
   for (const button of dom.skillList.children) {
     const key = button.dataset.skill;
     const cooldown = state.skills[key].cooldown;
-    const total = GAME_CONFIG.skills[key].cooldown;
+    const total = GAME_CONFIG.skills[key].cooldown * (key === "heal" ? state.threatSeals?.modifiers?.healCooldownMultiplier ?? 1 : 1);
     const shieldFull = state.tower.shield >= stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction - 0.01;
     const overloadCanEnd = key === "overload" && state.skills.overload.active > 0;
     button.disabled = state.over || (cooldown > 0 && !overloadCanEnd) || (key === "heal" && hpRatio >= 0.999 && shieldFull) || (key === "starfall" && !starfallAiming && !state.enemies.some((enemy) => enemy.hp > 0)) || (key === "coinVacuum" && !state.coinOrbs.some((orb) => !orb.expired && !orb.collected));
@@ -2130,6 +2240,7 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
   runSettled = true;
   currentRunScore = calculateRunScore(state);
   currentRunMode = state.endlessMode || outcome === "endless" ? "endless" : "standard";
+  const sealAchievement = calculateAchievementProgress(state);
   scoreSubmitted = false;
   currentEntryDate = null;
   save.stardust += stardust;
@@ -2139,6 +2250,7 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
   save.records.highestThreat = Math.max(save.records.highestThreat, state.stats.highestThreat);
   save.records.longestTime = Math.max(save.records.longestTime, state.time);
   save.records.totalKills += state.stats.kills;
+  save.records.sealAchievementProgress = (save.records.sealAchievementProgress ?? 0) + sealAchievement;
   persistSave();
   dom.resultTime.textContent = formatTime(state.time);
   dom.resultKills.textContent = formatNumber(state.stats.kills);
@@ -2146,9 +2258,11 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
   dom.resultStardust.textContent = `+${stardust}`;
   dom.resultEchoShards.textContent = `+${state.stats.echoShards ?? 0}`;
   dom.resultCoreFragments.textContent = `+${(state.stats.coreFragments ?? 0) + firstFailureCoreGift}`;
+  dom.resultSealAchievement.textContent = `+${sealAchievement}`;
   dom.resultScore.textContent = formatScore(currentRunScore.total);
   dom.resultCombatScore.textContent = formatNumber(currentRunScore.combat);
   dom.resultCoinScore.textContent = `${Math.floor(state.coins)} × ${GAME_CONFIG.score.coinMultiplier} = ${formatNumber(currentRunScore.coinBonus)}`;
+  dom.resultScoreMultiplier.textContent = `封印 ×${(state.threatSeals?.modifiers?.scoreMultiplier ?? 1).toFixed(2)}`;
   dom.gameOverTitle.textContent = outcome === "victory" ? "远征凯旋" : outcome === "endless" ? "无尽挑战结束" : "晶光熄灭";
   dom.gameOverLine.textContent = outcome === "victory" ? "核心能源已带回大本营，等待装配。" : outcome === "endless" ? "排行榜数据已锁定，主线核心能源完好无损。" : "裂隙吞没了最后一道光。";
   dom.scoreEntryForm.classList.remove("hidden");
@@ -2229,13 +2343,14 @@ function restart() {
   relicChoiceOpen = false;
   resumeAfterRelicChoice = false;
   relicHudSignature = "";
+  sealHudSignature = "";
   chapterCompleteOpen = false;
   chapterClearWasFirst = false;
   dom.chapterCompleteModal.classList.add("hidden");
   dom.endEndlessButton.classList.add("hidden");
   dom.relicChoiceModal.classList.add("hidden");
   runIndex += 1;
-  state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive);
+  state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped);
   runSettled = false;
   scoreSubmitted = false;
   currentRunScore = null;
@@ -2365,6 +2480,7 @@ dom.campaignRoom.addEventListener("click", () => setBaseCampRoom("campaign"));
 dom.coreNexusRoom.addEventListener("click", () => setBaseCampRoom("nexus"));
 dom.researchBayRoom.addEventListener("click", () => setBaseCampRoom("relics"));
 dom.relicArchiveRoom.addEventListener("click", () => setBaseCampRoom("archive"));
+dom.threatSealRoom.addEventListener("click", () => setBaseCampRoom("seals"));
 dom.closeBaseCampButton.addEventListener("click", () => setBaseCampOpen(false, true));
 dom.baseCampModal.addEventListener("pointerdown", (event) => { if (event.target === dom.baseCampModal) setBaseCampOpen(false, true); });
 dom.recoveryContinueButton.addEventListener("click", advanceBaseRecoveryEvent);
@@ -2543,9 +2659,10 @@ revealGameWhenReady().then(() => {
       dom.chapterCompleteModal.classList.remove("hidden");
       dom.finishExpeditionButton.focus({ preventScroll: true });
     }
-    else if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive") {
+    else if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals") {
       if (previewMode === "relic-research") baseCampRoom = "relics";
       if (previewMode === "relic-archive") baseCampRoom = "archive";
+      if (previewMode === "threat-seals") baseCampRoom = "seals";
       setBaseCampOpen(true);
     }
     else if (previewMode === "recovery" || (save.baseCamp.unlocked && !save.baseCamp.recoverySeen)) showBaseRecoveryEvent();

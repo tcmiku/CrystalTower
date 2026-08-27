@@ -56,6 +56,7 @@
         <div class="arena-wrap">
           <canvas id="gameCanvas" width="960" height="720" aria-label="永耀晶塔战场"></canvas>
           <div class="permanent-resource-hud" aria-label="永久资源"><span class="echo-resource"><i></i><small>遗响</small><b id="battleEchoShardText">0</b></span><span class="core-resource"><i></i><small>核心</small><b id="battleCoreFragmentText">0</b></span></div>
+          <div id="threatSealHud" class="threat-seal-hud hidden" aria-label="本局威胁封印"></div>
           <div id="relicRunHud" class="relic-run-hud" aria-label="本局临时遗物"></div>
           <button id="openLeaderboardButton" class="score-hud" type="button" aria-label="查看全服积分排行榜" aria-haspopup="dialog" aria-controls="leaderboardModal" aria-expanded="false" title="查看全服积分排行榜"><span>SCORE · RANKING</span><strong id="scoreText">000000</strong></button>
           <div id="announcement" class="announcement" aria-live="polite"></div>
@@ -252,7 +253,7 @@
           <button id="coreNexusRoom" class="base-room core-room active" type="button"><span>01 · 初始开放</span><strong>晶核中枢</strong><small>永久研究与核心档案</small></button>
           <button id="researchBayRoom" class="base-room research-room" type="button"><span>02 · 遗物研究</span><strong>研究舱</strong><small>解锁临时遗物并加入战局池</small></button>
           <button id="relicArchiveRoom" class="base-room archive-room" type="button"><span>03 · 构筑管理</span><strong>遗物档案馆</strong><small>禁用、图鉴、组合与套装登记</small></button>
-          <div class="future-room"><span>预留扩建接口</span><b>未来建筑</b></div>
+          <button id="threatSealRoom" class="base-room seal-room" type="button"><span>04 · 威胁强化</span><strong>封印圣坛</strong><small>装备封印，提高风险与远征收益</small></button>
         </div>
         <section id="campaignPanel" class="nexus-panel campaign-panel hidden" aria-labelledby="campaignPanelTitle">
           <div class="campaign-core-hero">
@@ -281,6 +282,18 @@
             <section class="archive-block"><header><span>SET REGISTRY</span><h4>套装登记</h4><small>登记后，持有一件时会优先补出同套装组件。</small></header><div id="relicArchiveSetList" class="archive-set-list"></div></section>
           </div>
         </section>
+        <section id="threatSealPanel" class="nexus-panel threat-seal-panel hidden" aria-labelledby="threatSealTitle">
+          <div class="research-heading"><div><span>THREAT COVENANT</span><h3 id="threatSealTitle">威胁封印</h3></div><strong id="threatSealUnlockStatus">第一章威胁 XX 后解锁</strong></div>
+          <p>主动装备封印以强化下一次远征。封印可以叠加，并共同提高永久资源、排行榜倍率、特殊遗物机会与成就进度。</p>
+          <div class="seal-reward-summary" aria-label="封印奖励倍率">
+            <span><small>排行榜</small><b id="sealScoreMultiplier">×1.00</b></span>
+            <span><small>永久资源</small><b id="sealResourceMultiplier">×1.00</b></span>
+            <span><small>特殊遗物</small><b id="sealRelicChance">+0%</b></span>
+            <span><small>成就进度</small><b id="sealAchievementMultiplier">×1.00</b></span>
+          </div>
+          <div id="threatSealList" class="threat-seal-list"></div>
+          <footer class="seal-panel-footer"><span id="sealEquippedSummary">未装备封印</span><b id="sealAchievementProgress">封印征服进度 0</b></footer>
+        </section>
       </div>
     </section>
     <section id="chapterCompleteModal" class="modal chapter-complete-modal hidden" role="dialog" aria-modal="true" aria-labelledby="chapterCompleteTitle">
@@ -307,10 +320,11 @@
           <div class="stardust-result"><strong id="resultStardust">+1</strong><span>星尘</span></div>
           <div class="echo-result"><strong id="resultEchoShards">+0</strong><span>遗响碎片</span></div>
           <div class="core-result"><strong id="resultCoreFragments">+0</strong><span>核心残片</span></div>
+          <div class="seal-achievement-result"><strong id="resultSealAchievement">+0</strong><span>封印成就</span></div>
         </div>
         <section class="score-summary" aria-labelledby="scoreSummaryTitle">
           <div><span id="scoreSummaryTitle">FINAL SCORE</span><strong id="resultScore">000000</strong></div>
-          <p>战斗积分 <b id="resultCombatScore">0</b><i>+</i>金币奖励 <b id="resultCoinScore">0</b></p>
+          <p>战斗积分 <b id="resultCombatScore">0</b><i>+</i>金币奖励 <b id="resultCoinScore">0</b><span id="resultScoreMultiplier" class="score-multiplier">×1.00</span></p>
         </section>
         <section class="leaderboard-panel" aria-labelledby="leaderboardTitle">
           <div class="leaderboard-heading"><div><span>GLOBAL RANKING</span><h3 id="leaderboardTitle">永耀名人榜</h3></div><strong id="leaderboardCount">全服</strong></div>

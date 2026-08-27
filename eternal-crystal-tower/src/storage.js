@@ -17,6 +17,7 @@ export function defaultSave() {
     },
     unlocks: { doubleSpeed: false },
     baseCamp: { unlocked: false, recoverySeen: false, coreEcho: false },
+    threatSeals: { unlocked: false, equipped: [] },
     campaign: {
       currentChapter: 1,
       coreEnergy: { 1: false },
@@ -25,7 +26,7 @@ export function defaultSave() {
       chapterRecords: { 1: { cleared: false, clears: 0, bestTime: 0, bestKills: 0, bestScore: 0 } }
     },
     settings: { muted: false, playerName: "PLAYER", updatesDismissed: false },
-    records: { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 },
+    records: { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0, sealAchievementProgress: 0 },
     leaderboard: []
   };
 }
@@ -62,6 +63,11 @@ export function sanitizeSave(candidate) {
   safe.campaign.coreEnergy[1] = candidate.campaign?.coreEnergy?.[1] === true;
   safe.campaign.repairedNodes[1] = safe.campaign.coreEnergy[1] && candidate.campaign?.repairedNodes?.[1] === true;
   safe.campaign.unlockedChapters[2] = safe.campaign.repairedNodes[1] && candidate.campaign?.unlockedChapters?.[2] === true;
+  safe.threatSeals.unlocked = safe.campaign.coreEnergy[1] || candidate.threatSeals?.unlocked === true && safe.campaign.chapterRecords?.[1]?.cleared === true;
+  const equippedSeals = Array.isArray(candidate.threatSeals?.equipped) ? candidate.threatSeals.equipped : [];
+  safe.threatSeals.equipped = safe.threatSeals.unlocked
+    ? [...new Set(equippedSeals.filter((key) => Object.hasOwn(GAME_CONFIG.threatSeals, key)))]
+    : [];
   const chapterOne = candidate.campaign?.chapterRecords?.[1];
   safe.campaign.chapterRecords[1] = {
     cleared: safe.campaign.coreEnergy[1] || chapterOne?.cleared === true,
@@ -77,6 +83,7 @@ export function sanitizeSave(candidate) {
   safe.records.longestTime = Math.max(0, Number(candidate.records?.longestTime) || 0);
   safe.records.totalKills = boundedInt(candidate.records?.totalKills, 0, 1_000_000_000);
   safe.records.failures = boundedInt(candidate.records?.failures, 0, 1_000_000_000);
+  safe.records.sealAchievementProgress = boundedInt(candidate.records?.sealAchievementProgress, 0, 2_000_000_000);
   const entries = Array.isArray(candidate.leaderboard) ? candidate.leaderboard : [];
   safe.leaderboard = entries.map((entry) => ({
     name: sanitizePlayerName(entry?.name),
@@ -126,6 +133,8 @@ export function grantChapterCoreEnergy(save, chapter = 1, record = {}) {
   save.campaign ??= defaultSave().campaign;
   const firstClear = save.campaign.coreEnergy[1] !== true;
   save.campaign.coreEnergy[1] = true;
+  save.threatSeals ??= defaultSave().threatSeals;
+  save.threatSeals.unlocked = true;
   const current = save.campaign.chapterRecords[1] ?? defaultSave().campaign.chapterRecords[1];
   save.campaign.chapterRecords[1] = {
     cleared: true,
@@ -142,6 +151,15 @@ export function repairChapterNode(save, chapter = 1) {
   if (chapter !== 1 || save.campaign?.coreEnergy?.[1] !== true || save.campaign?.repairedNodes?.[1] === true) return false;
   save.campaign.repairedNodes[1] = true;
   save.campaign.unlockedChapters[2] = true;
+  return true;
+}
+
+export function toggleThreatSeal(save, key) {
+  if (save.threatSeals?.unlocked !== true || !Object.hasOwn(GAME_CONFIG.threatSeals, key)) return false;
+  const equipped = new Set(Array.isArray(save.threatSeals.equipped) ? save.threatSeals.equipped : []);
+  if (equipped.has(key)) equipped.delete(key);
+  else equipped.add(key);
+  save.threatSeals.equipped = [...equipped];
   return true;
 }
 

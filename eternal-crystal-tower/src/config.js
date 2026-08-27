@@ -3,10 +3,17 @@ export const GAME_CONFIG = Object.freeze({
   fixedStep: 1 / 60,
   tower: { maxHp: 600, damage: 12, fireRate: 1.2, range: 360, radius: 38, projectileSpeed: 650, healthBarDuration: 3.2 },
   cannon: {
-    siege: { chargeBonusPerStack: 0.12, maxChargeStacks: 3, piercePerLevel: 1, bossDamagePerLevel: 0.18, weakpointChancePerLevel: 0.16, weakpointDuration: 3.2, weakpointDamageMultiplier: 1.35 },
-    split: { projectileCount: 2, damageMultiplier: 0.46, life: 0.82, radius: 3.8, growthHopsPerLevel: 1, growthRange: 190, echoRadius: 78, echoDamageMultiplier: 0.38 }
+    siege: { chargeBonusPerStack: 0.12, maxChargeStacks: 3, piercePerLevel: 1, bossDamagePerLevel: 0.18, weakpointChancePerLevel: 0.16, weakpointDuration: 3.2, weakpointDamageMultiplier: 1.35, starPiercerDamageMultiplier: 5.5, starPiercerDuration: 0.42 },
+    split: { projectileCount: 2, damageMultiplier: 0.46, life: 0.82, radius: 3.8, growthHopsPerLevel: 1, growthRange: 190, echoRadius: 78, echoDamageMultiplier: 0.38, cascadeKills: 3, cascadeWindow: 2.4, cascadeRadius: 190, cascadeDamageMultiplier: 3.2, cascadeDuration: 0.72 }
   },
   threat: { duration: 45, hpGrowth: 1.16, damageGrowth: 1.1, rewardGrowth: 1.08, spawnDecay: 0.91, spawnBase: 1.55, spawnMin: 0.34, dayWaves: 2, nightWaves: 2, packGrowthEvery: 4, maxPack: 3, bossEvery: 10 },
+  threatSeals: {
+    longNight: { resourceBonus: 0.08, scoreBonus: 0.08, relicChanceBonus: 0.03, achievementBonus: 0.15, nightWaves: 3, elementMultiplier: 1.25 },
+    severedSupply: { resourceBonus: 0.12, scoreBonus: 0.15, relicChanceBonus: 0.04, achievementBonus: 0.2, coinMultiplier: 2 },
+    frenzy: { resourceBonus: 0.15, scoreBonus: 0.18, relicChanceBonus: 0.12, achievementBonus: 0.25, waveCountMultiplier: 1.3, relicChoiceBonus: 1 },
+    colossus: { resourceBonus: 0.2, scoreBonus: 0.2, relicChanceBonus: 0.08, achievementBonus: 0.3, spawnThreat: 12, emberCoreBonus: 6 },
+    flawless: { resourceBonus: 0.12, scoreBonus: 0.15, relicChanceBonus: 0.06, achievementBonus: 0.2, healCooldownMultiplier: 1.65, skillDamageMultiplier: 1.3 }
+  },
   unlocks: { doubleSpeedThreat: 10 },
   waves: { firstAt: 90, interval: 90, warning: 10, spawnInterval: 0.2, baseCount: 14, countPerThreat: 3, eliteHpMultiplier: 3.2, eliteDamageMultiplier: 1.45, eliteRewardMultiplier: 3 },
   endless: { baseEliteChance: 0.06, eliteChancePerThreat: 0.01, eliteChanceCap: 0.24, waveBaseElites: 2, waveElitePerThreat: 4, waveEliteCap: 6 },
@@ -119,9 +126,11 @@ export const GAME_CONFIG = Object.freeze({
     cannonCharge: { branch: "cannon", baseCost: 180, growth: 1.65, maxLevel: 3, threat: [6, 8, 10], requires: { cannonSiege: 1 } },
     cannonPierce: { branch: "cannon", baseCost: 240, growth: 1.75, maxLevel: 3, threat: [7, 9, 11], requires: { cannonSiege: 1 } },
     cannonWeakpoint: { branch: "cannon", baseCost: 280, growth: 1.8, maxLevel: 3, threat: [8, 10, 12], requires: { cannonSiege: 1 } },
+    cannonStarPiercer: { branch: "cannon", costs: [1500], maxLevel: 1, threat: [13], requires: { cannonCharge: 3, cannonPierce: 3, cannonWeakpoint: 3 } },
     cannonSplit: { branch: "cannon", costs: [360], maxLevel: 1, threat: [5], requires: { damage: 3 }, excludes: ["cannonSiege"] },
     cannonGrowth: { branch: "cannon", baseCost: 180, growth: 1.65, maxLevel: 3, threat: [6, 8, 10], requires: { cannonSplit: 1 } },
-    cannonEcho: { branch: "cannon", baseCost: 280, growth: 1.8, maxLevel: 3, threat: [7, 9, 11], requires: { cannonSplit: 1 } }
+    cannonEcho: { branch: "cannon", baseCost: 280, growth: 1.8, maxLevel: 3, threat: [7, 9, 11], requires: { cannonSplit: 1 } },
+    cannonCascade: { branch: "cannon", costs: [1500], maxLevel: 1, threat: [13], requires: { cannonGrowth: 3, cannonEcho: 3 } }
   },
   coins: { clickRadius: 24, maxOrbs: 80, collectDuration: 0.42, lifetime: 10, blinkStart: 7, droneInterval: 1.25, droneOrbitRadius: 148, towerInterval: 5 },
   relics: {
@@ -193,7 +202,7 @@ export const GAME_CONFIG = Object.freeze({
   combat: { enemyAttackInterval: 0.7, maxEnemies: 420, normalEnemyBudget: 240, crowdRadiusPerDoubling: 0.14, crowdMaxRadiusMultiplier: 1.55 }
 });
 
-export const TECH_ORDER = ["damage", "rate", "ascend", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonSplit", "cannonGrowth", "cannonEcho", "saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "drone", "droneScavenge", "autoCollect", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
+export const TECH_ORDER = ["damage", "rate", "ascend", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonStarPiercer", "cannonSplit", "cannonGrowth", "cannonEcho", "cannonCascade", "saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "drone", "droneScavenge", "autoCollect", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
 export const UPGRADE_ORDER = TECH_ORDER;
 export const SKILL_ORDER = ["heal", "overload", "starfall", "coinVacuum"];
 export const TARGET_PROTOCOL_ORDER = ["guard", "hunter", "breach", "radar"];

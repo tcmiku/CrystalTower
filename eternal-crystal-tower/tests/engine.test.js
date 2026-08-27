@@ -163,22 +163,29 @@ test("弹丸首次命中后立即消失且不会继续命中后方目标", () =>
 
 test("晶塔火力炮膛分支互斥并提供首领/怪潮两套专精", () => {
   const siege = createGameState(501);
-  siege.threat = 12; siege.coins = 100_000;
+  siege.threat = 13; siege.coins = 100_000;
   for (let index = 0; index < 3; index += 1) assert.equal(purchaseUpgrade(siege, "damage"), true);
   assert.equal(purchaseUpgrade(siege, "cannonSiege"), true);
   assert.equal(purchaseUpgrade(siege, "cannonSplit"), false);
-  assert.equal(purchaseUpgrade(siege, "cannonCharge"), true);
-  assert.equal(purchaseUpgrade(siege, "cannonPierce"), true);
-  assert.equal(getTowerStats(siege).pierce, 1);
+  for (let index = 0; index < 3; index += 1) {
+    assert.equal(purchaseUpgrade(siege, "cannonCharge"), true);
+    assert.equal(purchaseUpgrade(siege, "cannonPierce"), true);
+    assert.equal(purchaseUpgrade(siege, "cannonWeakpoint"), true);
+  }
+  assert.equal(purchaseUpgrade(siege, "cannonStarPiercer"), true);
+  assert.equal(getTowerStats(siege).pierce, 3);
   assert.equal(getTechStatus(siege, "cannonSplit").reason, "已选择破城炮膛分支");
 
   const split = createGameState(502);
-  split.threat = 12; split.coins = 100_000;
+  split.threat = 13; split.coins = 100_000;
   for (let index = 0; index < 3; index += 1) purchaseUpgrade(split, "damage");
   assert.equal(purchaseUpgrade(split, "cannonSplit"), true);
   assert.equal(purchaseUpgrade(split, "cannonSiege"), false);
-  assert.equal(purchaseUpgrade(split, "cannonGrowth"), true);
-  assert.equal(purchaseUpgrade(split, "cannonEcho"), true);
+  for (let index = 0; index < 3; index += 1) {
+    assert.equal(purchaseUpgrade(split, "cannonGrowth"), true);
+    assert.equal(purchaseUpgrade(split, "cannonEcho"), true);
+  }
+  assert.equal(purchaseUpgrade(split, "cannonCascade"), true);
 });
 
 test("破城炮膛蓄能与穿透会强化连续单体攻击", () => {
@@ -219,6 +226,73 @@ test("裂晶炮膛会分裂晶矢并在击杀时触发晶爆", () => {
   updateGame(state, 1 / 60);
   assert.ok(nearby.hp < nearbyHp, "击杀应触发晶爆伤害邻近目标");
   assert.ok(state.events.some((event) => event.type === "cannonEcho"));
+});
+
+test("贯星炮满蓄能时只对精英或首领发射并直接穿透护盾", () => {
+  const state = createGameState(505);
+  state.threat = 13; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.hp = 1_000_000;
+  for (let index = 0; index < 3; index += 1) purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "cannonSiege");
+  for (let index = 0; index < 3; index += 1) {
+    purchaseUpgrade(state, "cannonCharge"); purchaseUpgrade(state, "cannonPierce"); purchaseUpgrade(state, "cannonWeakpoint");
+  }
+  purchaseUpgrade(state, "cannonStarPiercer");
+  const elite = spawnEnemy(state, "brute", { x: 600, y: 360 }, { elite: true, affix: "shield" });
+  elite.speed = 0; elite.hp = elite.maxHp = 100_000; elite.affixShield = elite.affixShieldMax = 5_000;
+  let laserSeen = false;
+  for (let volley = 0; volley < 8; volley += 1) {
+    state.tower.fireCooldown = 0;
+    const hpBefore = elite.hp;
+    const shieldBefore = elite.affixShield;
+    updateGame(state, 1 / 60);
+    const laser = state.events.find((event) => event.type === "cannonStarPiercer");
+    if (laser) {
+      laserSeen = true;
+      assert.equal(elite.affixShield, shieldBefore, "贯星炮不消耗护盾值");
+      assert.ok(elite.hp < hpBefore, "贯星炮应直接削减生命");
+      assert.ok(state.elementFx.some((effect) => effect.element === "starPiercer"), "贯星炮应生成激光特效");
+    }
+    state.projectiles.length = 0;
+  }
+  assert.equal(laserSeen, true);
+
+  const normal = createGameState(506);
+  normal.threat = 13; normal.spawnTimer = 999; normal.wave.nextAt = 999;
+  normal.tower.upgrades = { ...state.tower.upgrades };
+  const brute = spawnEnemy(normal, "brute", { x: 600, y: 360 });
+  brute.speed = 0; brute.hp = brute.maxHp = 100_000;
+  for (let volley = 0; volley < 8; volley += 1) {
+    normal.tower.fireCooldown = 0;
+    updateGame(normal, 1 / 60);
+    assert.equal(normal.events.some((event) => event.type === "cannonStarPiercer"), false, "普通怪不能触发贯星炮");
+    normal.projectiles.length = 0;
+  }
+});
+
+test("裂晶回响短时间连续击杀会触发醒目的大型连锁爆炸", () => {
+  const state = createGameState(507);
+  state.threat = 13; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  state.tower.upgrades.cannonSplit = 1;
+  state.tower.upgrades.cannonGrowth = 3;
+  state.tower.upgrades.cannonEcho = 3;
+  state.tower.upgrades.cannonCascade = 1;
+  for (let index = 0; index < GAME_CONFIG.cannon.split.cascadeKills; index += 1) {
+    const defeated = spawnEnemy(state, "wisp", { x: 590 + index * 8, y: 350 + index * 5 });
+    defeated.speed = 0; defeated.hp = 0; defeated.lastDamageSource = "cannonEcho";
+  }
+  const survivor = spawnEnemy(state, "brute", { x: 650, y: 360 });
+  survivor.speed = 0; survivor.hp = survivor.maxHp = 100_000;
+  const hpBefore = survivor.hp;
+
+  updateGame(state, 1 / 60);
+
+  const cascade = state.events.find((event) => event.type === "cannonCascade");
+  assert.ok(cascade, "连续晶爆击杀应触发裂界连爆");
+  assert.equal(cascade.radius, GAME_CONFIG.cannon.split.cascadeRadius);
+  assert.ok(cascade.hits >= 1);
+  assert.ok(survivor.hp < hpBefore, "大型连锁爆炸应伤害范围内目标");
+  assert.ok(state.elementFx.some((effect) => effect.element === "cannonCascade"), "应生成大型爆炸特效");
+  assert.equal(state.tower.cannonEchoChain, 0);
 });
 
 test("环绕晶刃最多五枚", () => {
