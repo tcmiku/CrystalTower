@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getTechStatus, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { applyElementalHit, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getTechStatus, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG } from "../src/config.js";
 
 test("基础塔属性符合策划", () => {
@@ -436,6 +436,49 @@ test("每次大怪潮固定生成一只高生命精英怪", () => {
   assert.equal(elites[0].maxHp, base.hp * threatScale * 3.2);
   assert.equal(elites[0].reward, Math.round(base.reward * (GAME_CONFIG.threat.rewardGrowth ** (state.threat - 1)) * 3));
   assert.ok(GAME_CONFIG.eliteAffixes.order.includes(elites[0].affix));
+});
+
+test("无尽模式常规刷怪获得递增精英概率且不会影响标准远征", () => {
+  const standard = createGameState(421);
+  standard.threat = 28;
+  assert.equal(getEndlessEliteChance(standard), 0);
+
+  const endless = createGameState(421);
+  endless.endlessMode = true;
+  endless.threat = 20;
+  assert.equal(getEndlessEliteChance(endless), GAME_CONFIG.endless.baseEliteChance);
+  endless.threat = 28;
+  assert.equal(Number(getEndlessEliteChance(endless).toFixed(2)), 0.14);
+  endless.threat = 100;
+  assert.equal(getEndlessEliteChance(endless), GAME_CONFIG.endless.eliteChanceCap);
+
+  endless.threat = 20;
+  endless.wave.nextAt = 999;
+  endless.tower.fireCooldown = 999;
+  for (let cycle = 0; cycle < 80; cycle += 1) {
+    endless.spawnTimer = 0;
+    updateGame(endless, 0.001);
+  }
+  assert.ok(endless.enemies.some((enemy) => enemy.elite));
+});
+
+test("无尽怪潮从两只精英开始并随威胁提升至六只", () => {
+  const state = createGameState(422);
+  state.endlessMode = true;
+  state.tower.hp = 1_000_000;
+  state.tower.fireCooldown = 999;
+  state.spawnTimer = 999;
+  state.threat = 28;
+  assert.equal(getEndlessWaveEliteCount({ ...state, threat: 20 }), 2);
+  assert.equal(getEndlessWaveEliteCount(state), 4);
+  assert.equal(getEndlessWaveEliteCount({ ...state, threat: 100 }), GAME_CONFIG.endless.waveEliteCap);
+  state.time = (state.threat - 1) * GAME_CONFIG.threat.duration + 0.1;
+  state.wave.nextAt = state.time + 0.05;
+  updateGame(state, 0.1);
+  assert.ok(state.events.some((event) => event.type === "waveStart" && event.endless && event.eliteCount === 4));
+  for (let step = 0; step < 400 && state.wave.active; step += 1) updateGame(state, 0.1);
+  const waveElites = state.enemies.filter((enemy) => enemy.elite && enemy.waveIndex === 1);
+  assert.equal(waveElites.length, 4);
 });
 
 test("精英怪会确定性获得护盾、狂奔、吞金或分裂词缀", () => {

@@ -24,7 +24,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     over: false,
     paused: false,
     spawnTimer: 0.65,
-    wave: { index: 0, nextAt: GAME_CONFIG.waves.firstAt, warningStarted: false, active: false, remaining: 0, spawnTimer: 0, direction: null, elitePending: false, pendingClear: [] },
+    wave: { index: 0, nextAt: GAME_CONFIG.waves.firstAt, warningStarted: false, active: false, remaining: 0, spawnTimer: 0, direction: null, elitePending: false, eliteRemaining: 0, pendingClear: [] },
     colossusEncounter: { spawned: false, defeated: false },
     sovereignEncounter: { spawned: false, defeated: false },
     endlessMode: false,
@@ -1198,6 +1198,22 @@ function sovereignEntryActive(state) {
   return state.enemies.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0 && (enemy.entryTimer ?? 0) > 0);
 }
 
+function endlessThreatTier(state) {
+  return Math.max(0, state.threat - GAME_CONFIG.sovereign.spawnThreat);
+}
+
+export function getEndlessEliteChance(state) {
+  if (!state.endlessMode) return 0;
+  const cfg = GAME_CONFIG.endless;
+  return Math.min(cfg.eliteChanceCap, cfg.baseEliteChance + endlessThreatTier(state) * cfg.eliteChancePerThreat);
+}
+
+export function getEndlessWaveEliteCount(state) {
+  if (!state.endlessMode) return 1;
+  const cfg = GAME_CONFIG.endless;
+  return Math.min(cfg.waveEliteCap, cfg.waveBaseElites + Math.floor(endlessThreatTier(state) / cfg.waveElitePerThreat));
+}
+
 function updateWave(state, dt) {
   const cfg = GAME_CONFIG.waves;
   const wave = state.wave;
@@ -1217,17 +1233,23 @@ function updateWave(state, dt) {
     wave.index += 1;
     wave.nextAt += cfg.interval;
     wave.warningStarted = false;
-    wave.elitePending = true;
-    state.events.push({ type: "waveStart", index: wave.index, count: wave.remaining, direction: wave.direction });
+    wave.eliteRemaining = getEndlessWaveEliteCount(state);
+    wave.elitePending = wave.eliteRemaining > 0;
+    state.events.push({ type: "waveStart", index: wave.index, count: wave.remaining, direction: wave.direction, eliteCount: wave.eliteRemaining, endless: state.endlessMode });
     spawnRelicDecoy(state, wave.direction, wave.index);
   }
   if (!wave.active) return;
   wave.spawnTimer -= dt;
   while (wave.remaining > 0 && wave.spawnTimer <= 0) {
     const side = state.rng.next() < 0.78 ? wave.direction : null;
-    const elite = wave.elitePending;
+    const elite = state.endlessMode
+      ? wave.eliteRemaining > 0 && state.rng.next() < wave.eliteRemaining / wave.remaining
+      : wave.elitePending;
     const spawned = spawnEnemy(state, chooseEnemyType(state), spawnPosition(state.rng, side), { elite, waveElite: elite, waveIndex: wave.index });
-    if (elite && spawned) wave.elitePending = false;
+    if (elite && spawned) {
+      wave.eliteRemaining = Math.max(0, wave.eliteRemaining - 1);
+      wave.elitePending = wave.eliteRemaining > 0;
+    }
     wave.remaining -= 1;
     wave.spawnTimer += cfg.spawnInterval;
   }
@@ -1259,7 +1281,8 @@ function updateSpawning(state, dt) {
   state.spawnTimer -= dt;
   if (state.spawnTimer > 0) return;
   const pack = Math.min(GAME_CONFIG.threat.maxPack, 1 + Math.floor((state.threat - 1) / GAME_CONFIG.threat.packGrowthEvery));
-  for (let index = 0; index < pack; index += 1) spawnEnemy(state);
+  const eliteChance = getEndlessEliteChance(state);
+  for (let index = 0; index < pack; index += 1) spawnEnemy(state, chooseEnemyType(state), undefined, { elite: state.endlessMode && state.rng.next() < eliteChance });
   const interval = Math.max(GAME_CONFIG.threat.spawnMin, GAME_CONFIG.threat.spawnBase * (GAME_CONFIG.threat.spawnDecay ** (state.threat - 1)));
   state.spawnTimer += interval * (0.82 + state.rng.next() * 0.36);
 }

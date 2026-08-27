@@ -9,6 +9,7 @@ export const GAME_CONFIG = Object.freeze({
   threat: { duration: 45, hpGrowth: 1.16, damageGrowth: 1.1, rewardGrowth: 1.08, spawnDecay: 0.91, spawnBase: 1.55, spawnMin: 0.34, dayWaves: 2, nightWaves: 2, packGrowthEvery: 4, maxPack: 3, bossEvery: 10 },
   unlocks: { doubleSpeedThreat: 10 },
   waves: { firstAt: 90, interval: 90, warning: 10, spawnInterval: 0.2, baseCount: 14, countPerThreat: 3, eliteHpMultiplier: 3.2, eliteDamageMultiplier: 1.45, eliteRewardMultiplier: 3 },
+  endless: { baseEliteChance: 0.06, eliteChancePerThreat: 0.01, eliteChanceCap: 0.24, waveBaseElites: 2, waveElitePerThreat: 4, waveEliteCap: 6 },
   eliteAffixes: {
     order: ["shield", "sprint", "devour", "split"],
     shield: { shieldFraction: 0.55 },

@@ -1807,7 +1807,7 @@ function handleEvents(events) {
     else if (event.type === "threat") { announce(event.level === GAME_CONFIG.sovereign.spawnThreat ? `威胁 ${formatThreat(event.level)} · 超巨型灾厄来袭` : event.level === GAME_CONFIG.colossus.spawnThreat ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
     else if (event.type === "phase") { audio.play("phase"); announce(event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场"); }
     else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce("侦测到大规模怪潮"); }
-    else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(`第 ${event.index} 次怪潮抵达`); }
+    else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(event.endless ? `无尽怪潮 ${event.index} 抵达 · 精英信号 ${event.eliteCount}` : `第 ${event.index} 次怪潮抵达`); }
     else if (event.type === "waveCleared" && event.endless) showToast(`无尽怪潮 ${String(event.index).padStart(2, "0")} 已肃清 · 获得增幅选择`);
     else if (event.type === "overloadRelease") { audio.play("overload"); renderer.trigger("overloadRelease", event.overheated ? 1.5 : 1); announce(event.overheated ? "热浪爆发 · 晶塔过热" : event.early ? "超载中断 · 提前释放冲击" : "超载冲击释放"); }
     else if (event.type === "shieldBurst") { audio.play("hit"); renderer.trigger("shieldBurst"); announce(`满盾反击 · 晶片命中 ${event.hits}`); }
