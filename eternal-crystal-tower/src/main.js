@@ -382,6 +382,19 @@ if (previewMode === "ultimate") {
   purchaseUpgrade(state, "frost"); purchaseUpgrade(state, "fire"); purchaseUpgrade(state, "lightning");
   purchaseUpgrade(state, "ascend");
 }
+if (previewMode === "tower-health") {
+  state.threat = 8;
+  state.phase = "night";
+  state.time = 318;
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.upgrades.ascend = 2;
+  const previewStats = getTowerStats(state);
+  state.tower.hp = previewStats.maxHp * 0.28;
+  state.tower.shield = previewStats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction * 0.58;
+  state.tower.healthBarTimer = GAME_CONFIG.tower.healthBarDuration;
+  state.paused = true;
+}
 if (previewMode === "skills") {
   state.threat = 6;
   state.phase = "night";

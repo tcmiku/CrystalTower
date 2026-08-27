@@ -1320,6 +1320,44 @@ export class Renderer {
       ctx.beginPath(); ctx.moveTo(-4, -22); ctx.lineTo(8, -7); ctx.lineTo(-1, 10); ctx.lineTo(10, 24); ctx.stroke();
     }
     ctx.restore();
+    this.drawTowerHealthBar(ctx, state, x, y, towerScale, tier, stats);
+  }
+
+  drawTowerHealthBar(ctx, state, x, y, towerScale, tier, stats) {
+    const timer = Math.max(0, Number(state.tower.healthBarTimer) || 0);
+    if (timer <= 0) return;
+    const duration = GAME_CONFIG.tower.healthBarDuration;
+    const alpha = Math.min(1, timer / 0.35, (duration - timer) / 0.12);
+    if (alpha <= 0) return;
+    const hpRatio = Math.max(0, Math.min(1, state.tower.hp / stats.maxHp));
+    const shieldRatio = Math.max(0, Math.min(1, (state.tower.shield || 0) / (stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction)));
+    const top = [62, 82, 124, 143][Math.min(3, tier)] * towerScale;
+    const width = 154 + Math.min(3, tier) * 12;
+    const height = 9;
+    const left = x - width / 2;
+    const barY = y - top - 18;
+    const low = hpRatio < 0.35;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = low ? '#ff4f70' : '#72e8ff';
+    ctx.shadowBlur = low ? 12 + Math.sin(this.time * 8) * 4 : 9;
+    ctx.fillStyle = 'rgba(5,7,25,.9)';
+    ctx.beginPath(); ctx.roundRect(left - 3, barY - 3, width + 6, height + 6, 6); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(left, barY, width, height, 4); ctx.clip();
+    ctx.fillStyle = low ? '#ff4b6c' : hpRatio < 0.6 ? '#ffca5e' : '#58dfa1';
+    ctx.fillRect(left, barY, width * hpRatio, height);
+    if (shieldRatio > 0) { ctx.fillStyle = 'rgba(143,239,255,.82)'; ctx.fillRect(left, barY, width * shieldRatio, 2); }
+    ctx.restore();
+    ctx.lineWidth = low ? 1.5 : 1;
+    ctx.strokeStyle = low ? 'rgba(255,102,126,.95)' : 'rgba(191,247,255,.7)';
+    ctx.beginPath(); ctx.roundRect(left, barY, width, height, 4); ctx.stroke();
+    ctx.font = '800 9px ui-monospace, monospace';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = low ? '#ff9eac' : '#d7efff';
+    ctx.fillText(String(Math.ceil(hpRatio * 100)) + '%', left + width, barY - 8);
+    ctx.restore();
   }
 
   drawElementModules(ctx, state, tier) {

@@ -64,6 +64,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /playerMessageInput/);
   assert.match(main, /podium-message/);
   assert.match(main, /leaderboard-messages/);
+  assert.match(main, /tower-health/);
   assert.match(main, /现已上线登录功能/);
   assert.match(main, /warning\.className = "update-warning"/);
   const renderer = await readFile(new URL("../src/renderer.js", import.meta.url), "utf8");
@@ -91,6 +92,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.doesNotMatch(main, /addEventListener\("blur",/);
   assert.match(renderer, /怪群 ×/);
   assert.match(renderer, /pileCount/);
+  assert.match(renderer, /drawTowerHealthBar/);
   assert.match(main, /renderLeaderboardPodium/);
   assert.match(main, /globalLeaderboardPodium/);
   assert.match(main, /leaderboard-time/);

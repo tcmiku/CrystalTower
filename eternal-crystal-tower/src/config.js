@@ -1,7 +1,7 @@
 export const GAME_CONFIG = Object.freeze({
   arena: { width: 960, height: 720, centerX: 480, centerY: 360 },
   fixedStep: 1 / 60,
-  tower: { maxHp: 600, damage: 12, fireRate: 1.2, range: 360, radius: 38, projectileSpeed: 650 },
+  tower: { maxHp: 600, damage: 12, fireRate: 1.2, range: 360, radius: 38, projectileSpeed: 650, healthBarDuration: 3.2 },
   cannon: {
     siege: { chargeBonusPerStack: 0.12, maxChargeStacks: 3, piercePerLevel: 1, bossDamagePerLevel: 0.18, weakpointChancePerLevel: 0.16, weakpointDuration: 3.2, weakpointDamageMultiplier: 1.35 },
     split: { projectileCount: 2, damageMultiplier: 0.46, life: 0.82, radius: 3.8, growthHopsPerLevel: 1, growthRange: 190, echoRadius: 78, echoDamageMultiplier: 0.38 }

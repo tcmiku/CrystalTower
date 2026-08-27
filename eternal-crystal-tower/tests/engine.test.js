@@ -1700,3 +1700,18 @@ test("超巨型首领在场时晶塔下移缩小，击败后恢复中央尺寸",
   assert.deepEqual(getTowerPosition(state), defaultPosition);
   assert.equal(getTowerRadius(state), defaultRadius);
 });
+
+test("tower health bar timer starts after a hit and expires", () => {
+  const state = createGameState(744);
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.fireCooldown = 999;
+  const enemy = spawnEnemy(state, "wisp", { x: 520, y: 360 });
+  enemy.speed = 0;
+  updateGame(state, 1 / 60);
+  assert.ok(state.tower.healthBarTimer > 0);
+  assert.equal(state.tower.healthBarTimer, GAME_CONFIG.tower.healthBarDuration);
+  state.enemies = [];
+  updateGame(state, GAME_CONFIG.tower.healthBarDuration);
+  assert.equal(state.tower.healthBarTimer, 0);
+});

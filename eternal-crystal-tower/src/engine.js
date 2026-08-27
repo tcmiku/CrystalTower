@@ -23,6 +23,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     tower: {
       hp: 0,
       shield: 0,
+      healthBarTimer: 0,
       fireCooldown: 0,
       fireRateSuppression: 0,
       sawFireCooldown: 0,
@@ -1186,6 +1187,7 @@ function damageTower(state, damage, heavy = false, source = "enemy") {
   state.tower.shield -= towerShieldAbsorbed;
   remainingDamage -= towerShieldAbsorbed;
   state.tower.hp = Math.max(0, state.tower.hp - remainingDamage);
+  state.tower.healthBarTimer = GAME_CONFIG.tower.healthBarDuration;
   state.events.push({ type: "towerHit", damage: remainingDamage, absorbed: droneShieldAbsorbed + towerShieldAbsorbed, droneShieldAbsorbed, heavy, source });
   return true;
 }
@@ -2285,6 +2287,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   state.skills.coinVacuum.active = Math.max(0, state.skills.coinVacuum.active - dt);
   state.relics.phaseBuff = Math.max(0, state.relics.phaseBuff - dt);
   state.tower.fireRateSuppression = Math.max(0, (state.tower.fireRateSuppression ?? 0) - dt);
+  state.tower.healthBarTimer = Math.max(0, (state.tower.healthBarTimer ?? 0) - dt);
   if (state.skills.coinVacuum.active <= 0) state.skills.coinVacuum.trails = [];
   if (state.tower.anchorLockTimer > 0) {
     state.tower.anchorLockTimer = Math.max(0, state.tower.anchorLockTimer - dt);
