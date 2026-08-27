@@ -8,6 +8,7 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%237be7ff' d='M32 3 48 23 40 55 32 62 24 55 16 23z'/%3E%3Cpath fill='%238a6cff' d='m32 3 8 25-8 34-8-34z'/%3E%3C/svg%3E" />
     <link rel="preload" as="image" href="./assets/generated/loading-splash.png" fetchpriority="high" />
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./auth.css" />
   </head>
   <body class="is-loading">
     <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite" aria-label="游戏素材加载中">
@@ -43,8 +44,10 @@
         <div class="top-actions">
           <button id="openBaseCampButton" class="icon-button basecamp-button hidden" type="button" aria-label="打开大本营核心室" title="大本营">营</button>
           <button id="speedButton" class="icon-button speed-button locked" type="button" aria-label="2倍速未解锁" aria-disabled="true" aria-pressed="false" title="击败威胁 Ⅹ 首领后永久解锁 2× 倍速">1×</button>
-          <button id="muteButton" class="icon-button" type="button" aria-label="静音">声</button>
-          <button id="pauseButton" class="icon-button" type="button" aria-label="暂停">Ⅱ</button>
+          <button id="openUpdatesButton" class="icon-button updates-button" type="button" aria-label="查看游戏更新公告" aria-haspopup="dialog" aria-controls="updatesModal" aria-expanded="false" title="游戏更新公告"><svg class="top-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14l-1.6-2.2V10a5.4 5.4 0 0 0-10.8 0v4.8L5 17Z"></path><path d="M9.4 20h5.2"></path></svg></button>
+          <button id="accountButton" class="icon-button account-button" type="button" aria-label="游客账号" aria-haspopup="dialog" aria-controls="accountModal" aria-expanded="false" title="登录或注册"><svg class="top-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"></circle><path d="M5.2 20c.8-3.1 3.2-4.8 6.8-4.8s6 1.7 6.8 4.8"></path></svg></button>
+          <button id="muteButton" class="icon-button" type="button" aria-label="静音"><svg class="top-icon sound-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h3l4 3V7l-4 3H4Z"></path><path class="sound-wave" d="M15 9.2a4.3 4.3 0 0 1 0 5.6M17.7 6.7a8 8 0 0 1 0 10.6"></path><path class="sound-mute" d="m15.5 9 5 6m0-6-5 6"></path></svg></button>
+          <button id="pauseButton" class="icon-button" type="button" aria-label="暂停"><svg class="top-icon pause-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="pause-state" d="M8 5v14M16 5v14"></path><path class="play-state" d="m8 5 10 7-10 7V5Z"></path></svg></button>
         </div>
       </header>
 
@@ -105,6 +108,73 @@
       </footer>
     </main>
 
+    <section id="accountModal" class="account-modal hidden" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+      <div class="account-shell">
+        <header class="account-header">
+          <div><span>CRYSTAL ACCOUNT</span><h2 id="accountTitle">守望者账号</h2><p>游客可直接游玩；登录后可在不同设备使用云端存档。</p></div>
+          <button id="closeAccountButton" class="account-close" type="button" aria-label="关闭账号面板">关闭</button>
+        </header>
+        <div id="accountGuestPanel" class="account-content">
+          <div class="guest-notice"><strong>当前为游客模式</strong><span>进度仅保存在此设备，注册或登录后即可同步。</span></div>
+          <div class="auth-grid">
+            <form id="loginForm" class="auth-form">
+              <span>已有账号</span><h3>登录</h3>
+              <label for="loginUsername">用户名</label>
+              <input id="loginUsername" name="username" minlength="3" maxlength="20" autocomplete="username" required>
+              <label for="loginPassword">密码</label>
+              <input id="loginPassword" name="password" type="password" minlength="6" maxlength="128" autocomplete="current-password" required>
+              <button type="submit">登录并读取存档</button>
+              <button id="showRegisterButton" class="auth-switch" type="button">没有账号？注册</button>
+            </form>
+            <form id="registerForm" class="auth-form hidden">
+              <span>首次守望</span><h3>直接注册</h3>
+              <label for="registerUsername">用户名</label>
+              <input id="registerUsername" name="username" minlength="3" maxlength="20" pattern="[\p{L}\p{N}_]{3,20}" autocomplete="username" required>
+              <small>3～20 位中文、字母、数字或下划线，不能重复。</small>
+              <label for="registerPassword">密码</label>
+              <input id="registerPassword" name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required>
+              <button type="submit">注册并同步</button>
+              <button id="showLoginButton" class="auth-switch" type="button">已有账号？返回登录</button>
+            </form>
+          </div>
+        </div>
+        <div id="accountUserPanel" class="account-content hidden">
+          <div class="account-profile"><i id="accountAvatar">守</i><div><span>已登录</span><strong id="accountUsername">PLAYER</strong><small id="accountSyncStatus">正在检查云端存档…</small></div></div>
+          <div class="account-actions">
+            <button id="syncSaveButton" class="primary-button" type="button">立即同步本地存档</button>
+            <button id="logoutButton" type="button">退出登录</button>
+            <button id="deleteAccountButton" class="danger-button" type="button">删除账号及全部数据</button>
+          </div>
+        </div>
+        <div id="saveChoicePanel" class="account-content hidden">
+          <div class="save-choice-heading"><span>SAVE CONFLICT</span><h3>选择继续使用的存档</h3><p>确认前不会覆盖任何一份数据。选择后，另一份存档会被替换。</p></div>
+          <div class="save-choice-grid">
+            <button id="useCloudSaveButton" type="button"><span>云端存档</span><strong id="cloudSaveSummary">正在读取…</strong><small>下载并替换此设备存档</small></button>
+            <button id="useLocalSaveButton" type="button"><span>本地存档</span><strong id="localSaveSummary">正在读取…</strong><small>上传并替换云端存档</small></button>
+          </div>
+        </div>
+        <p id="accountStatus" class="account-status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section id="updatesModal" class="updates-modal hidden" role="dialog" aria-modal="true" aria-labelledby="updatesTitle">
+      <div class="updates-shell">
+        <header class="updates-header">
+          <div>
+            <span class="updates-eyebrow">ETERNAL CRYSTAL TOWER · PATCH NOTES</span>
+            <h2 id="updatesTitle">游戏更新公告</h2>
+            <p>每一次守望，都会把晶塔推向更远的地方。</p>
+          </div>
+          <button id="closeUpdatesButton" class="updates-close" type="button" aria-label="关闭更新公告">关闭</button>
+        </header>
+        <div class="updates-current">
+          <span class="updates-current-dot"></span>
+          <div><strong id="updatesCurrentVersion">GitHub 最新提交</strong><small id="updatesCurrentDate">正在同步提交日期…</small></div>
+        </div>
+        <div id="updatesList" class="updates-list"></div>
+        <footer class="updates-footer"><span id="updatesSyncStatus">正在同步 GitHub 提交日志…</span><div class="updates-footer-actions"><button id="updatesDismissButton" class="updates-dismiss-button" type="button" aria-pressed="false">下次不再弹出</button><kbd>U</kbd></div></footer>
+      </div>
+    </section>
     <section id="techTreePanel" class="tech-tree-panel hidden" role="dialog" aria-modal="true" aria-labelledby="techTreeTitle">
       <div class="tech-tree-shell">
         <header class="tech-tree-header">

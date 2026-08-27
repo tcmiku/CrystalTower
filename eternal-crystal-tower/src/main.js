@@ -3,6 +3,8 @@ import { calculateRunScore, calculateStardust, chooseRelic, collectCoinAt, colle
 import { seedFromUrl } from "./rng.js";
 import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, researchCost, SAVE_KEY, sanitizePlayerName, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
+import { fetchGithubCommits } from "./github-updates.js";
+import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
 import { AudioSynth } from "./audio.js";
 import { Renderer } from "./renderer.js";
 
@@ -23,7 +25,7 @@ const UPGRADE_META = {
   sawLaunch: { icon: "➤", name: "弹射飞刃", description: "专精：发射晶刃并禁用晶刃弹幕", max: 1 },
   sawRicochet: { icon: "⌁", name: "折跃棱面", description: "飞刃命中后增加一次弹射", max: 3 },
   sawRecovery: { icon: "↻", name: "快速重铸", description: "缩短飞刃返回前的恢复时间", max: 3 },
-  drone: { icon: "⌁", name: "拾荒无人机", description: "逐级增加自动拾币无人机", max: 3 },
+  drone: { icon: "⌁", name: "拾荒无人机", description: "最多五架，逐级增加自动拾币无人机", max: 5 },
   autoCollect: { icon: "◎", name: "晶塔磁吸核心", description: "每5秒吸收场上全部遗响碎片与核心残片", max: 1 },
   droneScavenge: { icon: "¤", name: "拾荒协议", description: "快速拾币并使无人机金币 +25%", max: 1 },
   droneIntercept: { icon: "⬡", name: "拦截协议", description: "护航时周期抵挡一次重击", max: 1 },
@@ -102,7 +104,7 @@ const dom = Object.fromEntries([
   "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
-  "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
+  "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore",
   "scoreEntryForm", "playerNameInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
@@ -168,7 +170,7 @@ if (previewMode === "tech") {
   purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw");
   purchaseUpgrade(state, "sawOverdrive");
   purchaseUpgrade(state, "sawGun");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
 }
 if (previewMode === "drones") {
   state.threat = 6;
@@ -178,7 +180,7 @@ if (previewMode === "drones") {
   state.spawnTimer = 999;
   state.coins = 100_000;
   purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "autoCollect");
   toggleDroneMode(state);
   spawnEnemy(state, "brute", { x: 710, y: 250 });
@@ -349,7 +351,7 @@ if (previewMode === "protocols") {
 if (previewMode === "drone-protocols") {
   state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = 8; state.phase = "night"; state.time = 315; state.coins = 100_000; state.tower.fireCooldown = 999;
   purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneBattery"); purchaseUpgrade(state, "droneDetonate");
   const boss = spawnEnemy(state, "boss", { x: 730, y: 360 });
   boss.speed = 0; boss.hp = boss.maxHp = 100_000;
@@ -357,7 +359,7 @@ if (previewMode === "drone-protocols") {
 if (previewMode === "drone-energy") {
   state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = 8; state.coins = 100_000;
   purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "droneScavenge"); purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneIntercept"); purchaseUpgrade(state, "droneHunt");
   state.tower.droneEnergy = 42; toggleDroneMode(state);
   const elite = spawnEnemy(state, "sentinel", { x: 650, y: 360 }, { elite: true, affix: "sprint" });
@@ -445,6 +447,16 @@ let announcementTimer = 0;
 let techTreeOpen = false;
 let resumeAfterTechTree = false;
 let leaderboardModalOpen = false;
+let updatesModalOpen = false;
+let pendingStartupFlow = null;
+let resumeAfterUpdates = false;
+let accountModalOpen = false;
+let resumeAfterAccount = false;
+let currentAccount = null;
+let cloudSyncEnabled = false;
+let pendingCloudSave = null;
+let cloudSaveQueue = Promise.resolve();
+let accountAuthMode = "login";
 let resumeAfterLeaderboard = false;
 let baseCampOpen = false;
 let baseCampRoom = "nexus";
@@ -461,6 +473,170 @@ let tutorialStep = 0;
 const loadingStartedAt = performance.now();
 const renderer = new Renderer(dom.gameCanvas, updateLoadingProgress);
 const audio = new AudioSynth(save.settings.muted);
+
+function setAccountStatus(message = "", error = false) {
+  dom.accountStatus.textContent = message;
+  dom.accountStatus.classList.toggle("error", error);
+}
+
+function setAccountAuthMode(mode, focus = false) {
+  accountAuthMode = mode === "register" ? "register" : "login";
+  dom.loginForm.classList.toggle("hidden", accountAuthMode !== "login");
+  dom.registerForm.classList.toggle("hidden", accountAuthMode !== "register");
+  setAccountStatus("");
+  if (focus) (accountAuthMode === "register" ? dom.registerUsername : dom.loginUsername).focus({ preventScroll: true });
+}
+
+function setCloudSyncStatus(message) {
+  dom.accountSyncStatus.textContent = message;
+}
+
+function updateAccountUi(view) {
+  const selectedView = view || (pendingCloudSave ? "choice" : currentAccount ? "user" : "guest");
+  dom.accountGuestPanel.classList.toggle("hidden", selectedView !== "guest");
+  dom.accountUserPanel.classList.toggle("hidden", selectedView !== "user");
+  dom.saveChoicePanel.classList.toggle("hidden", selectedView !== "choice");
+  dom.accountButton.classList.toggle("logged-in", Boolean(currentAccount));
+  dom.accountButton.title = currentAccount ? `账号：${currentAccount.username}` : "登录或注册";
+  dom.accountButton.setAttribute("aria-label", currentAccount ? `已登录：${currentAccount.username}` : "游客账号");
+  if (currentAccount) {
+    dom.accountUsername.textContent = currentAccount.username;
+    dom.accountAvatar.textContent = currentAccount.username.slice(0, 1).toUpperCase();
+  }
+}
+
+function setAccountOpen(open, restoreFocus = false) {
+  const nextOpen = Boolean(open);
+  if (nextOpen && !accountModalOpen) {
+    if (starfallAiming) cancelStarfallAim(false);
+    resumeAfterAccount = !state.paused && !state.over;
+    state.paused = true;
+    accountModalOpen = true;
+    dom.accountModal.classList.remove("hidden");
+    dom.accountButton.setAttribute("aria-expanded", "true");
+    updateAccountUi();
+    const focusTarget = pendingCloudSave ? dom.useCloudSaveButton : currentAccount ? dom.syncSaveButton : dom.loginUsername;
+    focusTarget.focus({ preventScroll: true });
+  } else if (!nextOpen && accountModalOpen) {
+    accountModalOpen = false;
+    dom.accountModal.classList.add("hidden");
+    dom.accountButton.setAttribute("aria-expanded", "false");
+    if (resumeAfterAccount && !state.over && !techTreeOpen && !leaderboardModalOpen && !updatesModalOpen && !baseCampOpen && !relicChoiceOpen) state.paused = false;
+    resumeAfterAccount = false;
+    if (restoreFocus) dom.accountButton.focus({ preventScroll: true });
+  }
+  updateUi();
+}
+
+function saveSummary(candidate) {
+  const threat = candidate?.records?.highestThreat ?? 1;
+  const stardust = candidate?.stardust ?? 0;
+  const resources = candidate?.resources ?? {};
+  return `威胁 ${threat} · 星尘 ${stardust} · 遗响 ${resources.echoShards ?? 0} · 核心 ${resources.coreFragments ?? 0}`;
+}
+
+function sameSave(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function queueCloudSync(candidate = save) {
+  if (!currentAccount || !cloudSyncEnabled) return Promise.resolve();
+  const accountId = currentAccount.id;
+  const snapshot = JSON.parse(JSON.stringify(candidate));
+  cloudSaveQueue = cloudSaveQueue.catch(() => {}).then(async () => {
+    if (!currentAccount || currentAccount.id !== accountId || !cloudSyncEnabled) return;
+    setCloudSyncStatus("正在同步云端存档…");
+    await writeCloudSave(snapshot);
+    setCloudSyncStatus("云端存档已同步");
+  }).catch(() => {
+    setCloudSyncStatus("同步失败，本地存档仍然安全");
+  });
+  return cloudSaveQueue;
+}
+
+function persistSave() {
+  save = writeSave(save);
+  void queueCloudSync(save);
+  return save;
+}
+
+async function resolveAccountSave() {
+  const localExists = localStorage.getItem(SAVE_KEY) !== null;
+  const cloud = await readCloudSave();
+  if (!cloud.save) {
+    await writeCloudSave(save);
+    cloudSyncEnabled = true;
+    pendingCloudSave = null;
+    setCloudSyncStatus("本地存档已上传云端");
+    updateAccountUi("user");
+    return;
+  }
+  if (!localExists) {
+    writeSave(cloud.save);
+    cloudSyncEnabled = true;
+    location.reload();
+    return;
+  }
+  if (sameSave(save, cloud.save)) {
+    cloudSyncEnabled = true;
+    pendingCloudSave = null;
+    setCloudSyncStatus("本地与云端存档一致");
+    updateAccountUi("user");
+    return;
+  }
+  cloudSyncEnabled = false;
+  pendingCloudSave = cloud.save;
+  dom.localSaveSummary.textContent = saveSummary(save);
+  dom.cloudSaveSummary.textContent = saveSummary(cloud.save);
+  setAccountStatus("请选择一份存档继续。");
+  updateAccountUi("choice");
+  setAccountOpen(true);
+}
+
+async function activateAccount(user) {
+  currentAccount = user;
+  cloudSyncEnabled = false;
+  pendingCloudSave = null;
+  setAccountStatus("");
+  setCloudSyncStatus("正在检查云端存档…");
+  updateAccountUi("user");
+  try {
+    await resolveAccountSave();
+  } catch (error) {
+    setCloudSyncStatus("云端暂时不可用，本地存档仍然安全");
+    setAccountStatus(error?.message || "无法读取云端存档", true);
+  }
+}
+
+async function submitAccountForm(event, mode) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!form.reportValidity()) return;
+  const controls = [...form.elements];
+  controls.forEach((control) => { control.disabled = true; });
+  setAccountStatus(mode === "register" ? "正在创建账号…" : "正在登录…");
+  try {
+    const username = mode === "register" ? dom.registerUsername.value : dom.loginUsername.value;
+    const password = mode === "register" ? dom.registerPassword.value : dom.loginPassword.value;
+    const result = mode === "register" ? await registerAccount(username, password) : await loginAccount(username, password);
+    form.reset();
+    await activateAccount(result.user);
+  } catch (error) {
+    setAccountStatus(error?.message || "账号操作失败", true);
+  } finally {
+    controls.forEach((control) => { control.disabled = false; });
+  }
+}
+
+async function restoreAccountSession() {
+  try {
+    const session = await restoreSession();
+    if (session.authenticated && session.user) await activateAccount(session.user);
+    else updateAccountUi("guest");
+  } catch {
+    updateAccountUi("guest");
+  }
+}
 
 function updateLoadingProgress({ completed = 0, total = 1, failed = 0 } = {}) {
   const percent = Math.round(completed / Math.max(1, total) * 100);
@@ -634,6 +810,134 @@ function setTechTreeOpen(open, restoreFocus = false) {
   updateUi();
 }
 
+const FALLBACK_UPDATE_ENTRIES = [
+  {
+    version: "1.7.0",
+    date: "2026.08.27",
+    title: "登录功能现已上线",
+    text: "现已上线登录功能",
+    warning: "目前还在测试不保证数据不会丢失",
+    tag: "重要提示"
+  }
+];
+
+let updateEntries = [...FALLBACK_UPDATE_ENTRIES];
+let updatesRequest = null;
+
+function setUpdatesSyncStatus(message, state = "idle") {
+  if (!dom.updatesSyncStatus) return;
+  dom.updatesSyncStatus.textContent = message;
+  dom.updatesSyncStatus.dataset.state = state;
+}
+
+function renderUpdates() {
+  const latest = updateEntries[0];
+  if (latest && dom.updatesCurrentVersion && dom.updatesCurrentDate) {
+    const live = Boolean(latest.url);
+    dom.updatesCurrentVersion.textContent = live ? `GitHub 最新提交 ${latest.version}` : `内置公告 ${latest.version}`;
+    dom.updatesCurrentDate.textContent = live ? `提交日期 · ${latest.date}` : `回退日期 · ${latest.date}`;
+  }
+  dom.updatesList.replaceChildren();
+  for (const entry of updateEntries) {
+    const article = document.createElement("article");
+    article.className = "update-entry";
+    const heading = document.createElement("h3");
+    heading.append(document.createTextNode(entry.title));
+    const meta = document.createElement("small");
+    meta.textContent = `${entry.version} · ${entry.date}`;
+    heading.append(meta);
+    const description = document.createElement("p");
+    if (entry.warning) {
+      description.append(document.createTextNode(entry.text));
+      const warning = document.createElement("span");
+      warning.className = "update-warning";
+      warning.textContent = `（${entry.warning}）`;
+      description.append(warning);
+    } else {
+      description.textContent = entry.text;
+    }
+    const tag = document.createElement("b");
+    tag.textContent = entry.tag;
+    article.append(heading, description, tag);
+    if (entry.url) {
+      const link = document.createElement("a");
+      link.className = "update-entry-link";
+      link.href = entry.url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = "查看提交 ↗";
+      article.append(link);
+    }
+    dom.updatesList.append(article);
+  }
+}
+
+async function loadGithubUpdates() {
+  if (updatesRequest) return updatesRequest;
+  setUpdatesSyncStatus("正在同步 GitHub 提交日志…", "loading");
+  updatesRequest = fetchGithubCommits()
+    .then((entries) => {
+      if (!entries.length) throw new Error("GitHub commits list is empty");
+      updateEntries = entries;
+      renderUpdates();
+      setUpdatesSyncStatus("来源：GitHub 提交日志 · tcmiku/CrystalTower", "ready");
+    })
+    .catch(() => {
+      updateEntries = [...FALLBACK_UPDATE_ENTRIES];
+      renderUpdates();
+      setUpdatesSyncStatus("GitHub 暂不可用，当前显示内置回退公告", "fallback");
+    })
+    .finally(() => {
+      updatesRequest = null;
+    });
+  return updatesRequest;
+}
+
+function updateUpdatesDismissButton() {
+  if (!dom.updatesDismissButton) return;
+  const dismissed = save.settings.updatesDismissed === true;
+  dom.updatesDismissButton.textContent = dismissed ? "恢复自动弹出" : "下次不再弹出";
+  dom.updatesDismissButton.setAttribute("aria-pressed", String(dismissed));
+}
+
+function toggleUpdatesDismissed() {
+  save.settings.updatesDismissed = !save.settings.updatesDismissed;
+  persistSave();
+  updateUpdatesDismissButton();
+  if (save.settings.updatesDismissed) {
+    showToast("已关闭启动公告，可从右上角“告”重新打开");
+    setUpdatesOpen(false, true);
+  } else {
+    showToast("已恢复启动公告");
+  }
+}
+
+function setUpdatesOpen(open, restoreFocus = false) {
+  const nextOpen = Boolean(open);
+  if (nextOpen && !updatesModalOpen) {
+    if (starfallAiming) cancelStarfallAim(false);
+    resumeAfterUpdates = !state.paused && !state.over;
+    state.paused = true;
+    updatesModalOpen = true;
+    dom.updatesModal.classList.remove("hidden");
+    updateUpdatesDismissButton();
+    dom.openUpdatesButton.setAttribute("aria-expanded", "true");
+    renderUpdates();
+    void loadGithubUpdates();
+    dom.closeUpdatesButton.focus({ preventScroll: true });
+  } else if (!nextOpen && updatesModalOpen) {
+    updatesModalOpen = false;
+    dom.updatesModal.classList.add("hidden");
+    dom.openUpdatesButton.setAttribute("aria-expanded", "false");
+    if (resumeAfterUpdates && !state.over && !techTreeOpen && !leaderboardModalOpen && !baseCampOpen && !relicChoiceOpen) state.paused = false;
+    resumeAfterUpdates = false;
+    const startupFlow = pendingStartupFlow;
+    pendingStartupFlow = null;
+    if (restoreFocus) dom.openUpdatesButton.focus({ preventScroll: true });
+    if (startupFlow) startupFlow();
+  }
+  updateUi();
+}
 function setLeaderboardOpen(open, restoreFocus = false) {
   const nextOpen = Boolean(open);
   if (nextOpen && starfallAiming) cancelStarfallAim(false);
@@ -732,7 +1036,7 @@ function advanceBaseRecoveryEvent() {
     return;
   }
   markBaseRecoverySeen(save);
-  if (!previewMode) save = writeSave(save);
+  if (!previewMode) persistSave();
   dom.baseRecoveryModal.classList.add("hidden");
   firstFailureFlow = false;
   setBaseCampOpen(true);
@@ -741,7 +1045,7 @@ function advanceBaseRecoveryEvent() {
 function commitPermanentDrop(drop) {
   if (!drop) return;
   grantPermanentResource(save, drop.resourceType, drop.value);
-  save = writeSave(save);
+  persistSave();
   updatePermanentResourceUi();
 }
 function createSkillUi() {
@@ -772,7 +1076,7 @@ function renderResearch() {
     button.innerHTML = `<strong>${meta.name}</strong><span>等级 ${level}/${GAME_CONFIG.research.maxLevel} · +${level * 5}%</span><small>${maxed ? "研究完成" : `${meta.description} +5% · 花费 ${cost}`}</small>`;
     button.addEventListener("click", () => {
       if (!buyResearch(save, key)) return;
-      save = writeSave(save);
+      persistSave();
       audio.play("purchase");
       renderResearch();
     });
@@ -793,7 +1097,7 @@ function renderRelicResearch() {
   slotButton.innerHTML = `<span><small>遗物栏位</small><strong>${save.relicSlots} / ${GAME_CONFIG.relics.maxSlots}</strong><p>增加一格本局机制遗物装配空间。</p></span><b>${maxSlots ? "栏位已满" : `扩展下一格 · ${slotCost} 核心残片`}</b>`;
   slotButton.addEventListener("click", () => {
     if (!buyRelicSlot(save)) return;
-    save = writeSave(save);
+    persistSave();
     state.relics.slots = save.relicSlots;
     audio.play("purchase");
     showToast(`临时遗物栏位扩展至 ${save.relicSlots} 格`);
@@ -812,7 +1116,7 @@ function renderRelicResearch() {
     button.innerHTML = `<img src="${meta.art}" alt="" aria-hidden="true"><span><small>${meta.type}</small><strong>${meta.name}</strong><p>${meta.description}</p><b>${unlocked ? "已解锁 · 已加入战局池" : `解锁 · ${cost} 遗响碎片`}</b></span>`;
     button.addEventListener("click", () => {
       if (!buyRelicUnlock(save, key)) return;
-      save = writeSave(save);
+      persistSave();
       state.relics.available = Object.entries(save.relicUnlocks).filter(([, active]) => active).map(([id]) => id);
       audio.play("purchase");
       showToast(`${meta.name} · 已加入临时遗物池`);
@@ -1064,7 +1368,7 @@ function handleEvents(events) {
       audio.play("ascend");
       renderer.trigger("ascend");
       const unlockedNow = event.threat >= GAME_CONFIG.unlocks.doubleSpeedThreat && unlockDoubleSpeed(save);
-      if (unlockedNow) save = writeSave(save);
+      if (unlockedNow) persistSave();
       announce(unlockedNow ? `威胁 ${formatThreat(event.threat)} 首领击破 · 永久解锁 2× 时流` : "大首领崩解 · 战场回路已回收");
       if (unlockedNow) showFirstRunTutorial(4, true);
     }
@@ -1249,8 +1553,10 @@ function updateUi() {
     dom.objectiveTitle.textContent = "守住晶光";
     dom.objectiveText.textContent = "大首领每十级来袭。没有终点，只有更久。";
   }
-  dom.pauseButton.textContent = state.paused ? "▶" : "Ⅱ";
-  dom.muteButton.textContent = save.settings.muted ? "静" : "声";
+  dom.pauseButton.classList.toggle("is-paused", state.paused);
+  dom.pauseButton.setAttribute("aria-label", state.paused ? "继续战斗" : "暂停战斗");
+  dom.muteButton.classList.toggle("is-muted", save.settings.muted);
+  dom.muteButton.setAttribute("aria-label", save.settings.muted ? "解除静音" : "静音");
   const doubleSpeedUnlocked = save.unlocks.doubleSpeed || previewMode === "speed";
   dom.speedButton.textContent = doubleSpeedActive ? "2×" : "1×";
   dom.speedButton.classList.toggle("active", doubleSpeedActive);
@@ -1366,7 +1672,7 @@ async function submitCurrentScore(event) {
       date
     });
     save.settings.playerName = result.entry.name;
-    save = writeSave(save);
+    persistSave();
     leaderboardEntries = result.entries;
     scoreSubmitted = true;
     currentEntryDate = result.entry.date;
@@ -1395,7 +1701,7 @@ function settleRun(stardust) {
   save.records.highestThreat = Math.max(save.records.highestThreat, state.stats.highestThreat);
   save.records.longestTime = Math.max(save.records.longestTime, state.time);
   save.records.totalKills += state.stats.kills;
-  save = writeSave(save);
+  persistSave();
   dom.resultTime.textContent = formatTime(state.time);
   dom.resultKills.textContent = formatNumber(state.stats.kills);
   dom.resultThreat.textContent = formatThreat(state.stats.highestThreat);
@@ -1437,6 +1743,15 @@ function togglePause(force) {
     state.paused = true;
     return;
   }
+  if (updatesModalOpen) {
+    state.paused = true;
+    return;
+  }
+  if (accountModalOpen) {
+    if (force === true) resumeAfterAccount = false;
+    state.paused = true;
+    return;
+  }
   if (techTreeOpen) {
     if (force === true) resumeAfterTechTree = false;
     state.paused = true;
@@ -1473,6 +1788,8 @@ function restart() {
   accumulator = 0;
   lastFrame = performance.now();
   dom.gameOverModal.classList.add("hidden");
+  setUpdatesOpen(false);
+  setAccountOpen(false);
   dom.pauseOverlay.classList.add("hidden");
   setTechTreeOpen(false);
   announce("晶芽重燃");
@@ -1511,6 +1828,7 @@ if (previewMode === "tutorial-branches") showFirstRunTutorial(3, true);
 if (previewMode === "tech" || previewMode === "drones" || previewMode === "element-tech" || previewMode === "drone-energy" || previewMode === "drone-protocols") setTechTreeOpen(true);
 announce("守住中央晶塔");
 refreshLeaderboard();
+void restoreAccountSession();
 if (previewMode === "relics") {
   offerRelicChoice(state, "eliteWave");
   handleEvents(state.events);
@@ -1542,6 +1860,14 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") setLeaderboardOpen(false, true);
     return;
   }
+  if (updatesModalOpen) {
+    if (event.key === "Escape") setUpdatesOpen(false, true);
+    return;
+  }
+  if (accountModalOpen) {
+    if (event.key === "Escape") setAccountOpen(false, true);
+    return;
+  }
   if (starfallAiming) {
     if (event.key === "Escape" || event.key.toLowerCase() === "e") cancelStarfallAim();
     return;
@@ -1554,6 +1880,7 @@ document.addEventListener("keydown", (event) => {
   else if (event.key.toLowerCase() === "r") cycleProtocol();
   else if (event.key.toLowerCase() === "x") toggleDoubleSpeed();
   else if (event.key.toLowerCase() === "t") setTechTreeOpen(!techTreeOpen, techTreeOpen);
+  else if (event.key.toLowerCase() === "u") setUpdatesOpen(!updatesModalOpen, updatesModalOpen);
   else if (event.key === "Escape" && techTreeOpen) setTechTreeOpen(false, true);
   else if (event.key.toLowerCase() === "p" || event.key === "Escape") togglePause();
 });
@@ -1565,6 +1892,91 @@ dom.closeBaseCampButton.addEventListener("click", () => setBaseCampOpen(false, t
 dom.baseCampModal.addEventListener("pointerdown", (event) => { if (event.target === dom.baseCampModal) setBaseCampOpen(false, true); });
 dom.recoveryContinueButton.addEventListener("click", advanceBaseRecoveryEvent);
 dom.openLeaderboardButton.addEventListener("click", () => setLeaderboardOpen(true));
+dom.openUpdatesButton.addEventListener("click", () => setUpdatesOpen(true));
+dom.closeUpdatesButton.addEventListener("click", () => setUpdatesOpen(false, true));
+dom.updatesDismissButton.addEventListener("click", toggleUpdatesDismissed);
+dom.updatesModal.addEventListener("pointerdown", (event) => { if (event.target === dom.updatesModal) setUpdatesOpen(false, true); });
+dom.accountButton.addEventListener("click", () => setAccountOpen(true));
+dom.closeAccountButton.addEventListener("click", () => setAccountOpen(false, true));
+dom.accountModal.addEventListener("pointerdown", (event) => { if (event.target === dom.accountModal) setAccountOpen(false, true); });
+dom.loginForm.addEventListener("submit", (event) => submitAccountForm(event, "login"));
+dom.registerForm.addEventListener("submit", (event) => submitAccountForm(event, "register"));
+dom.showRegisterButton.addEventListener("click", () => setAccountAuthMode("register", true));
+dom.showLoginButton.addEventListener("click", () => setAccountAuthMode("login", true));
+dom.syncSaveButton.addEventListener("click", async () => {
+  dom.syncSaveButton.disabled = true;
+  setCloudSyncStatus("正在同步云端存档…");
+  try {
+    await writeCloudSave(save);
+    cloudSyncEnabled = true;
+    setCloudSyncStatus("云端存档已同步");
+    setAccountStatus("同步完成。");
+  } catch (error) {
+    setAccountStatus(error?.message || "同步失败", true);
+    setCloudSyncStatus("同步失败，本地存档仍然安全");
+  } finally {
+    dom.syncSaveButton.disabled = false;
+  }
+});
+dom.useLocalSaveButton.addEventListener("click", async () => {
+  dom.useLocalSaveButton.disabled = true;
+  dom.useCloudSaveButton.disabled = true;
+  setAccountStatus("正在上传本地存档…");
+  try {
+    await writeCloudSave(save);
+    pendingCloudSave = null;
+    cloudSyncEnabled = true;
+    setCloudSyncStatus("已使用本地存档并覆盖云端");
+    setAccountStatus("本地存档已成为当前云端存档。");
+    updateAccountUi("user");
+  } catch (error) {
+    setAccountStatus(error?.message || "上传失败", true);
+  } finally {
+    dom.useLocalSaveButton.disabled = false;
+    dom.useCloudSaveButton.disabled = false;
+  }
+});
+dom.useCloudSaveButton.addEventListener("click", () => {
+  if (!pendingCloudSave) return;
+  writeSave(pendingCloudSave);
+  pendingCloudSave = null;
+  cloudSyncEnabled = true;
+  setAccountStatus("云端存档已写入此设备，正在重新载入…");
+  location.reload();
+});
+dom.logoutButton.addEventListener("click", async () => {
+  dom.logoutButton.disabled = true;
+  setAccountStatus("正在退出登录…");
+  try {
+    await logoutAccount();
+    currentAccount = null;
+    pendingCloudSave = null;
+    cloudSyncEnabled = false;
+    setAccountAuthMode("login");
+    setAccountStatus("已退出登录，本地存档已保留。");
+    updateAccountUi("guest");
+  } catch (error) {
+    setAccountStatus(error?.message || "退出失败", true);
+  } finally {
+    dom.logoutButton.disabled = false;
+  }
+});
+dom.deleteAccountButton.addEventListener("click", async () => {
+  if (!confirm(`永久删除账号“${currentAccount?.username ?? ""}”、云端存档和此设备本地存档？此操作无法撤销。`)) return;
+  dom.deleteAccountButton.disabled = true;
+  setAccountStatus("正在删除账号及数据…");
+  try {
+    await deleteAccount();
+    currentAccount = null;
+    pendingCloudSave = null;
+    cloudSyncEnabled = false;
+    localStorage.removeItem(SAVE_KEY);
+    location.reload();
+  } catch (error) {
+    setAccountStatus(error?.message || "删除失败", true);
+    dom.deleteAccountButton.disabled = false;
+  }
+});
 dom.closeLeaderboardButton.addEventListener("click", () => setLeaderboardOpen(false, true));
 dom.leaderboardModal.addEventListener("pointerdown", (event) => {
   if (event.target === dom.leaderboardModal) setLeaderboardOpen(false, true);
@@ -1618,7 +2030,7 @@ dom.gameCanvas.addEventListener("contextmenu", (event) => {
 dom.muteButton.addEventListener("click", () => {
   save.settings.muted = !save.settings.muted;
   audio.setMuted(save.settings.muted);
-  save = writeSave(save);
+  persistSave();
   updateUi();
 });
 dom.scoreEntryForm.addEventListener("submit", submitCurrentScore);
@@ -1631,6 +2043,7 @@ dom.clearSaveButton.addEventListener("click", () => {
   if (!confirm("清除全部永久资源、基地进度、研究和纪录？此操作无法撤销。")) return;
   localStorage.removeItem(SAVE_KEY);
   save = defaultSave();
+  persistSave();
   doubleSpeedActive = false;
   audio.setMuted(false);
   setBaseCampOpen(false);
@@ -1642,11 +2055,19 @@ dom.clearSaveButton.addEventListener("click", () => {
 
 document.addEventListener("pointerdown", () => audio.unlock(), { once: true });
 revealGameWhenReady().then(() => {
-  if (previewMode === "basecamp" || previewMode === "relic-research") {
-    if (previewMode === "relic-research") baseCampRoom = "relics";
-    setBaseCampOpen(true);
+  const startupFlow = () => {
+    if (previewMode === "basecamp" || previewMode === "relic-research") {
+      if (previewMode === "relic-research") baseCampRoom = "relics";
+      setBaseCampOpen(true);
+    }
+    else if (previewMode === "recovery" || (save.baseCamp.unlocked && !save.baseCamp.recoverySeen)) showBaseRecoveryEvent();
+  };
+  if (!previewMode && !save.settings.updatesDismissed) {
+    pendingStartupFlow = startupFlow;
+    setUpdatesOpen(true);
+  } else {
+    startupFlow();
   }
-  else if (previewMode === "recovery" || (save.baseCamp.unlocked && !save.baseCamp.recoverySeen)) showBaseRecoveryEvent();
 });
 
 globalThis.__ETERNAL_CRYSTAL_TOWER__ = {

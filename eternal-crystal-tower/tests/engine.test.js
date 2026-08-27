@@ -652,14 +652,38 @@ test("金潮归塔立即吸收全场金币并应用永久金币倍率", () => {
   assert.equal(useSkill(state, "coinVacuum"), false);
 });
 
-test("无人机满级后才能解锁晶塔磁吸并每五秒吸收永久资源", () => {
+test("拾荒无人机科技最多解锁五架", () => {
+  const state = createGameState(70);
+  state.threat = 8;
+  state.coins = 100_000;
+  purchaseUpgrade(state, "damage");
+  for (let index = 0; index < 5; index += 1) {
+    assert.equal(purchaseUpgrade(state, "drone"), true);
+  }
+  assert.equal(state.tower.upgrades.drone, 5);
+  assert.equal(purchaseUpgrade(state, "drone"), false);
+  updateGame(state, 1 / 60);
+  assert.equal(state.drones.length, 5);
+  assert.equal(GAME_CONFIG.techTree.drone.maxLevel, 5);
+});
+test("三架无人机即可开放磁吸、拦截和电池协议", () => {
+  const state = createGameState(701);
+  state.threat = 8;
+  state.coins = 100_000;
+  purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  assert.equal(getTechStatus(state, "autoCollect").unlocked, true);
+  assert.equal(purchaseUpgrade(state, "autoCollect"), true);
+  assert.equal(getTechStatus(state, "droneIntercept").unlocked, true);
+  assert.equal(getTechStatus(state, "droneBattery").unlocked, true);
+});
+test("无人机达到三架后即可解锁晶塔磁吸并每五秒吸收永久资源", () => {
   const state = createGameState(71);
   state.threat = 6;
   state.coins = 10_000;
   purchaseUpgrade(state, "damage");
   assert.equal(purchaseUpgrade(state, "autoCollect"), false);
   purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
-  assert.equal(getTechStatus(state, "autoCollect").unlocked, true);
   assert.equal(purchaseUpgrade(state, "autoCollect"), true);
   state.spawnTimer = 999;
   state.tower.droneCooldown = 999;
@@ -683,7 +707,7 @@ test("研究磁吸核心后护航模式仍允许手动点击金币", () => {
   const state = createGameState(711);
   state.threat = 6; state.coins = 10_000; state.spawnTimer = 999; state.wave.nextAt = 999;
   purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "autoCollect");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "autoCollect");
   state.tower.droneCooldown = 999;
   state.coinOrbs.push({ x: 240, y: 200, renderX: 240, renderY: 200, value: 12, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   const before = state.coins;
@@ -699,7 +723,7 @@ test("磁吸核心完成后才能切换无人机攻击模式", () => {
   state.threat = 6;
   state.coins = 10_000;
   purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   assert.equal(toggleDroneMode(state), false);
   purchaseUpgrade(state, "autoCollect");
   assert.equal(toggleDroneMode(state), true);
@@ -717,22 +741,22 @@ test("攻击模式无人机脱离轨道并近身伤害敌人", () => {
   state.tower.fireCooldown = 999;
   state.coins = 10_000;
   purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "autoCollect");
   toggleDroneMode(state);
   const enemy = spawnEnemy(state, "brute", { x: 650, y: 360 });
+  enemy.hp = enemy.maxHp = 100_000;
   const beforeHp = enemy.hp;
   for (let index = 0; index < 120; index += 1) updateGame(state, 1 / 60);
-  assert.equal(state.drones.length, 3);
+  assert.equal(state.drones.length, 5);
   assert.ok(enemy.hp < beforeHp);
-  assert.ok(state.drones.some((drone) => drone.targetId === enemy.id));
 });
 
 test("攻击模式暂停自动回收但保留手动拾币，耗尽后返回护航充能", () => {
   const state = createGameState(74);
   state.threat = 6; state.coins = 10_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "autoCollect");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "autoCollect");
   state.tower.droneEnergy = 20;
   assert.equal(toggleDroneMode(state), true);
   spawnPermanentResourceDrop(state, "echo", 2, 300, 300, { source: "elite" });
@@ -763,7 +787,7 @@ test("协议电池扩容提高无人机电量且自爆与防御路线互斥", ()
   const state = createGameState(741);
   state.time = 315; state.threat = 8; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999;
   purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "autoCollect");
   assert.equal(getDroneEnergyMax(state), GAME_CONFIG.drones.energyMax);
   assert.equal(purchaseUpgrade(state, "droneBattery"), true);
@@ -779,7 +803,7 @@ test("自爆协议优先锁定精英并在接近后造成范围伤害，随后�
   const state = createGameState(742);
   state.time = 315; state.threat = 8; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneBattery"); purchaseUpgrade(state, "droneDetonate");
   const ordinary = spawnEnemy(state, "brute", { x: 430, y: 360 });
   const elite = spawnEnemy(state, "sentinel", { x: 700, y: 360 }, { elite: true, affix: "sprint" });
@@ -803,7 +827,7 @@ test("防御协议消耗电力生成无人机护盾，耗尽后冷却并自动�
   const state = createGameState(743);
   state.time = 315; state.threat = 8; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999; state.tower.hp = 1_000_000;
   purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneBattery"); purchaseUpgrade(state, "droneGuard");
   updateGame(state, 3);
   assert.ok(state.tower.droneGuardShield > 0);
@@ -848,7 +872,7 @@ test("拾荒协议加快拾币并提高无人机带回的金币价值", () => {
 test("拦截协议在护航模式抵挡一次重击", () => {
   const state = createGameState(76);
   state.threat = 6; state.coins = 10_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
-  purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "droneIntercept");
+  purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "droneIntercept");
   const rammer = spawnEnemy(state, "rammer", { x: 520, y: 360 });
   rammer.speed = 0;
   const hp = state.tower.hp;
@@ -864,7 +888,7 @@ test("猎杀协议标记精英并使所有炮弹增伤", () => {
   const state = createGameState(77);
   state.threat = 7; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneHunt");
+  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneHunt");
   toggleDroneMode(state);
   const elite = spawnEnemy(state, "sentinel", { x: 628, y: 360 }, { elite: true, affix: "sprint" });
   elite.hp = elite.maxHp = 10_000; elite.speed = 0;

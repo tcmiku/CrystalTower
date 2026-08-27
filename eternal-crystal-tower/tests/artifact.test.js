@@ -11,7 +11,9 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
     "gameCanvas", "healthText", "coinsText", "threatText", "timeText", "upgradeList", "skillList",
     "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText", "globalLeaderboardPodium",
     "droneModeButton", "droneModeText", "droneModeHint", "droneProtocolButton", "droneProtocolText", "droneProtocolHint", "droneEnergyFill",
-    "pauseButton", "muteButton", "speedButton", "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput",
+    "pauseButton", "muteButton", "speedButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate",
+    "accountButton", "accountModal", "closeAccountButton", "loginForm", "showRegisterButton", "registerForm", "showLoginButton", "accountUserPanel", "saveChoicePanel", "useCloudSaveButton", "useLocalSaveButton", "logoutButton", "deleteAccountButton",
+    "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput",
     "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
     "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
     "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
@@ -22,8 +24,18 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(html, /src=["']\.\/src\/main\.js["']/);
   assert.match(html, /打开后自动暂停战斗/);
   assert.match(html, /SCORE · RANKING/);
+  assert.match(html, /游戏更新公告/);
+  assert.match(html, /id="openUpdatesButton"[^>]*>\s*<svg class="top-icon"/);
+  assert.match(html, /id="accountButton"[^>]*>\s*<svg class="top-icon"/);
+  assert.match(html, /id="muteButton"[^>]*>\s*<svg class="top-icon sound-icon"/);
+  assert.match(html, /id="pauseButton"[^>]*>\s*<svg class="top-icon pause-icon"/);
+  assert.match(html, /id="registerForm" class="auth-form hidden"/);
+  assert.match(html, /没有账号？注册/);
   assert.match(html, /viewport-fit=cover/);
+  assert.match(html, /updatesDismissButton/);
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+  const accountStyles = await readFile(new URL("../auth.css", import.meta.url), "utf8");
+  assert.match(accountStyles, /\.account-modal/);
   assert.match(styles, /@media \(max-width: 1024px\)/);
   assert.match(styles, /env\(safe-area-inset-top\)/);
   assert.match(styles, /#gameCanvas[^}]*touch-action:\s*none/s);
@@ -41,7 +53,12 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(styles, /\.relic-run-chip[\s\S]*pointer-events:\s*auto/);
   assert.match(styles, /leaderboard-podium[\s\S]*leaderboard-podium-ai\.png/);
   assert.match(styles, /\.status span,[\s\S]*\.leaderboard-list li \{ font-size: 10px; \}/);
+  assert.match(styles, /update-warning/);
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.match(main, /pendingStartupFlow/);
+  assert.match(main, /updatesDismissed/);
+  assert.match(main, /现已上线登录功能/);
+  assert.match(main, /warning\.className = "update-warning"/);
   const renderer = await readFile(new URL("../src/renderer.js", import.meta.url), "utf8");
   assert.match(main, /战利品已经掉落/);
   assert.match(main, /第一笔金币已到手/);
@@ -98,7 +115,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
 test("设计、构建与入口产物齐全", async () => {
   const paths = [
     "design/GAME_DESIGN.md", "design/ART_DIRECTION.md", "build/BUILD_BRIEF.md", "qa/ASSET_QA.md", "qa/TECH_TREE_QA.md",
-    "index.html", "styles.css", "src/main.js", "src/engine.js",
+    "index.html", "styles.css", "src/main.js", "src/engine.js", "src/github-updates.js",
     "assets/generated/arena-bg.png", "assets/generated/loading-splash.png", "assets/generated/tower-atlas.png",
     "assets/generated/enemy-atlas.png", "assets/generated/crystal-saw.png",
     "assets/generated/arena-day.png", "assets/generated/enemy-wave-atlas.png",

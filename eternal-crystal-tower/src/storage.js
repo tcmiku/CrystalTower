@@ -12,7 +12,7 @@ export function defaultSave() {
     relicSlots: GAME_CONFIG.relics.initialSlots,
     unlocks: { doubleSpeed: false },
     baseCamp: { unlocked: false, recoverySeen: false, coreEcho: false },
-    settings: { muted: false, playerName: "PLAYER" },
+    settings: { muted: false, playerName: "PLAYER", updatesDismissed: false },
     records: { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 },
     leaderboard: []
   };
@@ -41,6 +41,7 @@ export function sanitizeSave(candidate) {
   safe.baseCamp.coreEcho = safe.baseCamp.unlocked && candidate.baseCamp?.coreEcho === true;
   safe.settings.muted = Boolean(candidate.settings?.muted);
   safe.settings.playerName = sanitizePlayerName(candidate.settings?.playerName ?? "PLAYER");
+  safe.settings.updatesDismissed = candidate.settings?.updatesDismissed === true;
   safe.records.highestThreat = boundedInt(candidate.records?.highestThreat, 1, 1_000_000);
   safe.records.longestTime = Math.max(0, Number(candidate.records?.longestTime) || 0);
   safe.records.totalKills = boundedInt(candidate.records?.totalKills, 0, 1_000_000_000);

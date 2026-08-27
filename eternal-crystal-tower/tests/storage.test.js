@@ -12,6 +12,17 @@ function memoryStorage(initial = {}) {
   };
 }
 
+test("公告自动弹出偏好会被安全保存", () => {
+  const safeDefault = sanitizeSave({ version: 1 });
+  assert.equal(safeDefault.settings.updatesDismissed, false);
+  const safeDismissed = sanitizeSave({ version: 1, settings: { updatesDismissed: true } });
+  assert.equal(safeDismissed.settings.updatesDismissed, true);
+  const storage = memoryStorage();
+  const save = defaultSave();
+  save.settings.updatesDismissed = true;
+  writeSave(save, storage);
+  assert.equal(loadSave(storage).settings.updatesDismissed, true);
+});
 test("非法与旧版本存档回退到安全默认值", () => {
   assert.deepEqual(sanitizeSave(null), defaultSave());
   assert.deepEqual(sanitizeSave({ version: 9, stardust: 99 }), defaultSave());

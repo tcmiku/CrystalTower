@@ -1,0 +1,61 @@
+.account-button { color: #9ff3ff; font-weight: 800; }
+.account-button.logged-in { border-color: rgba(126, 238, 206, .5); color: #95f2cf; background: rgba(86, 205, 166, .1); }
+.top-icon { width: 19px; height: 19px; display: block; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.sound-mute, .play-state { display: none; }
+.icon-button.is-muted .sound-wave, .icon-button.is-paused .pause-state { display: none; }
+.icon-button.is-muted .sound-mute, .icon-button.is-paused .play-state { display: block; }
+.account-modal { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: clamp(12px, 3vw, 42px); background: radial-gradient(circle at 50% 35%, rgba(60, 85, 164, .3), rgba(2, 3, 14, .94) 68%); backdrop-filter: blur(14px); }
+.account-modal.hidden, .account-content.hidden { display: none; }
+.account-shell { width: min(780px, 96vw); max-height: 92vh; overflow: auto; border: 1px solid rgba(135, 225, 255, .28); border-radius: 25px; background: linear-gradient(150deg, rgba(19, 26, 62, .99), rgba(7, 8, 28, .99) 68%); box-shadow: 0 40px 110px rgba(0, 0, 0, .68), inset 0 1px rgba(255, 255, 255, .08); }
+.account-header { display: flex; justify-content: space-between; gap: 20px; padding: 26px 30px 20px; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.account-header span, .auth-form > span, .save-choice-heading > span { color: #7feaff; font: 800 10px ui-monospace, monospace; letter-spacing: .16em; }
+.account-header h2 { margin: 7px 0 4px; font-size: 30px; }
+.account-header p, .save-choice-heading p { margin: 0; color: #a7afcc; font-size: 12px; line-height: 1.6; }
+.account-close { align-self: flex-start; padding: 9px 13px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 9px; color: #edf6ff; background: rgba(255, 255, 255, .05); cursor: pointer; }
+.account-content { padding: 22px 30px; }
+.guest-notice { display: flex; justify-content: space-between; gap: 18px; margin-bottom: 17px; padding: 12px 14px; border: 1px solid rgba(255, 211, 109, .2); border-radius: 11px; background: rgba(255, 202, 89, .07); }
+.guest-notice strong { color: #ffe293; font-size: 13px; }
+.guest-notice span { color: #aeb5cf; font-size: 11px; }
+.auth-grid { display: block; }
+.auth-form { display: flex; flex-direction: column; padding: 18px; border: 1px solid rgba(255, 255, 255, .09); border-radius: 15px; background: rgba(255, 255, 255, .035); }
+.auth-form h3 { margin: 5px 0 15px; font-size: 20px; }
+.auth-form label { margin: 9px 0 5px; color: #cfd6ed; font-size: 11px; }
+.auth-form input { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid rgba(158, 222, 255, .18); border-radius: 9px; outline: 0; color: #f5f8ff; background: rgba(4, 6, 22, .72); }
+.auth-form input:focus { border-color: #7feaff; box-shadow: 0 0 0 3px rgba(127, 234, 255, .09); }
+.auth-form small { margin-top: 5px; color: #838dab; font-size: 9px; line-height: 1.45; }
+.auth-form button { margin-top: 16px; min-height: 41px; border: 1px solid rgba(120, 231, 255, .35); border-radius: 9px; color: #eaffff; background: linear-gradient(120deg, rgba(75, 203, 230, .22), rgba(132, 106, 241, .18)); cursor: pointer; }
+.auth-form button:disabled, .account-actions button:disabled, .save-choice-grid button:disabled { opacity: .5; cursor: wait; }
+.auth-form .auth-switch { min-height: 30px; margin: 10px auto 0; padding: 3px 8px; border: 0; color: #8edff4; background: transparent; font-size: 11px; cursor: pointer; }
+.auth-form .auth-switch:hover { color: #e5fbff; text-decoration: underline; }
+.account-profile { display: flex; align-items: center; gap: 17px; padding: 18px; border: 1px solid rgba(119, 235, 198, .2); border-radius: 15px; background: rgba(81, 202, 159, .07); }
+.account-profile i { display: grid; place-items: center; width: 52px; height: 52px; border: 1px solid rgba(126, 238, 206, .45); border-radius: 50%; color: #a7f5d9; background: rgba(81, 202, 159, .12); font: 800 20px ui-monospace, monospace; }
+.account-profile span, .account-profile strong, .account-profile small { display: block; }
+.account-profile span { color: #7eddbb; font-size: 9px; letter-spacing: .14em; }
+.account-profile strong { margin-top: 3px; font-size: 22px; }
+.account-profile small { margin-top: 5px; color: #a9b2cc; font-size: 11px; }
+.account-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.account-actions button { min-height: 42px; border: 1px solid rgba(255, 255, 255, .13); border-radius: 9px; color: #edf4ff; background: rgba(255, 255, 255, .05); cursor: pointer; }
+.account-actions .primary-button { grid-column: 1 / -1; }
+.account-actions .danger-button { color: #ffaaaa; border-color: rgba(255, 100, 110, .25); }
+.save-choice-heading h3 { margin: 6px 0 7px; font-size: 24px; }
+.save-choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin-top: 18px; }
+.save-choice-grid button { padding: 18px; border: 1px solid rgba(125, 226, 255, .2); border-radius: 14px; color: #edf7ff; background: rgba(255, 255, 255, .04); cursor: pointer; text-align: left; transition: transform .15s, border-color .15s, background .15s; }
+.save-choice-grid button:hover { transform: translateY(-2px); border-color: rgba(125, 226, 255, .55); background: rgba(107, 210, 243, .09); }
+.save-choice-grid span, .save-choice-grid strong, .save-choice-grid small { display: block; }
+.save-choice-grid span { color: #83e9ff; font-size: 10px; letter-spacing: .12em; }
+.save-choice-grid strong { margin: 9px 0 6px; font-size: 15px; line-height: 1.5; }
+.save-choice-grid small { color: #909ab8; font-size: 10px; }
+.account-status { min-height: 36px; margin: 0; padding: 0 30px 20px; color: #96e8ff; font-size: 11px; }
+.account-status.error { color: #ff9a9f; }
+
+@media (max-width: 640px), (max-height: 650px) {
+  .account-modal { padding: 6px; place-items: stretch; overflow: auto; }
+  .account-shell { width: 100%; max-height: none; min-height: 100%; border-radius: 16px; }
+  .account-header { padding: 18px 15px 14px; }
+  .account-header h2 { font-size: 24px; }
+  .account-header p { display: none; }
+  .account-content { padding: 15px; }
+  .save-choice-grid { grid-template-columns: 1fr; }
+  .guest-notice { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .account-status { padding: 0 15px 18px; }
+}

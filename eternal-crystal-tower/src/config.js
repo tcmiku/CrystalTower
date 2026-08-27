@@ -99,7 +99,7 @@ export const GAME_CONFIG = Object.freeze({
     sawLaunch: { branch: "blade", costs: [210], maxLevel: 1, threat: [5], requires: { saw: 3 }, excludes: ["sawOverdrive", "sawGun"] },
     sawRicochet: { branch: "blade", baseCost: 230, growth: 1.8, maxLevel: 3, threat: [6, 8, 10], requires: { sawLaunch: 1 } },
     sawRecovery: { branch: "blade", baseCost: 180, growth: 1.75, maxLevel: 3, threat: [6, 7, 9], requires: { sawLaunch: 1 } },
-    drone: { branch: "economy", baseCost: 55, growth: 1.8, maxLevel: 3, threat: [2, 3, 4], requires: { damage: 1 } },
+    drone: { branch: "economy", baseCost: 55, growth: 1.8, maxLevel: 5, threat: [2, 3, 4, 5, 6], requires: { damage: 1 } },
     autoCollect: { branch: "economy", costs: [520], maxLevel: 1, threat: [6], requires: { drone: 3 } },
     droneScavenge: { branch: "economy", costs: [300], maxLevel: 1, threat: [5], requires: { drone: 2 } },
     droneIntercept: { branch: "economy", costs: [480], maxLevel: 1, threat: [6], requires: { drone: 3 } },
