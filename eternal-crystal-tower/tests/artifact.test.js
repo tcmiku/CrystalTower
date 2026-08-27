@@ -115,6 +115,10 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /setAttribute\("aria-label"/);
   assert.match(main, /chip\.title = effect/);
   assert.match(main, /firstFailureCoreGift = firstFailure \? 1 : 0/);
+  assert.doesNotMatch(main, /if \(!state\.endlessMode \|\| !currentRunScore/);
+  assert.match(main, /currentRunMode = state\.endlessMode \|\| outcome === "endless" \? "endless" : "standard"/);
+  assert.match(main, /scoreEntryForm\.classList\.remove\("hidden"\)/);
+  assert.doesNotMatch(main, /仅无尽挑战可登记章节排行榜成绩/);
   assert.doesNotMatch(await readFile(new URL("../src/engine.js", import.meta.url), "utf8"), /source: "(?:wave|protocol)"/);
   assert.match(renderer, /resource-echo-shard-ai\.png/);
   assert.match(renderer, /enemy-astral-atlas-ai\.png/);

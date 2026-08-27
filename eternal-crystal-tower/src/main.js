@@ -502,6 +502,7 @@ let runSettled = false;
 let scoreSubmitted = false;
 let scoreSubmitting = false;
 let currentRunScore = null;
+let currentRunMode = "standard";
 let currentEntryDate = null;
 let leaderboardEntries = [];
 let leaderboardLoading = true;
@@ -2057,7 +2058,7 @@ async function refreshLeaderboard() {
 
 async function submitCurrentScore(event) {
   event.preventDefault();
-  if (!state.endlessMode || !currentRunScore || scoreSubmitted || scoreSubmitting) return;
+  if (!currentRunScore || scoreSubmitted || scoreSubmitting) return;
   scoreSubmitting = true;
   const date = Date.now();
   dom.playerNameInput.disabled = true;
@@ -2073,7 +2074,7 @@ async function submitCurrentScore(event) {
       coins: Math.floor(state.coins),
       message: sanitizeLeaderboardMessage(dom.playerMessageInput.value),
       chapter: save.campaign.currentChapter,
-      mode: "endless",
+      mode: currentRunMode,
       date
     });
     save.settings.playerName = result.entry.name;
@@ -2128,6 +2129,7 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
   cancelStarfallAim(false);
   runSettled = true;
   currentRunScore = calculateRunScore(state);
+  currentRunMode = state.endlessMode || outcome === "endless" ? "endless" : "standard";
   scoreSubmitted = false;
   currentEntryDate = null;
   save.stardust += stardust;
@@ -2149,8 +2151,8 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
   dom.resultCoinScore.textContent = `${Math.floor(state.coins)} × ${GAME_CONFIG.score.coinMultiplier} = ${formatNumber(currentRunScore.coinBonus)}`;
   dom.gameOverTitle.textContent = outcome === "victory" ? "远征凯旋" : outcome === "endless" ? "无尽挑战结束" : "晶光熄灭";
   dom.gameOverLine.textContent = outcome === "victory" ? "核心能源已带回大本营，等待装配。" : outcome === "endless" ? "排行榜数据已锁定，主线核心能源完好无损。" : "裂隙吞没了最后一道光。";
-  dom.scoreEntryForm.classList.toggle("hidden", outcome !== "endless");
-  dom.scoreEntryStatus.textContent = outcome === "endless" ? "" : "仅无尽挑战可登记章节排行榜成绩";
+  dom.scoreEntryForm.classList.remove("hidden");
+  dom.scoreEntryStatus.textContent = "";
   dom.playerNameInput.value = save.settings.playerName ?? "PLAYER";
   dom.playerMessageInput.value = "";
   dom.playerNameInput.disabled = false;
@@ -2237,6 +2239,7 @@ function restart() {
   runSettled = false;
   scoreSubmitted = false;
   currentRunScore = null;
+  currentRunMode = "standard";
   currentEntryDate = null;
   accumulator = 0;
   lastFrame = performance.now();
