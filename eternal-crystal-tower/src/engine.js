@@ -41,6 +41,11 @@ export function getThreatSealModifiers(equipped = []) {
     modifiers.healCooldownMultiplier = GAME_CONFIG.threatSeals.flawless.healCooldownMultiplier;
     modifiers.skillDamageMultiplier = GAME_CONFIG.threatSeals.flawless.skillDamageMultiplier;
   }
+  // Keep persisted/UI-facing modifiers deterministic instead of leaking binary
+  // floating-point tails after several additive seal bonuses are combined.
+  for (const key of ["resourceMultiplier", "scoreMultiplier", "relicChanceBonus", "achievementMultiplier"]) {
+    modifiers[key] = Number(modifiers[key].toFixed(2));
+  }
   return { ids, ...modifiers };
 }
 
@@ -149,9 +154,13 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
   return state;
 }
 
-export function getDayPhase(threat, nightWaves = GAME_CONFIG.threat.nightWaves) {
+export function getDayPhase(threat, nightWaves = GAME_CONFIG.threat.nightWaves, mapSource) {
   const { dayWaves } = GAME_CONFIG.threat;
-  const resolvedNightWaves = Math.max(1, Math.floor(Number(nightWaves) || GAME_CONFIG.threat.nightWaves));
+  // Array#map passes (value, index, array); ignore those callback arguments so
+  // the public helper remains backwards-compatible when used directly as a
+  // mapper while still accepting an explicit custom night-wave count.
+  const requestedNightWaves = Array.isArray(mapSource) ? GAME_CONFIG.threat.nightWaves : nightWaves;
+  const resolvedNightWaves = Math.max(1, Math.floor(Number(requestedNightWaves) || GAME_CONFIG.threat.nightWaves));
   return ((Math.max(1, threat) - 1) % (dayWaves + resolvedNightWaves)) < dayWaves ? "day" : "night";
 }
 

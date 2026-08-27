@@ -26,7 +26,7 @@ export function defaultSave() {
       chapterRecords: { 1: { cleared: false, clears: 0, bestTime: 0, bestKills: 0, bestScore: 0 } }
     },
     settings: { muted: false, playerName: "PLAYER", updatesDismissed: false },
-    records: { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0, sealAchievementProgress: 0 },
+    records: { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 },
     leaderboard: []
   };
 }
@@ -63,7 +63,9 @@ export function sanitizeSave(candidate) {
   safe.campaign.coreEnergy[1] = candidate.campaign?.coreEnergy?.[1] === true;
   safe.campaign.repairedNodes[1] = safe.campaign.coreEnergy[1] && candidate.campaign?.repairedNodes?.[1] === true;
   safe.campaign.unlockedChapters[2] = safe.campaign.repairedNodes[1] && candidate.campaign?.unlockedChapters?.[2] === true;
-  safe.threatSeals.unlocked = safe.campaign.coreEnergy[1] || candidate.threatSeals?.unlocked === true && safe.campaign.chapterRecords?.[1]?.cleared === true;
+  // Threat seals are earned from the first chapter's core energy.  Do not trust
+  // a forged standalone `threatSeals.unlocked` flag in an old or edited save.
+  safe.threatSeals.unlocked = safe.campaign.coreEnergy[1] === true;
   const equippedSeals = Array.isArray(candidate.threatSeals?.equipped) ? candidate.threatSeals.equipped : [];
   safe.threatSeals.equipped = safe.threatSeals.unlocked
     ? [...new Set(equippedSeals.filter((key) => Object.hasOwn(GAME_CONFIG.threatSeals, key)))]
@@ -83,7 +85,11 @@ export function sanitizeSave(candidate) {
   safe.records.longestTime = Math.max(0, Number(candidate.records?.longestTime) || 0);
   safe.records.totalKills = boundedInt(candidate.records?.totalKills, 0, 1_000_000_000);
   safe.records.failures = boundedInt(candidate.records?.failures, 0, 1_000_000_000);
-  safe.records.sealAchievementProgress = boundedInt(candidate.records?.sealAchievementProgress, 0, 2_000_000_000);
+  // Keep this field optional so pre-seal saves retain their original shape while
+  // new runs persist progress once it has actually been earned.
+  if (Object.hasOwn(candidate.records ?? {}, "sealAchievementProgress")) {
+    safe.records.sealAchievementProgress = boundedInt(candidate.records.sealAchievementProgress, 0, 2_000_000_000);
+  }
   const entries = Array.isArray(candidate.leaderboard) ? candidate.leaderboard : [];
   safe.leaderboard = entries.map((entry) => ({
     name: sanitizePlayerName(entry?.name),
