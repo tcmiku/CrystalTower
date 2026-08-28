@@ -16,8 +16,9 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
     "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput", "playerMessageInput",
     "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
     "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
+    "storyIntro", "storyIntroStage", "storyIntroBackdrop", "storyIntroLayers", "storyIntroBubbles", "storyIntroChapter", "storyIntroProgress", "storyIntroTimeline", "storyIntroDisable", "storyIntroSkip", "storyIntroNext",
     "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
-    "openBaseCampButton", "baseRecoveryModal", "recoveryContinueButton", "baseCampModal", "closeBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseCampEchoShardText", "baseCampCoreFragmentText", "campaignRoom", "campaignPanel", "chapterNodeList", "chapterCompleteModal", "finishExpeditionButton", "startEndlessButton", "endEndlessButton", "researchBayRoom", "relicResearchPanel", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver"
+    "openBaseCampButton", "baseRecoveryModal", "recoveryContinueButton", "baseCampModal", "baseCampShell", "closeBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampModuleList", "baseCampModulePage", "closeBaseCampModuleButton", "baseCampModulePageTitle", "baseCampModulePageStatus", "campaignPanel", "chapterNodeList", "chapterCompleteModal", "finishExpeditionButton", "startEndlessButton", "endEndlessButton", "relicResearchPanel", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver"
   ];
   for (const id of requiredIds) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.doesNotMatch(html, /(?:src|href)=["']https?:\/\//i);
@@ -47,14 +48,16 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(styles, /#damageStat\s*\{\s*color:\s*#ff707a/);
   assert.match(styles, /status:nth-child\(2\) strong[\s\S]*#ffd36d/);
   assert.match(styles, /\.basecamp-modal[\s\S]*overflow-y:\s*auto/);
-  assert.match(styles, /\.basecamp-shell[\s\S]*height:\s*auto[\s\S]*overflow:\s*visible/);
+  assert.match(styles, /Standalone basecamp module pages/);
+  assert.match(styles, /\.basecamp-shell\.module-open \{ height:/);
+  assert.match(styles, /\.basecamp-module-page-body \{[\s\S]*overflow-y: auto/);
   assert.match(styles, /\.upgrade-panel[^}]*overflow-y:\s*auto/);
   assert.match(styles, /\.drone-protocol-button \{ grid-column:\s*1 \/ -1;/);
   assert.match(styles, /\.relic-research-card p[\s\S]*font-size:\s*12px/);
   assert.match(styles, /\.relic-run-chip:hover[\s\S]*\.relic-run-tooltip/);
   assert.match(styles, /\.relic-run-chip[\s\S]*pointer-events:\s*auto/);
   assert.match(styles, /leaderboard-podium[\s\S]*leaderboard-podium-ai\.png/);
-  assert.match(styles, /\.base-room\.research-room\.active \{ left:38%; right:auto;/);
+  assert.match(styles, /\.basecamp-module-grid \{[\s\S]*grid-template-columns:/);
   assert.match(styles, /\.status span,[\s\S]*\.leaderboard-list li \{ font-size: 10px; \}/);
   assert.match(styles, /update-warning/);
   assert.match(styles, /\.podium-message/);
@@ -114,7 +117,10 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /showBaseRecoveryEvent/);
   assert.match(main, /等级 \$\{level\}\/\$\{GAME_CONFIG\.research\.maxLevel\}/);
   assert.match(main, /createRelicHudChip/);
-  assert.match(html, /relicArchiveRoom/);
+  assert.match(main, /BASECAMP_MODULES/);
+  assert.match(main, /function showBaseCampHub/);
+  assert.match(main, /baseCampRoom \? showBaseCampHub\(true\)/);
+  assert.match(html, /id="baseCampModulePage"[\s\S]*id="campaignPanel"[\s\S]*id="threatSealPanel"/);
   assert.match(html, /relicArchivePanel/);
   assert.match(html, /所有遗物默认加入战局候选池/);
   assert.match(html, /最多禁用三件已发现遗物/);
@@ -157,13 +163,49 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(renderer, /可摧毁裂隙/);
   assert.match(renderer, /弱点暴露/);
   assert.match(styles, /basecamp-core-room-ai\.png/);
+  assert.match(html, /baseCampModuleList/);
+  assert.match(styles, /Image-led basecamp module cards/);
+  assert.match(styles, /basecamp-module-art/);
+  assert.match(main, /basecamp-module-campaign-v1\.png/);
+  assert.match(html, /id="nexusPanel" class="nexus-panel nexus-core-panel"/);
+  assert.match(html, /nexus-upgrade-fx/);
+  assert.match(styles, /basecamp-nexus-page-v1\.png/);
+  assert.match(styles, /@keyframes nexusUpgradeRing/);
+  assert.match(html, /nexus-upgrade-arrows/);
+  assert.match(styles, /@keyframes nexusUpgradeArrow/);
+  assert.match(main, /function playNexusUpgradeFx/);
+  assert.match(main, /research-upgraded/);
+  assert.match(main, /previewMode === "nexus"/);
+  assert.match(html, /id="storyIntro" class="story-intro hidden"/);
+  assert.match(html, /id="storyIntroBubbles" class="story-intro-bubbles"/);
+  assert.match(main, /const INTRO_SCENES = \[/);
+  assert.match(main, /previewMode === "intro"/);
+  assert.match(main, /save\.settings\.introDisabled = true/);
+  assert.match(main, /function startChapterOne\(\)/);
+  assert.match(main, /if \(previewMode === "intro"\) showStoryIntro\(continueStartup\)/);
+  assert.match(styles, /First-entry animated comic prologue/);
+  assert.match(styles, /intro-void-transition-v1\.png/);
+  assert.match(styles, /Layered speech-bubble animated comic prologue/);
+  assert.match(main, /intro-bg-city-dawn-v1\.png/);
+  assert.match(main, /storyIntroLayers/);
+  assert.match(main, /duration: 2400/);
+  assert.match(styles, /Compact framed opening-story viewport/);
+  assert.match(html, /class="story-intro-dialog"/);
+  assert.match(styles, /Opening story as a true modal dialog/);
+  assert.match(main, /layers: \[\], chapter:/);
+  assert.match(main, /layer-horde layer-horde-distant/);
+  assert.match(styles, /\.layer-guardian-left \{ z-index: 5; \}/);
 });
 
 test("设计、构建与入口产物齐全", async () => {
   const paths = [
     "design/GAME_DESIGN.md", "design/ART_DIRECTION.md", "build/BUILD_BRIEF.md", "qa/ASSET_QA.md", "qa/TECH_TREE_QA.md",
     "index.html", "styles.css", "src/main.js", "src/engine.js", "src/github-updates.js",
-    "assets/generated/arena-bg.png", "assets/generated/loading-splash.png", "assets/generated/tower-atlas.png",
+    "assets/generated/arena-bg.png", "assets/generated/loading-splash.png", "assets/generated/intro-void-transition-v1.png", "assets/generated/tower-atlas.png",
+    "assets/story/intro-panel-01-crystal-city.png", "assets/story/intro-panel-02-shattering.png", "assets/story/intro-panel-03-monster-night.png", "assets/story/intro-panel-04-guardian-reaction.png", "assets/story/intro-panel-05-last-tower.png",
+    "assets/story/intro-panel-06-chosen-guardian.png", "assets/story/intro-panel-07-guardian-doubt.png", "assets/story/intro-panel-08-resonance.png", "assets/story/intro-panel-09-horde-leader.png", "assets/story/intro-panel-10-elemental-awakening.png",
+    "assets/story/intro-bg-city-dawn-v1.png", "assets/story/intro-bg-ruined-wasteland-v1.png", "assets/story/intro-bg-last-bastion-v1.png", "assets/story/intro-bg-horde-night-v1.png",
+    "assets/story/intro-layer-crystal-core-v1.png", "assets/story/intro-layer-crystal-shards-v1.png", "assets/story/intro-layer-guardian-v1.png", "assets/story/intro-layer-monster-horde-v1.png", "assets/story/intro-layer-elemental-burst-v1.png", "assets/story/intro-layer-last-tower-v1.png",
     "assets/generated/enemy-atlas.png", "assets/generated/crystal-saw.png",
     "assets/generated/arena-day.png", "assets/generated/enemy-wave-atlas.png",
     "assets/generated/enemy-astral-atlas-ai.png",
@@ -182,7 +224,7 @@ test("设计、构建与入口产物齐全", async () => {
     "assets/generated/effect-lightning-chain-ai.png",
     "assets/generated/relic-decoy-ai.png", "assets/generated/relic-lunar-ai.png", "assets/generated/relic-mirror-ai.png", "assets/generated/relic-ember-ai.png", "assets/generated/relic-boost-ai.png", "assets/generated/relic-endless-amplifier-ai.png",
     "assets/generated/leaderboard-podium-ai.png",
-    "assets/generated/resource-echo-shard-ai.png", "assets/generated/resource-core-fragment-ai.png", "assets/generated/basecamp-core-room-ai.png", "assets/generated/campaign-core-nexus-ai.png",
+    "assets/generated/resource-echo-shard-ai.png", "assets/generated/resource-core-fragment-ai.png", "assets/generated/basecamp-core-room-ai.png", "assets/generated/basecamp-nexus-page-v1.png", "assets/generated/basecamp-module-campaign-v1.png", "assets/generated/basecamp-module-nexus-v1.png", "assets/generated/basecamp-module-relics-v1.png", "assets/generated/basecamp-module-archive-v1.png", "assets/generated/basecamp-module-seals-v1.png", "assets/generated/campaign-core-nexus-ai.png",
     "assets/generated/ASSET_MANIFEST.md", "assets/generated/PROMPTS.md"
   ];
   await Promise.all(paths.map((path) => access(new URL(`../${path}`, import.meta.url))));

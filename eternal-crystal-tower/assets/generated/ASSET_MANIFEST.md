@@ -119,3 +119,34 @@
 用途：无尽模式专属遗物“无界增幅核”的竖版卡面。青紫晶体能源核与向无限远点重复延伸的金白增幅轨道，表达每波叠加攻击力与攻击速度；名称、层数与数值全部由 HTML 叠加。由 OpenAI 内置生图模型生成，无文字、徽标、边框或 UI。
 
 源文件：`/Users/mac/.codex/generated_images/01a0427f-2259-7320-9dc4-d6759dc567aa/exec-8fb6f2da-0f73-4c21-b828-4f5ddac2a096.png`，项目内副本为 `assets/generated/relic-endless-amplifier-ai.png`。
+
+## 大本营模块入口卡插画（2026-08-28）
+
+- basecamp-module-campaign-v1.png：远征入口，金色罗盘与星门。
+- basecamp-module-nexus-v1.png：晶核研究，青紫晶核与同心能量环。
+- basecamp-module-relics-v1.png：遗物研究，紫色晶片与炼金研究容器。
+- basecamp-module-archive-v1.png：遗物档案，开放式晶体典藏库与浮动遗物。
+- basecamp-module-seals-v1.png：威胁封印，绯红紫色封印祭坛与警示晶片。
+
+五张均由 OpenAI 内置生图模型逐件生成，作为大本营入口卡整面背景使用；无文字、徽标、UI、边框和水印，标题、描述、状态由 HTML 叠加。图片使用 object-fit: cover 适配桌面三列、窄屏两列卡片。
+## 首次进入动态漫画序章（2026-08-28）
+
+- assets/story/intro-panel-01 至 intro-panel-10：从用户提供的两张 941×1672 漫画页中裁出的十个独立分镜；不在游戏中加载整页原图。裁切尽量避开原漫画标题栏、页尾标语和叙述文字框，剧情文字由 HTML 叠加。
+- intro-void-transition-v1.png：由 OpenAI 内置生图模型生成的 16:9 简洁暗色晶核虚空背景，只承载分镜之间的留白、闪白和晶屑过渡。
+
+序章分镜依次表现晶核王城、晶核破碎、长夜怪潮、守望者反应、最后晶塔、被晶塔选中、迟疑、共鸣、首领现身和元素觉醒。代码使用推近、横移、震屏、闪光与轻量晶屑实现动态漫画效果。## �ֲ����ݶ�̬�����������ƣ�2026-08-28��
+
+���汣��ԭ�������򣬵��� 10 Ļѹ��Ϊ 6 �����½ڵ㣬����Ϊ�ɸ��õı��� + ͸��ǰ��ͼ����ϡ��ɵ� intro-panel-01 �� intro-panel-10 �زı����ڲֿ�����Ϊ��ʷ�汾�������ɵ�ǰ���¼��ء�
+
+- assets/story/intro-bg-city-dawn-v1.png��������������ĳ��سǰ����1672��941��
+- assets/story/intro-bg-ruined-wasteland-v1.png�����������ķ��汳����1672��941��
+- assets/story/intro-bg-last-bastion-v1.png����������ڵ�Բ�η��汳����1672��941��
+- assets/story/intro-bg-horde-night-v1.png���ֳ���Ϯ����ɫ�籩������1672��941��
+- assets/story/intro-layer-crystal-core-v1.png��͸������ǰ���㣬1024��1536��
+- assets/story/intro-layer-crystal-shards-v1.png��͸����Ƭ����ǰ���㣬1241��1268��
+- assets/story/intro-layer-guardian-v1.png��͸�������߽�ɫ�㣬1024��1536��
+- assets/story/intro-layer-monster-horde-v1.png��͸���ֳ���Ӱ�㣬1536��1024��
+- assets/story/intro-layer-elemental-burst-v1.png��͸��Ԫ�ر�����Ч�㣬1536��1024��
+- assets/story/intro-layer-last-tower-v1.png��͸����ҫ����ǰ���㣬1214��1295��
+
+���ű�����Ϊ���������ֻ��棻����ǰ��ͼ��ͨ��͸�� Alpha ��顣ҳ��ͨ�� CSS �˾����볡�����������⸴����Щ�زģ��������ָ���������ʽ���ӣ�����δ�����ӽ�ɫ����֧��ϵͳ��ͷ��

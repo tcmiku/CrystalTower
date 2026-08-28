@@ -15,13 +15,21 @@ function memoryStorage(initial = {}) {
 test("公告自动弹出偏好会被安全保存", () => {
   const safeDefault = sanitizeSave({ version: 1 });
   assert.equal(safeDefault.settings.updatesDismissed, false);
+  assert.equal(safeDefault.settings.introSeen, false);
+  assert.equal(safeDefault.settings.introDisabled, false);
   const safeDismissed = sanitizeSave({ version: 1, settings: { updatesDismissed: true } });
   assert.equal(safeDismissed.settings.updatesDismissed, true);
+  const legacyProgress = sanitizeSave({ version: 1, records: { totalKills: 1 } });
+  assert.equal(legacyProgress.settings.introSeen, true);
   const storage = memoryStorage();
   const save = defaultSave();
   save.settings.updatesDismissed = true;
+  save.settings.introSeen = true;
+  save.settings.introDisabled = true;
   writeSave(save, storage);
   assert.equal(loadSave(storage).settings.updatesDismissed, true);
+  assert.equal(loadSave(storage).settings.introSeen, true);
+  assert.equal(loadSave(storage).settings.introDisabled, true);
 });
 test("非法与旧版本存档回退到安全默认值", () => {
   assert.deepEqual(sanitizeSave(null), defaultSave());

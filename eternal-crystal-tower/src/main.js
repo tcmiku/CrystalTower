@@ -153,17 +153,84 @@ const dom = Object.fromEntries([
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
   "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "deleteLocalSaveButton", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "gameOverTitle", "gameOverLine", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore", "resultScoreMultiplier", "resultSealAchievement", "endEndlessButton",
   "scoreEntryForm", "playerNameInput", "playerMessageInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
-  "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
+  "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "storyIntro", "storyIntroStage", "storyIntroBackdrop", "storyIntroLayers", "storyIntroBubbles", "storyIntroChapter", "storyIntroProgress", "storyIntroTimeline", "storyIntroDisable", "storyIntroSkip", "storyIntroNext", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
-  "baseCampModal", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "campaignRoom", "coreNexusRoom", "researchBayRoom", "relicArchiveRoom", "threatSealRoom", "campaignPanel", "campaignProgressText", "chapterNodeList", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "threatSealPanel", "threatSealUnlockStatus", "threatSealList", "sealScoreMultiplier", "sealResourceMultiplier", "sealRelicChance", "sealAchievementMultiplier", "sealEquippedSummary", "sealAchievementProgress", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "chapterCompleteModal", "chapterCoreAwardStatus", "finishExpeditionButton", "startEndlessButton",
+  "baseCampModal", "baseCampShell", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "baseCampModuleList", "baseCampModulePage", "closeBaseCampModuleButton", "baseCampModulePageIcon", "baseCampModulePageKicker", "baseCampModulePageTitle", "baseCampModulePageSummary", "baseCampModulePageStatus", "campaignPanel", "campaignProgressText", "chapterNodeList", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "threatSealPanel", "threatSealUnlockStatus", "threatSealList", "sealScoreMultiplier", "sealResourceMultiplier", "sealRelicChance", "sealAchievementMultiplier", "sealEquippedSummary", "sealAchievementProgress", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "chapterCompleteModal", "chapterCoreAwardStatus", "finishExpeditionButton", "startEndlessButton",
   "relicRunHud", "threatSealHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList", "relicChoiceKeys"
 ].map((id) => [id, document.getElementById(id)]));
 
+const BASECAMP_MODULES = [
+  {
+    key: "campaign",
+    panelId: "campaignPanel",
+    category: "远征",
+    name: "能源核心",
+    description: "装配章节能源，选择远征地图",
+    art: "./assets/generated/basecamp-module-campaign-v1.png",
+    icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 24 14 7l5 9 7-4-5 13-7-5-8 4Z"/><path d="m14 7 1 13"/></svg>'
+  },
+  {
+    key: "nexus",
+    panelId: "nexusPanel",
+    category: "成长",
+    name: "晶核中枢",
+    description: "永久研究与核心档案",
+    art: "./assets/generated/basecamp-module-nexus-v1.png",
+    icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="m16 3 9 7-3 14-6 5-6-5-3-14 9-7Z"/><path d="m16 8 4 5-4 10-4-10 4-5Z"/></svg>'
+  },
+  {
+    key: "relics",
+    panelId: "relicResearchPanel",
+    category: "成长",
+    name: "研究舱",
+    description: "强化已发现的遗物",
+    art: "./assets/generated/basecamp-module-relics-v1.png",
+    icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M12 4h8M14 4v8L7 24c-1 2 1 4 3 4h12c2 0 4-2 3-4l-7-12V4"/><path d="M10 21h12M12 17h8"/></svg>'
+  },
+  {
+    key: "archive",
+    panelId: "relicArchivePanel",
+    category: "构筑",
+    name: "遗物档案馆",
+    description: "图鉴、禁用与套装登记",
+    art: "./assets/generated/basecamp-module-archive-v1.png",
+    icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="m5 9 11-5 11 5-11 5L5 9Z"/><path d="m5 15 11 5 11-5M5 21l11 6 11-6"/></svg>'
+  },
+  {
+    key: "seals",
+    panelId: "threatSealPanel",
+    category: "挑战",
+    name: "封印圣坛",
+    description: "提高风险与远征收益",
+    art: "./assets/generated/basecamp-module-seals-v1.png",
+    icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 26 7v8c0 7-4 11-10 14C10 26 6 22 6 15V7l10-4Z"/><path d="m12 16 3 3 6-7"/></svg>'
+  }
+];
 let save = loadSave();
 let runIndex = 0;
 const baseSeed = seedFromUrl(location.search);
 let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped);
 const previewMode = new URLSearchParams(location.search).get("preview");
+const INTRO_SCENES = [
+  { background: "./assets/story/intro-bg-city-dawn-v1.png", layers: [], chapter: "序章 · 晶核纪元", bubbles: [{ text: "昔日，晶核照亮世界。", kind: "narration", position: "top-left" }], motion: "motion-push", tone: "dawn", duration: 2600 },
+  { background: "./assets/story/intro-bg-ruined-wasteland-v1.png", layers: [], chapter: "序章 · 破碎之日", bubbles: [{ text: "直到那天，晶核破碎。", kind: "narration", position: "top-left" }], motion: "motion-shake", tone: "rupture", duration: 2400 },
+  { background: "./assets/story/intro-bg-ruined-wasteland-v1.png", layers: [{ src: "./assets/story/intro-layer-monster-horde-v1.png", className: "layer-horde layer-horde-focus" }], chapter: "序章 · 长夜降临", bubbles: [{ text: "黑夜与怪物吞没了大陆。", kind: "narration", position: "top-left" }], motion: "motion-pan-right", tone: "night", duration: 2500 },
+  { background: "./assets/story/intro-bg-last-bastion-v1.png", layers: [{ src: "./assets/story/intro-layer-last-tower-v1.png", className: "layer-tower" }], chapter: "序章 · 最后的晶塔", bubbles: [{ text: "如今，只剩永耀晶塔。", kind: "narration", position: "top-left" }], motion: "motion-rise", tone: "tower", duration: 2600 },
+  { background: "./assets/story/intro-bg-last-bastion-v1.png", layers: [{ src: "./assets/story/intro-layer-last-tower-v1.png", className: "layer-tower" }, { src: "./assets/story/intro-layer-guardian-v1.png", className: "layer-guardian-left" }], chapter: "序章 · 守望者", bubbles: [{ text: "晶塔选择了最后的守望者。", kind: "narration", position: "top-left" }, { text: "我……能守住吗？", kind: "speech", position: "right" }], motion: "motion-pull", tone: "guardian", duration: 3000 },
+  { background: "./assets/story/intro-bg-horde-night-v1.png", layers: [{ src: "./assets/story/intro-layer-monster-horde-v1.png", className: "layer-horde layer-horde-distant" }, { src: "./assets/story/intro-layer-elemental-burst-v1.png", className: "layer-elemental layer-elemental-behind" }, { src: "./assets/story/intro-layer-last-tower-v1.png", className: "layer-tower layer-tower-final" }], chapter: "序章 · 第一波防线", bubbles: [{ text: "检测到共鸣者。", kind: "system", position: "top-right" }, { text: "怪潮来袭。守住最后的光。", kind: "narration", position: "bottom-right" }], motion: "motion-flare", tone: "final", duration: 3200 }
+];
+const INTRO_MOTIONS = ["motion-push", "motion-shake", "motion-pan-right", "motion-rise", "motion-pull", "motion-flare"];
+const introAssetsNeeded = previewMode === "intro" || save.settings.introDisabled !== true;
+if (introAssetsNeeded) {
+  for (const scene of INTRO_SCENES) {
+    const preload = new Image();
+    preload.src = scene.background;
+    for (const layer of scene.layers) {
+      const layerPreload = new Image();
+      layerPreload.src = layer.src;
+    }
+  }
+}
 if (previewMode === "wave-warning") state.time = GAME_CONFIG.waves.firstAt - GAME_CONFIG.waves.warning - 0.35;
 if (previewMode === "wave") state.time = GAME_CONFIG.waves.firstAt - 0.35;
 if (previewMode === "late-wave") {
@@ -268,14 +335,18 @@ if (previewMode === "resources") {
   spawnPermanentResourceDrop(state, "core", 1, 580, 315, { source: "boss" });
   state.paused = true;
 }
-if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals" || previewMode === "recovery") {
+if (previewMode === "basecamp" || previewMode === "nexus" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals" || previewMode === "recovery") {
   save.baseCamp.unlocked = true;
   save.baseCamp.coreEcho = true;
-  save.baseCamp.recoverySeen = previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals";
+  save.baseCamp.recoverySeen = previewMode === "basecamp" || previewMode === "nexus" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals";
   save.resources.echoShards = Math.max(save.resources.echoShards, 42);
   save.resources.coreFragments = Math.max(save.resources.coreFragments, 7);
   save.resources.echoShards = Math.max(save.resources.echoShards, 28);
   save.resources.coreFragments = Math.max(save.resources.coreFragments, 9);
+  if (previewMode === "nexus") {
+    save.stardust = 100000;
+    for (const key of Object.keys(save.research)) save.research[key] = 0;
+  }
   if (previewMode === "relic-archive") {
     for (const id of [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)]) save.relicArchive.discovered[id] = true;
     save.relicArchive.registeredSets.prismArc = true;
@@ -558,6 +629,11 @@ let resumeAfterTechTree = false;
 let leaderboardModalOpen = false;
 let updatesModalOpen = false;
 let pendingStartupFlow = null;
+let pendingIntroFlow = null;
+let introOpen = false;
+let introSceneIndex = 0;
+let introTimer = 0;
+let resumeAfterIntro = false;
 let resumeAfterUpdates = false;
 let accountModalOpen = false;
 let resumeAfterAccount = false;
@@ -568,7 +644,7 @@ let cloudSaveQueue = Promise.resolve();
 let accountAuthMode = "login";
 let resumeAfterLeaderboard = false;
 let baseCampOpen = false;
-let baseCampRoom = "campaign";
+let baseCampRoom = null;
 let resumeAfterBaseCamp = false;
 let relicChoiceOpen = false;
 let resumeAfterRelicChoice = false;
@@ -774,6 +850,88 @@ async function revealGameWhenReady() {
   setTimeout(() => { dom.loadingScreen.hidden = true; }, 700);
   lastFrame = performance.now();
   requestAnimationFrame(loop);
+}
+
+function renderStoryIntroScene(index) {
+  const safeIndex = Math.max(0, Math.min(INTRO_SCENES.length - 1, index));
+  const scene = INTRO_SCENES[safeIndex];
+  introSceneIndex = safeIndex;
+  window.clearTimeout(introTimer);
+  dom.storyIntro.classList.remove("scene-playing");
+  dom.storyIntroStage.classList.remove("is-entering", ...INTRO_MOTIONS);
+  dom.storyIntro.dataset.tone = scene.tone;
+  dom.storyIntroBackdrop.style.backgroundImage = "url('" + scene.background + "')";
+  dom.storyIntroLayers.replaceChildren();
+  for (const layer of scene.layers) {
+    const image = document.createElement("img");
+    image.className = "story-intro-layer " + layer.className;
+    image.src = layer.src;
+    image.alt = "";
+    image.draggable = false;
+    dom.storyIntroLayers.append(image);
+  }
+  dom.storyIntroBubbles.replaceChildren();
+  for (const bubble of scene.bubbles) {
+    const element = document.createElement("div");
+    element.className = "story-bubble " + bubble.kind + " " + bubble.position;
+    element.textContent = bubble.text;
+    dom.storyIntroBubbles.append(element);
+  }
+  dom.storyIntroChapter.textContent = scene.chapter;
+  dom.storyIntroProgress.textContent = String(safeIndex + 1).padStart(2, "0") + " / " + String(INTRO_SCENES.length).padStart(2, "0");
+  dom.storyIntroNext.textContent = safeIndex === INTRO_SCENES.length - 1 ? "开始守望" : "继续";
+  dom.storyIntro.style.setProperty("--intro-duration", scene.duration + "ms");
+  dom.storyIntroTimeline.style.setProperty("--intro-duration", scene.duration + "ms");
+  void dom.storyIntroStage.offsetWidth;
+  dom.storyIntro.classList.add("scene-playing");
+  dom.storyIntroStage.classList.add("is-entering", scene.motion);
+  introTimer = window.setTimeout(() => advanceStoryIntro(), scene.duration);
+}
+function showStoryIntro(nextFlow = null) {
+  if (introOpen) return;
+  pendingIntroFlow = nextFlow;
+  resumeAfterIntro = !state.paused && !state.over;
+  state.paused = true;
+  introOpen = true;
+  dom.storyIntro.classList.remove("hidden");
+  dom.pauseOverlay.classList.add("hidden");
+  renderStoryIntroScene(0);
+  dom.storyIntroNext.focus({ preventScroll: true });
+  updateUi();
+}
+
+function finishStoryIntro() {
+  if (!introOpen) return;
+  window.clearTimeout(introTimer);
+  introOpen = false;
+  dom.storyIntro.classList.add("hidden");
+  dom.storyIntro.classList.remove("scene-playing");
+  if (resumeAfterIntro && !state.over && !techTreeOpen && !leaderboardModalOpen && !updatesModalOpen && !baseCampOpen && !relicChoiceOpen) state.paused = false;
+  resumeAfterIntro = false;
+  const nextFlow = pendingIntroFlow;
+  pendingIntroFlow = null;
+  updateUi();
+  if (nextFlow) nextFlow();
+}
+
+function disableStoryIntro() {
+  if (!previewMode) {
+    save.settings.introDisabled = true;
+    persistSave();
+    showToast("第一章开篇剧情已关闭");
+  }
+  finishStoryIntro();
+}
+
+function advanceStoryIntro() {
+  if (!introOpen) return;
+  if (introSceneIndex >= INTRO_SCENES.length - 1) finishStoryIntro();
+  else renderStoryIntroScene(introSceneIndex + 1);
+}
+
+function rewindStoryIntro() {
+  if (!introOpen) return;
+  renderStoryIntroScene(Math.max(0, introSceneIndex - 1));
 }
 
 function formatNumber(value) {
@@ -1244,6 +1402,51 @@ function updatePermanentResourceUi() {
   dom.openBaseCampButton.classList.toggle("hidden", !save.baseCamp.unlocked);
 }
 
+function baseCampModuleStatus(key) {
+  if (key === "campaign") {
+    if (save.campaign.repairedNodes[1] === true) return "节点已修复";
+    if (save.campaign.coreEnergy[1] === true) return "能源待装配";
+    return "远征进行中";
+  }
+  if (key === "seals") {
+    return save.threatSeals?.unlocked === true
+      ? "已装备 " + save.threatSeals.equipped.length
+      : "第一章解锁";
+  }
+  return "中枢在线";
+}
+
+function renderBaseCampNavigation() {
+  dom.baseCampModuleList.replaceChildren();
+  for (const [index, module] of BASECAMP_MODULES.entries()) {
+    const button = document.createElement("button");
+    const locked = module.key === "seals" && save.threatSeals?.unlocked !== true;
+    button.type = "button";
+    button.className = "base-room basecamp-module-card";
+    button.dataset.basecampModule = module.key;
+    button.classList.toggle("locked", locked);
+    button.setAttribute("aria-pressed", String(baseCampRoom === module.key));
+    const media = module.art
+      ? '<span class="basecamp-module-art"><img src="' + module.art + '" alt="" aria-hidden="true" loading="lazy"></span>'
+      : '<span class="basecamp-module-icon">' + module.icon + '</span>';
+    button.innerHTML =
+      media +
+      '<span class="basecamp-module-copy"><small>0' + (index + 1) + ' · ' + module.category + '</small>' +
+      '<strong>' + module.name + '</strong><span>' + module.description + '</span></span>' +
+      '<b class="basecamp-module-status">' + baseCampModuleStatus(module.key) + '</b>';
+    button.addEventListener("click", () => setBaseCampRoom(module.key, true));
+    dom.baseCampModuleList.append(button);
+  }
+
+  const future = document.createElement("article");
+  future.className = "base-room basecamp-module-future";
+  future.setAttribute("aria-label", "预留的新系统模块槽位");
+  future.innerHTML =
+    '<span class="basecamp-module-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 6v20M6 16h20"/><circle cx="16" cy="16" r="12"/></svg></span>' +
+    '<span class="basecamp-module-copy"><small>扩展接口</small><strong>等待新信号</strong><span>后续系统将自动接入此处</span></span>';
+  dom.baseCampModuleList.append(future);
+}
+
 function renderBaseCamp() {
   updatePermanentResourceUi();
   renderCampaign();
@@ -1251,9 +1454,10 @@ function renderBaseCamp() {
   renderRelicResearch();
   renderRelicArchive();
   renderThreatSeals();
-  setBaseCampRoom(baseCampRoom);
+  renderBaseCampNavigation();
+  if (baseCampRoom) setBaseCampRoom(baseCampRoom);
+  else showBaseCampHub();
 }
-
 function renderThreatSeals() {
   const unlocked = save.threatSeals?.unlocked === true;
   const equipped = unlocked ? save.threatSeals.equipped : [];
@@ -1320,7 +1524,7 @@ function renderCampaign() {
       });
     } else if (chapter.id === 1) {
       action.textContent = record.cleared ? "再次挑战" : "进入远征";
-      action.addEventListener("click", () => { restart(); setBaseCampOpen(false); });
+      action.addEventListener("click", startChapterOne);
     } else {
       action.textContent = chapter.id === 2 && repaired ? "开发中…" : "尚未解锁";
       action.disabled = true;
@@ -1330,25 +1534,56 @@ function renderCampaign() {
   }
 }
 
-function setBaseCampRoom(room) {
-  baseCampRoom = ["campaign", "relics", "archive", "seals"].includes(room) ? room : "nexus";
-  const campaignOpen = baseCampRoom === "campaign";
-  const relicsOpen = baseCampRoom === "relics";
-  const archiveOpen = baseCampRoom === "archive";
-  const sealsOpen = baseCampRoom === "seals";
-  dom.campaignPanel.classList.toggle("hidden", !campaignOpen);
-  dom.nexusPanel.classList.toggle("hidden", campaignOpen || relicsOpen || archiveOpen || sealsOpen);
-  dom.relicResearchPanel.classList.toggle("hidden", !relicsOpen);
-  dom.relicArchivePanel.classList.toggle("hidden", !archiveOpen);
-  dom.threatSealPanel.classList.toggle("hidden", !sealsOpen);
-  dom.campaignRoom.classList.toggle("active", campaignOpen);
-  dom.coreNexusRoom.classList.toggle("active", !campaignOpen && !relicsOpen && !archiveOpen && !sealsOpen);
-  dom.researchBayRoom.classList.toggle("active", relicsOpen);
-  dom.relicArchiveRoom.classList.toggle("active", archiveOpen);
-  dom.threatSealRoom.classList.toggle("active", sealsOpen);
-  dom.threatSealRoom.classList.toggle("locked", save.threatSeals?.unlocked !== true);
+function startChapterOne() {
+  const beginChallenge = () => {
+    restart();
+    setBaseCampOpen(false);
+  };
+  if (save.settings.introDisabled !== true) showStoryIntro(beginChallenge);
+  else beginChallenge();
 }
 
+function showBaseCampHub(restoreFocus = false) {
+  const previousRoom = baseCampRoom;
+  baseCampRoom = null;
+  dom.baseCampShell.classList.remove("module-open");
+  dom.baseCampModulePage.classList.add("hidden");
+  dom.baseCampModuleList.closest(".basecamp-stage")?.classList.remove("hidden");
+  for (const module of BASECAMP_MODULES) dom[module.panelId].classList.add("hidden");
+  for (const button of dom.baseCampModuleList.querySelectorAll("[data-basecamp-module]")) {
+    button.classList.remove("active");
+    button.setAttribute("aria-pressed", "false");
+  }
+  if (restoreFocus && previousRoom) {
+    dom.baseCampModuleList.querySelector('[data-basecamp-module="' + previousRoom + '"]')?.focus({ preventScroll: true });
+  }
+}
+
+function setBaseCampRoom(room, focusPage = false) {
+  const selectedModule = BASECAMP_MODULES.find((module) => module.key === room);
+  if (!selectedModule) {
+    showBaseCampHub();
+    return;
+  }
+  baseCampRoom = selectedModule.key;
+  dom.baseCampShell.classList.add("module-open");
+  dom.baseCampModuleList.closest(".basecamp-stage")?.classList.add("hidden");
+  dom.baseCampModulePage.classList.remove("hidden");
+  dom.baseCampModulePageIcon.innerHTML = selectedModule.icon;
+  dom.baseCampModulePageKicker.textContent = selectedModule.category + " · 中枢功能页";
+  dom.baseCampModulePageTitle.textContent = selectedModule.name;
+  dom.baseCampModulePageSummary.textContent = selectedModule.description;
+  dom.baseCampModulePageStatus.textContent = baseCampModuleStatus(selectedModule.key);
+  for (const module of BASECAMP_MODULES) {
+    dom[module.panelId].classList.toggle("hidden", module.key !== baseCampRoom);
+  }
+  for (const button of dom.baseCampModuleList.querySelectorAll("[data-basecamp-module]")) {
+    const active = button.dataset.basecampModule === baseCampRoom;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+  if (focusPage) dom.closeBaseCampModuleButton.focus({ preventScroll: true });
+}
 function setBaseCampOpen(open, restoreFocus = false) {
   const nextOpen = Boolean(open) && save.baseCamp.unlocked;
   if (nextOpen && starfallAiming) cancelStarfallAim(false);
@@ -1356,6 +1591,7 @@ function setBaseCampOpen(open, restoreFocus = false) {
     resumeAfterBaseCamp = !state.paused && !state.over;
     state.paused = true;
     baseCampOpen = true;
+    baseCampRoom = null;
     dom.gameOverModal.classList.add("hidden");
     dom.baseCampModal.classList.remove("hidden");
     renderBaseCamp();
@@ -1363,6 +1599,7 @@ function setBaseCampOpen(open, restoreFocus = false) {
     dom.closeBaseCampButton.focus({ preventScroll: true });
   } else if (!nextOpen && baseCampOpen) {
     baseCampOpen = false;
+    showBaseCampHub();
     dom.baseCampModal.classList.add("hidden");
     if (resumeAfterBaseCamp && !state.over && !techTreeOpen && !leaderboardModalOpen) state.paused = false;
     resumeAfterBaseCamp = false;
@@ -1431,6 +1668,7 @@ function renderResearch() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "research-button";
+    button.dataset.research = key;
     button.disabled = maxed || save.stardust < cost;
     button.innerHTML = `<strong>${meta.name}</strong><span>等级 ${level}/${GAME_CONFIG.research.maxLevel} · +${level * 5}%</span><small>${maxed ? "研究完成" : `${meta.description} +5% · 花费 ${cost}`}</small>`;
     button.addEventListener("click", () => {
@@ -1438,9 +1676,26 @@ function renderResearch() {
       persistSave();
       audio.play("purchase");
       renderResearch();
+      playNexusUpgradeFx(key, save.research[key]);
     });
     dom.researchList.append(button);
   }
+}
+
+function playNexusUpgradeFx(key, level) {
+  const panel = dom.nexusPanel;
+  panel.dataset.upgradeKey = key;
+  panel.dataset.upgradeLevel = String(level);
+  panel.classList.remove("nexus-upgrade-success");
+  void panel.offsetWidth;
+  panel.classList.add("nexus-upgrade-success");
+  const upgradedButton = [...dom.researchList.querySelectorAll("[data-research]")].find((item) => item.dataset.research === key);
+  upgradedButton?.classList.add("research-upgraded");
+  window.clearTimeout(panel.upgradeFxTimer);
+  panel.upgradeFxTimer = window.setTimeout(() => {
+    panel.classList.remove("nexus-upgrade-success");
+    upgradedButton?.classList.remove("research-upgraded");
+  }, 1100);
 }
 
 function renderRelicResearch() {
@@ -2500,6 +2755,14 @@ document.addEventListener("keydown", (event) => {
   audio.unlock();
   const tag = event.target?.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA") return;
+  if (introOpen) {
+    if (event.key === "ArrowLeft") rewindStoryIntro();
+    else if (event.key === "Enter" || event.key === " " || event.key === "ArrowRight") {
+      event.preventDefault();
+      advanceStoryIntro();
+    } else if (event.key === "Escape") finishStoryIntro();
+    return;
+  }
   if (relicChoiceOpen) {
     const index = Number(event.key) - 1;
     if (index >= 0 && index < (state.relicChoice?.choices.length ?? 0)) selectRunRelic(state.relicChoice.choices[index]);
@@ -2510,7 +2773,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (baseCampOpen) {
-    if (event.key === "Escape") setBaseCampOpen(false, true);
+    if (event.key === "Escape") baseCampRoom ? showBaseCampHub(true) : setBaseCampOpen(false, true);
     return;
   }
   if (leaderboardModalOpen) {
@@ -2556,11 +2819,7 @@ document.addEventListener("keydown", (event) => {
 });
 dom.openBaseCampButton.addEventListener("click", () => setBaseCampOpen(true));
 dom.openBaseCampFromGameOver.addEventListener("click", () => setBaseCampOpen(true));
-dom.campaignRoom.addEventListener("click", () => setBaseCampRoom("campaign"));
-dom.coreNexusRoom.addEventListener("click", () => setBaseCampRoom("nexus"));
-dom.researchBayRoom.addEventListener("click", () => setBaseCampRoom("relics"));
-dom.relicArchiveRoom.addEventListener("click", () => setBaseCampRoom("archive"));
-dom.threatSealRoom.addEventListener("click", () => setBaseCampRoom("seals"));
+dom.closeBaseCampModuleButton.addEventListener("click", () => showBaseCampHub(true));
 dom.closeBaseCampButton.addEventListener("click", () => setBaseCampOpen(false, true));
 dom.baseCampModal.addEventListener("pointerdown", (event) => { if (event.target === dom.baseCampModal) setBaseCampOpen(false, true); });
 dom.recoveryContinueButton.addEventListener("click", advanceBaseRecoveryEvent);
@@ -2716,11 +2975,18 @@ dom.muteButton.addEventListener("click", () => {
   updateUi();
 });
 dom.scoreEntryForm.addEventListener("submit", submitCurrentScore);
+dom.storyIntroNext.addEventListener("click", advanceStoryIntro);
+dom.storyIntroSkip.addEventListener("click", finishStoryIntro);
+dom.storyIntroDisable.addEventListener("click", disableStoryIntro);
+dom.storyIntroStage.addEventListener("click", (event) => {
+  if (event.target.closest("button")) return;
+  advanceStoryIntro();
+});
 dom.tutorialDismiss.addEventListener("click", () => {
   dom.tutorialGuide.classList.add("hidden");
   clearTutorialHighlights();
 });
-dom.restartButton.addEventListener("click", restart);
+dom.restartButton.addEventListener("click", startChapterOne);
 dom.clearSaveButton.addEventListener("click", () => {
   if (!confirm("清除全部永久资源、基地进度、研究和纪录？此操作无法撤销。")) return;
   localStorage.removeItem(SAVE_KEY);
@@ -2745,20 +3011,25 @@ revealGameWhenReady().then(() => {
       dom.chapterCompleteModal.classList.remove("hidden");
       dom.finishExpeditionButton.focus({ preventScroll: true });
     }
-    else if (previewMode === "basecamp" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals") {
-      if (previewMode === "relic-research") baseCampRoom = "relics";
-      if (previewMode === "relic-archive") baseCampRoom = "archive";
-      if (previewMode === "threat-seals") baseCampRoom = "seals";
+    else if (previewMode === "basecamp" || previewMode === "nexus" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals") {
       setBaseCampOpen(true);
+      if (previewMode === "nexus") setBaseCampRoom("nexus");
+      if (previewMode === "relic-research") setBaseCampRoom("relics");
+      if (previewMode === "relic-archive") setBaseCampRoom("archive");
+      if (previewMode === "threat-seals") setBaseCampRoom("seals");
     }
     else if (previewMode === "recovery" || (save.baseCamp.unlocked && !save.baseCamp.recoverySeen)) showBaseRecoveryEvent();
   };
-  if (!previewMode && !save.settings.updatesDismissed) {
-    pendingStartupFlow = startupFlow;
-    setUpdatesOpen(true);
-  } else {
-    startupFlow();
-  }
+  const continueStartup = () => {
+    if (!previewMode && !save.settings.updatesDismissed) {
+      pendingStartupFlow = startupFlow;
+      setUpdatesOpen(true);
+    } else {
+      startupFlow();
+    }
+  };
+  if (previewMode === "intro") showStoryIntro(continueStartup);
+  else continueStartup();
 });
 
 globalThis.__ETERNAL_CRYSTAL_TOWER__ = {

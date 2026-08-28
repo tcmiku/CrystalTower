@@ -31,7 +31,7 @@ export function defaultSave() {
       unlockedChapters: { 1: true, 2: false },
       chapterRecords: { 1: { cleared: false, clears: 0, bestTime: 0, bestKills: 0, bestScore: 0 } }
     },
-    settings: { muted: false, playerName: "PLAYER", updatesDismissed: false },
+    settings: { muted: false, playerName: "PLAYER", updatesDismissed: false, introSeen: false, introDisabled: false },
     records: { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 },
     leaderboard: []
   };
@@ -93,6 +93,9 @@ export function sanitizeSave(candidate) {
   safe.settings.muted = Boolean(candidate.settings?.muted);
   safe.settings.playerName = sanitizePlayerName(candidate.settings?.playerName ?? "PLAYER");
   safe.settings.updatesDismissed = candidate.settings?.updatesDismissed === true;
+  const legacyProgress = Number(candidate.records?.totalKills) > 0 || Number(candidate.records?.failures) > 0 || candidate.baseCamp?.unlocked === true;
+  safe.settings.introSeen = candidate.settings?.introSeen === true || (!Object.hasOwn(candidate.settings ?? {}, "introSeen") && legacyProgress);
+  safe.settings.introDisabled = candidate.settings?.introDisabled === true;
   safe.records.highestThreat = boundedInt(candidate.records?.highestThreat, 1, 1_000_000);
   safe.records.longestTime = Math.max(0, Number(candidate.records?.longestTime) || 0);
   safe.records.totalKills = boundedInt(candidate.records?.totalKills, 0, 1_000_000_000);

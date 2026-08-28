@@ -22,6 +22,28 @@
         <div class="loading-meta"><span id="loadingStatus">正在探测晶塔共鸣…</span><strong id="loadingPercent">0%</strong></div>
       </div>
     </div>
+    <section id="storyIntro" class="story-intro hidden" role="dialog" aria-modal="true" aria-labelledby="storyIntroChapter">
+      <div class="story-intro-dialog">
+        <header class="story-intro-dialog-bar"><span aria-hidden="true"></span><b>晶塔记录 · 开篇剧情</b><small>点击画面继续</small></header>
+        <div id="storyIntroStage" class="story-intro-stage">
+          <div id="storyIntroBackdrop" class="story-intro-backdrop" aria-hidden="true"></div>
+          <div id="storyIntroLayers" class="story-intro-layers" aria-hidden="true"></div>
+          <div class="story-intro-speedlines" aria-hidden="true"></div>
+          <div class="story-intro-flash" aria-hidden="true"></div>
+          <div class="story-intro-energy" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div id="storyIntroBubbles" class="story-intro-bubbles" aria-live="polite"></div>
+          <div class="story-intro-kicker"><small id="storyIntroChapter">序章 · 最后的晶塔</small></div>
+        </div>
+        <footer class="story-intro-controls">
+          <div class="story-intro-counter"><span id="storyIntroProgress">01 / 06</span><i><b id="storyIntroTimeline"></b></i></div>
+          <div>
+            <button id="storyIntroDisable" class="story-intro-disable" type="button">不再播放</button>
+            <button id="storyIntroSkip" type="button">跳过剧情</button>
+            <button id="storyIntroNext" type="button">继续</button>
+          </div>
+        </footer>
+      </div>
+    </section>
     <aside id="tutorialGuide" class="tutorial-guide hidden" aria-live="polite" aria-labelledby="tutorialTitle">
       <span class="tutorial-step">首次守望引导</span>
       <h2 id="tutorialTitle"></h2>
@@ -241,7 +263,7 @@
     </section>
 
     <section id="baseCampModal" class="basecamp-modal hidden" role="dialog" aria-modal="true" aria-labelledby="baseCampTitle">
-      <div class="basecamp-shell">
+      <div id="baseCampShell" class="basecamp-shell">
         <header class="basecamp-header">
           <div><span>ETERNAL BASTION</span><h2 id="baseCampTitle">永耀大本营 · 核心室</h2><p>每一次熄灭，都会留下可用于重建的光。</p></div>
           <div class="basecamp-wallet" aria-label="大本营资源">
@@ -252,13 +274,31 @@
           <button id="closeBaseCampButton" class="leaderboard-close" type="button">返回战场</button>
         </header>
         <div class="basecamp-stage">
-          <div class="basecamp-recovery-beam" aria-hidden="true"></div>
-          <button id="campaignRoom" class="base-room campaign-room" type="button"><span>主线 · 中枢修复</span><strong>能源核心</strong><small>装配章节能源并选择远征地图</small></button>
-          <button id="coreNexusRoom" class="base-room core-room active" type="button"><span>01 · 初始开放</span><strong>晶核中枢</strong><small>永久研究与核心档案</small></button>
-          <button id="researchBayRoom" class="base-room research-room" type="button"><span>02 · 遗物强化</span><strong>研究舱</strong><small>消耗遗响碎片强化已发现遗物</small></button>
-          <button id="relicArchiveRoom" class="base-room archive-room" type="button"><span>03 · 构筑管理</span><strong>遗物档案馆</strong><small>禁用、图鉴、组合与套装登记</small></button>
-          <button id="threatSealRoom" class="base-room seal-room" type="button"><span>04 · 威胁强化</span><strong>封印圣坛</strong><small>装备封印，提高风险与远征收益</small></button>
+          <section class="basecamp-core-visual" aria-label="大本营能源中枢">
+            <div class="basecamp-core-copy">
+              <small>永恒晶核 · 模块中枢</small>
+              <strong>大本营能源网络</strong>
+              <span>选择模块接入中枢；新增系统会自动加入右侧网格。</span>
+            </div>
+            <div class="basecamp-core-pulse" aria-hidden="true"></div>
+          </section>
+          <nav id="baseCampModuleList" class="basecamp-module-grid" aria-label="大本营功能模块"></nav>
         </div>
+        <section id="baseCampModulePage" class="basecamp-module-page hidden" aria-labelledby="baseCampModulePageTitle">
+          <header class="basecamp-module-page-header">
+            <button id="closeBaseCampModuleButton" class="basecamp-module-back" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/><path d="M8 12h10"/></svg>
+              <span>返回中枢</span>
+            </button>
+            <span id="baseCampModulePageIcon" class="basecamp-module-page-icon" aria-hidden="true"></span>
+            <div class="basecamp-module-page-copy">
+              <small id="baseCampModulePageKicker">功能模块</small>
+              <h3 id="baseCampModulePageTitle">模块名称</h3>
+              <p id="baseCampModulePageSummary">模块说明</p>
+            </div>
+            <b id="baseCampModulePageStatus" class="basecamp-module-page-status">中枢在线</b>
+          </header>
+          <div class="basecamp-module-page-body">
         <section id="campaignPanel" class="nexus-panel campaign-panel hidden" aria-labelledby="campaignPanelTitle">
           <div class="campaign-core-hero">
             <div><span>CAMPAIGN NEXUS</span><h3 id="campaignPanelTitle">中枢能源修复计划</h3><p>击败每章终局首领，带回不会因无尽挑战失败而遗失的核心能源。</p></div>
@@ -266,7 +306,13 @@
           </div>
           <div id="chapterNodeList" class="chapter-node-list"></div>
         </section>
-        <section id="nexusPanel" class="nexus-panel" aria-labelledby="nexusResearchTitle">
+        <section id="nexusPanel" class="nexus-panel nexus-core-panel" aria-labelledby="nexusResearchTitle">
+          <div class="nexus-upgrade-fx" aria-hidden="true">
+            <span class="nexus-upgrade-burst"></span>
+            <span class="nexus-upgrade-ring"></span>
+            <span class="nexus-upgrade-sparks"></span>
+            <span class="nexus-upgrade-arrows"><i></i><i></i><i></i></span>
+          </div>
           <div class="research-heading"><div><span>晶核中枢</span><h3 id="nexusResearchTitle">永久研究</h3></div><strong>可用星尘 <b id="stardustText">0</b></strong></div>
           <p>研究结果会应用到下一轮守望。大本营后续建筑将在这里继续接入。</p>
           <div id="researchList" class="research-list"></div>
@@ -297,6 +343,8 @@
           </div>
           <div id="threatSealList" class="threat-seal-list"></div>
           <footer class="seal-panel-footer"><span id="sealEquippedSummary">未装备封印</span><b id="sealAchievementProgress">封印征服进度 0</b></footer>
+        </section>
+          </div>
         </section>
       </div>
     </section>

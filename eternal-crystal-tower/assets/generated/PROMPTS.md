@@ -331,3 +331,28 @@ Create a production-ready transparent-background 2D game boss sprite for a dark 
 ```text
 Create a premium dark sci-fi fantasy game relic card illustration, portrait orientation. A single luminous cyan-violet faceted crystal power core floats at the center, encircled by multiple repeating gold-white upward arrow rings that recede toward an infinite vanishing point, clearly conveying endlessly stacking attack power and attack speed. Obsidian mechanical supports, etched energy conduits, deep midnight navy background, restrained violet haze, crisp silhouette and intense central glow, polished AAA game concept art, designed to remain readable when cropped into a relic card. No text, letters, numbers, logo, watermark, character, enemy, UI, card border or frame.
 ```
+
+## 大本营模块入口卡插画（2026-08-28）
+
+生成方式：OpenAI 内置生图模型，stylized-concept。参考图只用于紧凑模块化 UI 的氛围与卡片构图，图片本身不包含文字或 UI。五张独立素材共享：方形游戏模块卡插画、深靛/紫晶/青蓝主色、中心主体、小尺寸可读、暗色边缘、无文字无边框。
+
+- 远征入口：金色罗盘符印悬浮在暗色圆形星门上，带少量青色星标。
+- 晶核中枢：青紫切面晶核悬浮于同心发光环和精密回路中。
+- 研究舱：紫色晶片置于发光炼金研究容器中，周围有测量环。
+- 遗物档案馆：开放式晶体典藏库、三件浮动遗物与棱镜封印。
+- 威胁封印：绯红紫色圆形封印、中央锐利晶眼与三枚警示晶片。
+
+五张均要求无文字、字母、数字、徽标、按钮、UI、边框、水印、角色和倾斜透视；通过 HTML 叠加标题、分类、描述与状态，便于后续替换素材和增加新系统。
+## 动态漫画序章过渡背景（2026-08-28）
+
+生成方式：OpenAI 内置生图模型，stylized-concept。两张用户漫画页仅作为干净赛璐璐晶体世界的风格参考。
+
+提示词摘要：16:9 深午夜蓝到黑色的简洁晶核虚空，中央只有微弱青紫竖直晶光、少量细能量射线和稀疏晶尘，大面积暗色留白；画面必须干净干练，不生成角色、怪物、城市、晶塔、漫画分格、气泡、文字、UI、边框、徽标、水印或复杂场景。项目内文件为 assets/generated/intro-void-transition-v1.png。## �ֲ����ݶ�̬���������زģ�2026-08-28��
+
+���ɷ�ʽ��OpenAI ������ͼģ�ͣ�ʹ���û��ṩ����������ҳ��Ϊ����ɫ�ʲο���������ԭͼ�ָ����ֻ�ҳβ���
+
+������ʾ��ժҪ��clean restrained 16:9 wide fantasy tower-defense opening comic background�����˳ǰ�ء����������ķ��桢�����Բ�η��桢�ֳ���ɫ�籩�ĸ����������贶�����Ϸ�磻��ֹ���֡�UI���߿򡢻ձꡢˮӡ����ɫ�͸��ӷ־��ṹ�������ɵ���ͼ������ס�
+
+͸��ͼ����ʾ��ժҪ��isolated foreground game-art asset���ֱ����� faceted cyan-violet crystal core��crystal shards/fracture lines��young dark-haired navy-cloaked guardian��simple crystal-corrupted monster horde��cyan-violet-orange elemental burst��last crystal tower��clean crisp cel-shaded anime fantasy��Ҫ�� genuine transparent alpha background����ֹ���̸񡢳�����ͼ�����֡�UI���߿򡢻ձ��ˮӡ��
+
+��Ŀ�����ļ���assets/story/intro-bg-city-dawn-v1.png��intro-bg-ruined-wasteland-v1.png��intro-bg-last-bastion-v1.png��intro-bg-horde-night-v1.png���Լ���Ӧ intro-layer-* �ļ���
