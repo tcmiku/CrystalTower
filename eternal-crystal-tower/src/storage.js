@@ -12,6 +12,7 @@ export function defaultSave() {
     stardust: 0,
     resources: { echoShards: 0, coreFragments: 0 },
     research: { damage: 0, health: 0, income: 0 },
+    skillResearch: Object.fromEntries(Object.keys(GAME_CONFIG.skills).map((key) => [key, { branch: null, nodes: [] }])),
     relicUnlocks: Object.fromEntries(Object.keys(GAME_CONFIG.relicResearch).map((key) => [key, true])),
     relicSlots: GAME_CONFIG.relics.initialSlots,
     relicArchive: {
@@ -50,6 +51,22 @@ export function sanitizeSave(candidate) {
   safe.resources.coreFragments = boundedInt(candidate.resources?.coreFragments, 0, 1_000_000_000);
   for (const key of Object.keys(safe.research)) {
     safe.research[key] = boundedInt(candidate.research?.[key], 0, GAME_CONFIG.research.maxLevel);
+  }
+  for (const key of Object.keys(safe.skillResearch)) {
+    const config = GAME_CONFIG.activeSkillResearch[key];
+    const branches = config?.branches ?? {};
+    const raw = candidate.skillResearch?.[key];
+    if (Number.isFinite(Number(raw))) {
+      const branch = Object.keys(branches)[0] ?? null;
+      const count = boundedInt(raw, 0, branch ? branches[branch].nodes.length : 0);
+      safe.skillResearch[key] = { branch: count > 0 ? branch : null, nodes: branch ? branches[branch].nodes.slice(0, count).map((node) => node.id) : [] };
+      continue;
+    }
+    const branch = Object.hasOwn(branches, raw?.branch) ? raw.branch : null;
+    const validNodes = branch ? branches[branch].nodes.map((node) => node.id) : [];
+    const requested = Array.isArray(raw?.nodes) ? raw.nodes : [];
+    const nodes = validNodes.slice(0, requested.length).filter((id, index) => requested[index] === id);
+    safe.skillResearch[key] = { branch, nodes };
   }
   for (const key of Object.keys(safe.relicUnlocks)) safe.relicUnlocks[key] = true;
   safe.relicSlots = boundedInt(candidate.relicSlots, GAME_CONFIG.relics.initialSlots, GAME_CONFIG.relics.maxSlots);
@@ -261,6 +278,43 @@ export function buyRelicSlot(save) {
   if (!Number.isFinite(cost) || save.resources.coreFragments < cost) return false;
   save.resources.coreFragments -= cost;
   save.relicSlots = slots + 1;
+  return true;
+}
+
+export function skillResearchCost(save, key, branch, nodeId) {
+  const config = GAME_CONFIG.activeSkillResearch[key];
+  if (!config || !Object.hasOwn(config.branches, branch)) return null;
+  const selected = save.skillResearch?.[key];
+  if (selected?.branch && selected.branch !== branch) return null;
+  const nodes = config.branches[branch].nodes;
+  const index = nodes.findIndex((node) => node.id === nodeId);
+  if (index < 0 || selected?.nodes?.includes(nodeId) || (selected?.nodes?.length ?? 0) !== index) return null;
+  return GAME_CONFIG.activeSkillResearch.costs[index] ?? null;
+}
+
+export function buySkillResearch(save, key, branch, nodeId) {
+  save.skillResearch ??= defaultSave().skillResearch;
+  // Callers may pass a legacy, unsanitized save object directly.  Normalize
+  // that one entry before validating the branch/node sequence so a numeric
+  // pre-branch value cannot be mutated as if it were the new route shape.
+  if (!save.skillResearch[key] || typeof save.skillResearch[key] !== "object" || Array.isArray(save.skillResearch[key])) {
+    const legacy = Number(save.skillResearch[key]);
+    const config = GAME_CONFIG.activeSkillResearch[key];
+    const firstBranch = config ? Object.keys(config.branches)[0] : null;
+    const count = Number.isFinite(legacy) && firstBranch ? Math.max(0, Math.min(config.branches[firstBranch].nodes.length, Math.floor(legacy))) : 0;
+    save.skillResearch[key] = {
+      branch: count > 0 ? firstBranch : null,
+      nodes: count > 0 ? config.branches[firstBranch].nodes.slice(0, count).map((node) => node.id) : []
+    };
+  }
+  const cost = skillResearchCost(save, key, branch, nodeId);
+  if (!Number.isFinite(cost) || save.resources.coreFragments < cost) return false;
+  save.resources.coreFragments -= cost;
+  const current = save.skillResearch[key] ?? { branch: null, nodes: [] };
+  current.branch ??= branch;
+  current.nodes ??= [];
+  current.nodes.push(nodeId);
+  save.skillResearch[key] = current;
   return true;
 }
 

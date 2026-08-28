@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, relicArchiveCapacity, repairChapterNode, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
+import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, relicArchiveCapacity, repairChapterNode, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, skillResearchCost, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -175,6 +175,23 @@ test("所有遗物默认解锁，研究舱消耗遗响碎片强化已发现遗�
   assert.equal(save.relicArchive.upgrades.decoy, 3);
   assert.equal(buyRelicUpgrade(save, "decoy"), false);
   assert.equal(sanitizeSave(save).relicArchive.upgrades.decoy, 3);
+});
+
+test("主动技能研究使用核心残片分支消耗并锁定路线", () => {
+  const save = defaultSave();
+  assert.deepEqual(save.skillResearch.heal, { branch: null, nodes: [] });
+  save.resources.coreFragments = 9;
+  assert.equal(skillResearchCost(save, "heal", "guardian", "reinforcedCore"), 3);
+  assert.equal(buySkillResearch(save, "heal", "guardian", "reinforcedCore"), true);
+  assert.equal(skillResearchCost(save, "heal", "guardian", "lastStand"), 6);
+  assert.equal(skillResearchCost(save, "heal", "retaliation", "repulse"), null);
+  assert.equal(buySkillResearch(save, "heal", "guardian", "lastStand"), true);
+  assert.equal(save.resources.coreFragments, 0);
+  assert.equal(skillResearchCost(save, "heal", "guardian", "lastStand"), null);
+  assert.equal(buySkillResearch(save, "heal", "guardian", "lastStand"), false);
+  assert.deepEqual(sanitizeSave({ version: 1, skillResearch: { heal: { branch: "retaliation", nodes: ["repulse", "unknown"] }, overload: { branch: "bad", nodes: ["stabilizer"] } } }).skillResearch, {
+    heal: { branch: "retaliation", nodes: ["repulse"] }, overload: { branch: null, nodes: [] }, starfall: { branch: null, nodes: [] }, coinVacuum: { branch: null, nodes: [] }
+  });
 });
 
 test("遗物栏位初始一格并消耗核心残片逐步扩展至四格", () => {

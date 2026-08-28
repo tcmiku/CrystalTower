@@ -318,10 +318,20 @@
           <div id="researchList" class="research-list"></div>
         </section>
         <section id="relicResearchPanel" class="nexus-panel relic-research-panel hidden" aria-labelledby="relicResearchTitle">
-          <div class="research-heading"><div><span>研究舱</span><h3 id="relicResearchTitle">遗物效果强化</h3></div><strong>遗响碎片 <b id="relicResearchEchoText">0</b> · 核心残片 <b id="relicResearchCoreText">0</b></strong></div>
-          <p>所有遗物默认加入战局候选池。已发现遗物可消耗遗响碎片强化 3 次；核心残片仍用于扩展本局栏位。</p>
-          <div id="relicSlotResearch" class="relic-slot-research"></div>
-          <div id="relicResearchList" class="relic-research-list"></div>
+          <div class="research-heading"><div><span>研究舱</span><h3 id="relicResearchTitle">研究舱 · 战术模块</h3></div><strong>遗响碎片 <b id="relicResearchEchoText">0</b> · 核心残片 <b id="relicResearchCoreText">0</b></strong></div>
+          <p>统一管理永久遗物回路与主动技能协议。所有遗物默认加入战局候选池，所有研究将在下一局守望开始时装载。</p>
+          <div class="research-bay-tabs" role="tablist" aria-label="研究舱模块">
+            <button id="relicResearchTab" type="button" role="tab" aria-controls="relicResearchView" aria-selected="true">遗物强化</button>
+            <button id="skillResearchTab" type="button" role="tab" aria-controls="skillResearchView" aria-selected="false" tabindex="-1">主动技能</button>
+          </div>
+          <div id="relicResearchView" class="research-bay-view" role="tabpanel" aria-labelledby="relicResearchTab">
+            <div id="relicSlotResearch" class="relic-slot-research"></div>
+            <div id="relicResearchList" class="relic-research-list"></div>
+          </div>
+          <div id="skillResearchView" class="research-bay-view hidden" role="tabpanel" aria-labelledby="skillResearchTab">
+            <header class="active-skill-research-heading"><span>ACTIVE SKILL RESEARCH</span><strong>主动技能研究</strong><small>永久强化 · 下一局守望生效</small></header>
+            <div id="activeSkillResearchList" class="active-skill-research-list"></div>
+          </div>
         </section>
         <section id="relicArchivePanel" class="nexus-panel relic-archive-panel hidden" aria-labelledby="relicArchiveTitle">
           <div class="research-heading"><div><span>遗物档案馆</span><h3 id="relicArchiveTitle">构筑管理</h3></div><strong>图鉴 <b id="relicArchiveProgress">0 / 13</b></strong></div>

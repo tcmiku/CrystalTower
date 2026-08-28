@@ -161,6 +161,62 @@ export const GAME_CONFIG = Object.freeze({
   relicSlotResearch: { costs: [2, 4, 7] },
   relicUpgradeResearch: { maxLevel: 3, costs: [4, 8, 12], effectPerLevel: 0.12 },
   relicArchiveResearch: { initialDisabledSlots: 1, maxDisabledSlots: 3, costs: [8, 16] },
+  activeSkillResearch: {
+    costs: [3, 6],
+    heal: {
+      branches: {
+        guardian: { name: "晶壳守护", description: "把晶愈变成低血量的安全网", nodes: [
+          { id: "reinforcedCore", name: "强化晶核", effect: "治疗量 +30%，过量治疗护盾转化 +35%" },
+          { id: "lastStand", name: "绝境护膜", effect: "生命低于 35% 释放后，获得 5 秒 35% 减伤" }
+        ] },
+        retaliation: { name: "晶片反制", description: "把满盾受击变成推线窗口", nodes: [
+          { id: "repulse", name: "反冲晶片", effect: "满盾晶片爆炸额外击退敌人" },
+          { id: "shardBurst", name: "碎晶增幅", effect: "晶片爆炸伤害 +80%，并扩大爆炸半径" }
+        ] }
+      },
+      burstKnockbackDistance: 80, bossKnockbackMultiplier: 0.3, lowHpThreshold: 0.35, damageReduction: 0.35, damageReductionDuration: 5, burstDamageMultiplier: 1.8, burstRadiusMultiplier: 1.2,
+      healMultiplier: 1.3, shieldMultiplier: 1.35
+    },
+    overload: {
+      branches: {
+        sustain: { name: "稳压回路", description: "延长超载窗口，换取更安全的热量曲线", nodes: [
+          { id: "stabilizer", name: "稳压线圈", effect: "持续时间 +25%，热量积累速度 -25%" },
+          { id: "coolingVent", name: "冷却泄压", effect: "提前结束后，超载减速惩罚时间 -50%" }
+        ] },
+        rupture: { name: "临界爆裂", description: "主动泄压，把热量转成一次爆发", nodes: [
+          { id: "pressureValve", name: "压力阀门", effect: "提前结束时，根据当前热量提高冲击击退" },
+          { id: "thermalNova", name: "热核爆裂", effect: "结束时造成范围伤害，过热时伤害 +60%" }
+        ] }
+      },
+      durationMultiplier: 1.25, heatGainMultiplier: 0.75, earlyPulseBonus: 0.8, damageMultiplier: 3, overheatDamageMultiplier: 1.6
+    },
+    starfall: {
+      branches: {
+        precision: { name: "精准轨道", description: "扩大锁定区，并让主炮追击暴露目标", nodes: [
+          { id: "wideReticle", name: "扩展瞄准", effect: "手动瞄准扇区扩大 30%" },
+          { id: "starMark", name: "星痕标记", effect: "命中留下 5 秒星痕，主炮伤害 +30%" }
+        ] },
+        bombardment: { name: "轨道轰击", description: "牺牲稳定性，换取多目标终结", nodes: [
+          { id: "counterBurst", name: "反制落星", effect: "命中 3 个目标或打断首领后追加小型落星" },
+          { id: "impactField", name: "坠星余场", effect: "追加落星范围 +35%，伤害 +25%" }
+        ] }
+      },
+      coneMultiplier: 1.3, markDuration: 5, markDamageMultiplier: 1.3, followupMinHits: 3, followupRadius: 105, followupDamageMultiplier: 2.5, followupDuration: 0.45, followupRadiusMultiplier: 1.35, followupDamageBoost: 1.25
+    },
+    coinVacuum: {
+      branches: {
+        salvage: { name: "回收循环", description: "稳定提高资源转化与技能周转", nodes: [
+          { id: "magnet", name: "末秒磁吸", effect: "优先回收将消失金币，金币价值 +12%" },
+          { id: "cooldownLoop", name: "冷却回路", effect: "吸收 8 枚金币后，下一主动技能冷却 -20%" }
+        ] },
+        conversion: { name: "火力转化", description: "少拿即时收益，换取晶塔短时爆发", nodes: [
+          { id: "surge", name: "金潮脉冲", effect: "吸收 15 枚金币后，晶塔攻速 +25% 持续 7 秒" },
+          { id: "overdrive", name: "价值过载", effect: "吸收 20 枚金币后，晶塔伤害 +20% 持续 7 秒" }
+        ] }
+      },
+      valueMultiplier: 1.12, cooldownThreshold: 8, cooldownReduction: 0.2, buffThreshold: 15, buffDuration: 7, fireRateMultiplier: 1.25, damageMultiplier: 1.2, damageBuffThreshold: 20
+    }
+  },
   permanentResources: { clickRadius: 30, maxDrops: 72, eliteEcho: 2, bossCore: 3, colossusCore: 8, sovereignCore: 15 },
   score: {
     enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, inkHound: 260, orbitMote: 390, rustBeetle: 520, porcelainWarden: 480, boss: 5000, colossus: 20000, sovereign: 50000 },

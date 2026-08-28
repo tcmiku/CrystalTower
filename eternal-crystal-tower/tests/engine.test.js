@@ -769,6 +769,116 @@ test("金潮归塔立即吸收全场金币并应用永久金币倍率", () => {
   assert.equal(useSkill(state, "coinVacuum"), false);
 });
 
+test("主动技能研究只在创建下一局时装载", () => {
+  const savedResearch = { heal: { branch: null, nodes: [] }, overload: { branch: null, nodes: [] }, starfall: { branch: null, nodes: [] }, coinVacuum: { branch: null, nodes: [] } };
+  const currentRun = createGameState(6401, undefined, undefined, undefined, undefined, undefined, savedResearch);
+  savedResearch.heal = { branch: "guardian", nodes: ["reinforcedCore"] };
+  assert.deepEqual(currentRun.skillResearch.heal, { branch: null, nodes: [] });
+  const nextRun = createGameState(6402, undefined, undefined, undefined, undefined, undefined, savedResearch);
+  assert.deepEqual(nextRun.skillResearch.heal, { branch: "guardian", nodes: ["reinforcedCore"] });
+});
+
+test("晶愈分支分别强化治疗安全网与满盾反制", () => {
+  const state = createGameState(6403, undefined, undefined, undefined, undefined, undefined, { heal: { branch: "guardian", nodes: ["reinforcedCore", "lastStand"] } });
+  const stats = getTowerStats(state);
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  state.tower.hp = 100;
+  assert.equal(useSkill(state, "heal"), true);
+  assert.equal(state.tower.hp, 256);
+  assert.equal(state.skills.heal.damageReduction, 5);
+
+  state.skills.heal.cooldown = 0;
+  state.tower.hp = stats.maxHp;
+  state.tower.shield = 100;
+  assert.equal(useSkill(state, "heal"), true);
+  assert.equal(state.tower.shield, stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction);
+  const retaliation = createGameState(64031, undefined, undefined, undefined, undefined, undefined, { heal: { branch: "retaliation", nodes: ["repulse"] } });
+  retaliation.spawnTimer = 999; retaliation.wave.nextAt = 999; retaliation.tower.fireCooldown = 999;
+  retaliation.tower.hp = getTowerStats(retaliation).maxHp;
+  retaliation.tower.shield = getTowerStats(retaliation).maxHp * GAME_CONFIG.skills.heal.shieldCapFraction;
+  const enemy = spawnEnemy(retaliation, "brute", { x: GAME_CONFIG.arena.centerX + 40, y: GAME_CONFIG.arena.centerY });
+  enemy.speed = 0;
+  const beforeX = enemy.x;
+  retaliation.skills.heal.shieldBurstArmed = true;
+  updateGame(retaliation, 0.01);
+  assert.ok(enemy.x > beforeX);
+  assert.ok(retaliation.events.some((event) => event.type === "shieldBurst" && event.knockbackHits >= 1));
+
+  const protectedState = createGameState(6404, undefined, undefined, undefined, undefined, undefined, { heal: { branch: "guardian", nodes: ["reinforcedCore", "lastStand"] } });
+  protectedState.spawnTimer = 999; protectedState.wave.nextAt = 999; protectedState.tower.fireCooldown = 999;
+  protectedState.tower.hp = 100;
+  useSkill(protectedState, "heal");
+  protectedState.tower.hp = 300;
+  const protectedEnemy = spawnEnemy(protectedState, "wisp", { x: GAME_CONFIG.arena.centerX, y: GAME_CONFIG.arena.centerY });
+  protectedEnemy.speed = 0;
+  updateGame(protectedState, 0.01);
+  const hitEvent = protectedState.events.find((event) => event.type === "towerHit");
+  assert.ok(hitEvent.mitigated > 0);
+});
+
+test("超载研究延长持续、降低积热并强化提前泄压与结束伤害", () => {
+  const researched = createGameState(6405, undefined, undefined, undefined, undefined, undefined, { overload: { branch: "sustain", nodes: ["stabilizer"] } });
+  researched.spawnTimer = 999; researched.wave.nextAt = 999; researched.tower.fireCooldown = 999;
+  assert.equal(useSkill(researched, "overload"), true);
+  assert.equal(researched.skills.overload.active, 7.5);
+  updateGame(researched, 1);
+  assert.equal(researched.skills.overload.heat, 3.75);
+  const rupture = createGameState(64051, undefined, undefined, undefined, undefined, undefined, { overload: { branch: "rupture", nodes: ["pressureValve", "thermalNova"] } });
+  rupture.spawnTimer = 999; rupture.wave.nextAt = 999; rupture.tower.fireCooldown = 999;
+  assert.equal(useSkill(rupture, "overload"), true);
+  const target = spawnEnemy(rupture, "brute", { x: GAME_CONFIG.arena.centerX + 120, y: GAME_CONFIG.arena.centerY });
+  target.speed = 0; target.hp = target.maxHp = 1000;
+  const beforeX = target.x;
+  const beforeHp = target.hp;
+  rupture.skills.overload.heat = 100;
+  assert.equal(useSkill(rupture, "overload"), true);
+  assert.ok(target.x - beforeX > GAME_CONFIG.skills.overload.knockbackDistance * 0.55);
+  assert.ok(target.hp < beforeHp);
+  const release = rupture.events.findLast((event) => event.type === "overloadRelease");
+  assert.ok(release.damage > getTowerStats(rupture).damage * GAME_CONFIG.activeSkillResearch.overload.damageMultiplier);
+  assert.ok(release.knockbackMultiplier > 1);
+});
+
+test("星落研究扩大瞄准、附加星痕并在群体命中后追加落星", () => {
+  const state = createGameState(6406, undefined, undefined, undefined, undefined, undefined, { starfall: { branch: "precision", nodes: ["wideReticle", "starMark"] } });
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  const radius = 180;
+  const targets = [0.49, 0.5, 0.51].map((angle) => {
+    const enemy = spawnEnemy(state, "brute", { x: GAME_CONFIG.arena.centerX + Math.cos(angle) * radius, y: GAME_CONFIG.arena.centerY + Math.sin(angle) * radius });
+    enemy.speed = 0; enemy.hp = enemy.maxHp = 1000;
+    return enemy;
+  });
+  assert.equal(useSkill(state, "starfall", { angle: 0 }), true);
+  assert.ok(targets.every((enemy) => enemy.starMarkTimer === GAME_CONFIG.activeSkillResearch.starfall.markDuration));
+  const bombardment = createGameState(64061, undefined, undefined, undefined, undefined, undefined, { starfall: { branch: "bombardment", nodes: ["counterBurst", "impactField"] } });
+  bombardment.spawnTimer = 999; bombardment.wave.nextAt = 999; bombardment.tower.fireCooldown = 999;
+  const burstTargets = [0, 0.03, -0.03].map((angle) => spawnEnemy(bombardment, "brute", { x: GAME_CONFIG.arena.centerX + Math.cos(angle) * radius, y: GAME_CONFIG.arena.centerY + Math.sin(angle) * radius }));
+  burstTargets.forEach((enemy) => { enemy.speed = 0; enemy.hp = enemy.maxHp = 1000; });
+  assert.equal(useSkill(bombardment, "starfall", { angle: 0 }), true);
+  assert.ok(bombardment.events.some((event) => event.type === "starfallFollowup" && event.hits >= 3));
+  assert.ok(bombardment.elementFx.some((effect) => effect.element === "starfallFollowup"));
+});
+
+test("金潮归塔研究提高金币价值并把大量回收转为冷却与攻速循环", () => {
+  const state = createGameState(6407, undefined, undefined, undefined, undefined, undefined, { coinVacuum: { branch: "salvage", nodes: ["magnet", "cooldownLoop"] } });
+  for (let index = 0; index < 15; index += 1) {
+    state.coinOrbs.push({ x: 200 + index, y: 180, renderX: 200 + index, renderY: 180, value: 10, age: index / 2, collectAge: 0, collector: null, droneIndex: 0 });
+  }
+  assert.equal(useSkill(state, "coinVacuum"), true);
+  assert.equal(state.coins, 165);
+  assert.equal(state.skills.coinVacuum.cooldownCredit, 0.2);
+  assert.equal(state.skills.coinVacuum.fireRateBuff, 0);
+  state.tower.hp -= 100;
+  assert.equal(useSkill(state, "heal"), true);
+  assert.equal(state.skills.heal.cooldown, 24);
+  assert.equal(state.skills.coinVacuum.cooldownCredit, 0);
+  const conversion = createGameState(64071, undefined, undefined, undefined, undefined, undefined, { coinVacuum: { branch: "conversion", nodes: ["surge", "overdrive"] } });
+  conversion.coinOrbs.push(...Array.from({ length: 20 }, (_, index) => ({ x: 200 + index, y: 180, renderX: 200 + index, renderY: 180, value: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 })));
+  assert.equal(useSkill(conversion, "coinVacuum"), true);
+  assert.equal(conversion.skills.coinVacuum.fireRateBuff, 7);
+  assert.equal(conversion.skills.coinVacuum.damageBuff, 7);
+});
+
 test("拾荒无人机科技最多解锁五架", () => {
   const state = createGameState(70);
   state.threat = 8;

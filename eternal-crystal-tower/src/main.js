@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
+import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
@@ -75,10 +75,16 @@ const TECH_ART = {
   element: { sheet: "./assets/generated/tech-icons-element-v2.png", cols: 3, rows: 1 }
 };
 const SKILL_META = {
-  heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片", tooltip: "恢复晶塔生命；生命已满时转化为护盾，满盾受击会引爆晶片。", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 6v5.2c0 4.2-2.7 7.6-7 9.8-4.3-2.2-7-5.6-7-9.8V6l7-3Z"></path><path d="M12 7v7M8.5 10.5h7"></path></svg>` },
-  overload: { key: "W", name: "超载", description: "再按 W 提前释放冲击", tooltip: "短时间提升攻速并持续积热；再次按 W 可提前释放冲击。", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13.4 2-7 10h5.2L10.8 22l7-11h-5.1L13.4 2Z"></path><path d="M4 6h2M18 18h2"></path></svg>` },
-  starfall: { key: "E", name: "星落", description: "手动选择轰击方向", tooltip: "选择方向轰击敌群，造成范围伤害，并可打断巨兽射线。", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2 1.5 5.2 5.3 1.4-5.3 1.5L13 15l-1.5-4.9-5.3-1.5 5.3-1.4L13 2Z"></path><path d="m19 14 .7 2.4 2.3.6-2.3.7L19 20l-.7-2.3-2.3-.7 2.3-.6L19 14ZM4 19l5-5"></path></svg>` },
-  coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币", tooltip: "立即吸收全场金币，将它们送回晶塔并触发金币结算。", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M12 5.8v4.4M10.4 8h3.2M5 16h12"></path><path d="m15 13 2.5 3-2.5 3M17.5 16H8"></path></svg>` }
+  heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片", tooltip: "恢复晶塔生命；生命已满时转化为护盾，满盾受击会引爆晶片。", art: "./assets/generated/skill-heal-ai-v1.png", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 6v5.2c0 4.2-2.7 7.6-7 9.8-4.3-2.2-7-5.6-7-9.8V6l7-3Z"></path><path d="M12 7v7M8.5 10.5h7"></path></svg>` },
+  overload: { key: "W", name: "超载", description: "再按 W 提前释放冲击", tooltip: "短时间提升攻速并持续积热；再次按 W 可提前释放冲击。", art: "./assets/generated/skill-overload-ai-v1.png", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13.4 2-7 10h5.2L10.8 22l7-11h-5.1L13.4 2Z"></path><path d="M4 6h2M18 18h2"></path></svg>` },
+  starfall: { key: "E", name: "星落", description: "手动选择轰击方向", tooltip: "选择方向轰击敌群，造成范围伤害，并可打断巨兽射线。", art: "./assets/generated/skill-starfall-ai-v1.png", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2 1.5 5.2 5.3 1.4-5.3 1.5L13 15l-1.5-4.9-5.3-1.5 5.3-1.4L13 2Z"></path><path d="m19 14 .7 2.4 2.3.6-2.3.7L19 20l-.7-2.3-2.3-.7 2.3-.6L19 14ZM4 19l5-5"></path></svg>` },
+  coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币", tooltip: "立即吸收全场金币，将它们送回晶塔并触发金币结算。", art: "./assets/generated/skill-coin-vacuum-ai-v1.png", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M12 5.8v4.4M10.4 8h3.2M5 16h12"></path><path d="m15 13 2.5 3-2.5 3M17.5 16H8"></path></svg>` }
+};
+const ACTIVE_SKILL_RESEARCH_META = {
+  heal: { protocol: "生存协议" },
+  overload: { protocol: "临界协议" },
+  starfall: { protocol: "轨道协议" },
+  coinVacuum: { protocol: "经济协议" }
 };
 const RELIC_META = {
   decoy: { icon: "◈", art: "./assets/generated/relic-decoy-ai.png", name: "诡光诱饵", type: "战术造物", description: "每波开始时在来袭方向生成诱饵。敌人会优先追逐它。", effect: "摧毁：爆炸 · 存活：转化为金币" },
@@ -155,7 +161,7 @@ const dom = Object.fromEntries([
   "scoreEntryForm", "playerNameInput", "playerMessageInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "storyIntro", "storyIntroStage", "storyIntroBackdrop", "storyIntroLayers", "storyIntroBubbles", "storyIntroChapter", "storyIntroProgress", "storyIntroTimeline", "storyIntroDisable", "storyIntroSkip", "storyIntroNext", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
-  "baseCampModal", "baseCampShell", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "baseCampModuleList", "baseCampModulePage", "closeBaseCampModuleButton", "baseCampModulePageIcon", "baseCampModulePageKicker", "baseCampModulePageTitle", "baseCampModulePageSummary", "baseCampModulePageStatus", "campaignPanel", "campaignProgressText", "chapterNodeList", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "threatSealPanel", "threatSealUnlockStatus", "threatSealList", "sealScoreMultiplier", "sealResourceMultiplier", "sealRelicChance", "sealAchievementMultiplier", "sealEquippedSummary", "sealAchievementProgress", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "chapterCompleteModal", "chapterCoreAwardStatus", "finishExpeditionButton", "startEndlessButton",
+  "baseCampModal", "baseCampShell", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "baseCampModuleList", "baseCampModulePage", "closeBaseCampModuleButton", "baseCampModulePageIcon", "baseCampModulePageKicker", "baseCampModulePageTitle", "baseCampModulePageSummary", "baseCampModulePageStatus", "campaignPanel", "campaignProgressText", "chapterNodeList", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "threatSealPanel", "threatSealUnlockStatus", "threatSealList", "sealScoreMultiplier", "sealResourceMultiplier", "sealRelicChance", "sealAchievementMultiplier", "sealEquippedSummary", "sealAchievementProgress", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "relicResearchTab", "skillResearchTab", "relicResearchView", "skillResearchView", "activeSkillResearchList", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "chapterCompleteModal", "chapterCoreAwardStatus", "finishExpeditionButton", "startEndlessButton",
   "relicRunHud", "threatSealHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList", "relicChoiceKeys"
 ].map((id) => [id, document.getElementById(id)]));
 
@@ -182,8 +188,8 @@ const BASECAMP_MODULES = [
     key: "relics",
     panelId: "relicResearchPanel",
     category: "成长",
-    name: "研究舱",
-    description: "强化已发现的遗物",
+    name: "研究舱 · 战术模块",
+    description: "遗物强化与主动技能协议",
     art: "./assets/generated/basecamp-module-relics-v1.png",
     icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M12 4h8M14 4v8L7 24c-1 2 1 4 3 4h12c2 0 4-2 3-4l-7-12V4"/><path d="M10 21h12M12 17h8"/></svg>'
   },
@@ -209,7 +215,7 @@ const BASECAMP_MODULES = [
 let save = loadSave();
 let runIndex = 0;
 const baseSeed = seedFromUrl(location.search);
-let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped);
+let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped, save.skillResearch);
 const previewMode = new URLSearchParams(location.search).get("preview");
 const INTRO_SCENES = [
   { background: "./assets/story/intro-bg-city-dawn-v1.png", layers: [], chapter: "序章 · 晶核纪元", bubbles: [{ text: "昔日，晶核照亮世界。", kind: "narration", position: "top-left" }], motion: "motion-push", tone: "dawn", duration: 2600 },
@@ -335,10 +341,10 @@ if (previewMode === "resources") {
   spawnPermanentResourceDrop(state, "core", 1, 580, 315, { source: "boss" });
   state.paused = true;
 }
-if (previewMode === "basecamp" || previewMode === "nexus" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals" || previewMode === "recovery") {
+if (previewMode === "basecamp" || previewMode === "nexus" || previewMode === "relic-research" || previewMode === "skill-research" || previewMode === "relic-archive" || previewMode === "threat-seals" || previewMode === "recovery") {
   save.baseCamp.unlocked = true;
   save.baseCamp.coreEcho = true;
-  save.baseCamp.recoverySeen = previewMode === "basecamp" || previewMode === "nexus" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals";
+  save.baseCamp.recoverySeen = previewMode === "basecamp" || previewMode === "nexus" || previewMode === "relic-research" || previewMode === "skill-research" || previewMode === "relic-archive" || previewMode === "threat-seals";
   save.resources.echoShards = Math.max(save.resources.echoShards, 42);
   save.resources.coreFragments = Math.max(save.resources.coreFragments, 7);
   save.resources.echoShards = Math.max(save.resources.echoShards, 28);
@@ -346,6 +352,16 @@ if (previewMode === "basecamp" || previewMode === "nexus" || previewMode === "re
   if (previewMode === "nexus") {
     save.stardust = 100000;
     for (const key of Object.keys(save.research)) save.research[key] = 0;
+  }
+  if (previewMode === "skill-research") {
+    save.resources.echoShards = Math.max(save.resources.echoShards, 80);
+    save.resources.coreFragments = Math.max(save.resources.coreFragments, 24);
+    save.skillResearch = {
+      heal: { branch: "guardian", nodes: ["reinforcedCore", "lastStand"] },
+      overload: { branch: "rupture", nodes: ["pressureValve"] },
+      starfall: { branch: "precision", nodes: ["wideReticle", "starMark"] },
+      coinVacuum: { branch: null, nodes: [] }
+    };
   }
   if (previewMode === "relic-archive") {
     for (const id of [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)]) save.relicArchive.discovered[id] = true;
@@ -645,6 +661,7 @@ let accountAuthMode = "login";
 let resumeAfterLeaderboard = false;
 let baseCampOpen = false;
 let baseCampRoom = null;
+let researchBayTab = "relics";
 let resumeAfterBaseCamp = false;
 let relicChoiceOpen = false;
 let resumeAfterRelicChoice = false;
@@ -1652,7 +1669,7 @@ function createSkillUi() {
     button.className = "skill-button";
     button.dataset.skill = key;
     button.setAttribute('aria-label', `${meta.key} · ${meta.name}：${meta.tooltip}`);
-    button.innerHTML = `<span class="skill-key">${meta.key}</span>${meta.icon}<i class="cooldown-mask"></i><span class="cooldown-text"></span><span class="skill-tooltip" role="tooltip"><b>${meta.key} · ${meta.name}</b><span>${meta.tooltip}</span></span>`;
+    button.innerHTML = `<span class="skill-key">${meta.key}</span><img class="skill-icon skill-art" src="${meta.art}" alt="" aria-hidden="true" loading="lazy"><i class="cooldown-mask"></i><span class="cooldown-text"></span><span class="skill-tooltip" role="tooltip"><b>${meta.key} · ${meta.name}</b><span>${meta.tooltip}</span></span>`;
     button.addEventListener("click", () => activateSkill(key));
     dom.skillList.append(button);
   }
@@ -1696,6 +1713,69 @@ function playNexusUpgradeFx(key, level) {
     panel.classList.remove("nexus-upgrade-success");
     upgradedButton?.classList.remove("research-upgraded");
   }, 1100);
+}
+
+function setResearchBayTab(tab = "relics", focus = false) {
+  researchBayTab = tab === "skills" ? "skills" : "relics";
+  const skillsSelected = researchBayTab === "skills";
+  dom.relicResearchView.classList.toggle("hidden", skillsSelected);
+  dom.skillResearchView.classList.toggle("hidden", !skillsSelected);
+  dom.relicResearchTab.setAttribute("aria-selected", String(!skillsSelected));
+  dom.skillResearchTab.setAttribute("aria-selected", String(skillsSelected));
+  dom.relicResearchTab.tabIndex = skillsSelected ? -1 : 0;
+  dom.skillResearchTab.tabIndex = skillsSelected ? 0 : -1;
+  if (focus) (skillsSelected ? dom.skillResearchTab : dom.relicResearchTab).focus({ preventScroll: true });
+}
+
+function renderActiveSkillResearch() {
+  dom.activeSkillResearchList.replaceChildren();
+  for (const key of SKILL_ORDER) {
+    const skill = SKILL_META[key];
+    const research = ACTIVE_SKILL_RESEARCH_META[key];
+    const skillConfig = GAME_CONFIG.activeSkillResearch[key];
+    const entry = save.skillResearch?.[key] ?? { branch: null, nodes: [] };
+    const card = document.createElement("article");
+    card.className = `active-skill-research-card skill-research-${key}`;
+    card.dataset.skillResearch = key;
+    const routes = Object.entries(skillConfig.branches).map(([branchKey, branch], branchIndex) => {
+      const selectedRoute = entry.branch === branchKey;
+      const lockedRoute = Boolean(entry.branch && !selectedRoute);
+      const routeNodes = branch.nodes.map((node, nodeIndex) => {
+        const selected = selectedRoute && entry.nodes.includes(node.id);
+        const next = !selected && !lockedRoute && (entry.branch === null || selectedRoute) && entry.nodes.length === nodeIndex;
+        const cost = GAME_CONFIG.activeSkillResearch.costs[nodeIndex];
+        const affordable = save.resources.coreFragments >= cost;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `skill-research-node${selected ? " selected" : ""}${next && affordable ? " available" : ""}`;
+        button.disabled = selected || lockedRoute || !next || !affordable;
+        button.innerHTML = `<span><b>${nodeIndex + 1}</b><strong>${node.name}</strong></span><small>${selected ? "已装载" : `研究 · ${cost} 核心残片`}</small><em>${node.effect}</em>`;
+        button.addEventListener("click", () => {
+          if (!buySkillResearch(save, key, branchKey, node.id)) return;
+          persistSave();
+          audio.play("purchase");
+          showToast(`${skill.name} · ${branch.name} · ${node.name}已装载 · 下一局生效`);
+          renderBaseCamp();
+        });
+        return button;
+      });
+      const route = document.createElement("section");
+      route.className = `active-skill-branch${selectedRoute ? " selected" : ""}${lockedRoute ? " locked" : ""}`;
+      route.innerHTML = `<header><span>路线 ${branchIndex === 0 ? "A" : "B"}</span><strong>${branch.name}</strong><small>${selectedRoute ? "当前路线 · 可继续搭配" : lockedRoute ? "已锁定 · 另一条路线已选择" : branch.description}</small></header>`;
+      const nodeList = document.createElement("div");
+      nodeList.className = "active-skill-node-list";
+      for (const node of routeNodes) nodeList.append(node);
+      route.append(nodeList);
+      return route;
+    });
+    card.innerHTML = `<span class="active-skill-research-icon"><img src="${skill.art}" alt="" aria-hidden="true" loading="lazy"></span><span class="active-skill-research-copy"><small>${research.protocol}</small><strong>${skill.name}<em>${entry.nodes.length ? `${skillConfig.branches[entry.branch]?.name ?? "路线"} · ${entry.nodes.length} / 2` : "选择一条路线"}</em></strong><span class="active-skill-research-base">基础：${skill.tooltip}</span></span>`;
+    for (const route of routes) card.append(route);
+    const footer = document.createElement("footer");
+    footer.className = "active-skill-research-footer";
+    footer.innerHTML = `<span>核心残片用于路线研究 · 同一技能只能选择一条路线</span><small>永久生效 · 下一局开始生效</small>`;
+    card.append(footer);
+    dom.activeSkillResearchList.append(card);
+  }
 }
 
 function renderRelicResearch() {
@@ -1750,6 +1830,8 @@ function renderRelicResearch() {
     });
     dom.relicResearchList.append(button);
   }
+  renderActiveSkillResearch();
+  setResearchBayTab(researchBayTab);
 }
 
 function configuredRelicIds() {
@@ -2250,10 +2332,13 @@ function handleEvents(events) {
     else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce("侦测到大规模怪潮"); }
     else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(event.endless ? `无尽怪潮 ${event.index} 抵达 · 精英信号 ${event.eliteCount}` : `第 ${event.index} 次怪潮抵达`); }
     else if (event.type === "waveCleared" && event.endless) showToast(`无尽怪潮 ${String(event.index).padStart(2, "0")} 已肃清 · 获得增幅选择`);
-    else if (event.type === "overloadRelease") { audio.play("overload"); renderer.trigger("overloadRelease", event.overheated ? 1.5 : 1); announce(event.overheated ? "热浪爆发 · 晶塔过热" : event.early ? "超载中断 · 提前释放冲击" : "超载冲击释放"); }
-    else if (event.type === "shieldBurst") { audio.play("hit"); renderer.trigger("shieldBurst"); announce(`满盾反击 · 晶片命中 ${event.hits}`); }
+    else if (event.type === "overloadRelease") { audio.play("overload"); renderer.trigger("overloadRelease", event.overheated ? 1.5 : 1); announce(event.damage > 0 ? `${event.overheated ? "过热" : "临界"}泄压 · 范围冲击 ${Math.round(event.damage)}` : event.overheated ? "热浪爆发 · 晶塔过热" : event.early ? "超载中断 · 提前释放冲击" : "超载冲击释放"); }
+    else if (event.type === "shieldBurst") { audio.play("hit"); renderer.trigger("shieldBurst"); announce(`满盾反击 · 晶片命中 ${event.hits}${event.knockbackHits ? ` · 击退 ${event.knockbackHits}` : ""}`); }
     else if (event.type === "anchorLocked") { audio.play("purchase"); renderer.trigger("anchorLocked"); announce(`锁定 ${ANCHOR_ROLE_NAMES[event.role]} · ${event.duration.toFixed(0)} 秒`); }
-    else if (event.type === "coinVacuum") { audio.play("coin"); renderer.trigger("coinVacuum"); announce(`金潮归塔 · ${event.count} 枚 · +${event.value}`); }
+    else if (event.type === "starfallFollowup") announce(`轨道协议 · 追加落星命中 ${event.hits}`);
+    else if (event.type === "healLastStand") showToast(`生存协议 · ${event.duration.toFixed(0)} 秒减伤 ${Math.round(event.reduction * 100)}%`);
+    else if (event.type === "skillCooldownCredit") showToast(`${SKILL_META[event.key].name} · 经济协议缩短冷却 ${Math.round(event.reduction * 100)}%`);
+    else if (event.type === "coinVacuum") { audio.play("coin"); renderer.trigger("coinVacuum"); announce(`金潮归塔 · ${event.count} 枚 · +${event.value}${event.fireRateBuff > 0 ? " · 火力循环启动" : ""}`); }
     else if (event.type === "skill") { audio.play(event.key); renderer.trigger(event.key); }
     else if (event.type === "gameOver") { audio.play("gameOver"); renderer.trigger("gameOver"); settleRun(event.stardust, "defeat"); }
   }
@@ -2337,6 +2422,9 @@ function updateUi() {
 
   for (const button of dom.skillList.children) {
     const key = button.dataset.skill;
+    const researchEntry = state.skillResearch?.[key] ?? { branch: null, nodes: [] };
+    const researchLevel = researchEntry.nodes?.length ?? 0;
+    const researchBranch = researchEntry.branch ? GAME_CONFIG.activeSkillResearch[key]?.branches?.[researchEntry.branch]?.name : "";
     const cooldown = state.skills[key].cooldown;
     const total = GAME_CONFIG.skills[key].cooldown * (key === "heal" ? state.threatSeals?.modifiers?.healCooldownMultiplier ?? 1 : 1);
     const shieldFull = state.tower.shield >= stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction - 0.01;
@@ -2349,7 +2437,7 @@ function updateUi() {
     button.querySelector(".cooldown-mask").style.height = `${Math.min(100, cooldown / total * 100)}%`;
     button.querySelector(".cooldown-text").textContent = cooldown > 0 ? `${cooldown.toFixed(1)}s` : "";
     const tooltip = button.querySelector(".skill-tooltip span");
-    if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
+    if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${researchLevel > 0 ? ` · ${ACTIVE_SKILL_RESEARCH_META[key].protocol} · ${researchBranch} ${researchLevel}/2` : ""}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
   }
 
   const sovereign = state.enemies.find((enemy) => enemy.type === "sovereign" && enemy.hp > 0);
@@ -2685,7 +2773,7 @@ function restart() {
   dom.endEndlessButton.classList.add("hidden");
   dom.relicChoiceModal.classList.add("hidden");
   runIndex += 1;
-  state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped);
+  state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped, save.skillResearch);
   runSettled = false;
   scoreSubmitted = false;
   currentRunScore = null;
@@ -2821,6 +2909,8 @@ dom.openBaseCampButton.addEventListener("click", () => setBaseCampOpen(true));
 dom.openBaseCampFromGameOver.addEventListener("click", () => setBaseCampOpen(true));
 dom.closeBaseCampModuleButton.addEventListener("click", () => showBaseCampHub(true));
 dom.closeBaseCampButton.addEventListener("click", () => setBaseCampOpen(false, true));
+dom.relicResearchTab.addEventListener("click", () => setResearchBayTab("relics", true));
+dom.skillResearchTab.addEventListener("click", () => setResearchBayTab("skills", true));
 dom.baseCampModal.addEventListener("pointerdown", (event) => { if (event.target === dom.baseCampModal) setBaseCampOpen(false, true); });
 dom.recoveryContinueButton.addEventListener("click", advanceBaseRecoveryEvent);
 dom.finishExpeditionButton.addEventListener("click", finishChapterExpedition);
@@ -3011,10 +3101,11 @@ revealGameWhenReady().then(() => {
       dom.chapterCompleteModal.classList.remove("hidden");
       dom.finishExpeditionButton.focus({ preventScroll: true });
     }
-    else if (previewMode === "basecamp" || previewMode === "nexus" || previewMode === "relic-research" || previewMode === "relic-archive" || previewMode === "threat-seals") {
+    else if (previewMode === "basecamp" || previewMode === "nexus" || previewMode === "relic-research" || previewMode === "skill-research" || previewMode === "relic-archive" || previewMode === "threat-seals") {
       setBaseCampOpen(true);
       if (previewMode === "nexus") setBaseCampRoom("nexus");
       if (previewMode === "relic-research") setBaseCampRoom("relics");
+      if (previewMode === "skill-research") { setBaseCampRoom("relics"); setResearchBayTab("skills"); }
       if (previewMode === "relic-archive") setBaseCampRoom("archive");
       if (previewMode === "threat-seals") setBaseCampRoom("seals");
     }

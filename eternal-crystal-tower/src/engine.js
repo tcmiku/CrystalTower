@@ -49,7 +49,35 @@ export function getThreatSealModifiers(equipped = []) {
   return { ids, ...modifiers };
 }
 
-export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots, relicArchive = {}, equippedSeals = []) {
+function normalizeSkillResearchEntry(key, entry) {
+  const config = GAME_CONFIG.activeSkillResearch[key];
+  const branches = config?.branches ?? {};
+  if (!config) return { branch: null, nodes: [] };
+  if (Number.isFinite(Number(entry))) {
+    const legacyLevel = Math.max(0, Math.floor(Number(entry)));
+    const fallback = Object.keys(branches)[0];
+    return { branch: legacyLevel > 0 ? fallback ?? null : null, nodes: fallback ? branches[fallback].nodes.slice(0, Math.min(legacyLevel, branches[fallback].nodes.length)).map((node) => node.id) : [] };
+  }
+  const branch = Object.hasOwn(branches, entry?.branch) ? entry.branch : null;
+  const branchNodes = branch ? branches[branch].nodes.map((node) => node.id) : [];
+  const requested = Array.isArray(entry?.nodes) ? entry.nodes : [];
+  const nodes = branchNodes.slice(0, requested.length).filter((id, index) => requested[index] === id);
+  return { branch, nodes };
+}
+
+function activeSkillResearchEntry(state, key) {
+  return normalizeSkillResearchEntry(key, state.skillResearch?.[key]);
+}
+
+function hasSkillResearchNode(state, key, nodeId) {
+  return activeSkillResearchEntry(state, key).nodes.includes(nodeId);
+}
+
+export function getStarfallConeHalfAngle(state) {
+  return GAME_CONFIG.skills.starfall.coneHalfAngle * (hasSkillResearchNode(state, "starfall", "wideReticle") ? GAME_CONFIG.activeSkillResearch.starfall.coneMultiplier : 1);
+}
+
+export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots, relicArchive = {}, equippedSeals = [], skillResearch = {}) {
   const rng = new SeededRng(seed);
   const relicIds = [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)];
   const hiddenRelicIds = Object.keys(GAME_CONFIG.relicCombos);
@@ -74,6 +102,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     sovereignEncounter: { spawned: false, defeated: false },
     endlessMode: false,
     threatSeals: { equipped: threatSealModifiers.ids, modifiers: threatSealModifiers, resourceCarry: { echo: 0, core: 0 } },
+    skillResearch: Object.fromEntries(Object.keys(GAME_CONFIG.skills).map((key) => [key, normalizeSkillResearchEntry(key, skillResearch?.[key])])),
     tower: {
       hp: 0,
       shield: 0,
@@ -105,10 +134,10 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       upgrades: { damage: 0, rate: 0, ascend: 0, cannonSiege: 0, cannonCharge: 0, cannonPierce: 0, cannonWeakpoint: 0, cannonStarPiercer: 0, cannonSplit: 0, cannonGrowth: 0, cannonEcho: 0, cannonCascade: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
     },
     skills: {
-      heal: { cooldown: 0, active: 0, burst: 0, shieldBurstArmed: false },
+      heal: { cooldown: 0, active: 0, burst: 0, shieldBurstArmed: false, damageReduction: 0 },
       overload: { cooldown: 0, active: 0, heat: 0, slow: 0, pulse: 0, overheated: false },
       starfall: { cooldown: 0, active: 0, angle: 0, aimAngle: 0, aiming: false, protocol: "manual" },
-      coinVacuum: { cooldown: 0, active: 0, trails: [], collected: 0, value: 0 }
+      coinVacuum: { cooldown: 0, active: 0, trails: [], collected: 0, value: 0, cooldownCredit: 0, fireRateBuff: 0, damageBuff: 0 }
     },
     research: {
       damage: Number(research.damage) || 0,
@@ -195,7 +224,8 @@ export function getTowerStats(state) {
   const relicDamage = 1 + (state.relics?.damageBonus ?? 0);
   const pierceLevel = tower.upgrades.cannonPierce ?? 0;
   const phaseDamage = (state.relics?.phaseBuff ?? 0) > 0 ? cfg.relics.lunar.transitionDamageMultiplier : 1;
-  const damage = cfg.tower.damage * (cfg.upgrades.damage.multiplier ** tower.upgrades.damage) * cfg.upgrades.ascend.damage[level] * permanentDamage * relicDamage * phaseDamage;
+  const economyDamage = (state.skills?.coinVacuum?.damageBuff ?? 0) > 0 ? cfg.activeSkillResearch.coinVacuum.damageMultiplier : 1;
+  const damage = cfg.tower.damage * (cfg.upgrades.damage.multiplier ** tower.upgrades.damage) * cfg.upgrades.ascend.damage[level] * permanentDamage * relicDamage * phaseDamage * economyDamage;
   const rawRate = cfg.tower.fireRate * (cfg.upgrades.rate.multiplier ** tower.upgrades.rate) * cfg.upgrades.ascend.rate[level];
   const relicRate = (1 + (state.relics?.rateBonus ?? 0)) * ((state.relics?.phaseBuff ?? 0) > 0 ? cfg.relics.lunar.transitionRateMultiplier : 1);
   const suppression = (tower.fireRateSuppression ?? 0) > 0 ? cfg.sovereign.rangedSlowMultiplier : 1;
@@ -429,6 +459,7 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
     attackRange: base.attackRange ?? 0, rangedFlash: 0,
     freezeTimer: 0, burnTimer: 0, burnTickCooldown: 0, burnDamagePerTick: 0,
     markTimer: 0,
+    starMarkTimer: 0,
     weakpointTimer: 0,
     elite,
     waveElite: Boolean(options.waveElite),
@@ -754,7 +785,8 @@ function fireTower(state) {
   }
   if (state.skills.overload.active > 0) {
     const config = GAME_CONFIG.skills.overload;
-    state.skills.overload.heat = Math.min(config.heatCap, state.skills.overload.heat + config.heatPerVolley);
+    const heatMultiplier = hasSkillResearchNode(state, "overload", "stabilizer") ? GAME_CONFIG.activeSkillResearch.overload.heatGainMultiplier : 1;
+    state.skills.overload.heat = Math.min(config.heatCap, state.skills.overload.heat + config.heatPerVolley * heatMultiplier);
   }
   state.events.push({ type: "shoot", tier: state.tower.upgrades.ascend });
   return true;
@@ -1466,7 +1498,9 @@ function damageTower(state, damage, heavy = false, source = "enemy") {
     return false;
   }
   if (state.skills.heal.shieldBurstArmed) releaseShieldBurst(state);
-  let remainingDamage = damage;
+  const reductionActive = hasSkillResearchNode(state, "heal", "lastStand") && state.skills.heal.damageReduction > 0;
+  const reducedDamage = damage * (reductionActive ? 1 - GAME_CONFIG.activeSkillResearch.heal.damageReduction : 1);
+  let remainingDamage = reducedDamage;
   const droneShieldAbsorbed = Math.min(state.tower.droneGuardShield, remainingDamage);
   state.tower.droneGuardShield -= droneShieldAbsorbed;
   remainingDamage -= droneShieldAbsorbed;
@@ -1475,7 +1509,7 @@ function damageTower(state, damage, heavy = false, source = "enemy") {
   remainingDamage -= towerShieldAbsorbed;
   state.tower.hp = Math.max(0, state.tower.hp - remainingDamage);
   state.tower.healthBarTimer = GAME_CONFIG.tower.healthBarDuration;
-  state.events.push({ type: "towerHit", damage: remainingDamage, absorbed: droneShieldAbsorbed + towerShieldAbsorbed, droneShieldAbsorbed, heavy, source });
+  state.events.push({ type: "towerHit", damage: remainingDamage, absorbed: droneShieldAbsorbed + towerShieldAbsorbed, mitigated: damage - reducedDamage, droneShieldAbsorbed, heavy, source });
   return true;
 }
 
@@ -1867,6 +1901,7 @@ function updateEnemies(state, dt) {
     enemy.phaseBreakInvulnerability = Math.max(0, (enemy.phaseBreakInvulnerability ?? 0) - dt);
     enemy.freezeTimer = Math.max(0, (enemy.freezeTimer ?? 0) - dt);
     enemy.markTimer = Math.max(0, (enemy.markTimer ?? 0) - dt);
+    enemy.starMarkTimer = Math.max(0, (enemy.starMarkTimer ?? 0) - dt);
     enemy.weakpointTimer = Math.max(0, (enemy.weakpointTimer ?? 0) - dt);
     if (enemy.elite && enemy.affix === "devour") {
       enemy.devourCooldown -= dt;
@@ -2071,8 +2106,11 @@ function updateProjectiles(state, dt) {
         projectile.hitIds ??= new Set();
         projectile.hitIds.add(enemy.id);
         const markedMultiplier = enemy.markTimer > 0 ? GAME_CONFIG.drones.huntDamageMultiplier : 1;
+        const starMarkMultiplier = (enemy.starMarkTimer ?? 0) > 0 && projectile.source !== "sawGun"
+          ? GAME_CONFIG.activeSkillResearch.starfall.markDamageMultiplier
+          : 1;
         const bossMultiplier = isBossEnemy(enemy) ? (projectile.bossDamageMultiplier ?? 1) : 1;
-        const damage = projectile.damage * markedMultiplier * bossMultiplier;
+        const damage = projectile.damage * markedMultiplier * starMarkMultiplier * bossMultiplier;
         damageEnemy(state, enemy, damage, projectile.element ?? "shot");
         if (projectile.element) applyElementalHit(state, enemy, projectile.element, damage);
         const weakpointLevel = state.tower.upgrades.cannonWeakpoint;
@@ -2476,50 +2514,74 @@ function angleDistance(first, second) {
   return Math.abs(Math.atan2(Math.sin(first - second), Math.cos(first - second)));
 }
 
-function releaseShieldBurst(state) {
-  const skill = state.skills.heal;
-  if (!skill.shieldBurstArmed) return false;
-  const config = GAME_CONFIG.skills.heal;
+function knockbackEnemies(state, radius, distance, bossMultiplier = 1) {
   const { x: centerX, y: centerY } = getTowerPosition(state);
-  const damage = getTowerStats(state).damage * config.burstDamageMultiplier;
-  let hits = 0;
-  skill.shieldBurstArmed = false;
-  skill.burst = config.burstDuration;
-  for (const enemy of state.enemies) {
-    if (enemy.hp <= 0 || Math.hypot(enemy.x - centerX, enemy.y - centerY) > config.burstRadius + enemy.radius) continue;
-    damageEnemy(state, enemy, damage, "shieldBurst");
-    hits += 1;
-  }
-  state.events.push({ type: "shieldBurst", damage, hits });
-  return true;
-}
-
-function releaseOverloadPulse(state, early = false) {
-  const config = GAME_CONFIG.skills.overload;
-  const skill = state.skills.overload;
-  const { centerX, centerY, width, height } = GAME_CONFIG.arena;
+  const { width, height } = GAME_CONFIG.arena;
   let hits = 0;
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0) continue;
     let dx = enemy.x - centerX;
     let dy = enemy.y - centerY;
-    let distance = Math.hypot(dx, dy);
-    if (distance > config.knockbackRadius) continue;
-    if (distance < 0.001) {
+    let currentDistance = Math.hypot(dx, dy);
+    if (currentDistance > radius) continue;
+    if (currentDistance < 0.001) {
       const angle = (enemy.id * 2.399963) % (Math.PI * 2);
-      dx = Math.cos(angle); dy = Math.sin(angle); distance = 1;
+      dx = Math.cos(angle); dy = Math.sin(angle); currentDistance = 1;
     }
-    const scale = isBossEnemy(enemy) ? config.bossKnockbackMultiplier : 1;
-    const falloff = 0.55 + 0.45 * (1 - distance / config.knockbackRadius);
-    const push = config.knockbackDistance * scale * falloff;
-    enemy.x = Math.max(-34, Math.min(width + 34, enemy.x + dx / distance * push));
-    enemy.y = Math.max(-34, Math.min(height + 34, enemy.y + dy / distance * push));
+    const scale = isBossEnemy(enemy) ? bossMultiplier : 1;
+    const falloff = 0.55 + 0.45 * (1 - currentDistance / radius);
+    const push = distance * scale * falloff;
+    enemy.x = Math.max(-34, Math.min(width + 34, enemy.x + dx / currentDistance * push));
+    enemy.y = Math.max(-34, Math.min(height + 34, enemy.y + dy / currentDistance * push));
     hits += 1;
   }
+  return hits;
+}
+
+function releaseShieldBurst(state) {
+  const skill = state.skills.heal;
+  if (!skill.shieldBurstArmed) return false;
+  const config = GAME_CONFIG.skills.heal;
+  const { x: centerX, y: centerY } = getTowerPosition(state);
+  const research = GAME_CONFIG.activeSkillResearch.heal;
+  const burstRadius = config.burstRadius * (hasSkillResearchNode(state, "heal", "shardBurst") ? research.burstRadiusMultiplier : 1);
+  const damage = getTowerStats(state).damage * config.burstDamageMultiplier * (hasSkillResearchNode(state, "heal", "shardBurst") ? research.burstDamageMultiplier : 1);
+  let hits = 0;
+  skill.shieldBurstArmed = false;
+  skill.burst = config.burstDuration;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || Math.hypot(enemy.x - centerX, enemy.y - centerY) > burstRadius + enemy.radius) continue;
+    damageEnemy(state, enemy, damage, "shieldBurst");
+    hits += 1;
+  }
+  const knockbackHits = hasSkillResearchNode(state, "heal", "repulse")
+    ? knockbackEnemies(state, burstRadius, research.burstKnockbackDistance, research.bossKnockbackMultiplier)
+    : 0;
+  state.events.push({ type: "shieldBurst", damage, hits, knockbackHits });
+  return true;
+}
+
+function releaseOverloadPulse(state, early = false) {
+  const config = GAME_CONFIG.skills.overload;
+  const research = GAME_CONFIG.activeSkillResearch.overload;
+  const skill = state.skills.overload;
   skill.overheated = skill.heat >= config.overheatThreshold;
-  skill.slow = skill.overheated ? config.slowDuration : 0;
+  const heatRatio = Math.min(1, skill.heat / config.heatCap);
+  const knockbackMultiplier = early && hasSkillResearchNode(state, "overload", "pressureValve") ? 1 + heatRatio * research.earlyPulseBonus : 1;
+  let damage = 0;
+  if (hasSkillResearchNode(state, "overload", "thermalNova")) {
+    damage = getTowerStats(state).damage * research.damageMultiplier * (skill.overheated ? research.overheatDamageMultiplier : 1);
+    const { x: centerX, y: centerY } = getTowerPosition(state);
+    for (const enemy of state.enemies) {
+      if (enemy.hp <= 0 || Math.hypot(enemy.x - centerX, enemy.y - centerY) > config.knockbackRadius + enemy.radius) continue;
+      damageEnemy(state, enemy, damage, "overload");
+    }
+    resolveDeaths(state);
+  }
+  const hits = knockbackEnemies(state, config.knockbackRadius, config.knockbackDistance * knockbackMultiplier, config.bossKnockbackMultiplier);
+  skill.slow = skill.overheated ? config.slowDuration * (hasSkillResearchNode(state, "overload", "coolingVent") ? 0.5 : 1) : 0;
   skill.pulse = config.pulseDuration;
-  state.events.push({ type: "overloadRelease", overheated: skill.overheated, heat: skill.heat, hits, early });
+  state.events.push({ type: "overloadRelease", overheated: skill.overheated, heat: skill.heat, hits, early, damage, knockbackMultiplier });
 }
 
 export function useSkill(state, key, options = {}) {
@@ -2537,17 +2599,25 @@ export function useSkill(state, key, options = {}) {
   if (skill.cooldown > 0) return false;
   if (key === "heal") {
     const stats = getTowerStats(state);
-    const amount = stats.maxHp * config.fraction;
+    const research = GAME_CONFIG.activeSkillResearch.heal;
+    const reinforced = hasSkillResearchNode(state, "heal", "reinforcedCore");
+    const lowHealthRelease = state.tower.hp / stats.maxHp < research.lowHpThreshold;
+    const amount = stats.maxHp * config.fraction * (reinforced ? research.healMultiplier : 1);
     const missing = Math.max(0, stats.maxHp - state.tower.hp);
     const healed = Math.min(missing, amount);
     const shieldCap = stats.maxHp * config.shieldCapFraction;
-    const shieldGain = Math.min(Math.max(0, shieldCap - state.tower.shield), amount - healed);
+    const shieldBudget = (amount - healed) * (reinforced ? research.shieldMultiplier : 1);
+    const shieldGain = Math.min(Math.max(0, shieldCap - state.tower.shield), shieldBudget);
     if (healed <= 0 && shieldGain <= 0) return false;
     state.tower.hp = Math.min(stats.maxHp, state.tower.hp + healed);
     state.tower.shield += shieldGain;
     skill.shieldBurstArmed = state.tower.shield >= shieldCap - 0.01;
+    if (hasSkillResearchNode(state, "heal", "lastStand") && lowHealthRelease) {
+      skill.damageReduction = research.damageReductionDuration;
+      state.events.push({ type: "healLastStand", duration: skill.damageReduction, reduction: research.damageReduction });
+    }
   } else if (key === "overload") {
-    skill.active = config.duration;
+    skill.active = config.duration * (hasSkillResearchNode(state, "overload", "stabilizer") ? GAME_CONFIG.activeSkillResearch.overload.durationMultiplier : 1);
     skill.heat = 0;
     skill.slow = 0;
     skill.pulse = 0;
@@ -2556,13 +2626,37 @@ export function useSkill(state, key, options = {}) {
   } else if (key === "starfall") {
     const requestedAngle = Number(options.angle);
     if (!Number.isFinite(requestedAngle) || !state.enemies.some((enemy) => enemy.hp > 0)) return false;
+    const research = GAME_CONFIG.activeSkillResearch.starfall;
     const angle = Math.atan2(Math.sin(requestedAngle), Math.cos(requestedAngle));
-    counterColossusBeam(state, angle, config.coneHalfAngle);
+    const coneHalfAngle = getStarfallConeHalfAngle(state);
+    const countered = counterColossusBeam(state, angle, coneHalfAngle);
     const damage = getTowerStats(state).damage * config.damageMultiplier;
     const { x: centerX, y: centerY } = getTowerPosition(state);
+    const hitTargets = [];
     for (const enemy of state.enemies) {
       const enemyAngle = Math.atan2(enemy.y - centerY, enemy.x - centerX);
-      if (angleDistance(enemyAngle, angle) <= config.coneHalfAngle) damageEnemy(state, enemy, damage, "starfall");
+      if (enemy.hp <= 0 || angleDistance(enemyAngle, angle) > coneHalfAngle) continue;
+      hitTargets.push(enemy);
+      damageEnemy(state, enemy, damage, "starfall");
+      if (hasSkillResearchNode(state, "starfall", "starMark") && enemy.hp > 0) enemy.starMarkTimer = Math.max(enemy.starMarkTimer ?? 0, research.markDuration);
+    }
+    if (hasSkillResearchNode(state, "starfall", "counterBurst") && (hitTargets.length >= research.followupMinHits || countered)) {
+      const counterTarget = countered ? hitTargets.find((enemy) => enemy.type === "colossus") : null;
+      const origin = counterTarget ?? {
+        x: hitTargets.reduce((sum, enemy) => sum + enemy.x, 0) / Math.max(1, hitTargets.length),
+        y: hitTargets.reduce((sum, enemy) => sum + enemy.y, 0) / Math.max(1, hitTargets.length)
+      };
+      const followupRadius = research.followupRadius * (hasSkillResearchNode(state, "starfall", "impactField") ? research.followupRadiusMultiplier : 1);
+      const followupDamage = getTowerStats(state).damage * research.followupDamageMultiplier * (hasSkillResearchNode(state, "starfall", "impactField") ? research.followupDamageBoost : 1);
+      let followupHits = 0;
+      for (const enemy of state.enemies) {
+        if (enemy.hp <= 0 || Math.hypot(enemy.x - origin.x, enemy.y - origin.y) > followupRadius + enemy.radius) continue;
+        damageEnemy(state, enemy, followupDamage, "starfall");
+        if (hasSkillResearchNode(state, "starfall", "starMark") && enemy.hp > 0) enemy.starMarkTimer = Math.max(enemy.starMarkTimer ?? 0, research.markDuration);
+        followupHits += 1;
+      }
+      state.elementFx.push({ element: "starfallFollowup", x: origin.x, y: origin.y, radius: followupRadius, life: research.followupDuration, maxLife: research.followupDuration });
+      state.events.push({ type: "starfallFollowup", x: origin.x, y: origin.y, damage: followupDamage, hits: followupHits, countered });
     }
     skill.angle = angle;
     skill.aimAngle = angle;
@@ -2571,20 +2665,32 @@ export function useSkill(state, key, options = {}) {
     skill.active = config.activeDuration;
     resolveDeaths(state);
   } else if (key === "coinVacuum") {
-    const targets = state.coinOrbs.filter((orb) => !orb.expired && !orb.collected);
+    const research = GAME_CONFIG.activeSkillResearch.coinVacuum;
+    const targets = state.coinOrbs.filter((orb) => !orb.expired && !orb.collected).sort((a, b) => (b.age ?? 0) - (a.age ?? 0));
     if (!targets.length) return false;
     const incomeMultiplier = 1 + state.research.income * GAME_CONFIG.research.bonusPerLevel;
     const absorbed = new Set(targets);
-    const value = targets.reduce((sum, orb) => sum + Math.max(1, Math.round(orb.value * incomeMultiplier)), 0);
+    const valueMultiplier = hasSkillResearchNode(state, "coinVacuum", "magnet") ? research.valueMultiplier : 1;
+    const value = targets.reduce((sum, orb) => sum + Math.max(1, Math.round(orb.value * incomeMultiplier * valueMultiplier)), 0);
     skill.trails = targets.map((orb) => ({ x: orb.renderX ?? orb.x, y: orb.renderY ?? orb.y }));
     skill.collected = targets.reduce((sum, orb) => sum + (orb.pileCount ?? 1), 0);
     skill.value = value;
     skill.active = config.activeDuration;
     state.coins += value;
     state.coinOrbs = state.coinOrbs.filter((orb) => !absorbed.has(orb));
-    state.events.push({ type: "coinVacuum", count: skill.collected, value });
+    if (hasSkillResearchNode(state, "coinVacuum", "cooldownLoop") && skill.collected >= research.cooldownThreshold) skill.cooldownCredit = Math.max(skill.cooldownCredit, research.cooldownReduction);
+    if (hasSkillResearchNode(state, "coinVacuum", "surge") && skill.collected >= research.buffThreshold) skill.fireRateBuff = Math.max(skill.fireRateBuff, research.buffDuration);
+    if (hasSkillResearchNode(state, "coinVacuum", "overdrive") && skill.collected >= research.damageBuffThreshold) skill.damageBuff = Math.max(skill.damageBuff, research.buffDuration);
+    state.events.push({ type: "coinVacuum", count: skill.collected, value, bonusMultiplier: valueMultiplier, cooldownCredit: skill.cooldownCredit, fireRateBuff: skill.fireRateBuff });
   }
-  skill.cooldown = config.cooldown * (key === "heal" ? state.threatSeals?.modifiers?.healCooldownMultiplier ?? 1 : 1);
+  let cooldown = config.cooldown * (key === "heal" ? state.threatSeals?.modifiers?.healCooldownMultiplier ?? 1 : 1);
+  if (key !== "coinVacuum" && state.skills.coinVacuum.cooldownCredit > 0) {
+    const reduction = state.skills.coinVacuum.cooldownCredit;
+    cooldown *= 1 - reduction;
+    state.skills.coinVacuum.cooldownCredit = 0;
+    state.events.push({ type: "skillCooldownCredit", key, reduction });
+  }
+  skill.cooldown = cooldown;
   state.events.push({ type: "skill", key, angle: skill.angle });
   return true;
 }
@@ -2620,8 +2726,11 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   for (const skill of Object.values(state.skills)) skill.cooldown = Math.max(0, skill.cooldown - skillCooldownDt);
   state.skills.heal.active = Math.max(0, state.skills.heal.active - dt);
   state.skills.heal.burst = Math.max(0, state.skills.heal.burst - dt);
+  state.skills.heal.damageReduction = Math.max(0, (state.skills.heal.damageReduction ?? 0) - dt);
   state.skills.starfall.active = Math.max(0, state.skills.starfall.active - dt);
   state.skills.coinVacuum.active = Math.max(0, state.skills.coinVacuum.active - dt);
+  state.skills.coinVacuum.fireRateBuff = Math.max(0, (state.skills.coinVacuum.fireRateBuff ?? 0) - dt);
+  state.skills.coinVacuum.damageBuff = Math.max(0, (state.skills.coinVacuum.damageBuff ?? 0) - dt);
   state.relics.phaseBuff = Math.max(0, state.relics.phaseBuff - dt);
   state.tower.fireRateSuppression = Math.max(0, (state.tower.fireRateSuppression ?? 0) - dt);
   state.tower.healthBarTimer = Math.max(0, (state.tower.healthBarTimer ?? 0) - dt);
@@ -2641,7 +2750,8 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   overloadSkill.pulse = Math.max(0, overloadSkill.pulse - dt);
   if (overloadSkill.active > 0) {
     overloadSkill.active = Math.max(0, overloadSkill.active - dt);
-    overloadSkill.heat = Math.min(GAME_CONFIG.skills.overload.heatCap, overloadSkill.heat + GAME_CONFIG.skills.overload.passiveHeatPerSecond * dt);
+    const heatMultiplier = hasSkillResearchNode(state, "overload", "stabilizer") ? GAME_CONFIG.activeSkillResearch.overload.heatGainMultiplier : 1;
+    overloadSkill.heat = Math.min(GAME_CONFIG.skills.overload.heatCap, overloadSkill.heat + GAME_CONFIG.skills.overload.passiveHeatPerSecond * heatMultiplier * dt);
     if (overloadSkill.active <= 0) releaseOverloadPulse(state);
   } else {
     overloadSkill.slow = Math.max(0, overloadSkill.slow - dt);
@@ -2656,10 +2766,11 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   // an enemy finally enters range.
   state.tower.fireCooldown = Math.max(0, state.tower.fireCooldown - dt);
   if (!entryCombatLocked && state.tower.fireCooldown <= 0 && fireTower(state)) {
-    const rateMultiplier = overloadSkill.active > 0
+    const overloadRateMultiplier = overloadSkill.active > 0
       ? GAME_CONFIG.skills.overload.rateMultiplier
       : overloadSkill.slow > 0 ? GAME_CONFIG.skills.overload.slowRateMultiplier : 1;
-    state.tower.fireCooldown = 1 / (stats.fireRate * rateMultiplier);
+    const economyRateMultiplier = state.skills.coinVacuum.fireRateBuff > 0 ? GAME_CONFIG.activeSkillResearch.coinVacuum.fireRateMultiplier : 1;
+    state.tower.fireCooldown = 1 / (stats.fireRate * overloadRateMultiplier * economyRateMultiplier);
   }
 
   updateEnemies(state, dt);
@@ -2690,17 +2801,17 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 
 export function snapshotState(state) {
   return {
-    time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry },
+    time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry }, skillResearch: { ...state.skillResearch },
     towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), cannonCascadeCooldown: Number((state.tower.cannonCascadeCooldown ?? 0).toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3))]),
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
-    enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1]),
+    enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1, Number((enemy.starMarkTimer ?? 0).toFixed(3))]),
     hostileProjectiles: state.hostileProjectiles.map((projectile) => [projectile.kind, Number(projectile.x.toFixed(2)), Number(projectile.y.toFixed(2)), Number(projectile.life.toFixed(2))]),
     summonRifts: state.summonRifts.map((rift) => [rift.enemyType, Number(rift.x.toFixed(2)), Number(rift.y.toFixed(2)), Number(rift.life.toFixed(2)), rift.attackable, rift.targetId, Boolean(rift.elite)]),
     resourceDrops: state.resourceDrops.map((drop) => [drop.resourceType, drop.value, Number(drop.x.toFixed(2)), Number(drop.y.toFixed(2)), drop.source, drop.threatLevel]),
     relics: { owned: { ...state.relics.owned }, available: [...state.relics.available], disabledRelics: [...state.relics.disabledRelics], discovered: { ...state.relics.discovered }, upgrades: { ...state.relics.upgrades }, registeredSets: { ...state.relics.registeredSets }, lockedChoice: state.relics.lockedChoice, slots: state.relics.slots, picks: state.relics.picks, damageBonus: Number(state.relics.damageBonus.toFixed(3)), rateBonus: Number(state.relics.rateBonus.toFixed(3)), endlessStacks: state.relics.endlessStacks, mirrorShots: state.relics.mirrorShots, wardKills: state.relics.wardKills, phaseBuff: Number(state.relics.phaseBuff.toFixed(3)), choice: state.relicChoice?.choices ?? null },
     decoys: state.decoys.map((decoy) => [Number(decoy.x.toFixed(2)), Number(decoy.y.toFixed(2)), Number(decoy.hp.toFixed(2)), decoy.waveIndex]),
     emberZones: state.emberZones.map((zone) => [Number(zone.x.toFixed(2)), Number(zone.y.toFixed(2)), Number(zone.life.toFixed(2)), Boolean(zone.frostfire)]),
-    kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, permanentResources: [state.stats.echoShards, state.stats.coreFragments], wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending, [...state.wave.pendingClear]], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over
+    kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, permanentResources: [state.stats.echoShards, state.stats.coreFragments], wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending, [...state.wave.pendingClear]], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.heal.damageReduction.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value, Number(state.skills.coinVacuum.cooldownCredit.toFixed(3)), Number(state.skills.coinVacuum.fireRateBuff.toFixed(3)), Number(state.skills.coinVacuum.damageBuff.toFixed(3))], rng: state.rng.state, over: state.over
   };
 }

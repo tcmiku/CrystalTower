@@ -243,6 +243,7 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .skill-button:disabled { cursor: not-allowed; }
 .skill-key { position: absolute; left: 10px; top: 13px; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; font: 800 12px ui-monospace, monospace; }
 .skill-icon { position: absolute; z-index: 2; left: 50%; top: 50%; width: 38px; height: 38px; transform: translate(-50%, -50%); fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 7px currentColor); }
+.skill-art { object-fit: contain; pointer-events: none; opacity: .82; filter: drop-shadow(0 0 8px rgba(126,232,255,.32)); }
 
 .skill-button[data-skill="heal"] .skill-icon { color: #8bf0ce; }
 .skill-button[data-skill="overload"] .skill-icon { color: #ff8b7d; }
@@ -1038,6 +1039,11 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .nexus-panel .research-heading h3 { margin: 3px 0 0; font-size: 18px; }
 .nexus-panel > p { margin: 0 0 10px; color: #7d83a5; font-size: 9px; }
 .nexus-panel .research-button { min-height: 74px; }
+.research-bay-tabs { display:flex; gap:8px; margin:0 0 12px; padding:4px; width:max-content; max-width:100%; border:1px solid rgba(126,231,255,.15); border-radius:12px; background:rgba(3,6,24,.56); }
+.research-bay-tabs button { min-width:128px; padding:9px 18px; border:1px solid transparent; border-radius:9px; color:#8d96bb; background:transparent; font-weight:850; letter-spacing:.06em; cursor:pointer; }
+.research-bay-tabs button:hover { color:#eafcff; background:rgba(126,231,255,.06); }
+.research-bay-tabs button[aria-selected="true"] { color:#eaffff; border-color:rgba(121,234,255,.48); background:linear-gradient(120deg,rgba(74,207,231,.2),rgba(147,105,229,.17)); box-shadow:0 0 18px rgba(96,224,255,.1),inset 0 0 16px rgba(255,255,255,.025); }
+.research-bay-view.hidden { display:none; }
 .relic-research-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
 .relic-slot-research { margin-bottom:10px; }
 .relic-slot-button { width:100%; display:flex; align-items:center; justify-content:space-between; gap:18px; padding:13px 16px; border:1px solid rgba(255,220,118,.28); border-radius:14px; color:#eef6ff; background:linear-gradient(115deg,rgba(255,145,63,.1),rgba(104,69,186,.12)); text-align:left; cursor:pointer; }
@@ -1060,6 +1066,46 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .relic-research-card p { margin:0; color:#9299b8; font-size:9px; line-height:1.45; }
 .relic-research-card b { margin-top:6px; color:#ffd08c; font-size:9px; }
 .relic-research-silhouette { width:100%; height:100%; }
+.active-skill-research-heading { margin:0 0 10px; display:flex; align-items:baseline; gap:10px; }
+.active-skill-research-heading span { color:#8deeff; font:850 8px ui-monospace,monospace; letter-spacing:.16em; }
+.active-skill-research-heading strong { color:#eefaff; font-size:15px; }
+.active-skill-research-heading small { color:#8d94b7; font-size:9px; }
+.active-skill-research-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.active-skill-research-card { --skill-accent:#8deeff; position:relative; min-height:182px; display:grid; grid-template-columns:80px minmax(0,1fr); gap:0; overflow:hidden; padding:0; border:1px solid color-mix(in srgb,var(--skill-accent) 32%,transparent); border-radius:16px; color:#edf8ff; background:linear-gradient(130deg,color-mix(in srgb,var(--skill-accent) 9%,rgba(8,10,35,.92)),rgba(7,8,27,.96) 57%); text-align:left; box-shadow:inset 0 1px rgba(255,255,255,.035); }
+.active-skill-research-card::after { content:""; position:absolute; right:-30px; top:-48px; width:150px; height:150px; border:1px solid color-mix(in srgb,var(--skill-accent) 24%,transparent); border-radius:50%; opacity:.42; pointer-events:none; }
+.active-skill-research-card:hover { transform:translateY(-2px); border-color:color-mix(in srgb,var(--skill-accent) 76%,white 10%); box-shadow:0 12px 30px color-mix(in srgb,var(--skill-accent) 10%,transparent),inset 0 1px rgba(255,255,255,.055); }
+.skill-research-heal { --skill-accent:#79ecc9; }
+.skill-research-overload { --skill-accent:#ff786f; }
+.skill-research-starfall { --skill-accent:#b99bff; }
+.skill-research-coinVacuum { --skill-accent:#ffd36d; }
+.active-skill-research-icon { min-height:100%; display:grid; place-content:center; gap:10px; position:relative; color:var(--skill-accent); border-right:1px solid color-mix(in srgb,var(--skill-accent) 22%,transparent); background:radial-gradient(circle at center,color-mix(in srgb,var(--skill-accent) 18%,transparent),transparent 67%); }
+.active-skill-research-icon i { width:29px; height:29px; display:grid; place-items:center; justify-self:center; border:1px solid currentColor; border-radius:8px; color:var(--skill-accent); background:rgba(5,8,28,.75); font:900 13px ui-monospace,monospace; font-style:normal; box-shadow:0 0 14px color-mix(in srgb,var(--skill-accent) 18%,transparent); }
+.active-skill-research-icon img { width:52px; height:52px; object-fit:contain; filter:drop-shadow(0 0 9px color-mix(in srgb,var(--skill-accent) 48%,transparent)); }
+.active-skill-research-copy { min-width:0; padding:13px 14px 12px; display:flex; flex-direction:column; }
+.active-skill-research-copy > small { color:var(--skill-accent); font:850 8px ui-monospace,monospace; letter-spacing:.12em; }
+.active-skill-research-copy > strong { margin:4px 0 8px; display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:17px; }
+.active-skill-research-copy > strong em { flex:none; color:#aab2cf; font:750 9px ui-monospace,monospace; font-style:normal; }
+.active-skill-research-base { display:block; color:#aeb7d2; font-size:9px; line-height:1.45; }
+.active-skill-branch { grid-column:1/-1; margin:0 10px 8px; padding:9px; border:1px solid rgba(255,255,255,.09); border-radius:11px; background:rgba(2,5,20,.34); }
+.active-skill-branch.selected { border-color:color-mix(in srgb,var(--skill-accent) 42%,transparent); background:color-mix(in srgb,var(--skill-accent) 7%,rgba(2,5,20,.34)); }
+.active-skill-branch.locked { opacity:.4; }
+.active-skill-branch header { display:grid; grid-template-columns:auto auto minmax(0,1fr); align-items:baseline; gap:7px; margin-bottom:7px; }
+.active-skill-branch header span { color:var(--skill-accent); font:850 8px ui-monospace,monospace; letter-spacing:.1em; }
+.active-skill-branch header strong { font-size:11px; }
+.active-skill-branch header small { color:#8992b1; font-size:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.active-skill-node-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+.skill-research-node { min-width:0; padding:8px; border:1px solid rgba(255,255,255,.1); border-radius:8px; color:#dfe8fa; background:rgba(255,255,255,.035); text-align:left; cursor:pointer; }
+.skill-research-node:hover:not(:disabled) { border-color:color-mix(in srgb,var(--skill-accent) 75%,white 5%); background:color-mix(in srgb,var(--skill-accent) 10%,transparent); }
+.skill-research-node:disabled { cursor:not-allowed; opacity:.62; }
+.skill-research-node.available { border-color:color-mix(in srgb,var(--skill-accent) 42%,transparent); }
+.skill-research-node.selected { border-color:color-mix(in srgb,var(--skill-accent) 78%,white 8%); background:color-mix(in srgb,var(--skill-accent) 14%,transparent); opacity:1; }
+.skill-research-node > span { display:flex; align-items:center; gap:6px; }
+.skill-research-node > span b { color:var(--skill-accent); font:850 9px ui-monospace,monospace; }
+.skill-research-node > span strong { font-size:10px; }
+.skill-research-node > small { display:block; margin-top:4px; color:var(--skill-accent); font-size:8px; }
+.skill-research-node > em { display:block; margin-top:6px; color:#aab4cd; font-size:8px; font-style:normal; line-height:1.4; }
+.active-skill-research-footer { grid-column:1/-1; display:flex; justify-content:space-between; gap:8px; margin:0 14px 12px; padding-top:3px; color:#757f9f; font-size:8px; }
+.active-skill-research-footer small { color:#9ca4bf; }
 
 /* Permanent relic rarity: common (white), rare (purple), legendary (gold). */
 .relic-rarity-common { border-color:rgba(238,246,255,.72) !important; }
@@ -1205,6 +1251,8 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .nexus-panel .research-heading h3 { font-size: 26px; }
 .nexus-panel .research-heading > strong { font-size: 15px; }
 .nexus-panel > p { margin-bottom: 14px; font-size: 13px; line-height: 1.6; }
+.research-bay-tabs { margin-bottom:16px; }
+.research-bay-tabs button { min-width:154px; padding:11px 22px; font-size:13px; }
 .nexus-panel .research-button { min-height: 100px; padding: 15px; }
 .nexus-panel .research-button strong { font-size: 16px; }
 .nexus-panel .research-button span { font-size: 13px; }
@@ -1223,6 +1271,27 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .relic-research-card strong { margin: 4px 0; font-size: 18px; }
 .relic-research-card p { font-size: 12px; line-height: 1.6; }
 .relic-research-card b { margin-top: 8px; font-size: 11px; }
+.active-skill-research-heading { margin-bottom:14px; }
+.active-skill-research-heading span { font-size:10px; }
+.active-skill-research-heading strong { font-size:20px; }
+.active-skill-research-heading small { font-size:11px; }
+.active-skill-research-list { gap:14px; }
+.active-skill-research-card { min-height:226px; grid-template-columns:104px minmax(0,1fr); }
+.active-skill-research-icon i { width:36px; height:36px; font-size:15px; }
+.active-skill-research-icon img { width:76px; height:76px; }
+.active-skill-research-copy { padding:17px 18px 15px; }
+.active-skill-research-copy > small { font-size:10px; }
+.active-skill-research-copy > strong { margin:5px 0 10px; font-size:21px; }
+.active-skill-research-copy > strong em { font-size:11px; }
+.active-skill-research-base { font-size:11px; }
+.active-skill-branch { margin-inline:14px; padding:11px; }
+.active-skill-branch header span { font-size:9px; }
+.active-skill-branch header strong { font-size:13px; }
+.active-skill-branch header small { font-size:9px; }
+.skill-research-node { padding:10px; }
+.skill-research-node > span strong { font-size:11px; }
+.skill-research-node > small,.skill-research-node > em { font-size:9px; }
+.active-skill-research-footer { margin-inline:18px; font-size:9px; }
 
 @media (max-width: 1024px) {
   .basecamp-modal { padding: 0; place-items: start stretch; }
@@ -1241,6 +1310,8 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .nexus-panel { padding: 18px max(16px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)); }
   .nexus-panel .research-heading h3 { font-size: 23px; }
   .nexus-panel > p { font-size: 12px; }
+  .active-skill-research-card { min-height:210px; grid-template-columns:92px minmax(0,1fr); }
+  .active-skill-research-copy { padding:15px 16px 13px; }
   .relic-research-card { min-height: 124px; grid-template-columns: 96px minmax(0, 1fr); }
   .relic-research-card img { width: 96px; }
 }
@@ -1261,6 +1332,23 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .nexus-panel .research-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
   .nexus-panel .research-heading h3 { font-size: 21px; }
   .nexus-panel > p { font-size: 11px; }
+  .research-bay-tabs { width:100%; }
+  .research-bay-tabs button { flex:1; min-width:0; padding:10px 8px; font-size:12px; }
+  .active-skill-research-heading { align-items:flex-start; flex-direction:column; gap:3px; }
+  .active-skill-research-list { grid-template-columns:1fr; }
+  .active-skill-research-card { min-height:205px; grid-template-columns:78px minmax(0,1fr); }
+  .active-skill-research-icon i { width:32px; height:32px; }
+  .active-skill-research-icon img { width:56px; height:56px; }
+  .active-skill-research-copy { padding:14px 13px 12px; }
+  .active-skill-research-copy > strong { font-size:18px; }
+  .active-skill-research-base { font-size:10px; }
+  .active-skill-branch { margin-inline:9px; padding:8px; }
+  .active-skill-branch header { grid-template-columns:auto minmax(0,1fr); gap:4px; }
+  .active-skill-branch header strong { font-size:11px; }
+  .active-skill-branch header small { grid-column:1/-1; white-space:normal; }
+  .active-skill-node-list { grid-template-columns:1fr; }
+  .skill-research-node > em { font-size:9px; }
+  .active-skill-research-footer { margin-inline:11px; flex-direction:column; gap:4px; }
   .relic-slot-button { gap: 10px; padding: 14px 15px; }
   .relic-slot-button strong { font-size: 21px; }
   .relic-slot-button p { font-size: 11px; }

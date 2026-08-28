@@ -1,5 +1,5 @@
 import { GAME_CONFIG } from "./config.js";
-import { getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
+import { getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 
 const ENEMY_COLORS = {
   wisp: ["#ff706d", "#8e273e"],
@@ -325,10 +325,22 @@ export class Renderer {
       ctx.globalAlpha = 1 - progress; ctx.lineWidth = 5 - progress * 3;
       ctx.beginPath(); ctx.arc(towerX, towerY, 55 + progress * 95, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     }
+    if (state.skills.coinVacuum.fireRateBuff > 0) {
+      const pulse = .5 + Math.sin(this.time * 9) * .5;
+      ctx.save(); ctx.translate(towerX, towerY); ctx.rotate(this.time * 1.5);
+      ctx.globalAlpha = .5 + pulse * .22; ctx.strokeStyle = "#ffd76f"; ctx.shadowColor = "#ff9f43"; ctx.shadowBlur = 14; ctx.lineWidth = 2.5; ctx.setLineDash([9, 7]);
+      ctx.beginPath(); ctx.arc(0, 0, 67 + pulse * 5, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+    }
+    if (state.skills.heal.damageReduction > 0) {
+      const pulse = .5 + Math.sin(this.time * 7) * .5;
+      ctx.save(); ctx.globalAlpha = .34 + pulse * .16; ctx.strokeStyle = "#91f5ff"; ctx.fillStyle = "rgba(76,213,255,.05)"; ctx.shadowColor = "#5adfff"; ctx.shadowBlur = 18; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(towerX, towerY, 74 + pulse * 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
+    }
 
     if (state.skills.starfall.active > 0 || state.skills.starfall.aiming) {
       ctx.save();
       const config = GAME_CONFIG.skills.starfall;
+      const coneHalfAngle = getStarfallConeHalfAngle(state);
       const aiming = state.skills.starfall.aiming;
       const alpha = aiming ? 0.48 + Math.sin(this.time * 6) * 0.08 : state.skills.starfall.active / config.activeDuration;
       ctx.globalAlpha = alpha;
@@ -338,7 +350,7 @@ export class Renderer {
       const wedge = ctx.createRadialGradient(0, 0, 30, 0, 0, radius);
       wedge.addColorStop(0, aiming ? "rgba(255,231,137,.58)" : "rgba(255,244,178,.5)"); wedge.addColorStop(.42, aiming ? "rgba(255,173,80,.26)" : "rgba(188,156,255,.22)"); wedge.addColorStop(1, "rgba(188,156,255,0)");
       ctx.fillStyle = wedge;
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius, -config.coneHalfAngle, config.coneHalfAngle); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius, -coneHalfAngle, coneHalfAngle); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = aiming ? "#ffd476" : "#fff1b0"; ctx.lineWidth = aiming ? 2.8 : 2.3; ctx.shadowColor = aiming ? "#ff9f45" : "#d7b4ff"; ctx.shadowBlur = 10;
       if (aiming) ctx.setLineDash([14, 9]);
       for (let lane = -3; lane <= 3; lane += 1) {
@@ -802,6 +814,21 @@ export class Renderer {
 
   drawElementFx(ctx, state) {
     for (const effect of state.elementFx) {
+      if (effect.element === "starfallFollowup") {
+        const alpha = Math.max(0, effect.life / effect.maxLife);
+        const progress = 1 - alpha;
+        const radius = effect.radius * (.28 + progress * .72);
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.translate(effect.x, effect.y); ctx.rotate(this.time * 1.8);
+        ctx.globalAlpha = alpha * .72; ctx.strokeStyle = "#ffe49a"; ctx.shadowColor = "#a77cff"; ctx.shadowBlur = 22; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = "#d8c5ff"; ctx.lineWidth = 2;
+        for (let point = 0; point < 8; point += 1) {
+          const angle = point * Math.PI / 4;
+          ctx.beginPath(); ctx.moveTo(Math.cos(angle) * radius * .22, Math.sin(angle) * radius * .22); ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius); ctx.stroke();
+        }
+        ctx.globalAlpha = alpha * .42; ctx.fillStyle = "#fff0af"; ctx.beginPath(); ctx.arc(0, 0, Math.max(5, radius * .2), 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        continue;
+      }
       if (effect.element === "starPiercer") {
         const alpha = Math.max(0, effect.life / effect.maxLife);
         const progress = 1 - alpha;
@@ -1183,6 +1210,17 @@ export class Renderer {
         ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(this.time * 1.4); ctx.strokeStyle = visual.color; ctx.shadowColor = visual.color; ctx.shadowBlur = 16; ctx.lineWidth = 3.2;
         ctx.setLineDash([12, 6]); ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.rotate(-this.time * 1.4);
         ctx.fillStyle = "#fff7c8"; ctx.font = "900 11px 'Microsoft YaHei UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText(`锁定 ${state.tower.anchorLockTimer.toFixed(1)}s`, 0, -radius - 8); ctx.restore();
+      }
+      if ((enemy.starMarkTimer ?? 0) > 0) {
+        const radius = enemy.radius + 20 + Math.sin(this.time * 8 + enemy.id) * 2;
+        ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(this.time * .9); ctx.strokeStyle = "#ffe69b"; ctx.shadowColor = "#b899ff"; ctx.shadowBlur = 14; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let point = 0; point < 8; point += 1) {
+          const angle = point * Math.PI / 4;
+          const pointRadius = point % 2 ? radius * .55 : radius;
+          point ? ctx.lineTo(Math.cos(angle) * pointRadius, Math.sin(angle) * pointRadius) : ctx.moveTo(Math.cos(angle) * pointRadius, Math.sin(angle) * pointRadius);
+        }
+        ctx.closePath(); ctx.stroke(); ctx.restore();
       }
       if (enemy.markTimer > 0) {
         const pulse = 1 + Math.sin(this.time * 7 + enemy.id) * .08;
