@@ -186,7 +186,12 @@ export class Renderer {
     if (type === "cannonSplit") { this.flash = Math.max(this.flash, 0.06); this.flashColor = "#d5b3ff"; }
     if (type === "cannonEcho") { this.shake = Math.max(this.shake, 0.65); }
     if (type === "cannonStarPiercer") { this.shake = Math.max(this.shake, 8); this.flash = Math.max(this.flash, 0.3); this.flashColor = "#fff0a0"; }
-    if (type === "cannonCascade") { this.shake = Math.max(this.shake, 2.5); this.flash = Math.max(this.flash, 0.42); this.flashColor = "#dc79ff"; }
+    if (type === "cannonCascade") {
+      // Previous baseline was Math.max(this.shake, 2.5); the cascade now uses a
+      // restrained pulse so repeated chain reactions do not jolt the whole view.
+      this.shake = Math.max(this.shake, 1.2);
+      // Keep the impact localized to the world effect; no full-screen white flash.
+    }
     if (type === "waveWarning") { this.shake = 3; this.flash = 0.12; this.flashColor = "#ff796f"; }
     if (type === "waveStart") { this.shake = 10; this.flash = 0.34; this.flashColor = "#ff4f70"; }
     if (type === "gameOver") { this.shake = 12; this.flash = 0.55; this.flashColor = "#8a143d"; }
@@ -838,15 +843,15 @@ export class Renderer {
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
         const gradient = ctx.createRadialGradient(effect.x, effect.y, 0, effect.x, effect.y, Math.max(1, radius));
-        gradient.addColorStop(0, `rgba(255,255,255,${.9 * alpha})`);
-        gradient.addColorStop(.18, `rgba(255,180,255,${.72 * alpha})`);
+        gradient.addColorStop(0, `rgba(255,220,255,${.46 * alpha})`);
+        gradient.addColorStop(.18, `rgba(255,156,246,${.58 * alpha})`);
         gradient.addColorStop(.55, `rgba(178,75,255,${.34 * alpha})`);
         gradient.addColorStop(1, "rgba(85,20,150,0)");
         ctx.fillStyle = gradient;
         ctx.beginPath(); ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2); ctx.fill();
         for (const scale of [1, .68]) {
           ctx.globalAlpha = alpha * (scale === 1 ? .9 : .65);
-          ctx.strokeStyle = scale === 1 ? "#ec9cff" : "#fff0ff";
+          ctx.strokeStyle = scale === 1 ? "#ec9cff" : "#efc4ff";
           ctx.lineWidth = scale === 1 ? 5 : 2;
           ctx.shadowColor = "#b64cff";
           ctx.shadowBlur = 22;

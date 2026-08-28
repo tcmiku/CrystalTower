@@ -4,7 +4,7 @@ export const GAME_CONFIG = Object.freeze({
   tower: { maxHp: 600, damage: 12, fireRate: 1.2, range: 360, radius: 38, projectileSpeed: 650, healthBarDuration: 3.2 },
   cannon: {
     siege: { chargeBonusPerStack: 0.12, maxChargeStacks: 3, piercePerLevel: 1, bossDamagePerLevel: 0.18, weakpointChancePerLevel: 0.16, weakpointDuration: 3.2, weakpointDamageMultiplier: 1.35, starPiercerDamageMultiplier: 5.5, starPiercerDuration: 0.42 },
-    split: { projectileCount: 2, damageMultiplier: 0.46, life: 0.82, radius: 3.8, growthHopsPerLevel: 1, growthRange: 190, echoRadius: 78, echoDamageMultiplier: 0.38, cascadeKills: 3, cascadeWindow: 2.4, cascadeRadius: 190, cascadeDamageMultiplier: 3.2, cascadeDuration: 0.72 }
+    split: { projectileCount: 2, damageMultiplier: 0.46, life: 0.82, radius: 3.8, growthHopsPerLevel: 1, growthRange: 190, echoRadius: 78, echoDamageMultiplier: 0.38, cascadeKills: 3, cascadeWindow: 2.4, cascadeCooldown: 1.15, cascadeRadius: 190, cascadeDamageMultiplier: 3.2, cascadeDuration: 0.72 }
   },
   threat: { duration: 45, hpGrowth: 1.16, damageGrowth: 1.1, rewardGrowth: 1.08, spawnDecay: 0.91, spawnBase: 1.55, spawnMin: 0.34, dayWaves: 2, nightWaves: 2, packGrowthEvery: 4, maxPack: 3, bossEvery: 10 },
   threatSeals: {

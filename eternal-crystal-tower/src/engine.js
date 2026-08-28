@@ -100,6 +100,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       siegeStreak: 0,
       cannonEchoChain: 0,
       cannonEchoChainTimer: 0,
+      cannonCascadeCooldown: 0,
       sawAngle: 0,
       upgrades: { damage: 0, rate: 0, ascend: 0, cannonSiege: 0, cannonCharge: 0, cannonPierce: 0, cannonWeakpoint: 0, cannonStarPiercer: 0, cannonSplit: 0, cannonGrowth: 0, cannonEcho: 0, cannonCascade: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
     },
@@ -1204,9 +1205,10 @@ function resolveDeaths(state) {
       const cfg = GAME_CONFIG.cannon.split;
       state.tower.cannonEchoChain = state.tower.cannonEchoChainTimer > 0 ? state.tower.cannonEchoChain + defeatedUnits : defeatedUnits;
       state.tower.cannonEchoChainTimer = cfg.cascadeWindow;
-      if (state.tower.cannonEchoChain >= cfg.cascadeKills) {
+      if (state.tower.cannonEchoChain >= cfg.cascadeKills && (state.tower.cannonCascadeCooldown ?? 0) <= 0) {
         state.tower.cannonEchoChain = 0;
         state.tower.cannonEchoChainTimer = 0;
+        state.tower.cannonCascadeCooldown = cfg.cascadeCooldown ?? 0;
         triggerCannonCascade(state, enemy);
       }
     }
@@ -2624,6 +2626,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   state.tower.fireRateSuppression = Math.max(0, (state.tower.fireRateSuppression ?? 0) - dt);
   state.tower.healthBarTimer = Math.max(0, (state.tower.healthBarTimer ?? 0) - dt);
   state.tower.cannonEchoChainTimer = Math.max(0, (state.tower.cannonEchoChainTimer ?? 0) - dt);
+  state.tower.cannonCascadeCooldown = Math.max(0, (state.tower.cannonCascadeCooldown ?? 0) - dt);
   if (state.tower.cannonEchoChainTimer <= 0) state.tower.cannonEchoChain = 0;
   if (state.skills.coinVacuum.active <= 0) state.skills.coinVacuum.trails = [];
   if (state.tower.anchorLockTimer > 0) {
@@ -2688,7 +2691,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 export function snapshotState(state) {
   return {
     time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry },
-    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
+    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), cannonCascadeCooldown: Number((state.tower.cannonCascadeCooldown ?? 0).toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3))]),
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
     enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1]),
