@@ -2,17 +2,23 @@ import { GAME_CONFIG } from "./config.js";
 
 export const SAVE_KEY = "eternal-crystal-tower.save.v1";
 
+function relicIds() {
+  return [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)];
+}
+
 export function defaultSave() {
   return {
     version: 1,
     stardust: 0,
     resources: { echoShards: 0, coreFragments: 0 },
     research: { damage: 0, health: 0, income: 0 },
-    relicUnlocks: Object.fromEntries(Object.keys(GAME_CONFIG.relicResearch).map((key) => [key, key === "ward"])),
+    relicUnlocks: Object.fromEntries(Object.keys(GAME_CONFIG.relicResearch).map((key) => [key, true])),
     relicSlots: GAME_CONFIG.relics.initialSlots,
     relicArchive: {
-      disabledRelic: null,
-      discovered: Object.fromEntries(Object.keys(GAME_CONFIG.relicCombos).map((key) => [key, false])),
+      disabledRelics: [],
+      exclusionLevel: 0,
+      upgrades: Object.fromEntries(relicIds().map((key) => [key, 0])),
+      discovered: Object.fromEntries(relicIds().map((key) => [key, false])),
       registeredSets: Object.fromEntries(Object.keys(GAME_CONFIG.relicCombos).map((key) => [key, false]))
     },
     unlocks: { doubleSpeed: false },
@@ -45,16 +51,22 @@ export function sanitizeSave(candidate) {
   for (const key of Object.keys(safe.research)) {
     safe.research[key] = boundedInt(candidate.research?.[key], 0, GAME_CONFIG.research.maxLevel);
   }
-  for (const key of Object.keys(safe.relicUnlocks)) safe.relicUnlocks[key] = candidate.relicUnlocks?.[key] === true;
-  safe.relicUnlocks.ward = true;
+  for (const key of Object.keys(safe.relicUnlocks)) safe.relicUnlocks[key] = true;
   safe.relicSlots = boundedInt(candidate.relicSlots, GAME_CONFIG.relics.initialSlots, GAME_CONFIG.relics.maxSlots);
+  safe.relicArchive.exclusionLevel = boundedInt(candidate.relicArchive?.exclusionLevel, 0, GAME_CONFIG.relicArchiveResearch.maxDisabledSlots - GAME_CONFIG.relicArchiveResearch.initialDisabledSlots);
+  const legacyRelicArchive = !candidate.relicArchive?.upgrades || typeof candidate.relicArchive.upgrades !== "object";
+  for (const key of relicIds()) {
+    const wasUnlocked = legacyRelicArchive && Object.hasOwn(GAME_CONFIG.relicResearch, key) && candidate.relicUnlocks?.[key] === true;
+    safe.relicArchive.discovered[key] = candidate.relicArchive?.discovered?.[key] === true || wasUnlocked;
+    safe.relicArchive.upgrades[key] = boundedInt(candidate.relicArchive?.upgrades?.[key], 0, GAME_CONFIG.relicUpgradeResearch.maxLevel);
+  }
   for (const key of Object.keys(GAME_CONFIG.relicCombos)) {
-    safe.relicArchive.discovered[key] = candidate.relicArchive?.discovered?.[key] === true;
     safe.relicArchive.registeredSets[key] = safe.relicArchive.discovered[key] && candidate.relicArchive?.registeredSets?.[key] === true;
   }
-  const disabledRelic = typeof candidate.relicArchive?.disabledRelic === "string" ? candidate.relicArchive.disabledRelic : null;
-  const disabledKnown = safe.relicUnlocks[disabledRelic] === true || safe.relicArchive.discovered[disabledRelic] === true;
-  safe.relicArchive.disabledRelic = disabledKnown ? disabledRelic : null;
+  const legacyDisabled = typeof candidate.relicArchive?.disabledRelic === "string" ? [candidate.relicArchive.disabledRelic] : [];
+  const disabledRelics = Array.isArray(candidate.relicArchive?.disabledRelics) ? candidate.relicArchive.disabledRelics : legacyDisabled;
+  const disabledCapacity = GAME_CONFIG.relicArchiveResearch.initialDisabledSlots + safe.relicArchive.exclusionLevel;
+  safe.relicArchive.disabledRelics = [...new Set(disabledRelics.filter((id) => safe.relicArchive.discovered[id] === true))].slice(0, disabledCapacity);
   safe.unlocks.doubleSpeed = candidate.unlocks?.doubleSpeed === true;
   safe.baseCamp.unlocked = candidate.baseCamp?.unlocked === true;
   safe.baseCamp.recoverySeen = safe.baseCamp.unlocked && candidate.baseCamp?.recoverySeen === true;
@@ -239,14 +251,6 @@ export function buyResearch(save, key) {
   return true;
 }
 
-export function buyRelicUnlock(save, key) {
-  const cost = GAME_CONFIG.relicResearch[key];
-  if (!Number.isFinite(cost) || save.relicUnlocks?.[key] === true || save.resources.echoShards < cost) return false;
-  save.resources.echoShards -= cost;
-  save.relicUnlocks[key] = true;
-  return true;
-}
-
 export function buyRelicSlot(save) {
   const slots = boundedInt(save.relicSlots, GAME_CONFIG.relics.initialSlots, GAME_CONFIG.relics.maxSlots);
   if (slots >= GAME_CONFIG.relics.maxSlots) return false;
@@ -259,18 +263,53 @@ export function buyRelicSlot(save) {
 
 export function setDisabledRelic(save, id = null) {
   save.relicArchive ??= defaultSave().relicArchive;
-  if (id == null || id === save.relicArchive.disabledRelic) {
-    save.relicArchive.disabledRelic = null;
+  save.relicArchive.disabledRelics ??= [];
+  if (id == null) {
+    save.relicArchive.disabledRelics = [];
     return true;
   }
-  const available = save.relicUnlocks?.[id] === true || save.relicArchive.discovered?.[id] === true;
-  if (!available) return false;
-  save.relicArchive.disabledRelic = id;
+  if (save.relicArchive.discovered?.[id] !== true) return false;
+  if (save.relicArchive.disabledRelics.includes(id)) {
+    save.relicArchive.disabledRelics = save.relicArchive.disabledRelics.filter((key) => key !== id);
+    return true;
+  }
+  if (save.relicArchive.disabledRelics.length >= relicArchiveCapacity(save)) return false;
+  save.relicArchive.disabledRelics.push(id);
+  return true;
+}
+
+export function relicArchiveCapacity(save) {
+  return GAME_CONFIG.relicArchiveResearch.initialDisabledSlots
+    + boundedInt(save.relicArchive?.exclusionLevel, 0, GAME_CONFIG.relicArchiveResearch.maxDisabledSlots - GAME_CONFIG.relicArchiveResearch.initialDisabledSlots);
+}
+
+export function buyRelicArchiveUpgrade(save) {
+  save.relicArchive ??= defaultSave().relicArchive;
+  const level = boundedInt(save.relicArchive.exclusionLevel, 0, GAME_CONFIG.relicArchiveResearch.costs.length);
+  const cost = GAME_CONFIG.relicArchiveResearch.costs[level];
+  if (!Number.isFinite(cost) || save.resources.echoShards < cost) return false;
+  save.resources.echoShards -= cost;
+  save.relicArchive.exclusionLevel = level + 1;
+  return true;
+}
+
+export function relicUpgradeCost(save, id) {
+  if (!relicIds().includes(id)) return null;
+  const level = boundedInt(save.relicArchive?.upgrades?.[id], 0, GAME_CONFIG.relicUpgradeResearch.maxLevel);
+  return level >= GAME_CONFIG.relicUpgradeResearch.maxLevel ? null : GAME_CONFIG.relicUpgradeResearch.costs[level];
+}
+
+export function buyRelicUpgrade(save, id) {
+  save.relicArchive ??= defaultSave().relicArchive;
+  const cost = relicUpgradeCost(save, id);
+  if (!Number.isFinite(cost) || save.relicArchive.discovered?.[id] !== true || save.resources.echoShards < cost) return false;
+  save.resources.echoShards -= cost;
+  save.relicArchive.upgrades[id] += 1;
   return true;
 }
 
 export function discoverHiddenRelic(save, id) {
-  if (!GAME_CONFIG.relicCombos[id]) return false;
+  if (!relicIds().includes(id)) return false;
   save.relicArchive ??= defaultSave().relicArchive;
   if (save.relicArchive.discovered[id]) return false;
   save.relicArchive.discovered[id] = true;

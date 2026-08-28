@@ -1059,6 +1059,13 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .relic-research-card strong { margin:3px 0; font-size:14px; }
 .relic-research-card p { margin:0; color:#9299b8; font-size:9px; line-height:1.45; }
 .relic-research-card b { margin-top:6px; color:#ffd08c; font-size:9px; }
+.relic-research-silhouette { width:100%; height:100%; }
+
+/* Permanent relic rarity: common (white), rare (purple), legendary (gold). */
+.relic-rarity-common { border-color:rgba(238,246,255,.72) !important; }
+.relic-rarity-rare { border-color:#a970ff !important; box-shadow:0 0 18px rgba(145,78,255,.2); }
+.relic-rarity-legendary { border-color:#ffd36d !important; box-shadow:0 0 22px rgba(255,188,55,.26); }
+.archive-upgrade-card { grid-column:1 / -1; border-style:dashed; }
 
 @media (max-width: 1024px) {
   .permanent-resource-hud { top: 7px; left: 7px; gap: 4px; }

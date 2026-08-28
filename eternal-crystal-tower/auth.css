@@ -27,6 +27,10 @@
 .auth-form button:disabled, .account-actions button:disabled, .save-choice-grid button:disabled { opacity: .5; cursor: wait; }
 .auth-form .auth-switch { min-height: 30px; margin: 10px auto 0; padding: 3px 8px; border: 0; color: #8edff4; background: transparent; font-size: 11px; cursor: pointer; }
 .auth-form .auth-switch:hover { color: #e5fbff; text-decoration: underline; }
+.guest-local-save-actions { display: grid; gap: 7px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.guest-local-save-actions button { width: 100%; min-height: 40px; border: 1px solid rgba(255, 100, 110, .25); border-radius: 9px; color: #ffaaaa; background: rgba(255, 83, 93, .07); cursor: pointer; }
+.guest-local-save-actions button:hover { border-color: rgba(255, 132, 140, .55); background: rgba(255, 83, 93, .13); }
+.guest-local-save-actions small { color: #838dab; font-size: 10px; line-height: 1.45; text-align: center; }
 .account-profile { display: flex; align-items: center; gap: 17px; padding: 18px; border: 1px solid rgba(119, 235, 198, .2); border-radius: 15px; background: rgba(81, 202, 159, .07); }
 .account-profile i { display: grid; place-items: center; width: 52px; height: 52px; border: 1px solid rgba(126, 238, 206, .45); border-radius: 50%; color: #a7f5d9; background: rgba(81, 202, 159, .12); font: 800 20px ui-monospace, monospace; }
 .account-profile span, .account-profile strong, .account-profile small { display: block; }

@@ -1538,32 +1538,30 @@ test("堡垒状态期间启动超载会提前破盾并增加热量", () => {
   assert.equal(state.skills.overload.heat, GAME_CONFIG.colossus.counters.bulwarkHeat);
   assert.ok(state.events.some((event) => event.type === "colossusCounter" && event.counter === "bulwark"));
 });
-test("临时遗物初始一槽且只开放棱镜护佑", () => {
+test("临时遗物初始一槽且所有遗物默认进入候选池", () => {
   const state = createGameState(9401);
   assert.equal(state.relics.slots, 1);
-  assert.deepEqual(state.relics.available, ["ward"]);
+  assert.equal(state.relics.available.length, 13);
+  assert.ok(state.relics.available.includes("ward"));
+  assert.ok(state.relics.available.includes("prismArc"));
   assert.equal(offerRelicChoice(state, "eliteWave"), true);
-  assert.deepEqual(state.relicChoice.choices, ["ward"]);
-  assert.equal(chooseRelic(state, "ward"), true);
+  assert.equal(state.relicChoice.choices.length, 3);
+  assert.equal(chooseRelic(state, state.relicChoice.choices[0]), true);
   assert.equal(state.relics.picks, 1);
   assert.equal(offerRelicChoice(state, "boss"), false);
 });
 
-test("栏位多于已解锁遗物时才出现低幅数值强化", () => {
-  const gap = createGameState(94011, undefined, { ward: true }, 2);
-  assert.equal(offerRelicChoice(gap), true);
-  assert.ok(gap.relicChoice.choices.includes("ward"));
-  assert.ok(gap.relicChoice.choices.some((id) => id.startsWith("boost:")));
-  assert.equal(chooseRelic(gap, "ward"), true);
-  assert.equal(offerRelicChoice(gap), true);
-  assert.ok(gap.relicChoice.choices.every((id) => id.startsWith("boost:")));
-  const damageBefore = getTowerStats(gap).damage;
-  assert.equal(chooseRelic(gap, "boost:damage"), true);
-  assert.equal(Number((getTowerStats(gap).damage / damageBefore).toFixed(2)), 1.08);
-
-  const filledPool = createGameState(94012, undefined, { ward: true, decoy: true }, 2);
-  assert.equal(offerRelicChoice(filledPool), true);
-  assert.equal(filledPool.relicChoice.choices.some((id) => id.startsWith("boost:")), false);
+test("研究舱强化等级会实际提高遗物战斗效果", () => {
+  const base = createGameState(94011);
+  const upgraded = createGameState(94011, undefined, undefined, 1, { upgrades: { hourglass: 3 } });
+  base.relics.owned.hourglass = true;
+  upgraded.relics.owned.hourglass = true;
+  base.skills.heal.cooldown = 10;
+  upgraded.skills.heal.cooldown = 10;
+  updateGame(base, 1);
+  updateGame(upgraded, 1);
+  assert.ok(upgraded.skills.heal.cooldown < base.skills.heal.cooldown);
+  assert.equal(upgraded.relics.upgrades.hourglass, 3);
 });
 
 test("无尽怪潮彻底肃清后获得不占栏位且可无限叠加的无界增幅核", () => {
@@ -1714,22 +1712,16 @@ test("余烬回收由灼烧或爆炸击杀生成区域并加速区内金币消�
   assert.ok(orb.age - ageBefore > 0.5);
 });
 
-test("未研究遗物不会进入随机池，研究后才会出现", () => {
-  const lockedIds = new Set(["decoy", "lunar", "mirror", "ember", "frostbloom", "stormglass", "gilded", "execution", "hourglass"]);
+test("所有基础与隐藏遗物从新存档起即可随机出现", () => {
+  const seen = new Set();
   for (let seed = 1; seed <= 12; seed += 1) {
     const state = createGameState(seed);
     offerRelicChoice(state);
-    assert.deepEqual(state.relicChoice.choices, ["ward"]);
-    assert.equal(state.relicChoice.choices.some((id) => lockedIds.has(id)), false);
+    state.relicChoice.choices.forEach((id) => seen.add(id));
+    assert.equal(state.relicChoice.choices.length, 3);
   }
-  let decoySeen = false;
-  for (let seed = 1; seed <= 30; seed += 1) {
-    const state = createGameState(seed, undefined, { ward: true, decoy: true }, 2);
-    offerRelicChoice(state);
-    assert.equal(state.relicChoice.choices.some((id) => lockedIds.has(id) && id !== "decoy"), false);
-    decoySeen ||= state.relicChoice.choices.includes("decoy");
-  }
-  assert.equal(decoySeen, true);
+  assert.ok(seen.has("decoy"));
+  assert.ok(seen.has("prismArc"));
 });
 
 test("棱镜护佑按击杀数补充护盾，霜葬花冠让冻结死亡扩散", () => {
@@ -1924,12 +1916,13 @@ test("tower health bar timer starts after a hit and expires", () => {
   updateGame(state, GAME_CONFIG.tower.healthBarDuration);
   assert.equal(state.tower.healthBarTimer, 0);
 });
-test("档案馆禁用会从本局遗物池排除唯一目标", () => {
-  const state = createGameState(9601, undefined, { ward: true, decoy: true }, 2, { disabledRelic: "ward" });
-  assert.deepEqual(state.relics.available, ["decoy"]);
+test("档案馆可从下局候选池同时排除多个目标", () => {
+  const state = createGameState(9601, undefined, undefined, 2, { disabledRelics: ["ward", "lunar", "ember"] });
+  assert.equal(state.relics.available.length, 10);
   offerRelicChoice(state);
   assert.equal(state.relicChoice.choices.includes("ward"), false);
-  assert.equal(state.relicChoice.choices.includes("decoy"), true);
+  assert.equal(state.relicChoice.choices.includes("lunar"), false);
+  assert.equal(state.relicChoice.choices.includes("ember"), false);
 });
 
 test("锁定的遗物选项会跨过本轮选择保留到下一次奖励", () => {

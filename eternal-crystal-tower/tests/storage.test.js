@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, repairChapterNode, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
+import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, relicArchiveCapacity, repairChapterNode, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -39,7 +39,7 @@ test("存档值被限制在安全范围", () => {
     records: { highestThreat: 0, longestTime: -5, totalKills: -2 }
   });
   assert.equal(safe.stardust, 0);
-  assert.deepEqual(safe.research, { damage: 20, health: 0, income: 3 });
+  assert.deepEqual(safe.research, { damage: 30, health: 0, income: 3 });
   assert.equal(safe.settings.muted, true);
   assert.deepEqual(safe.records, { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 });
 });
@@ -57,6 +57,10 @@ test("永久研究费用按等级指数增长并限制在满级", () => {
   assert.equal(save.research.damage, 2);
   assert.equal(save.stardust, 0);
   assert.equal(buyResearch(save, "damage"), false);
+  const maxed = defaultSave();
+  maxed.research.damage = 30;
+  maxed.stardust = 1_000_000_000;
+  assert.equal(buyResearch(maxed, "damage"), false);
 });
 
 test("写入后能够无损读回有效存档", () => {
@@ -150,16 +154,19 @@ test("威胁二十通关立即保护章节能源且修复节点不消耗资源",
   assert.equal(repairChapterNode(save, 1), false);
 });
 
-test("研究舱消耗遗响碎片并永久解锁临时遗物", () => {
+test("所有遗物默认解锁，研究舱消耗遗响碎片强化已发现遗物三次", () => {
   const save = defaultSave();
-  save.resources.echoShards = 5;
-  assert.equal(save.relicUnlocks.ward, true);
-  assert.equal(buyRelicUnlock(save, "ward"), false);
-  assert.equal(buyRelicUnlock(save, "decoy"), true);
-  assert.equal(save.resources.echoShards, 2);
-  assert.equal(save.relicUnlocks.decoy, true);
-  assert.equal(buyRelicUnlock(save, "stormglass"), false);
-  assert.equal(sanitizeSave(save).relicUnlocks.ward, true);
+  assert.ok(Object.values(save.relicUnlocks).every(Boolean));
+  save.resources.echoShards = 24;
+  assert.equal(buyRelicUpgrade(save, "decoy"), false);
+  assert.equal(discoverHiddenRelic(save, "decoy"), true);
+  assert.equal(buyRelicUpgrade(save, "decoy"), true);
+  assert.equal(buyRelicUpgrade(save, "decoy"), true);
+  assert.equal(buyRelicUpgrade(save, "decoy"), true);
+  assert.equal(save.resources.echoShards, 0);
+  assert.equal(save.relicArchive.upgrades.decoy, 3);
+  assert.equal(buyRelicUpgrade(save, "decoy"), false);
+  assert.equal(sanitizeSave(save).relicArchive.upgrades.decoy, 3);
 });
 
 test("遗物栏位初始一格并消耗核心残片逐步扩展至四格", () => {
@@ -175,23 +182,24 @@ test("遗物栏位初始一格并消耗核心残片逐步扩展至四格", () =>
   assert.equal(buyRelicSlot(save), false);
 });
 
-test("遗物档案馆安全保存单件禁用、隐藏发现与套装登记", () => {
+test("遗物档案馆升级后可安全保存最多三件禁用、发现与套装登记", () => {
   const save = defaultSave();
-  save.relicUnlocks.decoy = true;
+  save.resources.echoShards = 24;
+  for (const id of ["decoy", "lunar", "prismArc"]) discoverHiddenRelic(save, id);
+  assert.equal(relicArchiveCapacity(save), 1);
   assert.equal(setDisabledRelic(save, "decoy"), true);
-  assert.equal(save.relicArchive.disabledRelic, "decoy");
-  assert.equal(setDisabledRelic(save, "decoy"), true);
-  assert.equal(save.relicArchive.disabledRelic, null);
-  assert.equal(setDisabledRelic(save, "prismArc"), false);
-  assert.equal(discoverHiddenRelic(save, "prismArc"), true);
-  assert.equal(discoverHiddenRelic(save, "prismArc"), false);
+  assert.equal(setDisabledRelic(save, "lunar"), false);
+  assert.equal(buyRelicArchiveUpgrade(save), true);
+  assert.equal(buyRelicArchiveUpgrade(save), true);
+  assert.equal(relicArchiveCapacity(save), 3);
+  assert.equal(setDisabledRelic(save, "lunar"), true);
   assert.equal(setDisabledRelic(save, "prismArc"), true);
   assert.equal(toggleRelicSet(save, "prismArc"), true);
   const safe = sanitizeSave(save);
-  assert.equal(safe.relicArchive.disabledRelic, "prismArc");
+  assert.deepEqual(safe.relicArchive.disabledRelics, ["decoy", "lunar", "prismArc"]);
   assert.equal(safe.relicArchive.discovered.prismArc, true);
   assert.equal(safe.relicArchive.registeredSets.prismArc, true);
   const forged = sanitizeSave({ ...save, relicArchive: { disabledRelic: "unknown", discovered: { prismArc: false }, registeredSets: { prismArc: true } } });
-  assert.equal(forged.relicArchive.disabledRelic, null);
+  assert.deepEqual(forged.relicArchive.disabledRelics, []);
   assert.equal(forged.relicArchive.registeredSets.prismArc, false);
 });

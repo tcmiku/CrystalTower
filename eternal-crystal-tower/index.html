@@ -139,6 +139,10 @@
               <button id="showLoginButton" class="auth-switch" type="button">已有账号？返回登录</button>
             </form>
           </div>
+          <div class="guest-local-save-actions">
+            <button id="deleteLocalSaveButton" class="danger-button" type="button">删除本地存档</button>
+            <small>仅删除此设备上的游客进度，不影响账号云端数据。</small>
+          </div>
         </div>
         <div id="accountUserPanel" class="account-content hidden">
           <div class="account-profile"><i id="accountAvatar">守</i><div><span>已登录</span><strong id="accountUsername">PLAYER</strong><small id="accountSyncStatus">正在检查云端存档…</small></div></div>
@@ -251,7 +255,7 @@
           <div class="basecamp-recovery-beam" aria-hidden="true"></div>
           <button id="campaignRoom" class="base-room campaign-room" type="button"><span>主线 · 中枢修复</span><strong>能源核心</strong><small>装配章节能源并选择远征地图</small></button>
           <button id="coreNexusRoom" class="base-room core-room active" type="button"><span>01 · 初始开放</span><strong>晶核中枢</strong><small>永久研究与核心档案</small></button>
-          <button id="researchBayRoom" class="base-room research-room" type="button"><span>02 · 遗物研究</span><strong>研究舱</strong><small>解锁临时遗物并加入战局池</small></button>
+          <button id="researchBayRoom" class="base-room research-room" type="button"><span>02 · 遗物强化</span><strong>研究舱</strong><small>消耗遗响碎片强化已发现遗物</small></button>
           <button id="relicArchiveRoom" class="base-room archive-room" type="button"><span>03 · 构筑管理</span><strong>遗物档案馆</strong><small>禁用、图鉴、组合与套装登记</small></button>
           <button id="threatSealRoom" class="base-room seal-room" type="button"><span>04 · 威胁强化</span><strong>封印圣坛</strong><small>装备封印，提高风险与远征收益</small></button>
         </div>
@@ -268,16 +272,16 @@
           <div id="researchList" class="research-list"></div>
         </section>
         <section id="relicResearchPanel" class="nexus-panel relic-research-panel hidden" aria-labelledby="relicResearchTitle">
-          <div class="research-heading"><div><span>研究舱</span><h3 id="relicResearchTitle">临时遗物解锁</h3></div><strong>遗响碎片 <b id="relicResearchEchoText">0</b> · 核心残片 <b id="relicResearchCoreText">0</b></strong></div>
-          <p>遗响碎片解锁遗物，核心残片扩展栏位。初始仅开放棱镜护佑与 1 个槽位。</p>
+          <div class="research-heading"><div><span>研究舱</span><h3 id="relicResearchTitle">遗物效果强化</h3></div><strong>遗响碎片 <b id="relicResearchEchoText">0</b> · 核心残片 <b id="relicResearchCoreText">0</b></strong></div>
+          <p>所有遗物默认加入战局候选池。已发现遗物可消耗遗响碎片强化 3 次；核心残片仍用于扩展本局栏位。</p>
           <div id="relicSlotResearch" class="relic-slot-research"></div>
           <div id="relicResearchList" class="relic-research-list"></div>
         </section>
         <section id="relicArchivePanel" class="nexus-panel relic-archive-panel hidden" aria-labelledby="relicArchiveTitle">
           <div class="research-heading"><div><span>遗物档案馆</span><h3 id="relicArchiveTitle">构筑管理</h3></div><strong>图鉴 <b id="relicArchiveProgress">0 / 13</b></strong></div>
-          <p>为下一局禁用一件遗物；发现组合后解锁隐藏遗物，并可登记三件套来提高后续补件优先级。</p>
+          <p>升级构筑管理容量，为下一局禁用最多 3 件已发现遗物；套装登记仍会提高后续补件优先级。</p>
           <div class="archive-layout">
-            <section class="archive-block"><header><span>EXCLUSION PROTOCOL</span><h4>下局禁用</h4><small>同一时间最多禁用一件已发现遗物。</small></header><div id="relicArchiveDisabledList" class="archive-disable-list"></div></section>
+            <section class="archive-block"><header><span>EXCLUSION PROTOCOL</span><h4>下局禁用</h4><small>消耗遗响升级容量，最多禁用三件已发现遗物。</small></header><div id="relicArchiveDisabledList" class="archive-disable-list"></div></section>
             <section class="archive-block archive-codex-block"><header><span>RELIC CODEX</span><h4>遗物图鉴</h4><small>未发现的隐藏回路只显示组合线索。</small></header><div id="relicArchiveCodexList" class="archive-codex-list"></div></section>
             <section class="archive-block"><header><span>SET REGISTRY</span><h4>套装登记</h4><small>登记后，持有一件时会优先补出同套装组件。</small></header><div id="relicArchiveSetList" class="archive-set-list"></div></section>
           </div>

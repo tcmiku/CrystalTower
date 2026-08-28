@@ -51,13 +51,12 @@ export function getThreatSealModifiers(equipped = []) {
 
 export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots, relicArchive = {}, equippedSeals = []) {
   const rng = new SeededRng(seed);
+  const relicIds = [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)];
   const hiddenRelicIds = Object.keys(GAME_CONFIG.relicCombos);
-  const discoveredRelics = Object.fromEntries(hiddenRelicIds.map((id) => [id, relicArchive.discovered?.[id] === true]));
-  const disabledRelic = typeof relicArchive.disabledRelic === "string" ? relicArchive.disabledRelic : null;
-  const relicAvailable = [...new Set([
-    ...Object.entries(relicUnlocks).filter(([, unlocked]) => unlocked === true).map(([id]) => id),
-    ...hiddenRelicIds.filter((id) => discoveredRelics[id])
-  ])].filter((id) => id !== disabledRelic);
+  const discoveredRelics = Object.fromEntries(relicIds.map((id) => [id, relicArchive.discovered?.[id] === true]));
+  const legacyDisabled = typeof relicArchive.disabledRelic === "string" ? [relicArchive.disabledRelic] : [];
+  const disabledRelics = [...new Set(Array.isArray(relicArchive.disabledRelics) ? relicArchive.disabledRelics : legacyDisabled)].filter((id) => relicIds.includes(id));
+  const relicAvailable = relicIds.filter((id) => !disabledRelics.includes(id));
   const threatSealModifiers = getThreatSealModifiers(equippedSeals);
   const state = {
     seed: seed >>> 0 || 1,
@@ -127,10 +126,11 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     emberZones: [],
     relicChoice: null,
     relics: {
-      owned: Object.fromEntries([...Object.keys(GAME_CONFIG.relicResearch), ...hiddenRelicIds].map((id) => [id, false])),
+      owned: Object.fromEntries(relicIds.map((id) => [id, false])),
       available: relicAvailable,
-      disabledRelic,
+      disabledRelics,
       discovered: discoveredRelics,
+      upgrades: Object.fromEntries(relicIds.map((id) => [id, Math.min(GAME_CONFIG.relicUpgradeResearch.maxLevel, Math.max(0, Math.floor(Number(relicArchive.upgrades?.[id]) || 0)))])),
       registeredSets: Object.fromEntries(hiddenRelicIds.map((id) => [id, relicArchive.registeredSets?.[id] === true && discoveredRelics[id]])),
       lockedChoice: null,
       slots: Math.min(GAME_CONFIG.relics.maxSlots, Math.max(GAME_CONFIG.relics.initialSlots, Math.floor(Number(relicSlots) || GAME_CONFIG.relics.initialSlots))),
@@ -553,6 +553,18 @@ const MECHANIC_RELIC_IDS = [...Object.keys(GAME_CONFIG.relicResearch), ...Object
 const NUMERIC_RELIC_IDS = ["boost:damage", "boost:rate", "boost:hybrid"];
 const ENDLESS_RELIC_ID = "boost:endless";
 
+function relicUpgradeLevel(state, id) {
+  return Math.min(GAME_CONFIG.relicUpgradeResearch.maxLevel, Math.max(0, Number(state.relics.upgrades?.[id]) || 0));
+}
+
+function relicPotency(state, id) {
+  return 1 + relicUpgradeLevel(state, id) * GAME_CONFIG.relicUpgradeResearch.effectPerLevel;
+}
+
+function amplifyMultiplier(value, potency) {
+  return 1 + (value - 1) * potency;
+}
+
 function shuffledRelicIds(state, values) {
   const result = [...values];
   for (let index = result.length - 1; index > 0; index -= 1) {
@@ -594,7 +606,7 @@ function discoverRelicCombos(state) {
   for (const [id, combo] of Object.entries(GAME_CONFIG.relicCombos)) {
     if (state.relics.discovered[id] || !combo.requires.every((required) => state.relics.owned[required])) continue;
     state.relics.discovered[id] = true;
-    if (state.relics.disabledRelic !== id && !state.relics.available.includes(id)) state.relics.available.push(id);
+    if (!state.relics.disabledRelics.includes(id) && !state.relics.available.includes(id)) state.relics.available.push(id);
     state.events.push({ type: "relicComboDiscovered", id, requires: [...combo.requires] });
   }
 }
@@ -713,8 +725,9 @@ function fireTower(state) {
   }
   let mirrorReady = false;
   if (state.relics.owned.mirror) {
+    const everyShots = Math.max(2, GAME_CONFIG.relics.mirror.everyShots - relicUpgradeLevel(state, "mirror"));
     state.relics.mirrorShots += 1;
-    if (state.relics.mirrorShots >= GAME_CONFIG.relics.mirror.everyShots) {
+    if (state.relics.mirrorShots >= everyShots) {
       state.relics.mirrorShots = 0;
       mirrorReady = true;
     }
@@ -762,8 +775,11 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
   if (enemy.hp <= 0 || (enemy.phaseBreakInvulnerability ?? 0) > 0) return;
   let appliedDamage = damage * (SKILL_DAMAGE_SOURCES.has(source) ? state.threatSeals?.modifiers?.skillDamageMultiplier ?? 1 : 1);
   const shieldPiercing = source === "starPiercer";
-  if (state.relics.owned.execution && enemy.hp / Math.max(1, enemy.maxHp) <= GAME_CONFIG.relics.execution.hpThreshold) {
-    appliedDamage *= GAME_CONFIG.relics.execution.damageMultiplier;
+  const executionCfg = GAME_CONFIG.relics.execution;
+  const executionLevel = relicUpgradeLevel(state, "execution");
+  const executionThreshold = Math.min(0.75, executionCfg.hpThreshold + executionLevel * 0.04);
+  if (state.relics.owned.execution && enemy.hp / Math.max(1, enemy.maxHp) <= executionThreshold) {
+    appliedDamage *= amplifyMultiplier(executionCfg.damageMultiplier, relicPotency(state, "execution"));
   }
   if ((enemy.weakpointTimer ?? 0) > 0) appliedDamage *= GAME_CONFIG.cannon.siege.weakpointDamageMultiplier;
   if (enemy.type === "boss") {
@@ -884,7 +900,7 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
     return false;
   }
   const bossScale = isBossEnemy(enemy) ? cfg.bossEffectMultiplier : 1;
-  const lunarScale = (state.relics.owned.lunar && state.phase === "night" ? GAME_CONFIG.relics.lunar.nightElementMultiplier : 1)
+  const lunarScale = (state.relics.owned.lunar && state.phase === "night" ? amplifyMultiplier(GAME_CONFIG.relics.lunar.nightElementMultiplier, relicPotency(state, "lunar")) : 1)
     * (state.phase === "night" ? state.threatSeals?.modifiers?.elementMultiplier ?? 1 : 1);
   if (element === "frost") {
     if (enemy.type === "colossus" && enemy.enraged) {
@@ -906,9 +922,10 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
     return true;
   }
   const stormglass = state.relics.owned.stormglass ? GAME_CONFIG.relics.stormglass : null;
-  const chainRange = cfg.chainRange * (stormglass?.rangeMultiplier ?? 1);
-  const chainCount = cfg.chainCount + (stormglass?.extraChains ?? 0);
-  const chainMultiplier = stormglass?.chainMultiplier ?? cfg.chainMultiplier;
+  const stormPotency = stormglass ? relicPotency(state, "stormglass") : 1;
+  const chainRange = cfg.chainRange * (stormglass ? amplifyMultiplier(stormglass.rangeMultiplier, stormPotency) : 1);
+  const chainCount = cfg.chainCount + (stormglass ? stormglass.extraChains + relicUpgradeLevel(state, "stormglass") : 0);
+  const chainMultiplier = stormglass ? Math.min(0.95, stormglass.chainMultiplier * stormPotency) : cfg.chainMultiplier;
   const nearby = state.enemies
     .filter((candidate) => candidate !== enemy && candidate.hp > 0 && Math.hypot(candidate.x - enemy.x, candidate.y - enemy.y) <= chainRange)
     .sort((a, b) => Math.hypot(a.x - enemy.x, a.y - enemy.y) - Math.hypot(b.x - enemy.x, b.y - enemy.y) || a.id - b.id)
@@ -928,7 +945,7 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
 
 function addCoinDrop(state, enemy) {
   const dropCount = enemy.unitCount ?? 1;
-  const lunarValue = state.relics.owned.lunar && state.phase === "day" ? GAME_CONFIG.relics.lunar.dayCoinMultiplier : 1;
+  const lunarValue = state.relics.owned.lunar && state.phase === "day" ? amplifyMultiplier(GAME_CONFIG.relics.lunar.dayCoinMultiplier, relicPotency(state, "lunar")) : 1;
   const sealCoinMultiplier = state.threatSeals?.modifiers?.coinMultiplier ?? 1;
   const drop = { x: enemy.x, y: enemy.y, renderX: enemy.x, renderY: enemy.y, value: Math.max(1, Math.round(enemy.reward * lunarValue * sealCoinMultiplier)), pileCount: dropCount, age: 0, collectAge: 0, collector: null, droneIndex: 0 };
   if (state.coinOrbs.length < GAME_CONFIG.coins.maxOrbs) {
@@ -957,12 +974,13 @@ function spawnRelicDecoy(state, direction, waveIndex) {
   const vectors = [[0, -1], [1, 0], [0, 1], [-1, 0]];
   const [vx, vy] = vectors[direction] ?? vectors[0];
   const hpScale = 1 + Math.max(0, state.threat - 1) * 0.15;
+  const potency = relicPotency(state, "decoy");
   const decoy = {
     id: state.nextId++,
     x: centerX + vx * cfg.distance,
     y: centerY + vy * cfg.distance,
-    hp: cfg.hp * hpScale,
-    maxHp: cfg.hp * hpScale,
+    hp: cfg.hp * hpScale * potency,
+    maxHp: cfg.hp * hpScale * potency,
     radius: cfg.radius,
     direction,
     waveIndex,
@@ -975,12 +993,13 @@ function spawnRelicDecoy(state, direction, waveIndex) {
 
 function updateRelicDecoys(state, dt) {
   const cfg = GAME_CONFIG.relics.decoy;
+  const potency = relicPotency(state, "decoy");
   for (const decoy of state.decoys) {
     decoy.age += dt;
     if (decoy.hp <= 0) {
       for (const enemy of state.enemies) {
         if (enemy.hp > 0 && Math.hypot(enemy.x - decoy.x, enemy.y - decoy.y) <= cfg.explosionRadius + enemy.radius) {
-          damageEnemy(state, enemy, getTowerStats(state).damage * cfg.explosionDamageMultiplier, "explosion");
+          damageEnemy(state, enemy, getTowerStats(state).damage * cfg.explosionDamageMultiplier * potency, "explosion");
         }
       }
       decoy.resolved = true;
@@ -988,14 +1007,14 @@ function updateRelicDecoys(state, dt) {
       if (state.relics.owned.decoyWard) {
         const maxHp = getTowerStats(state).maxHp;
         const before = state.tower.shield;
-        state.tower.shield = Math.min(maxHp * GAME_CONFIG.relics.ward.maxShieldFraction, state.tower.shield + maxHp * GAME_CONFIG.relics.decoyWard.shieldFraction);
+        state.tower.shield = Math.min(maxHp * GAME_CONFIG.relics.ward.maxShieldFraction, state.tower.shield + maxHp * GAME_CONFIG.relics.decoyWard.shieldFraction * relicPotency(state, "decoyWard"));
         state.events.push({ type: "relicDecoyWard", value: state.tower.shield - before, x: decoy.x, y: decoy.y });
       }
       continue;
     }
     const waveEnemiesRemain = state.enemies.some((enemy) => enemy.hp > 0 && enemy.waveIndex === decoy.waveIndex);
     if (!state.wave.active && !waveEnemiesRemain && decoy.age > 0.5) {
-      addCoinDrop(state, { x: decoy.x, y: decoy.y, reward: cfg.survivalCoins, unitCount: 1 });
+      addCoinDrop(state, { x: decoy.x, y: decoy.y, reward: Math.round(cfg.survivalCoins * potency), unitCount: 1 });
       decoy.resolved = true;
       state.events.push({ type: "relicDecoySurvived", x: decoy.x, y: decoy.y, value: cfg.survivalCoins });
     }
@@ -1005,7 +1024,8 @@ function updateRelicDecoys(state, dt) {
 
 function spawnEmberZone(state, x, y, frostfire = false) {
   const cfg = GAME_CONFIG.relics.ember;
-  state.emberZones.push({ id: state.nextId++, x, y, radius: cfg.radius, life: cfg.duration, maxLife: cfg.duration, tick: 0, frostfire });
+  const potency = relicPotency(state, frostfire ? "frostfire" : "ember");
+  state.emberZones.push({ id: state.nextId++, x, y, radius: cfg.radius * potency, life: cfg.duration * potency, maxLife: cfg.duration * potency, tick: 0, frostfire });
   if (state.emberZones.length > cfg.maxZones) state.emberZones.splice(0, state.emberZones.length - cfg.maxZones);
   state.events.push({ type: "relicEmber", x, y, radius: cfg.radius });
 }
@@ -1017,7 +1037,7 @@ function updateEmberZones(state, dt) {
     zone.tick -= dt;
     if (zone.life <= 0 || zone.tick > 0) continue;
     zone.tick += cfg.tickInterval;
-    const damageMultiplier = zone.frostfire ? GAME_CONFIG.relics.frostfire.damageMultiplier : cfg.damageMultiplier;
+    const damageMultiplier = (zone.frostfire ? GAME_CONFIG.relics.frostfire.damageMultiplier : cfg.damageMultiplier) * relicPotency(state, zone.frostfire ? "frostfire" : "ember");
     const damage = getTowerStats(state).damage * damageMultiplier;
     for (const enemy of state.enemies) {
       if (enemy.hp <= 0 || Math.hypot(enemy.x - zone.x, enemy.y - zone.y) > zone.radius + enemy.radius) continue;
@@ -1207,10 +1227,11 @@ function resolveDeaths(state) {
     }
     if (state.relics.owned.frostbloom && (enemy.freezeTimer ?? 0) > 0) {
       const cfg = GAME_CONFIG.relics.frostbloom;
+      const potency = relicPotency(state, "frostbloom");
       for (const target of state.enemies) {
-        if (target === enemy || target.hp <= 0 || Math.hypot(target.x - enemy.x, target.y - enemy.y) > cfg.radius + target.radius) continue;
-        damageEnemy(state, target, getTowerStats(state).damage * cfg.damageMultiplier, "frost");
-        if ((target.type !== "colossus" || !target.enraged) && (target.type !== "sovereign" || !target.elementImmune)) target.freezeTimer = Math.max(target.freezeTimer ?? 0, cfg.freezeDuration * (isBossEnemy(target) ? GAME_CONFIG.elements.frost.bossEffectMultiplier : 1));
+        if (target === enemy || target.hp <= 0 || Math.hypot(target.x - enemy.x, target.y - enemy.y) > cfg.radius * potency + target.radius) continue;
+        damageEnemy(state, target, getTowerStats(state).damage * cfg.damageMultiplier * potency, "frost");
+        if ((target.type !== "colossus" || !target.enraged) && (target.type !== "sovereign" || !target.elementImmune)) target.freezeTimer = Math.max(target.freezeTimer ?? 0, cfg.freezeDuration * potency * (isBossEnemy(target) ? GAME_CONFIG.elements.frost.bossEffectMultiplier : 1));
       }
       state.events.push({ type: "relicFrostbloom", x: enemy.x, y: enemy.y, radius: cfg.radius });
       if (state.relics.owned.frostfire) {
@@ -1220,12 +1241,14 @@ function resolveDeaths(state) {
     }
     if (state.relics.owned.ward) {
       const cfg = GAME_CONFIG.relics.ward;
+      const potency = relicPotency(state, "ward");
+      const killsRequired = Math.max(5, Math.round(cfg.kills / potency));
       state.relics.wardKills += defeatedUnits;
-      while (state.relics.wardKills >= cfg.kills) {
-        state.relics.wardKills -= cfg.kills;
+      while (state.relics.wardKills >= killsRequired) {
+        state.relics.wardKills -= killsRequired;
         const maxHp = getTowerStats(state).maxHp;
         const before = state.tower.shield;
-        state.tower.shield = Math.min(maxHp * cfg.maxShieldFraction, state.tower.shield + maxHp * cfg.shieldFraction);
+        state.tower.shield = Math.min(maxHp * cfg.maxShieldFraction * potency, state.tower.shield + maxHp * cfg.shieldFraction * potency);
         if (state.tower.shield > before) state.events.push({ type: "relicWard", value: state.tower.shield - before });
       }
     }
@@ -1294,7 +1317,7 @@ function updateThreat(state) {
   if (nextPhase !== state.phase) {
     state.events.push({ type: "phase", phase: nextPhase });
     if (state.relics.owned.lunar) {
-      state.relics.phaseBuff = GAME_CONFIG.relics.lunar.transitionDuration;
+      state.relics.phaseBuff = GAME_CONFIG.relics.lunar.transitionDuration * relicPotency(state, "lunar");
       state.events.push({ type: "relicPhaseBuff", phase: nextPhase, duration: state.relics.phaseBuff });
     }
   }
@@ -2060,8 +2083,9 @@ function updateProjectiles(state, dt) {
         }
         if (projectile.mirrorReady && !isBossEnemy(enemy)) {
           const cfg = GAME_CONFIG.relics.mirror;
+          const mirrorPotency = relicPotency(state, "mirror");
           const second = state.enemies
-            .filter((candidate) => candidate !== enemy && candidate.hp > 0 && Math.hypot(candidate.x - enemy.x, candidate.y - enemy.y) <= cfg.refractRange)
+            .filter((candidate) => candidate !== enemy && candidate.hp > 0 && Math.hypot(candidate.x - enemy.x, candidate.y - enemy.y) <= cfg.refractRange * mirrorPotency)
             .sort((a, b) => Math.hypot(a.x - enemy.x, a.y - enemy.y) - Math.hypot(b.x - enemy.x, b.y - enemy.y) || a.id - b.id)[0];
           if (second) {
             const angle = Math.atan2(second.y - enemy.y, second.x - enemy.x);
@@ -2069,19 +2093,20 @@ function updateProjectiles(state, dt) {
               id: state.nextId++, x: enemy.x, y: enemy.y,
               vx: Math.cos(angle) * GAME_CONFIG.tower.projectileSpeed,
               vy: Math.sin(angle) * GAME_CONFIG.tower.projectileSpeed,
-              damage: damage * cfg.refractDamageMultiplier, radius: Math.max(3, projectile.radius * 0.72),
+              damage: damage * cfg.refractDamageMultiplier * mirrorPotency, radius: Math.max(3, projectile.radius * 0.72),
               pierce: 0, life: 0.7, tier: projectile.tier, mirrorRefraction: true, hitIds: new Set([enemy.id])
             });
             state.events.push({ type: "relicMirror", x1: enemy.x, y1: enemy.y, x2: second.x, y2: second.y });
             if (state.relics.owned.prismArc) {
               const arcCfg = GAME_CONFIG.relics.prismArc;
+              const arcPotency = relicPotency(state, "prismArc");
               const arcTargets = state.enemies
-                .filter((candidate) => candidate !== enemy && candidate !== second && candidate.hp > 0 && Math.hypot(candidate.x - second.x, candidate.y - second.y) <= arcCfg.chainRange)
+                .filter((candidate) => candidate !== enemy && candidate !== second && candidate.hp > 0 && Math.hypot(candidate.x - second.x, candidate.y - second.y) <= arcCfg.chainRange * arcPotency)
                 .sort((a, b) => Math.hypot(a.x - second.x, a.y - second.y) - Math.hypot(b.x - second.x, b.y - second.y) || a.id - b.id)
-                .slice(0, arcCfg.chainCount);
+                .slice(0, arcCfg.chainCount + relicUpgradeLevel(state, "prismArc"));
               let from = second;
               arcTargets.forEach((target, index) => {
-                damageEnemy(state, target, damage * (arcCfg.chainMultiplier ** (index + 1)), "lightning");
+                damageEnemy(state, target, damage * arcPotency * (arcCfg.chainMultiplier ** (index + 1)), "lightning");
                 state.elementFx.push({ element: "lightning", x1: from.x, y1: from.y, x2: target.x, y2: target.y, life: 0.2, maxLife: 0.2 });
                 from = target;
               });
@@ -2376,8 +2401,9 @@ function updateCoinOrbs(state, dt) {
       orb.collected = true;
       const scavengeValue = orb.collector === "drone" && state.tower.upgrades.droneScavenge > 0 ? GAME_CONFIG.drones.scavengeValueMultiplier : 1;
       let value = Math.max(1, Math.round(orb.value * incomeMultiplier * scavengeValue));
-      if (state.relics.owned.gilded && state.rng.next() < GAME_CONFIG.relics.gilded.chance) {
-        const bonus = Math.max(1, Math.round(value * GAME_CONFIG.relics.gilded.bonusMultiplier));
+      const gildedPotency = relicPotency(state, "gilded");
+      if (state.relics.owned.gilded && state.rng.next() < Math.min(0.9, GAME_CONFIG.relics.gilded.chance * gildedPotency)) {
+        const bonus = Math.max(1, Math.round(value * GAME_CONFIG.relics.gilded.bonusMultiplier * gildedPotency));
         value += bonus;
         state.events.push({ type: "relicGilded", value: bonus });
       }
@@ -2588,7 +2614,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   updateWave(state, dt);
   updateSpawning(state, dt);
 
-  const skillCooldownDt = dt * (state.relics.owned.hourglass ? GAME_CONFIG.relics.hourglass.cooldownRateMultiplier : 1);
+  const skillCooldownDt = dt * (state.relics.owned.hourglass ? amplifyMultiplier(GAME_CONFIG.relics.hourglass.cooldownRateMultiplier, relicPotency(state, "hourglass")) : 1);
   for (const skill of Object.values(state.skills)) skill.cooldown = Math.max(0, skill.cooldown - skillCooldownDt);
   state.skills.heal.active = Math.max(0, state.skills.heal.active - dt);
   state.skills.heal.burst = Math.max(0, state.skills.heal.burst - dt);
@@ -2669,7 +2695,7 @@ export function snapshotState(state) {
     hostileProjectiles: state.hostileProjectiles.map((projectile) => [projectile.kind, Number(projectile.x.toFixed(2)), Number(projectile.y.toFixed(2)), Number(projectile.life.toFixed(2))]),
     summonRifts: state.summonRifts.map((rift) => [rift.enemyType, Number(rift.x.toFixed(2)), Number(rift.y.toFixed(2)), Number(rift.life.toFixed(2)), rift.attackable, rift.targetId, Boolean(rift.elite)]),
     resourceDrops: state.resourceDrops.map((drop) => [drop.resourceType, drop.value, Number(drop.x.toFixed(2)), Number(drop.y.toFixed(2)), drop.source, drop.threatLevel]),
-    relics: { owned: { ...state.relics.owned }, available: [...state.relics.available], disabledRelic: state.relics.disabledRelic, discovered: { ...state.relics.discovered }, registeredSets: { ...state.relics.registeredSets }, lockedChoice: state.relics.lockedChoice, slots: state.relics.slots, picks: state.relics.picks, damageBonus: Number(state.relics.damageBonus.toFixed(3)), rateBonus: Number(state.relics.rateBonus.toFixed(3)), endlessStacks: state.relics.endlessStacks, mirrorShots: state.relics.mirrorShots, wardKills: state.relics.wardKills, phaseBuff: Number(state.relics.phaseBuff.toFixed(3)), choice: state.relicChoice?.choices ?? null },
+    relics: { owned: { ...state.relics.owned }, available: [...state.relics.available], disabledRelics: [...state.relics.disabledRelics], discovered: { ...state.relics.discovered }, upgrades: { ...state.relics.upgrades }, registeredSets: { ...state.relics.registeredSets }, lockedChoice: state.relics.lockedChoice, slots: state.relics.slots, picks: state.relics.picks, damageBonus: Number(state.relics.damageBonus.toFixed(3)), rateBonus: Number(state.relics.rateBonus.toFixed(3)), endlessStacks: state.relics.endlessStacks, mirrorShots: state.relics.mirrorShots, wardKills: state.relics.wardKills, phaseBuff: Number(state.relics.phaseBuff.toFixed(3)), choice: state.relicChoice?.choices ?? null },
     decoys: state.decoys.map((decoy) => [Number(decoy.x.toFixed(2)), Number(decoy.y.toFixed(2)), Number(decoy.hp.toFixed(2)), decoy.waveIndex]),
     emberZones: state.emberZones.map((zone) => [Number(zone.x.toFixed(2)), Number(zone.y.toFixed(2)), Number(zone.life.toFixed(2)), Boolean(zone.frostfire)]),
     kills: state.stats.kills, bosses: state.stats.bossKills, score: state.stats.score, permanentResources: [state.stats.echoShards, state.stats.coreFragments], wave: [state.wave.index, state.wave.remaining, state.wave.direction, state.wave.elitePending, [...state.wave.pendingClear]], skills: [Number(state.skills.overload.heat.toFixed(3)), Number(state.skills.overload.slow.toFixed(3)), Number(state.skills.starfall.angle.toFixed(3)), state.skills.starfall.protocol, state.skills.heal.shieldBurstArmed, Number(state.skills.heal.burst.toFixed(3)), Number(state.skills.coinVacuum.active.toFixed(3)), state.skills.coinVacuum.value], rng: state.rng.state, over: state.over

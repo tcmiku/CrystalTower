@@ -1,8 +1,49 @@
 # 《永耀晶塔》质量验证报告
+## 2026-08-28 · 普通模式首次死亡大本营解锁修复复验
 
-## 结论
+**状态：PASS。**
 
-**状态：PASS。** 本轮金潮归塔、外置无人机模式按钮与科技树自动暂停未发现 blocker 或 major 问题。
+已修复死亡事件把分数对象误传为结算类型的问题，普通模式首次死亡现在会正确登记失败、写入大本营解锁并进入恢复事件。
+
+| 项目 | 结果与证据 |
+|---|---|
+| 普通模式复现 | `preview=null`；初始 `baseCamp.unlocked=false`，死亡后变为 `true`，失败次数为 1，获得 1 枚核心残片。 |
+| 恢复流程 | 死亡后显示“核心残响”，完成“基地恢复”两步交互后进入大本营核心室；`recoverySeen=true`。截图：`qa/screenshots/normal-death-basecamp-unlocked-1440x900.png`。 |
+| 根因修复 | `gameOver` 事件现在调用 `settleRun(event.stardust, "defeat")`，首次失败逻辑可正常执行。 |
+| 自动回归 | `npm test`：150/150；`npm run test:sim`：4/4。 |
+| 浏览器控制台 | 0 error / 0 warning。 |
+## 2026-08-28 · 晶核中枢永久研究 30 级复验
+
+**状态：PASS。**
+
+永久研究上限已从 20 级提升到 30 级；攻击、生命、金币收益三项研究均沿用统一配置、存档清洗和满级购买校验。
+
+| 项目 | 结果与证据 |
+|---|---|
+| 配置与存档 | `GAME_CONFIG.research.maxLevel = 30`；非法高等级会被清洗到 30，30 级后不可继续购买。 |
+| 真实页面 | `?preview=relic-research` 在 1440×900 显示三项 `等级 30/30 · +150%`，满级按钮禁用；截图：`qa/screenshots/permanent-research-30-1440x900.png`。 |
+| 自动回归 | `npm test`：150/150；`npm run test:sim`：4/4。 |
+| 浏览器控制台 | 0 error / 0 warning。 |
+
+## 2026-08-28 · 威胁封印系统专项复核
+
+**状态：PASS。** 本次专项复核未发现 blocker 或 major 问题。
+
+威胁封印已形成“第一章威胁 XX 通关解锁 → 大本营装备 → 下一局生效 → 收益/风险结算”的主要闭环；五种封印规则均接入引擎，自动化回归通过。战斗开始和重开后，本局已装备封印会显示在战场 HUD 中，玩家可在战斗中确认当前风险配置。
+
+| 项目 | 结果与证据 |
+|---|---|
+| 自动回归 | `npm test`：150/150；`npm run test:sim`：4/4。 |
+| 解锁与装备 | `?preview=threat-seals` 的 5 张卡可装备/卸下；实时验证 3/5 → 5/5，倍率为排名 ×1.76、永久资源 ×1.67、特殊遗物 +33%、成就 ×2.10。 |
+| 视口与反馈 | 1440×900、1024×720 均可访问封印圣坛，五张卡有中文风险/奖励/状态文案；截图：`qa/screenshots/threat-seals-basecamp-1440x900.png`、`qa/screenshots/threat-seals-basecamp-1024x720.png`。 |
+| 规则接入 | 自动化覆盖长夜、断供、狂潮、巨兽、无伤五种风险及资源/积分/遗物/成就收益。 |
+| 战斗 HUD | 已修复：`renderThreatSealHud()` 纳入通用 `updateUi()` 路径；真实页面首次加载与 `restart()` 后均显示 5 个封印芯片，`hidden=false`，截图：`qa/screenshots/threat-seals-battle-hud-fixed-1440x900.png`。 |
+
+**判定：** 威胁封印系统已达到本次设计目标，核心规则、装备入口、收益结算和战斗内反馈均有证据。
+
+## 历史记录 · 2026-08-25
+
+**历史状态：PASS。** 本轮金潮归塔、外置无人机模式按钮与科技树自动暂停未发现 blocker 或 major 问题。
 
 ## 环境与命令
 

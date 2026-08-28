@@ -12,7 +12,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
     "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText", "globalLeaderboardPodium",
     "droneModeButton", "droneModeText", "droneModeHint", "droneProtocolButton", "droneProtocolText", "droneProtocolHint", "droneEnergyFill",
     "pauseButton", "muteButton", "speedButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate",
-    "accountButton", "accountModal", "closeAccountButton", "loginForm", "showRegisterButton", "registerForm", "showLoginButton", "accountUserPanel", "saveChoicePanel", "useCloudSaveButton", "useLocalSaveButton", "logoutButton", "deleteAccountButton",
+    "accountButton", "accountModal", "closeAccountButton", "loginForm", "showRegisterButton", "registerForm", "showLoginButton", "accountUserPanel", "saveChoicePanel", "useCloudSaveButton", "useLocalSaveButton", "logoutButton", "deleteAccountButton", "deleteLocalSaveButton",
     "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput", "playerMessageInput",
     "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
     "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
@@ -31,11 +31,13 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(html, /id="pauseButton"[^>]*>\s*<svg class="top-icon pause-icon"/);
   assert.match(html, /id="registerForm" class="auth-form hidden"/);
   assert.match(html, /没有账号？注册/);
+  assert.match(html, /guest-local-save-actions[\s\S]*删除本地存档/);
   assert.match(html, /viewport-fit=cover/);
   assert.match(html, /updatesDismissButton/);
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   const accountStyles = await readFile(new URL("../auth.css", import.meta.url), "utf8");
   assert.match(accountStyles, /\.account-modal/);
+  assert.match(accountStyles, /\.guest-local-save-actions/);
   assert.match(styles, /@media \(max-width: 1024px\)/);
   assert.match(styles, /env\(safe-area-inset-top\)/);
   assert.match(styles, /#gameCanvas[^}]*touch-action:\s*none/s);
@@ -67,6 +69,8 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /leaderboard-messages/);
   assert.match(main, /tower-health/);
   assert.match(main, /现已上线登录功能/);
+  assert.match(main, /deleteLocalSaveButton/);
+  assert.match(main, /删除此设备上的游客本地存档/);
   assert.match(main, /warning\.className = "update-warning"/);
   const renderer = await readFile(new URL("../src/renderer.js", import.meta.url), "utf8");
   assert.match(main, /战利品已经掉落/);
@@ -107,7 +111,21 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /createRelicHudChip/);
   assert.match(html, /relicArchiveRoom/);
   assert.match(html, /relicArchivePanel/);
+  assert.match(html, /所有遗物默认加入战局候选池/);
+  assert.match(html, /最多禁用三件已发现遗物/);
   assert.match(main, /renderRelicArchive/);
+  assert.match(main, /buyRelicArchiveUpgrade/);
+  assert.match(main, /buyRelicUpgrade/);
+  assert.match(main, /relicRarityClass/);
+  assert.match(main, /RELIC_UPGRADE_TEXT/);
+  assert.match(main, /relicDescription\(key, level\)/);
+  assert.match(main, /relicEffect\(id, level\)/);
+  assert.match(main, /relic-research-silhouette/);
+  assert.match(main, /获得一次后才会显示卡图与效果/);
+  assert.match(main, /在战斗中发现后解锁/);
+  assert.match(styles, /\.relic-rarity-common[^}]*border-color/s);
+  assert.match(styles, /\.relic-rarity-rare[^}]*#a970ff/s);
+  assert.match(styles, /\.relic-rarity-legendary[^}]*#ffd36d/s);
   assert.match(main, /relic-lock/);
   assert.match(main, /折光雷晶/);
   assert.match(main, /霜烬共生核/);

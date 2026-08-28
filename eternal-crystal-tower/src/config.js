@@ -159,6 +159,8 @@ export const GAME_CONFIG = Object.freeze({
     decoyWard: { requires: ["decoy", "ward"], set: ["decoy", "ward", "decoyWard"] }
   },
   relicSlotResearch: { costs: [2, 4, 7] },
+  relicUpgradeResearch: { maxLevel: 3, costs: [4, 8, 12], effectPerLevel: 0.12 },
+  relicArchiveResearch: { initialDisabledSlots: 1, maxDisabledSlots: 3, costs: [8, 16] },
   permanentResources: { clickRadius: 30, maxDrops: 72, eliteEcho: 2, bossCore: 3, colossusCore: 8, sovereignCore: 15 },
   score: {
     enemy: { wisp: 100, runner: 120, crawler: 150, brute: 300, hexer: 350, sentinel: 450, rammer: 500, inkHound: 260, orbitMote: 390, rustBeetle: 520, porcelainWarden: 480, boss: 5000, colossus: 20000, sovereign: 50000 },
@@ -198,7 +200,7 @@ export const GAME_CONFIG = Object.freeze({
     sovereign: { hp: 2800, speed: 0, damage: 76, reward: 1500, radius: 128 },
     anchor: { hp: 115, speed: 0, damage: 0, reward: 0, radius: 17 }
   },
-  research: { bonusPerLevel: 0.05, maxLevel: 20, costBase: 2, costGrowth: 1.3 },
+  research: { bonusPerLevel: 0.05, maxLevel: 30, costBase: 2, costGrowth: 1.3 },
   combat: { enemyAttackInterval: 0.7, maxEnemies: 420, normalEnemyBudget: 240, crowdRadiusPerDoubling: 0.14, crowdMaxRadiusMultiplier: 1.55 }
 });
 

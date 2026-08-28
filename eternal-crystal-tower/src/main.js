@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyRelicSlot, buyRelicUnlock, buyResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
+import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
@@ -151,7 +151,7 @@ const dom = Object.fromEntries([
   "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
-  "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "gameOverTitle", "gameOverLine", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore", "resultScoreMultiplier", "resultSealAchievement", "endEndlessButton",
+  "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "deleteLocalSaveButton", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "gameOverTitle", "gameOverLine", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore", "resultScoreMultiplier", "resultSealAchievement", "endEndlessButton",
   "scoreEntryForm", "playerNameInput", "playerMessageInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
@@ -277,10 +277,12 @@ if (previewMode === "basecamp" || previewMode === "relic-research" || previewMod
   save.resources.echoShards = Math.max(save.resources.echoShards, 28);
   save.resources.coreFragments = Math.max(save.resources.coreFragments, 9);
   if (previewMode === "relic-archive") {
-    for (const id of Object.keys(save.relicUnlocks)) save.relicUnlocks[id] = true;
-    for (const id of Object.keys(GAME_CONFIG.relicCombos)) save.relicArchive.discovered[id] = true;
+    for (const id of [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)]) save.relicArchive.discovered[id] = true;
     save.relicArchive.registeredSets.prismArc = true;
-    save.relicArchive.disabledRelic = "ember";
+    save.relicArchive.exclusionLevel = 2;
+    save.relicArchive.disabledRelics = ["ember", "lunar", "gilded"];
+    save.relicArchive.upgrades.mirror = 2;
+    save.relicArchive.upgrades.ember = 3;
   }
   if (previewMode === "threat-seals") {
     save.campaign.coreEnergy[1] = true;
@@ -1462,21 +1464,33 @@ function renderRelicResearch() {
   });
   dom.relicSlotResearch.append(slotButton);
   dom.relicResearchList.replaceChildren();
-  for (const [key, cost] of Object.entries(GAME_CONFIG.relicResearch)) {
+  for (const key of configuredRelicIds()) {
     const meta = RELIC_META[key];
-    const unlocked = save.relicUnlocks[key] === true;
+    const discovered = save.relicArchive.discovered[key] === true;
+    const level = save.relicArchive.upgrades[key] ?? 0;
+    const cost = relicUpgradeCost(save, key);
+    const maxed = cost == null;
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "relic-research-card";
+    button.className = `relic-research-card ${relicRarityClass(level)}`;
     button.dataset.relic = key;
-    button.disabled = unlocked || save.resources.echoShards < cost;
-    button.innerHTML = `<img src="${meta.art}" alt="" aria-hidden="true"><span><small>${meta.type}</small><strong>${meta.name}</strong><p>${meta.description}</p><b>${unlocked ? "已解锁 · 已加入战局池" : `解锁 · ${cost} 遗响碎片`}</b></span>`;
+    button.disabled = !discovered || maxed || save.resources.echoShards < cost;
+    const hidden = Object.hasOwn(GAME_CONFIG.relicCombos, key);
+    const cardArt = discovered
+      ? `<img src="${meta.art}" alt="" aria-hidden="true">`
+      : `<div class="archive-silhouette relic-research-silhouette">${hidden ? "?" : "◇"}</div>`;
+    const cardDetails = discovered
+      ? `<small>${relicRarityName(level)} · ${meta.type}</small><strong>${meta.name} · +${level}</strong><p>${relicDescription(key, level)}</p><b>${maxed ? "强化完成 · 传说" : `强化至 +${level + 1} · ${cost} 遗响碎片`}</b>`
+      : hidden
+        ? `<small>隐藏回路 · 未发现</small><strong>未知遗物</strong><p>组合线索：${RELIC_SET_META[key].hint}</p><b>在战斗中发现后解锁</b>`
+        : `<small>尚未发现</small><strong>未知遗物</strong><p>该遗物已进入候选池，获得一次后才会显示卡图与效果。</p><b>在战斗中发现后解锁</b>`;
+    button.innerHTML = `${cardArt}<span>${cardDetails}</span>`;
     button.addEventListener("click", () => {
-      if (!buyRelicUnlock(save, key)) return;
+      if (!buyRelicUpgrade(save, key)) return;
+      state.relics.upgrades[key] = save.relicArchive.upgrades[key];
       persistSave();
-      state.relics.available = configuredRelicIds().filter((id) => (save.relicUnlocks[id] === true || save.relicArchive.discovered[id] === true) && id !== state.relics.disabledRelic);
       audio.play("purchase");
-      showToast(`${meta.name} · 已加入临时遗物池`);
+      showToast(`${meta.name} · 强化至 +${save.relicArchive.upgrades[key]}`);
       renderBaseCamp();
     });
     dom.relicResearchList.append(button);
@@ -1487,17 +1501,69 @@ function configuredRelicIds() {
   return [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)];
 }
 
+function relicRarityClass(level = 0) {
+  return level >= GAME_CONFIG.relicUpgradeResearch.maxLevel ? "relic-rarity-legendary" : level > 0 ? "relic-rarity-rare" : "relic-rarity-common";
+}
+
+function relicRarityName(level = 0) {
+  return level >= GAME_CONFIG.relicUpgradeResearch.maxLevel ? "传说" : level > 0 ? "稀有" : "普通";
+}
+
+const RELIC_UPGRADE_TEXT = {
+  decoy: (level, percent) => `强化 +${level}：诱饵耐久、爆炸伤害与存活金币 +${percent}%`,
+  lunar: (level, percent) => `强化 +${level}：昼夜倍率与切换火力持续时间 +${percent}%`,
+  mirror: (level, percent) => `强化 +${level}：折射间隔减少 ${level} 次，距离与伤害 +${percent}%`,
+  ember: (level, percent) => `强化 +${level}：余烬区域伤害、范围、持续时间 +${percent}%`,
+  ward: (level, percent) => `强化 +${level}：每 ${Math.max(5, 20 - level * 5)} 击杀获得护盾，护盾量 +${percent}%`,
+  frostbloom: (level, percent) => `强化 +${level}：霜爆范围、伤害与冻结时间 +${percent}%`,
+  stormglass: (level, percent) => `强化 +${level}：额外雷链 +${level}，范围与链伤 +${percent}%`,
+  gilded: (level, percent) => `强化 +${level}：触发概率与额外金币 +${percent}%`,
+  execution: (level, percent) => `强化 +${level}：斩杀线提高至 ${35 + level * 4}%，残血伤害 +${percent}%`,
+  hourglass: (level, percent) => `强化 +${level}：冷却恢复速度额外 +${percent}%`,
+  prismArc: (level, percent) => `强化 +${level}：折线连锁目标 +${level}，范围与伤害 +${percent}%`,
+  frostfire: (level, percent) => `强化 +${level}：冰火区域范围、伤害与持续时间 +${percent}%`,
+  decoyWard: (level, percent) => `强化 +${level}：诱饵爆炸后的护盾量 +${percent}%`
+};
+
+function relicDescription(id, level = 0) {
+  const meta = RELIC_META[id];
+  if (!meta || level <= 0) return meta?.description ?? "";
+  const percent = level * Math.round(GAME_CONFIG.relicUpgradeResearch.effectPerLevel * 100);
+  return `${meta.description} ${RELIC_UPGRADE_TEXT[id]?.(level, percent) ?? `强化 +${level}：效果强度 +${percent}%`}`;
+}
+
+function relicEffect(id, level = 0) {
+  const meta = RELIC_META[id];
+  if (!meta || level <= 0) return meta?.effect ?? "";
+  const percent = level * Math.round(GAME_CONFIG.relicUpgradeResearch.effectPerLevel * 100);
+  return `${meta.effect} · ${RELIC_UPGRADE_TEXT[id]?.(level, percent) ?? `强化效果 +${percent}%`}`;
+}
+
 function renderRelicArchive() {
   if (!dom.relicArchivePanel) return;
   const hiddenIds = new Set(Object.keys(GAME_CONFIG.relicCombos));
-  const discovered = (id) => hiddenIds.has(id) ? save.relicArchive.discovered[id] === true : save.relicUnlocks[id] === true;
+  const discovered = (id) => save.relicArchive.discovered[id] === true;
   const discoveredCount = configuredRelicIds().filter(discovered).length;
+  const disabledRelics = save.relicArchive.disabledRelics ?? [];
+  const disabledCapacity = relicArchiveCapacity(save);
   dom.relicArchiveProgress.textContent = `${discoveredCount} / ${configuredRelicIds().length}`;
 
   dom.relicArchiveDisabledList.replaceChildren();
+  const upgrade = document.createElement("button");
+  const archiveCost = GAME_CONFIG.relicArchiveResearch.costs[save.relicArchive.exclusionLevel];
+  const archiveMaxed = archiveCost == null;
+  upgrade.type = "button"; upgrade.className = "archive-disable-card archive-upgrade-card";
+  upgrade.disabled = archiveMaxed || save.resources.echoShards < archiveCost;
+  upgrade.innerHTML = `<strong>禁用容量 ${disabledRelics.length} / ${disabledCapacity}</strong><small>${archiveMaxed ? "构筑管理已满级" : `升级至可禁用 ${disabledCapacity + 1} 件 · ${archiveCost} 遗响碎片`}</small>`;
+  upgrade.addEventListener("click", () => {
+    if (!buyRelicArchiveUpgrade(save)) return;
+    persistSave(); audio.play("purchase"); renderBaseCamp();
+    showToast(`构筑管理升级 · 下局最多禁用 ${relicArchiveCapacity(save)} 件遗物`);
+  });
+  dom.relicArchiveDisabledList.append(upgrade);
   const clear = document.createElement("button");
   clear.type = "button"; clear.className = "archive-disable-card clear";
-  clear.classList.toggle("active", !save.relicArchive.disabledRelic);
+  clear.classList.toggle("active", disabledRelics.length === 0);
   clear.innerHTML = `<strong>不禁用</strong><small>保持完整遗物池</small>`;
   clear.addEventListener("click", () => { setDisabledRelic(save, null); persistSave(); renderRelicArchive(); });
   dom.relicArchiveDisabledList.append(clear);
@@ -1505,9 +1571,11 @@ function renderRelicArchive() {
     const meta = RELIC_META[id];
     const button = document.createElement("button");
     button.type = "button"; button.className = "archive-disable-card";
-    button.classList.toggle("active", save.relicArchive.disabledRelic === id);
-    button.innerHTML = `<i>${meta.icon}</i><span><strong>${meta.name}</strong><small>${save.relicArchive.disabledRelic === id ? "已从下一局候选池排除" : "点击设为下局唯一禁用"}</small></span>`;
-    button.addEventListener("click", () => { setDisabledRelic(save, id); persistSave(); audio.play("purchase"); renderRelicArchive(); });
+    const disabled = disabledRelics.includes(id);
+    button.classList.toggle("active", disabled);
+    button.disabled = !disabled && disabledRelics.length >= disabledCapacity;
+    button.innerHTML = `<i>${meta.icon}</i><span><strong>${meta.name}</strong><small>${disabled ? "已从下一局候选池排除" : button.disabled ? "禁用容量已满" : "点击加入下局禁用列表"}</small></span>`;
+    button.addEventListener("click", () => { if (!setDisabledRelic(save, id)) return; persistSave(); audio.play("purchase"); renderRelicArchive(); });
     dom.relicArchiveDisabledList.append(button);
   }
 
@@ -1517,13 +1585,14 @@ function renderRelicArchive() {
     const known = discovered(id);
     const hidden = hiddenIds.has(id);
     const card = document.createElement("article");
-    card.className = `archive-codex-card${known ? " discovered" : " locked"}${hidden ? " hidden-relic" : ""}`;
+    const level = save.relicArchive.upgrades[id] ?? 0;
+    card.className = `archive-codex-card ${relicRarityClass(level)}${known ? " discovered" : " locked"}${hidden ? " hidden-relic" : ""}`;
     const combo = hidden ? RELIC_SET_META[id] : null;
     card.innerHTML = known
-      ? `<img src="${meta.art}" alt=""><span><small>${meta.type}</small><strong>${meta.name}</strong><p>${meta.description}</p><b>${meta.effect}</b></span>`
+      ? `<img src="${meta.art}" alt=""><span><small>${relicRarityName(level)} · +${level} · ${meta.type}</small><strong>${meta.name}</strong><p>${relicDescription(id, level)}</p><b>${relicEffect(id, level)}</b></span>`
       : hidden
         ? `<div class="archive-silhouette">?</div><span><small>隐藏回路 · 未发现</small><strong>未知遗物</strong><p>组合线索：${combo.hint}</p><b>在同一局装配两件基础遗物</b></span>`
-        : `<div class="archive-silhouette">◇</div><span><small>研究未完成</small><strong>${meta.name}</strong><p>前往研究舱解锁并加入战局池。</p><b>${GAME_CONFIG.relicResearch[id]} 遗响碎片</b></span>`;
+        : `<div class="archive-silhouette">◇</div><span><small>尚未发现</small><strong>${meta.name}</strong><p>该遗物已在候选池开放，获得一次后即可管理与强化。</p><b>进入战局寻找遗物</b></span>`;
     dom.relicArchiveCodexList.append(card);
   }
 
@@ -1660,10 +1729,10 @@ function switchDroneProtocol() {
   updateUi();
 }
 
-function createRelicHudChip({ icon, name, label = name, description, effect }) {
+function createRelicHudChip({ icon, name, label = name, description, effect, rarityClass = "" }) {
   const chip = document.createElement("button");
   chip.type = "button";
-  chip.className = "relic-run-chip";
+  chip.className = `relic-run-chip ${rarityClass}`;
   chip.title = effect;
   chip.setAttribute("aria-label", `${name}：${effect}`);
   chip.innerHTML = `<i aria-hidden="true">${icon}</i><span class="relic-run-name">${label}</span><span class="relic-run-tooltip" role="tooltip"><strong>${name}</strong><small>${description}</small><b>${effect}</b></span>`;
@@ -1679,7 +1748,8 @@ function renderRelicHud() {
   dom.relicRunHud.replaceChildren();
   for (const id of owned) {
     const meta = RELIC_META[id];
-    dom.relicRunHud.append(createRelicHudChip(meta));
+    const level = state.relics.upgrades[id] ?? 0;
+    dom.relicRunHud.append(createRelicHudChip({ ...meta, description: relicDescription(id, level), effect: relicEffect(id, level), rarityClass: relicRarityClass(level) }));
   }
   if (endlessStacks > 0) {
     const damage = Math.round(endlessStacks * GAME_CONFIG.relics.endless.damagePerStack * 100);
@@ -1748,10 +1818,11 @@ function renderRelicChoice() {
     wrapper.classList.toggle("locked", isLocked);
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "relic-card";
+    const level = save.relicArchive.upgrades[id] ?? 0;
+    button.className = `relic-card ${id.startsWith("boost:") ? "" : relicRarityClass(level)}`;
     button.dataset.relic = id;
-    const effect = id === "boost:endless" ? `${meta.effect} · 选择后达到 ${(state.relics.endlessStacks ?? 0) + 1} 层` : meta.effect;
-    button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" aria-hidden="true" decoding="async"></span><span class="relic-card-index">0${index + 1}</span><span class="relic-card-icon">${meta.icon}</span><span class="relic-card-body"><span class="relic-card-type">${meta.type}</span><h3>${meta.name}</h3><p>${meta.description}</p><span class="relic-card-effect">${effect}</span></span>`;
+    const effect = id === "boost:endless" ? `${meta.effect} · 选择后达到 ${(state.relics.endlessStacks ?? 0) + 1} 层` : relicEffect(id, level);
+    button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" aria-hidden="true" decoding="async"></span><span class="relic-card-index">0${index + 1}</span><span class="relic-card-icon">${meta.icon}</span><span class="relic-card-body"><span class="relic-card-type">${id.startsWith("boost:") ? meta.type : `${relicRarityName(level)} · +${level} · ${meta.type}`}</span><h3>${meta.name}</h3><p>${relicDescription(id, level)}</p><span class="relic-card-effect">${effect}</span></span>`;
     button.addEventListener("click", () => selectRunRelic(id));
     wrapper.append(button);
     if (!id.startsWith("boost:")) {
@@ -1813,7 +1884,14 @@ function handleEvents(events) {
       renderRelicArchive();
     }
     else if (event.type === "relicChoiceLocked") showToast(event.locked ? `${RELIC_META[event.id].name} · 将保留至下次奖励` : "遗物选项已解除锁定");
-    else if (event.type === "relicChosen") announce(event.id === "boost:endless" ? `无界增幅核 · 当前 ${state.relics.endlessStacks} 层` : `${RELIC_META[event.id]?.name ?? "战场回路"} · 已接入本局构筑`);
+    else if (event.type === "relicChosen") {
+      if (!event.id.startsWith("boost:") && discoverHiddenRelic(save, event.id)) {
+        state.relics.discovered[event.id] = true;
+        persistSave();
+        renderRelicArchive();
+      }
+      announce(event.id === "boost:endless" ? `无界增幅核 · 当前 ${state.relics.endlessStacks} 层` : `${RELIC_META[event.id]?.name ?? "战场回路"} · 已接入本局构筑`);
+    }
     else if (event.type === "relicDecoyExplode") { audio.play("overload"); renderer.trigger("overloadRelease", 0.7); announce("诡光诱饵崩解 · 爆炸清场"); }
     else if (event.type === "relicDecoySurvived") { audio.play("coin"); showToast(`诡光诱饵存活 · 转化金币 ${event.value}`); }
     else if (event.type === "relicPhaseBuff") { renderer.trigger("ascend", 0.45); showToast("月相调律 · 短暂火力强化"); }
@@ -1922,7 +2000,7 @@ function handleEvents(events) {
     else if (event.type === "anchorLocked") { audio.play("purchase"); renderer.trigger("anchorLocked"); announce(`锁定 ${ANCHOR_ROLE_NAMES[event.role]} · ${event.duration.toFixed(0)} 秒`); }
     else if (event.type === "coinVacuum") { audio.play("coin"); renderer.trigger("coinVacuum"); announce(`金潮归塔 · ${event.count} 枚 · +${event.value}`); }
     else if (event.type === "skill") { audio.play(event.key); renderer.trigger(event.key); }
-    else if (event.type === "gameOver") { audio.play("gameOver"); renderer.trigger("gameOver"); settleRun(event.stardust, event.score); }
+    else if (event.type === "gameOver") { audio.play("gameOver"); renderer.trigger("gameOver"); settleRun(event.stardust, "defeat"); }
   }
   events.length = 0;
 }
@@ -1944,6 +2022,7 @@ function updateUi() {
   dom.phaseText.parentElement.classList.toggle("night", state.phase === "night");
   dom.waveText.textContent = state.wave.active ? "涌入中" : formatTime(Math.max(0, state.wave.nextAt - state.time));
   renderRelicHud();
+  renderThreatSealHud();
   dom.damageStat.textContent = Math.round(stats.damage);
   dom.rateStat.textContent = stats.fireRate.toFixed(1);
   dom.rangeStat.textContent = Math.round(stats.range);
@@ -2496,6 +2575,12 @@ dom.updatesModal.addEventListener("pointerdown", (event) => { if (event.target =
 dom.accountButton.addEventListener("click", () => setAccountOpen(true));
 dom.closeAccountButton.addEventListener("click", () => setAccountOpen(false, true));
 dom.accountModal.addEventListener("pointerdown", (event) => { if (event.target === dom.accountModal) setAccountOpen(false, true); });
+dom.deleteLocalSaveButton.addEventListener("click", () => {
+  if (currentAccount) return;
+  if (!confirm("删除此设备上的游客本地存档？此操作无法撤销。")) return;
+  localStorage.removeItem(SAVE_KEY);
+  location.reload();
+});
 dom.loginForm.addEventListener("submit", (event) => submitAccountForm(event, "login"));
 dom.registerForm.addEventListener("submit", (event) => submitAccountForm(event, "register"));
 dom.showRegisterButton.addEventListener("click", () => setAccountAuthMode("register", true));
