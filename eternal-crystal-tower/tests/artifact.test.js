@@ -101,6 +101,11 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(renderer, /怪群 ×/);
   assert.match(renderer, /pileCount/);
   assert.match(renderer, /drawTowerHealthBar/);
+  assert.match(renderer, /cannonEcho[\s\S]*Math\.max\(this\.shake, 0\.65\)/);
+  assert.match(renderer, /cannonCascade[\s\S]*Math\.max\(this\.shake, 2\.5\)/);
+  const cannonEchoTrigger = renderer.match(/if \(type === "cannonEcho"\) \{[^}]+\}/)?.[0] ?? "";
+  assert.doesNotMatch(cannonEchoTrigger, /this\.flash\s*=/);
+  assert.doesNotMatch(cannonEchoTrigger, /this\.flashColor\s*=/);
   assert.match(main, /renderLeaderboardPodium/);
   assert.match(main, /globalLeaderboardPodium/);
   assert.match(main, /leaderboard-time/);

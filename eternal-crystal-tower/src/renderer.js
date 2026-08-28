@@ -184,9 +184,9 @@ export class Renderer {
     if (type === "eliteMarked") { this.flash = Math.max(this.flash, 0.07); this.flashColor = "#ff6fcf"; }
     if (type === "cannonWeakpoint") { this.flash = Math.max(this.flash, 0.1); this.flashColor = "#fff0a8"; }
     if (type === "cannonSplit") { this.flash = Math.max(this.flash, 0.06); this.flashColor = "#d5b3ff"; }
-    if (type === "cannonEcho") { this.shake = Math.max(this.shake, 3.5); this.flash = Math.max(this.flash, 0.12); this.flashColor = "#c89cff"; }
+    if (type === "cannonEcho") { this.shake = Math.max(this.shake, 0.65); }
     if (type === "cannonStarPiercer") { this.shake = Math.max(this.shake, 8); this.flash = Math.max(this.flash, 0.3); this.flashColor = "#fff0a0"; }
-    if (type === "cannonCascade") { this.shake = Math.max(this.shake, 11); this.flash = Math.max(this.flash, 0.42); this.flashColor = "#dc79ff"; }
+    if (type === "cannonCascade") { this.shake = Math.max(this.shake, 2.5); this.flash = Math.max(this.flash, 0.42); this.flashColor = "#dc79ff"; }
     if (type === "waveWarning") { this.shake = 3; this.flash = 0.12; this.flashColor = "#ff796f"; }
     if (type === "waveStart") { this.shake = 10; this.flash = 0.34; this.flashColor = "#ff4f70"; }
     if (type === "gameOver") { this.shake = 12; this.flash = 0.55; this.flashColor = "#8a143d"; }
