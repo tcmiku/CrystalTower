@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, relicArchiveCapacity, repairChapterNode, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, skillResearchCost, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
+import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, relicArchiveCapacity, repairChapterNode, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -177,20 +177,23 @@ test("所有遗物默认解锁，研究舱消耗遗响碎片强化已发现遗�
   assert.equal(sanitizeSave(save).relicArchive.upgrades.decoy, 3);
 });
 
-test("主动技能研究使用核心残片分支消耗并锁定路线", () => {
+test("主动技能研究可跨路线学习并切换启用路线", () => {
   const save = defaultSave();
   assert.deepEqual(save.skillResearch.heal, { branch: null, nodes: [] });
-  save.resources.coreFragments = 9;
+  save.resources.coreFragments = 12;
   assert.equal(skillResearchCost(save, "heal", "guardian", "reinforcedCore"), 3);
   assert.equal(buySkillResearch(save, "heal", "guardian", "reinforcedCore"), true);
   assert.equal(skillResearchCost(save, "heal", "guardian", "lastStand"), 6);
-  assert.equal(skillResearchCost(save, "heal", "retaliation", "repulse"), null);
+  assert.equal(skillResearchCost(save, "heal", "retaliation", "repulse"), 3);
+  assert.equal(buySkillResearch(save, "heal", "retaliation", "repulse"), true);
   assert.equal(buySkillResearch(save, "heal", "guardian", "lastStand"), true);
   assert.equal(save.resources.coreFragments, 0);
+  assert.equal(setSkillResearchBranch(save, "heal", "retaliation"), true);
+  assert.equal(save.skillResearch.heal.branch, "retaliation");
   assert.equal(skillResearchCost(save, "heal", "guardian", "lastStand"), null);
   assert.equal(buySkillResearch(save, "heal", "guardian", "lastStand"), false);
-  assert.deepEqual(sanitizeSave({ version: 1, skillResearch: { heal: { branch: "retaliation", nodes: ["repulse", "unknown"] }, overload: { branch: "bad", nodes: ["stabilizer"] } } }).skillResearch, {
-    heal: { branch: "retaliation", nodes: ["repulse"] }, overload: { branch: null, nodes: [] }, starfall: { branch: null, nodes: [] }, coinVacuum: { branch: null, nodes: [] }
+  assert.deepEqual(sanitizeSave({ version: 1, skillResearch: { heal: { branch: "retaliation", nodes: ["reinforcedCore", "lastStand", "repulse", "unknown", "shardBurst"] }, overload: { branch: "bad", nodes: ["stabilizer"] } } }).skillResearch, {
+    heal: { branch: "retaliation", nodes: ["reinforcedCore", "lastStand", "repulse", "shardBurst"] }, overload: { branch: null, nodes: [] }, starfall: { branch: null, nodes: [] }, coinVacuum: { branch: null, nodes: [] }
   });
 });
 

@@ -58,19 +58,19 @@
           <div><h1>永耀晶塔</h1><p>守住光，直到最后一击</p></div>
         </div>
         <div class="status-strip" aria-label="战斗状态">
-          <div class="status health-status"><span>晶塔</span><strong id="healthText">600 / 600</strong><div class="health-track"><i id="healthFill"></i></div></div>
-          <div class="status"><span>金币</span><strong id="coinsText">0</strong></div>
-          <div class="status"><span>威胁</span><strong id="threatText">Ⅰ</strong></div>
-          <div class="status"><span>坚守</span><strong id="timeText">00:00</strong></div>
+          <div class="status health-status"><span><i class="art-icon status-art icon-health" aria-hidden="true"></i>晶塔</span><strong id="healthText">600 / 600</strong><div class="health-track"><i id="healthFill"></i></div></div>
+          <div class="status"><span><i class="art-icon status-art icon-coins" aria-hidden="true"></i>金币</span><strong id="coinsText">0</strong></div>
+          <div class="status"><span><i class="art-icon status-art icon-threat" aria-hidden="true"></i>威胁</span><strong id="threatText">Ⅰ</strong></div>
+          <div class="status"><span><i class="art-icon status-art icon-time" aria-hidden="true"></i>坚守</span><strong id="timeText">00:00</strong></div>
         </div>
         <div class="top-actions">
-          <button id="openBaseCampButton" class="icon-button basecamp-button hidden" type="button" aria-label="打开大本营核心室" title="大本营"><svg class="top-icon basecamp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 7v10l-7 4-7-4V7l7-4Z"></path><path d="M9 21V11h6v10M7 8l5 3 5-3"></path></svg></button>
+          <button id="openBaseCampButton" class="icon-button basecamp-button hidden" type="button" aria-label="打开大本营核心室" title="大本营"><span class="art-icon system-art icon-home" aria-hidden="true"></span></button>
           <button id="speedButton" class="icon-button speed-button locked" type="button" aria-label="2倍速未解锁" aria-disabled="true" aria-pressed="false" title="击败威胁 Ⅹ 首领后永久解锁 2× 倍速">1×</button>
           <button id="endEndlessButton" class="endless-exit-button hidden" type="button">结束无尽</button>
-          <button id="openUpdatesButton" class="icon-button updates-button" type="button" aria-label="查看游戏更新公告" aria-haspopup="dialog" aria-controls="updatesModal" aria-expanded="false" title="游戏更新公告"><svg class="top-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14l-1.6-2.2V10a5.4 5.4 0 0 0-10.8 0v4.8L5 17Z"></path><path d="M9.4 20h5.2"></path></svg></button>
-          <button id="accountButton" class="icon-button account-button" type="button" aria-label="游客账号" aria-haspopup="dialog" aria-controls="accountModal" aria-expanded="false" title="登录或注册"><svg class="top-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"></circle><path d="M5.2 20c.8-3.1 3.2-4.8 6.8-4.8s6 1.7 6.8 4.8"></path></svg></button>
-          <button id="muteButton" class="icon-button" type="button" aria-label="静音"><svg class="top-icon sound-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h3l4 3V7l-4 3H4Z"></path><path class="sound-wave" d="M15 9.2a4.3 4.3 0 0 1 0 5.6M17.7 6.7a8 8 0 0 1 0 10.6"></path><path class="sound-mute" d="m15.5 9 5 6m0-6-5 6"></path></svg></button>
-          <button id="pauseButton" class="icon-button" type="button" aria-label="暂停"><svg class="top-icon pause-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="pause-state" d="M8 5v14M16 5v14"></path><path class="play-state" d="m8 5 10 7-10 7V5Z"></path></svg></button>
+          <button id="openUpdatesButton" class="icon-button updates-button" type="button" aria-label="查看游戏更新公告" aria-haspopup="dialog" aria-controls="updatesModal" aria-expanded="false" title="游戏更新公告"><span class="art-icon system-art icon-updates" aria-hidden="true"></span></button>
+          <button id="accountButton" class="icon-button account-button" type="button" aria-label="游客账号" aria-haspopup="dialog" aria-controls="accountModal" aria-expanded="false" title="登录或注册"><span class="art-icon system-art icon-account" aria-hidden="true"></span></button>
+          <button id="muteButton" class="icon-button" type="button" aria-label="静音"><span class="art-icon system-art icon-sound" aria-hidden="true"></span></button>
+          <button id="pauseButton" class="icon-button" type="button" aria-label="暂停"><span class="art-icon system-art icon-pause" aria-hidden="true"></span></button>
         </div>
       </header>
 
@@ -80,7 +80,7 @@
           <div class="permanent-resource-hud" aria-label="永久资源"><span class="echo-resource"><i></i><small>遗响</small><b id="battleEchoShardText">0</b></span><span class="core-resource"><i></i><small>核心</small><b id="battleCoreFragmentText">0</b></span></div>
           <div id="threatSealHud" class="threat-seal-hud hidden" aria-label="本局威胁封印"></div>
           <div id="relicRunHud" class="relic-run-hud" aria-label="本局临时遗物"></div>
-          <button id="openLeaderboardButton" class="score-hud" type="button" aria-label="查看全服积分排行榜" aria-haspopup="dialog" aria-controls="leaderboardModal" aria-expanded="false" title="查看全服积分排行榜"><span>SCORE · RANKING</span><strong id="scoreText">000000</strong></button>
+          <button id="openLeaderboardButton" class="score-hud" type="button" aria-label="查看全服积分排行榜" aria-haspopup="dialog" aria-controls="leaderboardModal" aria-expanded="false" title="查看全服积分排行榜"><i class="art-icon system-art icon-trophy" aria-hidden="true"></i><span>SCORE · RANKING</span><strong id="scoreText">000000</strong></button>
           <div id="announcement" class="announcement" aria-live="polite"></div>
           <div id="toast" class="toast" aria-live="polite"></div>
           <div id="pauseOverlay" class="pause-overlay hidden"><strong>战场凝固</strong><span>点击右上角，或按 P / Esc 继续</span></div>
@@ -90,6 +90,7 @@
           <div class="panel-heading"><div><span>防线中枢</span><h2>科技树</h2></div><span class="key-hint">T</span></div>
           <p class="tech-summary-copy">展开独立面板，查看完整分支、前置科技与威胁门槛。</p>
           <button id="openTechTreeButton" class="tech-tree-launch" type="button" aria-haspopup="dialog" aria-controls="techTreePanel">
+            <i class="art-icon system-art icon-tech-tree" aria-hidden="true"></i>
             <span><b>打开科技树</b><small>打开后自动暂停战斗</small></span><kbd>T</kbd>
           </button>
           <div class="tech-overview" aria-label="科技树概况">
@@ -100,19 +101,19 @@
           <section class="target-protocol" aria-labelledby="targetProtocolTitle">
             <header><span id="targetProtocolTitle">目标协议</span><kbd>R</kbd></header>
             <div id="targetProtocolList" class="protocol-grid">
-              <button type="button" data-protocol="guard" aria-pressed="true"><b>近卫</b><small>最近目标</small></button>
-              <button type="button" data-protocol="hunter" aria-pressed="false"><b>猎杀号</b><small>高价值目标</small></button>
-              <button type="button" data-protocol="breach" aria-pressed="false"><b>破阵</b><small>最快接触</small></button>
-              <button type="button" data-protocol="radar" aria-pressed="false"><b>雷达</b><small>远程单位</small></button>
+              <button type="button" data-protocol="guard" aria-pressed="true"><i class="art-icon battle-art icon-guard" aria-hidden="true"></i><span><b>近卫</b><small>最近目标</small></span></button>
+              <button type="button" data-protocol="hunter" aria-pressed="false"><i class="art-icon battle-art icon-hunter" aria-hidden="true"></i><span><b>猎杀号</b><small>高价值目标</small></span></button>
+              <button type="button" data-protocol="breach" aria-pressed="false"><i class="art-icon battle-art icon-breach" aria-hidden="true"></i><span><b>破阵</b><small>最快接触</small></span></button>
+              <button type="button" data-protocol="radar" aria-pressed="false"><i class="art-icon battle-art icon-radar" aria-hidden="true"></i><span><b>雷达</b><small>远程单位</small></span></button>
             </div>
             <p id="targetProtocolHint">优先锁定距离晶塔最近的敌人。</p>
           </section>
           <button id="droneModeButton" class="drone-mode-button side-drone-mode" type="button" aria-pressed="false" disabled>
-            <span class="drone-mode-icon" aria-hidden="true">⌁</span>
+            <span class="art-icon battle-art drone-mode-icon" aria-hidden="true"></span>
             <span><b id="droneModeText">战术节点 · 攻击模式未解锁</b><small id="droneModeHint">需要晶塔磁吸核心</small><span class="drone-energy-track"><i id="droneEnergyFill"></i></span></span>
           </button>
           <button id="droneProtocolButton" class="drone-protocol-button hidden" type="button" aria-pressed="false" disabled>
-            <span class="drone-protocol-icon" aria-hidden="true">✹</span>
+            <span class="art-icon battle-art drone-protocol-icon" aria-hidden="true"></span>
             <span><b id="droneProtocolText">自爆协议 · 未解锁</b><small id="droneProtocolHint">研究自爆协议后开放</small></span>
           </button>
           <div class="build-summary">
@@ -287,7 +288,7 @@
         <section id="baseCampModulePage" class="basecamp-module-page hidden" aria-labelledby="baseCampModulePageTitle">
           <header class="basecamp-module-page-header">
             <button id="closeBaseCampModuleButton" class="basecamp-module-back" type="button">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/><path d="M8 12h10"/></svg>
+              <i class="art-icon system-art icon-back" aria-hidden="true"></i>
               <span>返回中枢</span>
             </button>
             <span id="baseCampModulePageIcon" class="basecamp-module-page-icon" aria-hidden="true"></span>

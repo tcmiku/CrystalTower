@@ -58,10 +58,18 @@ function normalizeSkillResearchEntry(key, entry) {
     const fallback = Object.keys(branches)[0];
     return { branch: legacyLevel > 0 ? fallback ?? null : null, nodes: fallback ? branches[fallback].nodes.slice(0, Math.min(legacyLevel, branches[fallback].nodes.length)).map((node) => node.id) : [] };
   }
-  const branch = Object.hasOwn(branches, entry?.branch) ? entry.branch : null;
-  const branchNodes = branch ? branches[branch].nodes.map((node) => node.id) : [];
+  const rawBranch = entry?.branch;
+  const branch = Object.hasOwn(branches, rawBranch) ? rawBranch : null;
+  if (rawBranch != null && branch == null) return { branch: null, nodes: [] };
   const requested = Array.isArray(entry?.nodes) ? entry.nodes : [];
-  const nodes = branchNodes.slice(0, requested.length).filter((id, index) => requested[index] === id);
+  const requestedSet = new Set(requested);
+  const nodes = [];
+  for (const route of Object.values(branches)) {
+    for (const node of route.nodes) {
+      if (!requestedSet.has(node.id)) break;
+      nodes.push(node.id);
+    }
+  }
   return { branch, nodes };
 }
 
@@ -70,7 +78,9 @@ function activeSkillResearchEntry(state, key) {
 }
 
 function hasSkillResearchNode(state, key, nodeId) {
-  return activeSkillResearchEntry(state, key).nodes.includes(nodeId);
+  const entry = activeSkillResearchEntry(state, key);
+  const route = GAME_CONFIG.activeSkillResearch[key]?.branches?.[entry.branch];
+  return Boolean(route?.nodes.some((node) => node.id === nodeId) && entry.nodes.includes(nodeId));
 }
 
 export function getStarfallConeHalfAngle(state) {

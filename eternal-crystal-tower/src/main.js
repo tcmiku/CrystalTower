@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
+import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
@@ -42,10 +42,10 @@ const UPGRADE_META = {
   lightning: { icon: "ϟ", name: "雷鸣天球", description: "14% 概率连锁附近三名敌人", max: 1 }
 };
 const BRANCH_META = {
-  power: { icon: "✦", name: "晶塔火力", subtitle: "基础强化 · 炮膛专精", routes: ["路线 A · 破城炮膛", "路线 B · 裂晶炮膛"], keys: ["damage", "rate", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonStarPiercer", "cannonSplit", "cannonGrowth", "cannonEcho", "cannonCascade", "ascend"] },
-  blade: { icon: "✺", name: "环刃工事", subtitle: "疾旋或弹射路线", routes: ["路线 A · 疾旋炮刃", "路线 B · 弹射飞刃"], keys: ["saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery"] },
-  economy: { icon: "⌁", name: "无人机协议", subtitle: "拾荒 · 战术 · 防御", routes: ["路线 A · 自爆猎杀", "路线 B · 防御护盾"], keys: ["drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery"] },
-  element: { icon: "◇", name: "元素共鸣", subtitle: "三元素可同时研究", keys: ["frost", "fire", "lightning"] }
+  power: { icon: "✦", artKey: "damage", name: "晶塔火力", subtitle: "基础强化 · 炮膛专精", routes: ["路线 A · 破城炮膛", "路线 B · 裂晶炮膛"], keys: ["damage", "rate", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonStarPiercer", "cannonSplit", "cannonGrowth", "cannonEcho", "cannonCascade", "ascend"] },
+  blade: { icon: "✺", artKey: "saw", name: "环刃工事", subtitle: "疾旋或弹射路线", routes: ["路线 A · 疾旋炮刃", "路线 B · 弹射飞刃"], keys: ["saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery"] },
+  economy: { icon: "⌁", artKey: "drone", name: "无人机协议", subtitle: "拾荒 · 战术 · 防御", routes: ["路线 A · 自爆猎杀", "路线 B · 防御护盾"], keys: ["drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery"] },
+  element: { icon: "◇", artKey: "frost", name: "元素共鸣", subtitle: "三元素可同时研究", keys: ["frost", "fire", "lightning"] }
 };
 const TECH_LAYOUT = {
   power: {
@@ -75,10 +75,10 @@ const TECH_ART = {
   element: { sheet: "./assets/generated/tech-icons-element-v2.png", cols: 3, rows: 1 }
 };
 const SKILL_META = {
-  heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片", tooltip: "恢复晶塔生命；生命已满时转化为护盾，满盾受击会引爆晶片。", art: "./assets/generated/skill-heal-ai-v1.png", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 6v5.2c0 4.2-2.7 7.6-7 9.8-4.3-2.2-7-5.6-7-9.8V6l7-3Z"></path><path d="M12 7v7M8.5 10.5h7"></path></svg>` },
-  overload: { key: "W", name: "超载", description: "再按 W 提前释放冲击", tooltip: "短时间提升攻速并持续积热；再次按 W 可提前释放冲击。", art: "./assets/generated/skill-overload-ai-v1.png", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13.4 2-7 10h5.2L10.8 22l7-11h-5.1L13.4 2Z"></path><path d="M4 6h2M18 18h2"></path></svg>` },
-  starfall: { key: "E", name: "星落", description: "手动选择轰击方向", tooltip: "选择方向轰击敌群，造成范围伤害，并可打断巨兽射线。", art: "./assets/generated/skill-starfall-ai-v1.png", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2 1.5 5.2 5.3 1.4-5.3 1.5L13 15l-1.5-4.9-5.3-1.5 5.3-1.4L13 2Z"></path><path d="m19 14 .7 2.4 2.3.6-2.3.7L19 20l-.7-2.3-2.3-.7 2.3-.6L19 14ZM4 19l5-5"></path></svg>` },
-  coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币", tooltip: "立即吸收全场金币，将它们送回晶塔并触发金币结算。", art: "./assets/generated/skill-coin-vacuum-ai-v1.png", icon: `<svg class="skill-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M12 5.8v4.4M10.4 8h3.2M5 16h12"></path><path d="m15 13 2.5 3-2.5 3M17.5 16H8"></path></svg>` }
+  heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片", tooltip: "恢复晶塔生命；生命已满时转化为护盾，满盾受击会引爆晶片。", art: "./assets/generated/skill-heal-ai-v1.png" },
+  overload: { key: "W", name: "超载", description: "再按 W 提前释放冲击", tooltip: "短时间提升攻速并持续积热；再次按 W 可提前释放冲击。", art: "./assets/generated/skill-overload-ai-v1.png" },
+  starfall: { key: "E", name: "星落", description: "手动选择轰击方向", tooltip: "选择方向轰击敌群，造成范围伤害，并可打断巨兽射线。", art: "./assets/generated/skill-starfall-ai-v1.png" },
+  coinVacuum: { key: "F", name: "金潮归塔", description: "立即吸收全场金币", tooltip: "立即吸收全场金币，将它们送回晶塔并触发金币结算。", art: "./assets/generated/skill-coin-vacuum-ai-v1.png" }
 };
 const ACTIVE_SKILL_RESEARCH_META = {
   heal: { protocol: "生存协议" },
@@ -173,7 +173,7 @@ const BASECAMP_MODULES = [
     name: "能源核心",
     description: "装配章节能源，选择远征地图",
     art: "./assets/generated/basecamp-module-campaign-v1.png",
-    icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 24 14 7l5 9 7-4-5 13-7-5-8 4Z"/><path d="m14 7 1 13"/></svg>'
+    iconClass: "icon-home"
   },
   {
     key: "nexus",
@@ -182,7 +182,7 @@ const BASECAMP_MODULES = [
     name: "晶核中枢",
     description: "永久研究与核心档案",
     art: "./assets/generated/basecamp-module-nexus-v1.png",
-    icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="m16 3 9 7-3 14-6 5-6-5-3-14 9-7Z"/><path d="m16 8 4 5-4 10-4-10 4-5Z"/></svg>'
+    iconClass: "icon-tech-tree"
   },
   {
     key: "relics",
@@ -191,7 +191,7 @@ const BASECAMP_MODULES = [
     name: "研究舱 · 战术模块",
     description: "遗物强化与主动技能协议",
     art: "./assets/generated/basecamp-module-relics-v1.png",
-    icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M12 4h8M14 4v8L7 24c-1 2 1 4 3 4h12c2 0 4-2 3-4l-7-12V4"/><path d="M10 21h12M12 17h8"/></svg>'
+    iconClass: "icon-settings"
   },
   {
     key: "archive",
@@ -200,7 +200,7 @@ const BASECAMP_MODULES = [
     name: "遗物档案馆",
     description: "图鉴、禁用与套装登记",
     art: "./assets/generated/basecamp-module-archive-v1.png",
-    icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="m5 9 11-5 11 5-11 5L5 9Z"/><path d="m5 15 11 5 11-5M5 21l11 6 11-6"/></svg>'
+    iconClass: "icon-trophy"
   },
   {
     key: "seals",
@@ -209,7 +209,7 @@ const BASECAMP_MODULES = [
     name: "封印圣坛",
     description: "提高风险与远征收益",
     art: "./assets/generated/basecamp-module-seals-v1.png",
-    icon: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 26 7v8c0 7-4 11-10 14C10 26 6 22 6 15V7l10-4Z"/><path d="m12 16 3 3 6-7"/></svg>'
+    iconClass: "icon-warning"
   }
 ];
 let save = loadSave();
@@ -357,10 +357,10 @@ if (previewMode === "basecamp" || previewMode === "nexus" || previewMode === "re
     save.resources.echoShards = Math.max(save.resources.echoShards, 80);
     save.resources.coreFragments = Math.max(save.resources.coreFragments, 24);
     save.skillResearch = {
-      heal: { branch: "guardian", nodes: ["reinforcedCore", "lastStand"] },
-      overload: { branch: "rupture", nodes: ["pressureValve"] },
-      starfall: { branch: "precision", nodes: ["wideReticle", "starMark"] },
-      coinVacuum: { branch: null, nodes: [] }
+      heal: { branch: "guardian", nodes: ["reinforcedCore", "repulse"] },
+      overload: { branch: "rupture", nodes: ["stabilizer", "pressureValve"] },
+      starfall: { branch: "precision", nodes: ["wideReticle", "counterBurst"] },
+      coinVacuum: { branch: "salvage", nodes: ["magnet", "surge"] }
     };
   }
   if (previewMode === "relic-archive") {
@@ -1043,7 +1043,8 @@ function createUpgradeUi() {
     button.type = "button";
     button.className = "tech-branch-tab";
     button.dataset.branchTab = branchKey;
-    button.innerHTML = `<span class="branch-tab-icon">${branch.icon}</span><span><strong>${branch.name}</strong><small>${branch.subtitle}</small></span><b class="branch-progress">0 / ${branch.keys.length}</b><i class="branch-ready-dot" aria-hidden="true"></i>`;
+    button.innerHTML = `<span class="branch-tab-icon" aria-hidden="true"></span><span><strong>${branch.name}</strong><small>${branch.subtitle}</small></span><b class="branch-progress">0 / ${branch.keys.length}</b><i class="branch-ready-dot" aria-hidden="true"></i>`;
+    applyTechIconArt(button.querySelector(".branch-tab-icon"), branch.artKey);
     button.addEventListener("click", () => selectTechBranch(branchKey));
     tabs.append(button);
   }
@@ -1117,7 +1118,8 @@ function selectTechBranch(branchKey, focusNode = true) {
   stage.style.setProperty("--tech-rows", layout.rows);
   const heading = document.createElement("header");
   heading.className = "tech-stage-heading";
-  heading.innerHTML = `<span>${branch.icon}</span><div><h3>${branch.name}</h3><p>${branch.routes?.join("　/　") || branch.subtitle}</p></div>`;
+  heading.innerHTML = `<span class="tech-stage-branch-art" aria-hidden="true"></span><div><h3>${branch.name}</h3><p>${branch.routes?.join("　/　") || branch.subtitle}</p></div>`;
+  applyTechIconArt(heading.querySelector(".tech-stage-branch-art"), branch.artKey);
   const graph = document.createElement("div");
   graph.className = "tech-graph";
   graph.style.setProperty("--tech-rows", layout.rows);
@@ -1445,7 +1447,7 @@ function renderBaseCampNavigation() {
     button.setAttribute("aria-pressed", String(baseCampRoom === module.key));
     const media = module.art
       ? '<span class="basecamp-module-art"><img src="' + module.art + '" alt="" aria-hidden="true" loading="lazy"></span>'
-      : '<span class="basecamp-module-icon">' + module.icon + '</span>';
+      : '<span class="basecamp-module-icon art-icon system-art ' + module.iconClass + '" aria-hidden="true"></span>';
     button.innerHTML =
       media +
       '<span class="basecamp-module-copy"><small>0' + (index + 1) + ' · ' + module.category + '</small>' +
@@ -1459,7 +1461,7 @@ function renderBaseCampNavigation() {
   future.className = "base-room basecamp-module-future";
   future.setAttribute("aria-label", "预留的新系统模块槽位");
   future.innerHTML =
-    '<span class="basecamp-module-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 6v20M6 16h20"/><circle cx="16" cy="16" r="12"/></svg></span>' +
+    '<span class="basecamp-module-icon art-icon system-art icon-info" aria-hidden="true"></span>' +
     '<span class="basecamp-module-copy"><small>扩展接口</small><strong>等待新信号</strong><span>后续系统将自动接入此处</span></span>';
   dom.baseCampModuleList.append(future);
 }
@@ -1586,7 +1588,8 @@ function setBaseCampRoom(room, focusPage = false) {
   dom.baseCampShell.classList.add("module-open");
   dom.baseCampModuleList.closest(".basecamp-stage")?.classList.add("hidden");
   dom.baseCampModulePage.classList.remove("hidden");
-  dom.baseCampModulePageIcon.innerHTML = selectedModule.icon;
+  dom.baseCampModulePageIcon.replaceChildren();
+  dom.baseCampModulePageIcon.className = `basecamp-module-page-icon art-icon system-art ${selectedModule.iconClass}`;
   dom.baseCampModulePageKicker.textContent = selectedModule.category + " · 中枢功能页";
   dom.baseCampModulePageTitle.textContent = selectedModule.name;
   dom.baseCampModulePageSummary.textContent = selectedModule.description;
@@ -1734,45 +1737,59 @@ function renderActiveSkillResearch() {
     const research = ACTIVE_SKILL_RESEARCH_META[key];
     const skillConfig = GAME_CONFIG.activeSkillResearch[key];
     const entry = save.skillResearch?.[key] ?? { branch: null, nodes: [] };
+    const learnedNodes = Array.isArray(entry.nodes) ? entry.nodes : [];
+    const activeBranch = skillConfig.branches[entry.branch] ? entry.branch : null;
     const card = document.createElement("article");
     card.className = `active-skill-research-card skill-research-${key}`;
     card.dataset.skillResearch = key;
     const routes = Object.entries(skillConfig.branches).map(([branchKey, branch], branchIndex) => {
-      const selectedRoute = entry.branch === branchKey;
-      const lockedRoute = Boolean(entry.branch && !selectedRoute);
+      const selectedRoute = activeBranch === branchKey;
+      const learnedCount = branch.nodes.filter((node) => learnedNodes.includes(node.id)).length;
       const routeNodes = branch.nodes.map((node, nodeIndex) => {
-        const selected = selectedRoute && entry.nodes.includes(node.id);
-        const next = !selected && !lockedRoute && (entry.branch === null || selectedRoute) && entry.nodes.length === nodeIndex;
+        const selected = learnedNodes.includes(node.id);
+        const next = !selected && branch.nodes.slice(0, nodeIndex).every((previous) => learnedNodes.includes(previous.id));
         const cost = GAME_CONFIG.activeSkillResearch.costs[nodeIndex];
         const affordable = save.resources.coreFragments >= cost;
         const button = document.createElement("button");
         button.type = "button";
         button.className = `skill-research-node${selected ? " selected" : ""}${next && affordable ? " available" : ""}`;
-        button.disabled = selected || lockedRoute || !next || !affordable;
-        button.innerHTML = `<span><b>${nodeIndex + 1}</b><strong>${node.name}</strong></span><small>${selected ? "已装载" : `研究 · ${cost} 核心残片`}</small><em>${node.effect}</em>`;
+        button.disabled = selected || !next || !affordable;
+        button.innerHTML = `<span><b>${nodeIndex + 1}</b><strong>${node.name}</strong></span><small>${selected ? "已研究" : `研究 · ${cost} 核心残片`}</small><em>${node.effect}</em>`;
         button.addEventListener("click", () => {
           if (!buySkillResearch(save, key, branchKey, node.id)) return;
           persistSave();
           audio.play("purchase");
-          showToast(`${skill.name} · ${branch.name} · ${node.name}已装载 · 下一局生效`);
+          showToast(`${skill.name} · ${branch.name} · ${node.name}已研究 · 下一局生效`);
           renderBaseCamp();
         });
         return button;
       });
       const route = document.createElement("section");
-      route.className = `active-skill-branch${selectedRoute ? " selected" : ""}${lockedRoute ? " locked" : ""}`;
-      route.innerHTML = `<header><span>路线 ${branchIndex === 0 ? "A" : "B"}</span><strong>${branch.name}</strong><small>${selectedRoute ? "当前路线 · 可继续搭配" : lockedRoute ? "已锁定 · 另一条路线已选择" : branch.description}</small></header>`;
+      route.className = `active-skill-branch${selectedRoute ? " selected" : ""}`;
+      route.innerHTML = `<header><span>路线 ${branchIndex === 0 ? "A" : "B"}</span><strong>${branch.name}</strong><small>${selectedRoute ? `当前启用 · 已研究 ${learnedCount} / ${branch.nodes.length}` : `已研究 ${learnedCount} / ${branch.nodes.length} · ${branch.description}`}</small></header>`;
+      const routeToggle = document.createElement("button");
+      routeToggle.type = "button";
+      routeToggle.className = "skill-route-toggle";
+      routeToggle.disabled = selectedRoute;
+      routeToggle.textContent = selectedRoute ? "当前启用" : "启用路线";
+      routeToggle.addEventListener("click", () => {
+        if (!setSkillResearchBranch(save, key, branchKey)) return;
+        persistSave();
+        showToast(`${skill.name} · ${branch.name}已启用 · 下一局生效`);
+        renderBaseCamp();
+      });
+      route.querySelector("header").append(routeToggle);
       const nodeList = document.createElement("div");
       nodeList.className = "active-skill-node-list";
       for (const node of routeNodes) nodeList.append(node);
       route.append(nodeList);
       return route;
     });
-    card.innerHTML = `<span class="active-skill-research-icon"><img src="${skill.art}" alt="" aria-hidden="true" loading="lazy"></span><span class="active-skill-research-copy"><small>${research.protocol}</small><strong>${skill.name}<em>${entry.nodes.length ? `${skillConfig.branches[entry.branch]?.name ?? "路线"} · ${entry.nodes.length} / 2` : "选择一条路线"}</em></strong><span class="active-skill-research-base">基础：${skill.tooltip}</span></span>`;
+    card.innerHTML = `<span class="active-skill-research-icon"><img src="${skill.art}" alt="" aria-hidden="true" loading="lazy"></span><span class="active-skill-research-copy"><small>${research.protocol}</small><strong>${skill.name}<em>${activeBranch ? `${skillConfig.branches[activeBranch].name} · 已研究 ${learnedNodes.length} / 4` : `未启用路线 · 已研究 ${learnedNodes.length} / 4`}</em></strong><span class="active-skill-research-base">基础：${skill.tooltip}</span></span>`;
     for (const route of routes) card.append(route);
     const footer = document.createElement("footer");
     footer.className = "active-skill-research-footer";
-    footer.innerHTML = `<span>核心残片用于路线研究 · 同一技能只能选择一条路线</span><small>永久生效 · 下一局开始生效</small>`;
+    footer.innerHTML = `<span>核心残片用于节点研究 · 两条路线均可解锁</span><small>每次仅启用一条路线 · 可随时切换 · 下一局生效</small>`;
     card.append(footer);
     dom.activeSkillResearchList.append(card);
   }
@@ -2168,9 +2185,7 @@ function renderRelicChoice() {
       lock.setAttribute("aria-pressed", String(isLocked));
       lock.setAttribute("aria-label", isLocked ? `解除锁定：${meta.name}` : `锁定至下次奖励：${meta.name}`);
       lock.title = isLocked ? "解除锁定" : "锁定至下次奖励";
-      lock.innerHTML = isLocked
-        ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10V7a4 4 0 0 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2.5"></path></svg>`
-        : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10V7.7a4 4 0 0 1 7.5-2"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2.5"></path></svg>`;
+      lock.innerHTML = `<span class="art-icon system-art ${isLocked ? "icon-lock-closed" : "icon-lock-open"}" aria-hidden="true"></span>`;
       lock.addEventListener("click", () => {
         if (!lockRelicChoice(state, id)) return;
         audio.play("purchase");
@@ -2423,8 +2438,10 @@ function updateUi() {
   for (const button of dom.skillList.children) {
     const key = button.dataset.skill;
     const researchEntry = state.skillResearch?.[key] ?? { branch: null, nodes: [] };
-    const researchLevel = researchEntry.nodes?.length ?? 0;
-    const researchBranch = researchEntry.branch ? GAME_CONFIG.activeSkillResearch[key]?.branches?.[researchEntry.branch]?.name : "";
+    const researchedNodes = Array.isArray(researchEntry.nodes) ? researchEntry.nodes : [];
+    const activeResearch = GAME_CONFIG.activeSkillResearch[key];
+    const activeRoute = activeResearch?.branches?.[researchEntry.branch];
+    const activeResearchLevel = activeRoute ? activeRoute.nodes.filter((node) => researchedNodes.includes(node.id)).length : 0;
     const cooldown = state.skills[key].cooldown;
     const total = GAME_CONFIG.skills[key].cooldown * (key === "heal" ? state.threatSeals?.modifiers?.healCooldownMultiplier ?? 1 : 1);
     const shieldFull = state.tower.shield >= stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction - 0.01;
@@ -2437,7 +2454,7 @@ function updateUi() {
     button.querySelector(".cooldown-mask").style.height = `${Math.min(100, cooldown / total * 100)}%`;
     button.querySelector(".cooldown-text").textContent = cooldown > 0 ? `${cooldown.toFixed(1)}s` : "";
     const tooltip = button.querySelector(".skill-tooltip span");
-    if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${researchLevel > 0 ? ` · ${ACTIVE_SKILL_RESEARCH_META[key].protocol} · ${researchBranch} ${researchLevel}/2` : ""}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
+    if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${researchedNodes.length > 0 ? ` · ${ACTIVE_SKILL_RESEARCH_META[key].protocol} · ${activeRoute?.name ?? "未启用路线"} ${activeResearchLevel}/2 · 已研究 ${researchedNodes.length}/4` : ""}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
   }
 
   const sovereign = state.enemies.find((enemy) => enemy.type === "sovereign" && enemy.hp > 0);

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyElementalHit, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { applyElementalHit, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, getStarfallConeHalfAngle, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG } from "../src/config.js";
 
 test("基础塔属性符合策划", () => {
@@ -776,6 +776,16 @@ test("主动技能研究只在创建下一局时装载", () => {
   assert.deepEqual(currentRun.skillResearch.heal, { branch: null, nodes: [] });
   const nextRun = createGameState(6402, undefined, undefined, undefined, undefined, undefined, savedResearch);
   assert.deepEqual(nextRun.skillResearch.heal, { branch: "guardian", nodes: ["reinforcedCore"] });
+});
+
+test("主动技能研究可学习两条路线但战斗只启用当前路线", () => {
+  const state = createGameState(64025, undefined, undefined, undefined, undefined, undefined, {
+    starfall: { branch: "precision", nodes: ["wideReticle", "starMark", "counterBurst", "impactField"] }
+  });
+  const baseAngle = GAME_CONFIG.skills.starfall.coneHalfAngle;
+  assert.equal(getStarfallConeHalfAngle(state), baseAngle * GAME_CONFIG.activeSkillResearch.starfall.coneMultiplier);
+  state.skillResearch.starfall.branch = "bombardment";
+  assert.equal(getStarfallConeHalfAngle(state), baseAngle);
 });
 
 test("晶愈分支分别强化治疗安全网与满盾反制", () => {

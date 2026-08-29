@@ -87,7 +87,6 @@ h1, h2, p { margin: 0; }
 .top-actions { display: flex; gap: 7px; }
 .icon-button { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 11px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: var(--text); cursor: pointer; }
 .icon-button:hover { border-color: var(--violet); background: rgba(169,137,255,.12); }
-.top-icon { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .speed-button { position: relative; font: 800 12px ui-monospace, "Cascadia Mono", monospace; transition: border-color .18s, background .18s, color .18s, box-shadow .18s; }
 .speed-button.active { border-color: rgba(255,201,107,.7); color: #fff0aa; background: rgba(255,201,107,.14); box-shadow: inset 0 0 14px rgba(255,201,107,.08), 0 0 16px rgba(255,201,107,.12); }
 .speed-button.locked { color: #737591; opacity: .72; }
@@ -1089,10 +1088,13 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .active-skill-branch { grid-column:1/-1; margin:0 10px 8px; padding:9px; border:1px solid rgba(255,255,255,.09); border-radius:11px; background:rgba(2,5,20,.34); }
 .active-skill-branch.selected { border-color:color-mix(in srgb,var(--skill-accent) 42%,transparent); background:color-mix(in srgb,var(--skill-accent) 7%,rgba(2,5,20,.34)); }
 .active-skill-branch.locked { opacity:.4; }
-.active-skill-branch header { display:grid; grid-template-columns:auto auto minmax(0,1fr); align-items:baseline; gap:7px; margin-bottom:7px; }
+.active-skill-branch header { display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; align-items:center; gap:7px; margin-bottom:7px; }
 .active-skill-branch header span { color:var(--skill-accent); font:850 8px ui-monospace,monospace; letter-spacing:.1em; }
 .active-skill-branch header strong { font-size:11px; }
 .active-skill-branch header small { color:#8992b1; font-size:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.skill-route-toggle { flex:none; padding:4px 7px; border:1px solid color-mix(in srgb,var(--skill-accent) 40%,transparent); border-radius:6px; color:var(--skill-accent); background:color-mix(in srgb,var(--skill-accent) 8%,transparent); font-size:8px; cursor:pointer; }
+.skill-route-toggle:hover:not(:disabled) { border-color:color-mix(in srgb,var(--skill-accent) 82%,white 5%); background:color-mix(in srgb,var(--skill-accent) 16%,transparent); }
+.skill-route-toggle:disabled { opacity:.72; cursor:default; }
 .active-skill-node-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
 .skill-research-node { min-width:0; padding:8px; border:1px solid rgba(255,255,255,.1); border-radius:8px; color:#dfe8fa; background:rgba(255,255,255,.035); text-align:left; cursor:pointer; }
 .skill-research-node:hover:not(:disabled) { border-color:color-mix(in srgb,var(--skill-accent) 75%,white 5%); background:color-mix(in srgb,var(--skill-accent) 10%,transparent); }
@@ -1343,7 +1345,7 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .active-skill-research-copy > strong { font-size:18px; }
   .active-skill-research-base { font-size:10px; }
   .active-skill-branch { margin-inline:9px; padding:8px; }
-  .active-skill-branch header { grid-template-columns:auto minmax(0,1fr); gap:4px; }
+.active-skill-branch header { grid-template-columns:auto minmax(0,1fr) auto; gap:4px; }
   .active-skill-branch header strong { font-size:11px; }
   .active-skill-branch header small { grid-column:1/-1; white-space:normal; }
   .active-skill-node-list { grid-template-columns:1fr; }
@@ -1484,6 +1486,122 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .leaderboard-list li { grid-template-columns: 20px minmax(50px, 1fr) 62px 44px 44px 60px; }
 }
 
+/* AI-painted small icon system. Each atlas is a fixed 5 x 3 grid; the same
+   source art can be reused at HUD, panel and compact-button sizes. */
+.art-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background-repeat: no-repeat;
+  background-size: 500% 300%;
+  background-position: var(--art-x, 0%) var(--art-y, 0%);
+  border-radius: 28%;
+  vertical-align: middle;
+}
+.system-art { background-image: url("./assets/generated/ui-icons-system-ai-v2.png"); }
+.battle-art { background-image: url("./assets/generated/ui-icons-battle-ai-v1.png"); }
+.status-art { background-image: url("./assets/generated/ui-icons-status-ai-v1.png"); }
+
+/* Per-cell optical calibration. The generated atlas is geometrically even,
+   but asymmetric silhouettes (castle bases, arrows and trophies) need tiny
+   visual-centre corrections when clipped into a square button. */
+.icon-home { --art-x: 1.5%; --art-y: 3%; }
+.icon-updates { --art-x: 25.8%; --art-y: 2%; }
+.icon-account { --art-x: 50%; --art-y: 2%; }
+.icon-sound { --art-x: 74.4%; --art-y: 2%; }
+.icon-pause { --art-x: 98.6%; --art-y: 2%; }
+.icon-play { --art-x: 1.5%; --art-y: 51.8%; }
+.icon-close { --art-x: 25%; --art-y: 51.8%; }
+.icon-back { --art-x: 50%; --art-y: 51.8%; }
+.icon-lock-closed { --art-x: 75%; --art-y: 51.8%; }
+.icon-lock-open { --art-x: 98.8%; --art-y: 51.8%; }
+.icon-trophy { --art-x: 1.5%; --art-y: 98.2%; }
+.icon-tech-tree { --art-x: 25%; --art-y: 98.2%; }
+.icon-settings { --art-x: 50%; --art-y: 98.2%; }
+.icon-info { --art-x: 75%; --art-y: 98.2%; }
+.icon-warning { --art-x: 98.7%; --art-y: 98.2%; }
+
+.icon-heal { --art-x: 0%; --art-y: 0%; }
+.icon-overload { --art-x: 25%; --art-y: 0%; }
+.icon-starfall { --art-x: 50%; --art-y: 0%; }
+.icon-coin-vacuum { --art-x: 75%; --art-y: 0%; }
+.icon-target { --art-x: 100%; --art-y: 0%; }
+.icon-guard { --art-x: 0%; --art-y: 50%; }
+.icon-hunter { --art-x: 25%; --art-y: 50%; }
+.icon-breach { --art-x: 50%; --art-y: 50%; }
+.icon-radar { --art-x: 75%; --art-y: 50%; }
+.icon-drone { --art-x: 100%; --art-y: 50%; }
+.icon-drone-attack { --art-x: 0%; --art-y: 100%; }
+.icon-drone-detonate { --art-x: 25%; --art-y: 100%; }
+.icon-drone-shield { --art-x: 50%; --art-y: 100%; }
+.icon-cooldown { --art-x: 75%; --art-y: 100%; }
+.icon-battery { --art-x: 100%; --art-y: 100%; }
+
+.icon-health { --art-x: 0%; --art-y: 0%; }
+.icon-coins { --art-x: 25%; --art-y: 0%; }
+.icon-threat { --art-x: 50%; --art-y: 0%; }
+.icon-time { --art-x: 75%; --art-y: 0%; }
+.icon-wave { --art-x: 100%; --art-y: 0%; }
+.icon-echo-shard { --art-x: 0%; --art-y: 50%; }
+.icon-core-fragment { --art-x: 25%; --art-y: 50%; }
+.icon-stardust { --art-x: 50%; --art-y: 50%; }
+.icon-score { --art-x: 75%; --art-y: 50%; }
+.icon-cycle { --art-x: 100%; --art-y: 50%; }
+.icon-quest { --art-x: 0%; --art-y: 100%; }
+.icon-inventory { --art-x: 25%; --art-y: 100%; }
+.icon-map { --art-x: 50%; --art-y: 100%; }
+.icon-crafting { --art-x: 75%; --art-y: 100%; }
+.icon-achievement { --art-x: 100%; --art-y: 100%; }
+
+.icon-button .system-art { width: 30px; height: 30px; box-shadow: inset 0 0 8px rgba(4,7,28,.28); }
+#pauseButton.is-paused .icon-pause { --art-x: 1.5%; --art-y: 51.8%; }
+#muteButton .icon-sound { position: relative; transition: filter .18s ease, opacity .18s ease; }
+#muteButton.is-muted .icon-sound { filter: grayscale(.8) brightness(.58); opacity: .72; }
+#muteButton.is-muted .icon-sound::after { content: ""; position: absolute; left: 4px; top: 14px; width: 22px; height: 2px; border-radius: 2px; background: #ff707a; box-shadow: 0 0 5px rgba(255,89,102,.75); transform: rotate(-43deg); }
+
+.status > span { display: flex; align-items: center; gap: 5px; }
+.status .status-art { width: 17px; height: 17px; box-shadow: 0 0 8px rgba(87,214,255,.16); }
+.score-hud { padding-left: 42px; }
+.score-hud > .system-art { position: absolute; left: 8px; top: 50%; width: 30px; height: 30px; transform: translateY(-50%); border-radius: 50%; }
+
+.tech-tree-launch { gap: 9px; }
+.tech-tree-launch > .system-art { width: 34px; height: 34px; border-radius: 10px; box-shadow: 0 0 12px rgba(124,238,255,.2); }
+.tech-tree-launch > span { min-width: 0; flex: 1; }
+
+.protocol-grid button { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 6px; }
+.protocol-grid button > .battle-art { width: 28px; height: 28px; border-radius: 50%; box-shadow: 0 0 8px rgba(124,238,255,.13); }
+.protocol-grid button > span { min-width: 0; }
+.drone-mode-icon { --art-x: 100%; --art-y: 50%; background-image: url("./assets/generated/ui-icons-battle-ai-v1.png"); background-size: 500% 300%; }
+.drone-mode-button.attack .drone-mode-icon { --art-x: 0%; --art-y: 100%; background-image: url("./assets/generated/ui-icons-battle-ai-v1.png"); }
+.drone-protocol-icon { --art-x: 25%; --art-y: 100%; background-image: url("./assets/generated/ui-icons-battle-ai-v1.png"); background-size: 500% 300%; }
+
+.branch-tab-icon,
+.tech-stage-branch-art {
+  background-image: var(--tech-icon-sheet);
+  background-repeat: no-repeat;
+  background-size: var(--tech-icon-size-x) var(--tech-icon-size-y);
+  background-position: var(--tech-icon-pos-x) var(--tech-icon-pos-y);
+  box-shadow: inset 0 0 10px rgba(3,5,22,.4);
+}
+.tech-stage-heading > .tech-stage-branch-art {
+  border-radius: 28%;
+  background-image: var(--tech-icon-sheet);
+  background-repeat: no-repeat;
+  background-size: var(--tech-icon-size-x) var(--tech-icon-size-y);
+  background-position: var(--tech-icon-pos-x) var(--tech-icon-pos-y);
+}
+
+.basecamp-module-back > .system-art { width: 26px; height: 26px; }
+.basecamp-module-page-icon.art-icon,
+.basecamp-module-icon.art-icon { background-repeat: no-repeat; background-size: 500% 300%; background-position: var(--art-x) var(--art-y); }
+.relic-lock-button .system-art { width: 29px; height: 29px; border-radius: 8px; }
+
+@media (max-width: 700px) {
+  .status .status-art { width: 14px; height: 14px; }
+  .protocol-grid button { grid-template-columns: 24px minmax(0, 1fr); gap: 4px; }
+  .protocol-grid button > .battle-art { width: 24px; height: 24px; }
+}
+
 .updates-modal { position:fixed; inset:0; z-index:75; display:grid; place-items:center; padding:clamp(12px,3vw,42px); background:radial-gradient(circle at 50% 20%,rgba(80,62,164,.25),rgba(2,3,14,.93) 67%); backdrop-filter:blur(12px); }
 .updates-modal.hidden { display:none; }
 .updates-shell { width:min(760px,96vw); max-height:min(760px,92vh); overflow:hidden; display:flex; flex-direction:column; border:1px solid rgba(151,220,255,.25); border-radius:26px; background:linear-gradient(155deg,rgba(20,25,63,.99),rgba(7,8,29,.99) 68%); box-shadow:0 42px 110px rgba(0,0,0,.66),inset 0 1px rgba(255,255,255,.08); }
@@ -1600,7 +1718,6 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .relic-card-wrap .relic-card-index { right:auto; left:15px; }
 .relic-card-wrap.locked .relic-card { border-color:#ffe084; box-shadow:0 0 28px rgba(255,213,92,.14); }
 .relic-lock-button { position:absolute; z-index:6; top:12px; right:14px; display:grid; place-items:center; width:40px; height:40px; min-height:0; padding:0; border:1px solid rgba(205,221,255,.3); border-radius:12px; color:#dce7ff; background:rgba(14,18,46,.78); box-shadow:0 7px 18px rgba(4,7,24,.35); backdrop-filter:blur(7px); cursor:pointer; transition:transform .18s ease, color .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease; }
-.relic-lock-button svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
 .relic-lock-button:hover { transform:translateY(-2px) scale(1.04); color:#fff; border-color:rgba(230,238,255,.64); background:rgba(29,35,75,.92); }
 .relic-lock-button:focus-visible { outline:2px solid #a9d8ff; outline-offset:3px; }
 .relic-lock-button[aria-pressed="true"] { color:#ffe397; border-color:#ffe081; background:rgba(94,65,18,.82); box-shadow:0 0 20px rgba(255,206,76,.28), inset 0 0 12px rgba(255,231,142,.08); }
@@ -1624,7 +1741,6 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   .relic-card-wrap { min-height:166px; }
   .relic-card-wrap .relic-card-index { left:9px; }
   .relic-lock-button { top:8px; right:9px; width:34px; height:34px; border-radius:10px; }
-  .relic-lock-button svg { width:18px; height:18px; }
 }
 
 /* Threat seals: post-Chapter-I risk/reward loadout */
@@ -1852,15 +1968,6 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   color: #91eaff;
   background: radial-gradient(circle, rgba(85, 197, 255, .17), rgba(39, 33, 89, .13));
 }
-.basecamp-module-icon svg {
-  width: 27px;
-  height: 27px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 .basecamp-module-copy { min-width: 0; }
 .basecamp-module-copy small,
 .basecamp-module-copy strong,
@@ -1946,7 +2053,6 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
     border-radius: 11px;
   }
   .basecamp-module-icon { width: 34px; height: 34px; border-radius: 9px; }
-  .basecamp-module-icon svg { width: 21px; height: 21px; }
   .basecamp-module-copy strong { font-size: 11px; }
   .basecamp-module-copy > span { display: none; }
   .basecamp-module-status { padding: 2px 5px; font-size: 7px; }
@@ -2036,15 +2142,6 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   outline: 2px solid #8ce9ff;
   outline-offset: 3px;
 }
-.basecamp-module-back svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 .basecamp-module-page-icon {
   width: 52px;
   height: 52px;
@@ -2055,15 +2152,6 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   color: #91ebff;
   background: radial-gradient(circle, rgba(72, 193, 243, .19), rgba(91, 55, 150, .1));
   box-shadow: 0 0 22px rgba(63, 197, 255, .1);
-}
-.basecamp-module-page-icon svg {
-  width: 30px;
-  height: 30px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 .basecamp-module-page-copy { min-width: 0; }
 .basecamp-module-page-copy small {
@@ -2147,7 +2235,6 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
     height: 44px;
     border-radius: 12px;
   }
-  .basecamp-module-page-icon svg { width: 25px; height: 25px; }
   .basecamp-module-page-copy h3 { font-size: 19px; }
   .basecamp-module-page-copy p { display: none; }
   .basecamp-module-page-status {
@@ -3300,4 +3387,32 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
   0% { opacity: 0; transform: scale(.72); }
   45% { opacity: .42; transform: scale(1.02); }
   100% { opacity: .34; transform: scale(1); }
+}
+
+/* Research bay gets its own quiet laboratory backdrop. The image keeps the
+   center intentionally dark so HTML tabs, research cards and copy remain the
+   visual priority. */
+.basecamp-module-page-body .nexus-panel.relic-research-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(5, 8, 26, .42), rgba(6, 8, 27, .2) 48%, rgba(7, 8, 25, .38)),
+    url("./assets/generated/research-bay-bg-ai-v1.png") center / cover no-repeat;
+}
+.relic-research-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(3, 5, 20, .03), transparent 28%, rgba(3, 5, 20, .12)),
+    radial-gradient(circle at 50% 42%, rgba(71, 199, 255, .035), transparent 42%);
+}
+.relic-research-panel > * { position: relative; z-index: 1; }
+@media (max-width: 720px) {
+  .basecamp-module-page-body .nexus-panel.relic-research-panel {
+    background-position: 54% center;
+  }
 }

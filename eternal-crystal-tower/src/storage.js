@@ -62,10 +62,21 @@ export function sanitizeSave(candidate) {
       safe.skillResearch[key] = { branch: count > 0 ? branch : null, nodes: branch ? branches[branch].nodes.slice(0, count).map((node) => node.id) : [] };
       continue;
     }
-    const branch = Object.hasOwn(branches, raw?.branch) ? raw.branch : null;
-    const validNodes = branch ? branches[branch].nodes.map((node) => node.id) : [];
+    const rawBranch = raw?.branch;
+    const branch = Object.hasOwn(branches, rawBranch) ? rawBranch : null;
+    if (rawBranch != null && branch == null) {
+      safe.skillResearch[key] = { branch: null, nodes: [] };
+      continue;
+    }
     const requested = Array.isArray(raw?.nodes) ? raw.nodes : [];
-    const nodes = validNodes.slice(0, requested.length).filter((id, index) => requested[index] === id);
+    const requestedSet = new Set(requested);
+    const nodes = [];
+    for (const route of Object.values(branches)) {
+      for (const node of route.nodes) {
+        if (!requestedSet.has(node.id)) break;
+        nodes.push(node.id);
+      }
+    }
     safe.skillResearch[key] = { branch, nodes };
   }
   for (const key of Object.keys(safe.relicUnlocks)) safe.relicUnlocks[key] = true;
@@ -285,11 +296,25 @@ export function skillResearchCost(save, key, branch, nodeId) {
   const config = GAME_CONFIG.activeSkillResearch[key];
   if (!config || !Object.hasOwn(config.branches, branch)) return null;
   const selected = save.skillResearch?.[key];
-  if (selected?.branch && selected.branch !== branch) return null;
   const nodes = config.branches[branch].nodes;
   const index = nodes.findIndex((node) => node.id === nodeId);
-  if (index < 0 || selected?.nodes?.includes(nodeId) || (selected?.nodes?.length ?? 0) !== index) return null;
+  const learned = Array.isArray(selected?.nodes) ? selected.nodes : [];
+  if (index < 0 || learned.includes(nodeId) || nodes.slice(0, index).some((node) => !learned.includes(node.id))) return null;
   return GAME_CONFIG.activeSkillResearch.costs[index] ?? null;
+}
+
+export function setSkillResearchBranch(save, key, branch) {
+  const config = GAME_CONFIG.activeSkillResearch[key];
+  if (!config || !Object.hasOwn(config.branches, branch)) return false;
+  save.skillResearch ??= defaultSave().skillResearch;
+  const current = save.skillResearch[key];
+  if (!current || typeof current !== "object" || Array.isArray(current)) {
+    save.skillResearch[key] = { branch, nodes: [] };
+  } else {
+    current.branch = branch;
+    current.nodes = Array.isArray(current.nodes) ? current.nodes : [];
+  }
+  return true;
 }
 
 export function buySkillResearch(save, key, branch, nodeId) {

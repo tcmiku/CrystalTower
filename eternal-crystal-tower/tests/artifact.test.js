@@ -26,10 +26,11 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(html, /打开后自动暂停战斗/);
   assert.match(html, /SCORE · RANKING/);
   assert.match(html, /游戏更新公告/);
-  assert.match(html, /id="openUpdatesButton"[^>]*>\s*<svg class="top-icon"/);
-  assert.match(html, /id="accountButton"[^>]*>\s*<svg class="top-icon"/);
-  assert.match(html, /id="muteButton"[^>]*>\s*<svg class="top-icon sound-icon"/);
-  assert.match(html, /id="pauseButton"[^>]*>\s*<svg class="top-icon pause-icon"/);
+  assert.match(html, /id="openUpdatesButton"[^>]*>[\s\S]*?icon-updates/);
+  assert.match(html, /id="accountButton"[^>]*>[\s\S]*?icon-account/);
+  assert.match(html, /id="muteButton"[^>]*>[\s\S]*?icon-sound/);
+  assert.match(html, /id="pauseButton"[^>]*>[\s\S]*?icon-pause/);
+  assert.doesNotMatch(html, /class="top-icon/);
   assert.match(html, /id="registerForm" class="auth-form hidden"/);
   assert.match(html, /没有账号？注册/);
   assert.match(html, /guest-local-save-actions[\s\S]*删除本地存档/);
@@ -225,6 +226,7 @@ test("设计、构建与入口产物齐全", async () => {
     "assets/generated/relic-decoy-ai.png", "assets/generated/relic-lunar-ai.png", "assets/generated/relic-mirror-ai.png", "assets/generated/relic-ember-ai.png", "assets/generated/relic-boost-ai.png", "assets/generated/relic-endless-amplifier-ai.png",
     "assets/generated/leaderboard-podium-ai.png",
     "assets/generated/resource-echo-shard-ai.png", "assets/generated/resource-core-fragment-ai.png", "assets/generated/basecamp-core-room-ai.png", "assets/generated/basecamp-nexus-page-v1.png", "assets/generated/basecamp-module-campaign-v1.png", "assets/generated/basecamp-module-nexus-v1.png", "assets/generated/basecamp-module-relics-v1.png", "assets/generated/basecamp-module-archive-v1.png", "assets/generated/basecamp-module-seals-v1.png", "assets/generated/campaign-core-nexus-ai.png",
+    "assets/generated/ui-icons-system-ai-v1.png", "assets/generated/ui-icons-system-ai-v2.png", "assets/generated/ui-icons-battle-ai-v1.png", "assets/generated/ui-icons-status-ai-v1.png", "assets/generated/UI_ICON_MANIFEST.md", "assets/generated/research-bay-bg-ai-v1.png", "assets/generated/RESEARCH_BAY_ART.md",
     "assets/generated/ASSET_MANIFEST.md", "assets/generated/PROMPTS.md"
   ];
   await Promise.all(paths.map((path) => access(new URL(`../${path}`, import.meta.url))));
