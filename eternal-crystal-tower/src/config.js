@@ -1,5 +1,14 @@
 export const GAME_CONFIG = Object.freeze({
-  arena: { width: 960, height: 720, centerX: 480, centerY: 360 },
+  arena: {
+    width: 960,
+    height: 720,
+    centerX: 480,
+    centerY: 360,
+    // The wide desktop camera exposes substantially more world on the left and
+    // right than the original 4:3 arena. Rays are intersected with this box so
+    // every enemy enters through a visible map edge, including diagonal waves.
+    spawnRing: { centerX: 480, centerY: 360, radiusX: 790, radiusY: 390, ingressArc: 1.16, radialJitter: 10 }
+  },
   fixedStep: 1 / 60,
   tower: { maxHp: 600, damage: 12, fireRate: 1.2, range: 360, radius: 38, projectileSpeed: 650, healthBarDuration: 3.2 },
   cannon: {
@@ -259,6 +268,18 @@ export const GAME_CONFIG = Object.freeze({
   research: { bonusPerLevel: 0.05, maxLevel: 30, costBase: 2, costGrowth: 1.3 },
   combat: { enemyAttackInterval: 0.7, maxEnemies: 420, normalEnemyBudget: 240, crowdRadiusPerDoubling: 0.14, crowdMaxRadiusMultiplier: 1.55 }
 });
+
+export function getArenaEdgePosition(angle, outward = 0) {
+  const ring = GAME_CONFIG.arena.spawnRing;
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  const edgeDistance = 1 / Math.max(Math.abs(dx) / ring.radiusX, Math.abs(dy) / ring.radiusY, Number.EPSILON);
+  const distance = edgeDistance + Math.max(0, outward);
+  return {
+    x: ring.centerX + dx * distance,
+    y: ring.centerY + dy * distance
+  };
+}
 
 export const TECH_ORDER = ["damage", "rate", "ascend", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonStarPiercer", "cannonSplit", "cannonGrowth", "cannonEcho", "cannonCascade", "saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "drone", "droneScavenge", "autoCollect", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
 export const UPGRADE_ORDER = TECH_ORDER;

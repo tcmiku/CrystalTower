@@ -1,4 +1,4 @@
-import { GAME_CONFIG } from "./config.js";
+import { GAME_CONFIG, getArenaEdgePosition } from "./config.js";
 import { getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 
 const ENEMY_COLORS = {
@@ -19,6 +19,7 @@ const ENEMY_COLORS = {
   porcelainWarden: ["#8db7ff", "#161d3a"]
 };
 const ASTRAL_ENEMY_TYPES = new Set(["inkHound", "orbitMote", "rustBeetle", "porcelainWarden"]);
+const TOWER_ART_SCALE = 1.08;
 const ANCHOR_VISUALS = {
   shield: { name: "护盾", color: "#78e9ff", dark: "#1f6688", symbol: "⬡" },
   repair: { name: "修复", color: "#79ffad", dark: "#22684b", symbol: "+" },
@@ -38,9 +39,45 @@ const COLOSSUS_AFFIXES = {
   carapace: { name: "不灭甲壳", color: "#ffd36b" }
 };
 
+export function getCombatViewport(width, height, layout = {}) {
+  const desktopDeck = globalThis.matchMedia?.("(min-width: 1181px)")?.matches ?? width >= 1155;
+  const shell = globalThis.document?.querySelector?.(".game-shell");
+  const sidePanelCollapsed = layout.sidePanelCollapsed ?? shell?.classList.contains("side-panel-collapsed") ?? false;
+  const skillBarCollapsed = layout.skillBarCollapsed ?? globalThis.document?.getElementById?.("skillBar")?.classList.contains("is-collapsed") ?? false;
+  const rightInset = desktopDeck ? Math.min(sidePanelCollapsed ? 82 : 268, width * 0.35) : 0;
+  const bottomInset = desktopDeck && !skillBarCollapsed ? Math.min(104, height * 0.28) : 0;
+  return {
+    x: 0,
+    y: 0,
+    width: Math.max(1, width - rightInset),
+    height: Math.max(1, height - bottomInset),
+    rightInset,
+    bottomInset
+  };
+}
+
+export function getCoverCrop(sourceWidth, sourceHeight, targetWidth, targetHeight, focusX = 0.5, focusY = 0.5) {
+  const safeSourceWidth = Math.max(1, sourceWidth);
+  const safeSourceHeight = Math.max(1, sourceHeight);
+  const safeTargetWidth = Math.max(1, targetWidth);
+  const safeTargetHeight = Math.max(1, targetHeight);
+  const sourceAspect = safeSourceWidth / safeSourceHeight;
+  const targetAspect = safeTargetWidth / safeTargetHeight;
+  let width = safeSourceWidth;
+  let height = safeSourceHeight;
+  if (targetAspect > sourceAspect) height = safeSourceWidth / targetAspect;
+  else width = safeSourceHeight * targetAspect;
+  return {
+    x: Math.max(0, Math.min(safeSourceWidth - width, (safeSourceWidth - width) * focusX)),
+    y: Math.max(0, Math.min(safeSourceHeight - height, (safeSourceHeight - height) * focusY)),
+    width,
+    height
+  };
+}
+
 const GENERATED_ASSETS = {
-  arena: "./assets/generated/arena-bg.png",
-  arenaDay: "./assets/generated/arena-day.png",
+  arena: "./assets/generated/arena-bg-safe-zone-v5.png",
+  arenaDay: "./assets/generated/arena-bg-safe-zone-v5.png",
   tower: "./assets/generated/tower-atlas.png",
   towerUltimate: "./assets/generated/tower-ultimate-ai.png",
   enemies: "./assets/generated/enemy-atlas.png",
@@ -141,6 +178,50 @@ function imageReady(image) {
   return Boolean(image?.complete && image.naturalWidth > 0);
 }
 
+function createEffectCanvas(width, height) {
+  if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(width, height);
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+function createStarfallFxSprites() {
+  const beam = createEffectCanvas(96, 256);
+  const impact = createEffectCanvas(128, 128);
+  if (!beam || !impact) return { beam: null, impact: null };
+
+  const beamCtx = beam.getContext("2d");
+  beamCtx.lineCap = "round";
+  for (const [lineWidth, color, alpha, blur] of [[18, "#845cff", .18, 18], [9, "#d5b1ff", .52, 12], [3, "#fff1ad", 1, 5]]) {
+    beamCtx.globalAlpha = alpha;
+    beamCtx.strokeStyle = color;
+    beamCtx.shadowColor = color;
+    beamCtx.shadowBlur = blur;
+    beamCtx.lineWidth = lineWidth;
+    beamCtx.beginPath();
+    beamCtx.moveTo(19, 14);
+    beamCtx.lineTo(72, 240);
+    beamCtx.stroke();
+  }
+
+  const impactCtx = impact.getContext("2d");
+  const blast = impactCtx.createRadialGradient(64, 64, 0, 64, 64, 60);
+  blast.addColorStop(0, "rgba(255,255,226,.98)");
+  blast.addColorStop(.24, "rgba(255,207,100,.72)");
+  blast.addColorStop(.58, "rgba(172,113,255,.28)");
+  blast.addColorStop(1, "rgba(127,72,255,0)");
+  impactCtx.fillStyle = blast;
+  impactCtx.fillRect(0, 0, 128, 128);
+  impactCtx.strokeStyle = "rgba(255,234,158,.9)";
+  impactCtx.lineWidth = 3;
+  impactCtx.beginPath();
+  impactCtx.arc(64, 64, 34, 0, Math.PI * 2);
+  impactCtx.stroke();
+  return { beam, impact };
+}
+
 export class Renderer {
   constructor(canvas, onAssetProgress) {
     this.canvas = canvas;
@@ -150,6 +231,8 @@ export class Renderer {
     this.flashColor = "#ffffff";
     this.time = 0;
     this.dayMix = 1;
+    this.starfallFx = createStarfallFxSprites();
+    this.starfallCorridors = new Map();
     const loading = loadGeneratedAssets(onAssetProgress);
     this.assets = loading.assets;
     this.assetsReady = loading.ready;
@@ -214,9 +297,10 @@ export class Renderer {
     const logical = GAME_CONFIG.arena;
     const cssWidth = this.canvas.width / dpr;
     const cssHeight = this.canvas.height / dpr;
-    const scale = Math.min(cssWidth / logical.width, cssHeight / logical.height);
-    const offsetX = (cssWidth - logical.width * scale) / 2;
-    const offsetY = (cssHeight - logical.height * scale) / 2;
+    const viewport = getCombatViewport(cssWidth, cssHeight);
+    const scale = Math.min(viewport.width / logical.width, viewport.height / logical.height);
+    const offsetX = viewport.x + (viewport.width - logical.width * scale) / 2;
+    const offsetY = viewport.y + (viewport.height - logical.height * scale) / 2;
     this.time += delta;
     const targetDayMix = state.phase === "day" ? 1 : 0;
     this.dayMix += (targetDayMix - this.dayMix) * Math.min(1, delta * 0.42);
@@ -226,8 +310,7 @@ export class Renderer {
     const shakeY = this.shake ? Math.cos(this.time * 61) * this.shake * 0.7 : 0;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#050612";
-    ctx.fillRect(0, 0, cssWidth, cssHeight);
+    this.drawBackdrop(ctx, state, cssWidth, cssHeight);
     ctx.save();
     ctx.translate(offsetX + shakeX, offsetY + shakeY);
     ctx.scale(scale, scale);
@@ -242,24 +325,29 @@ export class Renderer {
     }
   }
 
-  drawWorld(ctx, state) {
-    const { width, height, centerX, centerY } = GAME_CONFIG.arena;
+  drawBackdrop(ctx, state, width, height) {
     if (imageReady(this.assets.arena) && imageReady(this.assets.arenaDay)) {
-      ctx.drawImage(this.assets.arena, 0, 0, width, height);
+      const drawCover = (image) => {
+        const crop = getCoverCrop(image.naturalWidth || image.width, image.naturalHeight || image.height, width, height, 0.4, 0.42);
+        ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
+      };
+      drawCover(this.assets.arena);
       ctx.globalAlpha = this.dayMix;
-      ctx.drawImage(this.assets.arenaDay, 0, 0, width, height);
+      drawCover(this.assets.arenaDay);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = state.skills.overload.active > 0 ? "rgba(21,7,56,.34)" : `rgba(3,5,20,${0.25 + (1 - this.dayMix) * 0.23})`;
+      ctx.fillStyle = state.skills.overload.active > 0 ? "rgba(21,7,56,.28)" : `rgba(3,5,20,${0.14 + (1 - this.dayMix) * 0.1})`;
       ctx.fillRect(0, 0, width, height);
-    } else {
-      const background = ctx.createRadialGradient(centerX, centerY, 20, centerX, centerY, 590);
-      background.addColorStop(0, state.skills.overload.active > 0 ? "#21114e" : "#151039");
-      background.addColorStop(0.48, "#0b0c25");
-      background.addColorStop(1, "#050612");
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, width, height);
+      return;
     }
+    const background = ctx.createRadialGradient(width / 2, height / 2, 20, width / 2, height / 2, Math.max(width, height) * .62);
+    background.addColorStop(0, state.skills.overload.active > 0 ? "#21114e" : "#151039");
+    background.addColorStop(0.48, "#0b0c25");
+    background.addColorStop(1, "#050612");
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, width, height);
+  }
 
+  drawWorld(ctx, state) {
     this.drawGround(ctx, state);
     this.drawWaveWarning(ctx, state);
     this.drawRange(ctx, state);
@@ -337,34 +425,7 @@ export class Renderer {
       ctx.beginPath(); ctx.arc(towerX, towerY, 74 + pulse * 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
     }
 
-    if (state.skills.starfall.active > 0 || state.skills.starfall.aiming) {
-      ctx.save();
-      const config = GAME_CONFIG.skills.starfall;
-      const coneHalfAngle = getStarfallConeHalfAngle(state);
-      const aiming = state.skills.starfall.aiming;
-      const alpha = aiming ? 0.48 + Math.sin(this.time * 6) * 0.08 : state.skills.starfall.active / config.activeDuration;
-      ctx.globalAlpha = alpha;
-      ctx.translate(towerX, towerY);
-      ctx.rotate(aiming ? state.skills.starfall.aimAngle : state.skills.starfall.angle);
-      const radius = 670;
-      const wedge = ctx.createRadialGradient(0, 0, 30, 0, 0, radius);
-      wedge.addColorStop(0, aiming ? "rgba(255,231,137,.58)" : "rgba(255,244,178,.5)"); wedge.addColorStop(.42, aiming ? "rgba(255,173,80,.26)" : "rgba(188,156,255,.22)"); wedge.addColorStop(1, "rgba(188,156,255,0)");
-      ctx.fillStyle = wedge;
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius, -coneHalfAngle, coneHalfAngle); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = aiming ? "#ffd476" : "#fff1b0"; ctx.lineWidth = aiming ? 2.8 : 2.3; ctx.shadowColor = aiming ? "#ff9f45" : "#d7b4ff"; ctx.shadowBlur = 10;
-      if (aiming) ctx.setLineDash([14, 9]);
-      for (let lane = -3; lane <= 3; lane += 1) {
-        const spread = lane * 26;
-        const travel = 370 + (lane + 3) * 38;
-        ctx.beginPath(); ctx.moveTo(95, spread * .35); ctx.lineTo(travel, spread); ctx.stroke();
-      }
-      ctx.setLineDash([]);
-      ctx.restore();
-      if (aiming) {
-        ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = "#ffe7a0"; ctx.font = "900 13px 'Microsoft YaHei UI', sans-serif"; ctx.shadowColor = "#3b1424"; ctx.shadowBlur = 8;
-        ctx.fillText("移动鼠标选择方向 · 点击释放 · Esc 取消", towerX, height - 34); ctx.restore();
-      }
-    }
+    if (state.skills.starfall.active > 0 || state.skills.starfall.aiming) this.drawStarfall(ctx, state, towerX, towerY, height);
     if (state.skills.heal.burst > 0) {
       const config = GAME_CONFIG.skills.heal;
       const progress = 1 - state.skills.heal.burst / config.burstDuration;
@@ -391,6 +452,192 @@ export class Renderer {
     }
   }
 
+  getStarfallCorridorSprite(coneHalfAngle, aiming) {
+    const key = `${aiming ? "aim" : "release"}:${coneHalfAngle.toFixed(3)}`;
+    if (this.starfallCorridors.has(key)) return this.starfallCorridors.get(key);
+    const radius = 680;
+    const padding = 30;
+    const originY = Math.ceil(Math.sin(coneHalfAngle) * radius) + padding;
+    const canvas = createEffectCanvas(radius + padding * 2, originY * 2);
+    if (!canvas) return null;
+    const corridorCtx = canvas.getContext("2d");
+    corridorCtx.translate(padding, originY);
+    const wedge = corridorCtx.createRadialGradient(0, 0, 28, 0, 0, radius);
+    wedge.addColorStop(0, "rgba(255,239,169,.58)");
+    wedge.addColorStop(.25, "rgba(220,182,255,.27)");
+    wedge.addColorStop(.68, "rgba(128,92,255,.13)");
+    wedge.addColorStop(1, "rgba(82,52,190,0)");
+    corridorCtx.fillStyle = wedge;
+    corridorCtx.beginPath();
+    corridorCtx.moveTo(0, 0);
+    corridorCtx.arc(0, 0, radius, -coneHalfAngle, coneHalfAngle);
+    corridorCtx.closePath();
+    corridorCtx.fill();
+    corridorCtx.strokeStyle = aiming ? "#e7c7ff" : "#fff2b2";
+    corridorCtx.shadowColor = aiming ? "#8f63ff" : "#ffc95e";
+    corridorCtx.shadowBlur = aiming ? 10 : 14;
+    corridorCtx.lineWidth = aiming ? 2.2 : 3.2;
+    for (const boundary of [-coneHalfAngle, coneHalfAngle]) {
+      corridorCtx.beginPath();
+      corridorCtx.moveTo(Math.cos(boundary) * 62, Math.sin(boundary) * 62);
+      corridorCtx.lineTo(Math.cos(boundary) * radius, Math.sin(boundary) * radius);
+      corridorCtx.stroke();
+    }
+    corridorCtx.beginPath();
+    corridorCtx.arc(0, 0, radius, -coneHalfAngle, coneHalfAngle);
+    corridorCtx.stroke();
+    const sprite = { canvas, x: padding, y: originY };
+    this.starfallCorridors.set(key, sprite);
+    return sprite;
+  }
+
+  drawStarfall(ctx, state, towerX, towerY, height) {
+    const skill = state.skills.starfall;
+    const config = GAME_CONFIG.skills.starfall;
+    const aiming = skill.aiming;
+    const angle = aiming ? skill.aimAngle : skill.angle;
+    const coneHalfAngle = getStarfallConeHalfAngle(state);
+    const radius = 680;
+    const pulse = .5 + Math.sin(this.time * 7) * .5;
+    const releaseProgress = aiming ? 0 : Math.max(0, Math.min(1, 1 - skill.active / config.activeDuration));
+    const releaseAlpha = aiming ? 1 : Math.max(0, 1 - releaseProgress * .72);
+
+    // Directional orbital corridor: a quieter purple field supports crisp gold
+    // boundaries so the player can read the actual hit sector at a glance.
+    ctx.save();
+    ctx.translate(towerX, towerY);
+    ctx.rotate(angle);
+    ctx.globalCompositeOperation = "lighter";
+    const corridor = this.getStarfallCorridorSprite(coneHalfAngle, aiming);
+    ctx.globalAlpha = aiming ? .8 + pulse * .08 : .82 * releaseAlpha;
+    if (corridor) ctx.drawImage(corridor.canvas, -corridor.x, -corridor.y);
+    else {
+      ctx.fillStyle = "rgba(173,130,255,.18)";
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius, -coneHalfAngle, coneHalfAngle); ctx.closePath(); ctx.fill();
+    }
+
+    // Moving scan bands make aiming feel active without hiding enemies.
+    ctx.lineWidth = 1.25;
+    ctx.shadowBlur = 0;
+    for (let lane = aiming ? -2 : 1; lane <= (aiming ? 2 : 0); lane += 1) {
+      const laneRatio = lane / 2;
+      const laneAngle = laneRatio * coneHalfAngle * .82;
+      const travel = 300 + ((this.time * 115 + (lane + 4) * 61) % 330);
+      ctx.globalAlpha = (.2 + pulse * .14) * (1 - Math.abs(laneRatio) * .28);
+      ctx.strokeStyle = lane % 2 ? "#b88cff" : "#ffe4a0";
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(laneAngle) * 92, Math.sin(laneAngle) * 92);
+      ctx.lineTo(Math.cos(laneAngle) * travel, Math.sin(laneAngle) * travel);
+      ctx.stroke();
+    }
+
+    if (aiming) {
+      const lockDistance = 430 + Math.sin(this.time * 4) * 7;
+      ctx.translate(lockDistance, 0);
+      ctx.rotate(-this.time * .8);
+      ctx.globalAlpha = .72 + pulse * .2;
+      ctx.strokeStyle = "#ffe8a3";
+      ctx.shadowColor = "#a66cff";
+      ctx.shadowBlur = 18;
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([10, 7]);
+      ctx.beginPath(); ctx.arc(0, 0, 42 + pulse * 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      for (let corner = 0; corner < 4; corner += 1) {
+        ctx.rotate(Math.PI / 2);
+        ctx.beginPath(); ctx.moveTo(28, -10); ctx.lineTo(39, -10); ctx.lineTo(39, 10); ctx.stroke();
+      }
+      ctx.fillStyle = "#fff8d0";
+      ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+
+    if (aiming) {
+      // Bracket a limited number of valid targets to communicate the true cone
+      // selection without turning dense waves into an unreadable glow cloud.
+      const lockedTargets = state.enemies
+        .filter((enemy) => {
+          if (enemy.hp <= 0) return false;
+          const enemyAngle = Math.atan2(enemy.y - towerY, enemy.x - towerX);
+          return Math.abs(Math.atan2(Math.sin(enemyAngle - angle), Math.cos(enemyAngle - angle))) <= coneHalfAngle;
+        })
+        .sort((a, b) => Math.hypot(a.x - towerX, a.y - towerY) - Math.hypot(b.x - towerX, b.y - towerY))
+        .slice(0, 18);
+      for (const enemy of lockedTargets) {
+        const lockRadius = enemy.radius + 10 + pulse * 3;
+        ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(this.time * 1.1);
+        ctx.globalAlpha = .58 + pulse * .22; ctx.strokeStyle = "#ffe59a"; ctx.shadowColor = "#9d68ff"; ctx.shadowBlur = 10; ctx.lineWidth = 1.8;
+        ctx.setLineDash([7, 6]); ctx.beginPath(); ctx.arc(0, 0, lockRadius, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        for (let corner = 0; corner < 4; corner += 1) { ctx.rotate(Math.PI / 2); ctx.fillStyle = "#fff4bc"; ctx.fillRect(lockRadius - 2, -2, 7, 4); }
+        ctx.restore();
+      }
+      ctx.save();
+      const hintY = Math.min(height - 130, towerY + 205);
+      ctx.textAlign = "center"; ctx.fillStyle = "#ffedb2"; ctx.font = "900 13px 'Microsoft YaHei UI', sans-serif"; ctx.shadowColor = "#3b1424"; ctx.shadowBlur = 8;
+      ctx.fillText(`轨道已锁定 ${lockedTargets.length} 个目标 · 点击释放 · Esc 取消`, towerX, hintY);
+      ctx.restore();
+      return;
+    }
+
+    // Staggered orbital lances land across the selected sector. Their impact
+    // points are deterministic, keeping replays visually stable.
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const strikeCount = 7;
+    for (let strike = 0; strike < strikeCount; strike += 1) {
+      const laneRatio = ((strike * 5) % strikeCount) / (strikeCount - 1) * 2 - 1;
+      const strikeAngle = angle + laneRatio * coneHalfAngle * .78;
+      const distance = 205 + ((strike * 83) % 390);
+      const impactX = towerX + Math.cos(strikeAngle) * distance;
+      const impactY = towerY + Math.sin(strikeAngle) * distance;
+      const delay = strike * .042;
+      const fall = Math.max(0, Math.min(1, (releaseProgress + .06 - delay) / .34));
+      if (fall <= 0) continue;
+      const eased = 1 - (1 - fall) ** 3;
+      const headX = impactX - (1 - eased) * 92;
+      const headY = impactY - (1 - eased) * 235;
+      const trailLength = 58 + fall * 54;
+      const streakAlpha = Math.sin(Math.min(1, fall) * Math.PI) * .9 + .1;
+      if (this.starfallFx.beam) {
+        ctx.globalAlpha = streakAlpha * releaseAlpha;
+        ctx.drawImage(this.starfallFx.beam, headX - 34, headY - trailLength, 48, trailLength + 8);
+      } else {
+        ctx.globalAlpha = streakAlpha * releaseAlpha;
+        ctx.strokeStyle = "#fff1ad"; ctx.lineWidth = 3; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(headX - trailLength * .36, headY - trailLength); ctx.lineTo(headX, headY); ctx.stroke();
+      }
+      ctx.globalAlpha = Math.min(1, fall * 2) * releaseAlpha;
+      ctx.fillStyle = "#fffbd8"; ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.arc(headX, headY, 4 + fall * 3, 0, Math.PI * 2); ctx.fill();
+
+      if (fall > .68) {
+        const impact = Math.min(1, (fall - .68) / .32);
+        const impactAlpha = (1 - impact) * releaseAlpha;
+        if (this.starfallFx.impact) {
+          const spriteSize = 82 + impact * 46;
+          ctx.globalAlpha = impactAlpha * .92;
+          ctx.drawImage(this.starfallFx.impact, impactX - spriteSize / 2, impactY - spriteSize / 2, spriteSize, spriteSize);
+        }
+        ctx.globalAlpha = impactAlpha; ctx.strokeStyle = strike % 2 ? "#c89cff" : "#ffe69a"; ctx.lineWidth = 2.5; ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(impactX, impactY, 10 + impact * 50, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 1.4;
+        for (let shard = 0; shard < 4; shard += 1) {
+          const shardAngle = shard * Math.PI / 2 + strike * .37;
+          const shardDistance = 12 + impact * (42 + (shard % 2) * 15);
+          ctx.beginPath(); ctx.moveTo(impactX + Math.cos(shardAngle) * 8, impactY + Math.sin(shardAngle) * 8); ctx.lineTo(impactX + Math.cos(shardAngle) * shardDistance, impactY + Math.sin(shardAngle) * shardDistance); ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = (1 - releaseProgress) * .8;
+    if (this.starfallFx.impact) {
+      const towerImpactSize = 106 + releaseProgress * 92;
+      ctx.drawImage(this.starfallFx.impact, towerX - towerImpactSize / 2, towerY - towerImpactSize / 2, towerImpactSize, towerImpactSize);
+    }
+    ctx.strokeStyle = "#fff0a8"; ctx.shadowBlur = 0; ctx.lineWidth = 4 - releaseProgress * 1.5;
+    ctx.beginPath(); ctx.arc(towerX, towerY, 54 + releaseProgress * 105, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
   drawWaveWarning(ctx, state) {
     const wave = state.wave;
     const warningTime = GAME_CONFIG.waves.warning;
@@ -398,18 +645,37 @@ export class Renderer {
     const warning = wave.warningStarted && countdown > 0 && countdown <= warningTime;
     if (!warning && !wave.active) return;
     const direction = wave.direction;
-    const { width, height } = GAME_CONFIG.arena;
+    const { width, spawnRing } = GAME_CONFIG.arena;
     const pulse = 0.45 + Math.sin(this.time * 8) * 0.2;
+    const directionAngles = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];
+    const ingressAngle = directionAngles[direction] ?? directionAngles[0];
     ctx.save();
-    ctx.globalAlpha = pulse;
-    const edge = ctx.createLinearGradient(direction === 1 ? width : 0, direction === 2 ? height : 0, direction === 3 ? width : 0, direction === 0 ? height : 0);
-    edge.addColorStop(0, "rgba(255,48,76,.62)");
-    edge.addColorStop(1, "rgba(255,48,76,0)");
-    ctx.fillStyle = edge;
-    if (direction === 0) ctx.fillRect(0, 0, width, 92);
-    else if (direction === 1) ctx.fillRect(width - 92, 0, 92, height);
-    else if (direction === 2) ctx.fillRect(0, height - 92, width, 92);
-    else if (direction === 3) ctx.fillRect(0, 0, 92, height);
+    ctx.globalAlpha = Math.min(1, pulse + .2);
+    ctx.strokeStyle = "rgba(255,70,91,.88)";
+    ctx.shadowColor = "#ff304f";
+    ctx.shadowBlur = 24;
+    ctx.lineWidth = 9;
+    ctx.beginPath();
+    for (let index = 0; index <= 24; index += 1) {
+      const angle = ingressAngle - spawnRing.ingressArc / 2 + spawnRing.ingressArc * index / 24;
+      const point = getArenaEdgePosition(angle);
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255,184,168,.95)";
+    ctx.stroke();
+    const marker = getArenaEdgePosition(ingressAngle);
+    const markerX = marker.x;
+    const markerY = marker.y;
+    ctx.translate(markerX, markerY);
+    ctx.rotate(ingressAngle + Math.PI / 2);
+    ctx.fillStyle = "rgba(255,57,82,.92)";
+    ctx.beginPath();
+    ctx.moveTo(0, 18); ctx.lineTo(-13, -8); ctx.lineTo(13, -8); ctx.closePath();
+    ctx.fill();
     ctx.restore();
 
     const names = ["北侧", "东侧", "南侧", "西侧"];
@@ -1375,13 +1641,14 @@ export class Renderer {
   drawTower(ctx, state) {
     const { x, y } = getTowerPosition(state);
     const towerScale = state.enemies.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1;
+    const towerArtScale = TOWER_ART_SCALE;
     const tier = state.tower.upgrades.ascend;
     const stats = getTowerStats(state);
     const hpRatio = Math.max(0, state.tower.hp / stats.maxHp);
     const overload = state.skills.overload.active > 0;
     const heatRatio = state.skills.overload.heat / GAME_CONFIG.skills.overload.overheatThreshold;
 
-    ctx.save(); ctx.translate(x, y); ctx.scale(towerScale, towerScale);
+    ctx.save(); ctx.translate(x, y); ctx.scale(towerScale * towerArtScale, towerScale * towerArtScale);
     ctx.globalAlpha = 0.18 + hpRatio * 0.12;
     ctx.fillStyle = overload ? (heatRatio >= 1 ? "#ff704d" : "#c99cff") : state.skills.overload.slow > 0 ? "#b9474f" : "#7ceeff";
     ctx.beginPath(); ctx.arc(0, 0, 55 + tier * 13 + Math.sin(this.time * 2.5) * 4, 0, Math.PI * 2); ctx.fill();
@@ -1452,7 +1719,7 @@ export class Renderer {
       ctx.beginPath(); ctx.moveTo(-4, -22); ctx.lineTo(8, -7); ctx.lineTo(-1, 10); ctx.lineTo(10, 24); ctx.stroke();
     }
     ctx.restore();
-    this.drawTowerHealthBar(ctx, state, x, y, towerScale, tier, stats);
+    this.drawTowerHealthBar(ctx, state, x, y, towerScale * towerArtScale, tier, stats);
   }
 
   drawTowerHealthBar(ctx, state, x, y, towerScale, tier, stats) {

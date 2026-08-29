@@ -8,7 +8,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 test("页面包含运行所需控件且不加载外部资产", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const requiredIds = [
-    "gameCanvas", "healthText", "coinsText", "threatText", "timeText", "upgradeList", "skillList",
+    "gameCanvas", "healthText", "coinsText", "threatText", "timeText", "upgradeList", "skillBar", "skillBarToggle", "skillList",
     "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText", "globalLeaderboardPodium",
     "droneModeButton", "droneModeText", "droneModeHint", "droneProtocolButton", "droneProtocolText", "droneProtocolHint", "droneEnergyFill",
     "pauseButton", "muteButton", "speedButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate",
@@ -27,6 +27,9 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(html, /SCORE · RANKING/);
   assert.match(html, /游戏更新公告/);
   assert.match(html, /id="openUpdatesButton"[^>]*>[\s\S]*?icon-updates/);
+  assert.match(html, /<main class="game-shell topbar-collapsed">/);
+  assert.match(html, /id="topbar" class="topbar is-collapsed"/);
+  assert.match(html, /id="topbarToggle"[^>]*aria-expanded="false"/);
   assert.match(html, /id="accountButton"[^>]*>[\s\S]*?icon-account/);
   assert.match(html, /id="muteButton"[^>]*>[\s\S]*?icon-sound/);
   assert.match(html, /id="pauseButton"[^>]*>[\s\S]*?icon-pause/);
@@ -43,6 +46,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(styles, /@media \(max-width: 1024px\)/);
   assert.match(styles, /env\(safe-area-inset-top\)/);
   assert.match(styles, /#gameCanvas[^}]*touch-action:\s*none/s);
+  assert.match(styles, /\.skill-bar\.is-collapsed/);
   assert.match(styles, /text-size-adjust:\s*100%/);
   assert.match(styles, /Browser zoom reduces the CSS viewport/);
   assert.match(styles, /data-upgrade="damage"[\s\S]*#ff707a/);
@@ -54,6 +58,8 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(styles, /\.basecamp-module-page-body \{[\s\S]*overflow-y: auto/);
   assert.match(styles, /\.upgrade-panel[^}]*overflow-y:\s*auto/);
   assert.match(styles, /\.drone-protocol-button \{ grid-column:\s*1 \/ -1;/);
+  assert.match(styles, /\.side-drone-mode\s*\{\s*order:\s*2;/);
+  assert.match(styles, /\.drone-protocol-button\s*\{\s*order:\s*3;/);
   assert.match(styles, /\.relic-research-card p[\s\S]*font-size:\s*12px/);
   assert.match(styles, /\.relic-run-chip:hover[\s\S]*\.relic-run-tooltip/);
   assert.match(styles, /\.relic-run-chip[\s\S]*pointer-events:\s*auto/);
@@ -74,9 +80,19 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /tower-health/);
   assert.match(main, /现已上线登录功能/);
   assert.match(main, /deleteLocalSaveButton/);
+  assert.match(main, /setSkillBarCollapsed/);
+  assert.match(main, /setSidePanelCollapsed/);
+  assert.doesNotMatch(main, /SKILL_BAR_COLLAPSE_DELAY/);
+  assert.doesNotMatch(main, /SIDE_PANEL_COLLAPSE_DELAY/);
+  assert.match(main, /event\.key\.toLowerCase\(\) === "g"\) switchDroneMode\(\)/);
+  assert.match(styles, /\.upgrade-panel\.is-collapsed \.side-drone-mode,/);
+  assert.match(main, /setTopbarCollapsed/);
+  assert.doesNotMatch(main, /TOPBAR_COLLAPSE_DELAY/);
+  assert.doesNotMatch(main, /scheduleTopbarCollapse/);
   assert.match(main, /删除此设备上的游客本地存档/);
   assert.match(main, /warning\.className = "update-warning"/);
   const renderer = await readFile(new URL("../src/renderer.js", import.meta.url), "utf8");
+  assert.match(renderer, /TOWER_ART_SCALE = 1\.08/);
   assert.match(main, /战利品已经掉落/);
   assert.match(main, /第一笔金币已到手/);
   assert.match(main, /晶刃 · 近身防御/);
@@ -183,7 +199,8 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /previewMode === "intro"/);
   assert.match(main, /save\.settings\.introDisabled = true/);
   assert.match(main, /function startChapterOne\(\)/);
-  assert.match(main, /if \(previewMode === "intro"\) showStoryIntro\(continueStartup\)/);
+  assert.match(main, /const shouldPlayOpening = previewMode === "intro" \|\| \(!previewMode && save\.settings\.introDisabled !== true\)/);
+  assert.match(main, /if \(shouldPlayOpening\) showStoryIntro\(continueStartup\)/);
   assert.match(styles, /First-entry animated comic prologue/);
   assert.match(styles, /intro-void-transition-v1\.png/);
   assert.match(styles, /Layered speech-bubble animated comic prologue/);

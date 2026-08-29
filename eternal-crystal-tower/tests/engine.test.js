@@ -406,6 +406,29 @@ test("星落只轰击玩家手动指定的方向", () => {
   assert.equal(state.skills.starfall.cooldown, 45);
 });
 
+test("星落大范围命中合并音效事件与飘字", () => {
+  const state = createGameState(904);
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.upgrades.cannonEcho = 3;
+  state.tower.upgrades.cannonCascade = 1;
+  for (let index = 0; index < 120; index += 1) {
+    const enemy = spawnEnemy(state, "wisp", { x: 560 + (index % 20) * 6, y: 360 + (index % 5 - 2) * 4 });
+    enemy.hp = 1;
+  }
+  for (let index = 0; index < 20; index += 1) {
+    const survivor = spawnEnemy(state, "sentinel", { x: 560 + index * 3, y: 430 + index % 2 * 7 });
+    survivor.hp = survivor.maxHp = 100_000;
+  }
+  assert.equal(useSkill(state, "starfall", { angle: 0 }), true);
+  assert.equal(state.events.filter((event) => event.type === "hit" && event.source === "starfall").length, 1);
+  assert.equal(state.events.filter((event) => event.type === "kill").length, 120);
+  assert.ok(state.events.filter((event) => event.type === "cannonEcho").length <= 8);
+  assert.equal(state.floaters.filter((floater) => floater.text.startsWith("星落命中")).length, 1);
+  assert.equal(state.floaters.filter((floater) => floater.text.startsWith("星落连锁 ×")).length, 1);
+  assert.ok(state.floaters.length <= 2);
+});
+
 test("星落手动方向不再受目标协议改写", () => {
   const state = createGameState(84);
   setTargetProtocol(state, "radar");
@@ -465,6 +488,20 @@ test("怪潮提前十秒预警并从标记方向集中生成", () => {
   assert.equal(state.wave.index, 1);
   assert.equal(state.wave.nextAt, 180);
   assert.ok(state.events.some((event) => event.type === "waveStart"));
+});
+
+test("普通敌人沿宽屏场地的地图边缘生成", () => {
+  const state = createGameState(3101);
+  const ring = GAME_CONFIG.arena.spawnRing;
+  for (let index = 0; index < 80; index += 1) {
+    const enemy = spawnEnemy(state, "wisp");
+    const normalizedEdge = Math.max(
+      Math.abs(enemy.x - ring.centerX) / ring.radiusX,
+      Math.abs(enemy.y - ring.centerY) / ring.radiusY
+    );
+    assert.ok(normalizedEdge >= 1 && normalizedEdge < 1.04);
+    assert.ok(Math.hypot(enemy.x - ring.centerX, enemy.y - ring.centerY) > GAME_CONFIG.tower.range);
+  }
 });
 
 test("高威胁等级解锁爬行怪、晶甲守卫、咒晶怪与冲撞兽", () => {

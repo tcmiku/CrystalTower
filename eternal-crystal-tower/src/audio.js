@@ -4,6 +4,7 @@ export class AudioSynth {
     this.context = null;
     this.unlocked = false;
     this.lastShot = 0;
+    this.lastPlayed = Object.create(null);
   }
 
   ensureContext() {
@@ -46,6 +47,11 @@ export class AudioSynth {
   play(type) {
     if (this.muted) return;
     const now = performance.now();
+    const burstCooldown = type === "hit" ? 45 : type === "kill" ? 70 : 0;
+    if (burstCooldown > 0) {
+      if (now - (this.lastPlayed[type] ?? -Infinity) < burstCooldown) return;
+      this.lastPlayed[type] = now;
+    }
     if (type === "shoot") {
       if (now - this.lastShot < 65) return;
       this.lastShot = now;

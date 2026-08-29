@@ -6,7 +6,7 @@ import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
 import { AudioSynth } from "./audio.js";
-import { Renderer } from "./renderer.js";
+import { getCombatViewport, Renderer } from "./renderer.js";
 
 const UPGRADE_META = {
   damage: { icon: "✦", name: "淬亮晶矢", description: "每级伤害 +25%", max: 10 },
@@ -145,16 +145,16 @@ const RESEARCH_META = {
 };
 
 const statusStrip = document.querySelector(".status-strip");
-for (const [id, label, value] of [["phaseText", "天象", "白昼"], ["waveText", "怪潮", "01:30"]]) {
+for (const [id, label, value, icon] of [["phaseText", "天象", "白昼", "icon-time"], ["waveText", "怪潮", "01:30", "icon-wave"]]) {
   const item = document.createElement("div");
-  item.className = "status cycle-status";
-  item.innerHTML = `<span>${label}</span><strong id="${id}">${value}</strong>`;
+  item.className = `status cycle-status ${id === "waveText" ? "wave-status" : "phase-status"}`;
+  item.innerHTML = `<span>${label}</span><div class="status-readout"><i class="art-icon status-art ${icon}" aria-hidden="true"></i><strong id="${id}">${value}</strong>${id === "waveText" ? '<small id="waveMeta">第 01 波</small>' : ""}</div>`;
   statusStrip.append(item);
 }
 
 const dom = Object.fromEntries([
-  "gameCanvas", "healthText", "healthFill", "coinsText", "threatText", "timeText", "phaseText", "waveText", "upgradeList", "damageStat", "rateStat", "rangeStat", "droneEnergyStat",
-  "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
+  "gameCanvas", "healthText", "healthFill", "coinsText", "threatText", "threatFill", "timeText", "phaseText", "waveText", "waveMeta", "upgradeList", "damageStat", "rateStat", "rangeStat", "droneEnergyStat", "topbar", "topbarToggle", "upgradePanel", "upgradePanelToggle",
+  "skillBar", "skillBarToggle", "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
   "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "deleteLocalSaveButton", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "gameOverTitle", "gameOverLine", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore", "resultScoreMultiplier", "resultSealAchievement", "endEndlessButton",
@@ -923,6 +923,10 @@ function finishStoryIntro() {
   introOpen = false;
   dom.storyIntro.classList.add("hidden");
   dom.storyIntro.classList.remove("scene-playing");
+  if (!previewMode && save.settings.introSeen !== true) {
+    save.settings.introSeen = true;
+    persistSave();
+  }
   if (resumeAfterIntro && !state.over && !techTreeOpen && !leaderboardModalOpen && !updatesModalOpen && !baseCampOpen && !relicChoiceOpen) state.paused = false;
   resumeAfterIntro = false;
   const nextFlow = pendingIntroFlow;
@@ -1989,7 +1993,9 @@ function activateSkill(key) {
       cancelStarfallAim();
       return;
     }
-    if (state.over) return;
+    if (state.over) {
+      return;
+    }
     if (state.skills.starfall.cooldown > 0) {
       showToast(`${SKILL_META.starfall.name}还需 ${Math.ceil(state.skills.starfall.cooldown)} 秒`);
       return;
@@ -2043,9 +2049,10 @@ function releaseStarfall(angle) {
 
 function canvasPoint(event) {
   const rect = dom.gameCanvas.getBoundingClientRect();
-  const scale = Math.min(rect.width / GAME_CONFIG.arena.width, rect.height / GAME_CONFIG.arena.height);
-  const offsetX = (rect.width - GAME_CONFIG.arena.width * scale) / 2;
-  const offsetY = (rect.height - GAME_CONFIG.arena.height * scale) / 2;
+  const viewport = getCombatViewport(rect.width, rect.height);
+  const scale = Math.min(viewport.width / GAME_CONFIG.arena.width, viewport.height / GAME_CONFIG.arena.height);
+  const offsetX = viewport.x + (viewport.width - GAME_CONFIG.arena.width * scale) / 2;
+  const offsetY = viewport.y + (viewport.height - GAME_CONFIG.arena.height * scale) / 2;
   return {
     x: (event.clientX - rect.left - offsetX) / scale,
     y: (event.clientY - rect.top - offsetY) / scale
@@ -2365,17 +2372,22 @@ function updateUi() {
   const hpRatio = Math.max(0, state.tower.hp / stats.maxHp);
   const totalShield = state.tower.shield + state.tower.droneGuardShield;
   const droneEnergyMax = getDroneEnergyMax(state);
-  dom.healthText.textContent = `${Math.ceil(state.tower.hp)} / ${Math.round(stats.maxHp)}${totalShield > 0.5 ? ` +${Math.ceil(totalShield)}盾` : ""}`;
+  dom.healthText.textContent = `${Math.ceil(state.tower.hp)}/${Math.round(stats.maxHp)}`;
+  dom.healthText.title = totalShield > 0.5 ? `护盾 ${Math.ceil(totalShield)}` : "";
   dom.healthFill.style.width = `${hpRatio * 100}%`;
   dom.healthFill.style.background = state.tower.shield > 0.5 ? "linear-gradient(90deg,#e9ffff,#68dfff)" : hpRatio < 0.3 ? "linear-gradient(90deg,#ff4f70,#ff9a72)" : "linear-gradient(90deg,#7ee8ff,#b48cff)";
   dom.coinsText.textContent = formatNumber(state.coins);
   updatePermanentResourceUi();
   dom.scoreText.textContent = formatScore(state.stats.score);
-  dom.threatText.textContent = formatThreat(state.threat);
+  const threatPercent = Math.min(100, Math.round(state.threat / GAME_CONFIG.sovereign.spawnThreat * 100));
+  dom.threatText.textContent = `${threatPercent}%`;
+  dom.threatFill.style.width = `${threatPercent}%`;
   dom.timeText.textContent = formatTime(state.time);
   dom.phaseText.textContent = state.phase === "day" ? "白昼" : "长夜";
   dom.phaseText.parentElement.classList.toggle("night", state.phase === "night");
   dom.waveText.textContent = state.wave.active ? "涌入中" : formatTime(Math.max(0, state.wave.nextAt - state.time));
+  dom.waveMeta.textContent = `${state.endlessMode ? "无尽 · " : ""}第 ${String(state.wave.index + (state.wave.active ? 0 : 1)).padStart(2, "0")} 波`;
+  dom.waveText.closest(".wave-status").classList.toggle("warning", state.wave.warningStarted || state.wave.active);
   renderRelicHud();
   renderThreatSealHud();
   dom.damageStat.textContent = Math.round(stats.damage);
@@ -2405,6 +2417,8 @@ function updateUi() {
   dom.droneModeButton.setAttribute("aria-pressed", String(droneAttacking));
   dom.droneModeButton.classList.toggle("attack", droneAttacking);
   dom.droneModeText.textContent = detonateActive ? "战术节点 · 自爆模式" : droneModeUnlocked ? (droneAttacking ? "战术节点 · 攻击模式" : "战术节点 · 护航模式") : "战术节点 · 攻击模式未解锁";
+  dom.droneModeButton.setAttribute("aria-label", `${dom.droneModeText.textContent}，快捷键 G`);
+  dom.droneModeButton.title = `${dom.droneModeText.textContent} · G`;
   const interceptText = state.tower.upgrades.droneIntercept > 0 ? ` · 拦截${state.tower.interceptCharge > 0 ? "就绪" : `${state.tower.interceptRecharge.toFixed(1)}s`}` : "";
   dom.droneModeHint.textContent = droneModeUnlocked
     ? (detonateActive
@@ -2424,6 +2438,8 @@ function updateUi() {
   dom.droneProtocolButton.setAttribute("aria-pressed", String(detonateActive));
   dom.droneProtocolButton.disabled = state.over || (!detonateActive && (state.tower.droneEnergy < GAME_CONFIG.drones.detonate.energyCost || readyDrones === 0));
   dom.droneProtocolText.textContent = detonateActive ? "自爆协议 · 已启动" : "自爆协议 · 待命";
+  dom.droneProtocolButton.setAttribute("aria-label", dom.droneProtocolText.textContent);
+  dom.droneProtocolButton.title = dom.droneProtocolText.textContent;
   dom.droneProtocolHint.textContent = detonateActive
     ? `恢复 ${getDroneDetonateRecovery(state).toFixed(1)}s · 可随时关闭`
     : readyDrones < state.drones.length ? `部分无人机恢复中 · ${getDroneDetonateRecovery(state).toFixed(1)}s` : `优先 Boss / 精英 · 每次消耗 ${GAME_CONFIG.drones.detonate.energyCost} 电量`;
@@ -2829,10 +2845,58 @@ function loop(now) {
 
 createUpgradeUi();
 createSkillUi();
+
+function setTopbarCollapsed(collapsed) {
+  if (!dom.topbar || !dom.topbarToggle || (collapsed && window.innerWidth <= 1180)) return;
+  dom.topbar.classList.toggle("is-collapsed", collapsed);
+  document.querySelector(".game-shell")?.classList.toggle("topbar-collapsed", collapsed);
+  dom.topbarToggle.setAttribute("aria-expanded", String(!collapsed));
+  dom.topbarToggle.setAttribute("aria-label", collapsed ? "展开顶部信息栏" : "收起顶部信息栏");
+  dom.topbarToggle.title = collapsed ? "展开顶部信息栏" : "收起顶部信息栏";
+}
+
+function setSidePanelCollapsed(collapsed) {
+  if (!dom.upgradePanel || !dom.upgradePanelToggle || (collapsed && window.innerWidth <= 1180)) return;
+  dom.upgradePanel.classList.toggle("is-collapsed", collapsed);
+  document.querySelector(".game-shell")?.classList.toggle("side-panel-collapsed", collapsed);
+  dom.upgradePanelToggle.setAttribute("aria-expanded", String(!collapsed));
+  dom.upgradePanelToggle.setAttribute("aria-label", collapsed ? "展开战术侧栏" : "折叠战术侧栏");
+  dom.upgradePanelToggle.title = collapsed ? "展开侧栏" : "折叠侧栏";
+}
+
+function setSkillBarCollapsed(collapsed) {
+  if (!dom.skillBar || !dom.skillBarToggle || (collapsed && window.innerWidth <= 1180)) return;
+  dom.skillBar.classList.toggle("is-collapsed", collapsed);
+  dom.skillBarToggle.setAttribute("aria-expanded", String(!collapsed));
+  dom.skillBarToggle.setAttribute("aria-label", collapsed ? "展开主动技能栏" : "收起主动技能栏");
+  dom.skillBarToggle.title = collapsed ? "展开主动技能栏" : "收起主动技能栏";
+}
+
+dom.upgradePanelToggle?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setSidePanelCollapsed(!dom.upgradePanel.classList.contains("is-collapsed"));
+});
+dom.skillBarToggle?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setSkillBarCollapsed(!dom.skillBar.classList.contains("is-collapsed"));
+});
+dom.topbarToggle?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setTopbarCollapsed(!dom.topbar.classList.contains("is-collapsed"));
+});
+window.addEventListener("resize", () => {
+  if (window.innerWidth <= 1180) {
+    setTopbarCollapsed(false);
+    setSidePanelCollapsed(false);
+    setSkillBarCollapsed(false);
+  }
+});
+
 dom.droneModeButton.addEventListener("click", switchDroneMode);
 dom.droneProtocolButton.addEventListener("click", switchDroneProtocol);
 for (const button of dom.targetProtocolList.children) button.addEventListener("click", () => switchTargetProtocol(button.dataset.protocol));
 updateUi();
+setTopbarCollapsed(window.innerWidth > 1180);
 if (previewMode === "tutorial-coin") showFirstRunTutorial(1, true);
 if (previewMode === "tutorial-upgrade") showFirstRunTutorial(2, true);
 if (previewMode === "tutorial-branches") showFirstRunTutorial(3, true);
@@ -2916,6 +2980,7 @@ document.addEventListener("keydown", (event) => {
   else if (event.key.toLowerCase() === "e") activateSkill("starfall");
   else if (event.key.toLowerCase() === "f") activateSkill("coinVacuum");
   else if (event.key.toLowerCase() === "r") cycleProtocol();
+  else if (!techTreeOpen && event.key.toLowerCase() === "g") switchDroneMode();
   else if (event.key.toLowerCase() === "x") toggleDoubleSpeed();
   else if (event.key.toLowerCase() === "t") setTechTreeOpen(!techTreeOpen, techTreeOpen);
   else if (event.key.toLowerCase() === "u") setUpdatesOpen(!updatesModalOpen, updatesModalOpen);
@@ -3136,7 +3201,8 @@ revealGameWhenReady().then(() => {
       startupFlow();
     }
   };
-  if (previewMode === "intro") showStoryIntro(continueStartup);
+  const shouldPlayOpening = previewMode === "intro" || (!previewMode && save.settings.introDisabled !== true);
+  if (shouldPlayOpening) showStoryIntro(continueStartup);
   else continueStartup();
 });
 

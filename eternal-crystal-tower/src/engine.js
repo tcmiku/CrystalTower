@@ -1,9 +1,10 @@
-import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, UPGRADE_ORDER } from "./config.js";
+import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, UPGRADE_ORDER, getArenaEdgePosition } from "./config.js";
 import { SeededRng } from "./rng.js";
 
 const ASCEND_NAMES = ["晶芽", "晶柱", "晶冠", "万象晶塔"];
 const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", cannonSiege: "破城炮膛", cannonCharge: "蓄能晶矢", cannonPierce: "贯星穿透", cannonWeakpoint: "弱点校准", cannonStarPiercer: "贯星炮", cannonSplit: "裂晶炮膛", cannonGrowth: "碎片增殖", cannonEcho: "晶爆回响", cannonCascade: "裂界连爆", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
 const SKILL_DAMAGE_SOURCES = new Set(["starfall", "overload", "shieldBurst"]);
+const BATCHED_HIT_FEEDBACK_SOURCES = new Set(["starfall", "cannonEcho", "cannonCascade"]);
 
 export function getThreatSealModifiers(equipped = []) {
   const ids = [...new Set((Array.isArray(equipped) ? equipped : []).filter((key) => Object.hasOwn(GAME_CONFIG.threatSeals, key)))];
@@ -394,13 +395,13 @@ function isBossEnemy(enemy) {
 }
 
 function spawnPosition(rng, forcedSide = null) {
-  const { width, height } = GAME_CONFIG.arena;
-  const side = forcedSide ?? Math.floor(rng.next() * 4);
-  const margin = 34;
-  if (side === 0) return { x: rng.next() * width, y: -margin };
-  if (side === 1) return { x: width + margin, y: rng.next() * height };
-  if (side === 2) return { x: rng.next() * width, y: height + margin };
-  return { x: -margin, y: rng.next() * height };
+  const ring = GAME_CONFIG.arena.spawnRing;
+  const directionAngles = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];
+  const angle = forcedSide == null
+    ? rng.next() * Math.PI * 2
+    : (directionAngles[forcedSide] ?? directionAngles[0]) + (rng.next() - 0.5) * ring.ingressArc;
+  const outwardOffset = rng.next() * ring.radialJitter;
+  return getArenaEdgePosition(angle, outwardOffset);
 }
 
 function isCrowdUnit(enemy) {
@@ -871,8 +872,13 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
   if (appliedDamage > 0) enemy.lastDamageSource = source;
   enemy.hitFlash = 0.09;
   const color = source === "starPiercer" ? "#fff3a8" : source === "starfall" ? "#fff1a8" : source === "drone" ? "#ffd36d" : source === "fire" ? "#ff9c5c" : source === "lightning" ? "#d9c5ff" : "#d9faff";
-  state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius, text: appliedDamage > 0.5 ? `${Math.round(appliedDamage)}` : "格挡", life: 0.55, color });
-  state.events.push({ type: "hit", source });
+  // Starfall can hit hundreds of enemies at once. Its caller emits one combined
+  // hit event and floater so a single cast does not allocate hundreds of DOM-
+  // independent audio nodes and canvas labels in the same frame.
+  if (!BATCHED_HIT_FEEDBACK_SOURCES.has(source)) {
+    state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius, text: appliedDamage > 0.5 ? `${Math.round(appliedDamage)}` : "格挡", life: 0.55, color });
+    state.events.push({ type: "hit", source });
+  }
   if (enemy.type === "colossus" && enemy.hp <= 0 && enemy.healthBar > 1) {
     enemy.healthBar -= 1;
     enemy.hp = enemy.maxHp;
@@ -1216,6 +1222,13 @@ function triggerCannonCascade(state, enemy) {
 }
 
 function resolveDeaths(state) {
+  let areaUnits = 0;
+  let areaEnemies = 0;
+  let areaScore = 0;
+  let areaX = 0;
+  let areaY = 0;
+  let areaIncludesStarfall = false;
+  let starfallEchoBudget = 8;
   for (const enemy of state.enemies) {
     if (enemy.hp > 0 || enemy.deadHandled) continue;
     enemy.deadHandled = true;
@@ -1242,7 +1255,16 @@ function resolveDeaths(state) {
     const baseScore = enemy.scoreValue ?? (GAME_CONFIG.score.enemy[enemy.type] ?? 100);
     const killScore = Math.round(baseScore * (enemy.elite ? GAME_CONFIG.score.eliteMultiplier : 1));
     state.stats.score += killScore;
-    state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius - 12, text: `+${killScore} 分`, life: 0.85, color: enemy.elite || isBossEnemy(enemy) ? "#ffe07a" : "#ffd7a0" });
+    if (BATCHED_HIT_FEEDBACK_SOURCES.has(enemy.lastDamageSource)) {
+      areaIncludesStarfall ||= enemy.lastDamageSource === "starfall";
+      areaUnits += defeatedUnits;
+      areaEnemies += 1;
+      areaScore += killScore;
+      areaX += enemy.x;
+      areaY += enemy.y;
+    } else {
+      state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius - 12, text: `+${killScore} 分`, life: 0.85, color: enemy.elite || isBossEnemy(enemy) ? "#ffe07a" : "#ffd7a0" });
+    }
     if (state.tower.upgrades.cannonCascade > 0 && enemy.lastDamageSource === "cannonEcho") {
       const cfg = GAME_CONFIG.cannon.split;
       state.tower.cannonEchoChain = state.tower.cannonEchoChainTimer > 0 ? state.tower.cannonEchoChain + defeatedUnits : defeatedUnits;
@@ -1257,17 +1279,22 @@ function resolveDeaths(state) {
     if (state.relics.owned.ember && (enemy.lastDamageSource === "fire" || enemy.lastDamageSource === "explosion")) {
       spawnEmberZone(state, enemy.x, enemy.y);
     }
-    if (state.tower.upgrades.cannonEcho > 0 && enemy.lastDamageSource !== "cannonEcho") {
+    const echoAllowed = enemy.lastDamageSource !== "starfall" || starfallEchoBudget > 0;
+    if (state.tower.upgrades.cannonEcho > 0 && enemy.lastDamageSource !== "cannonEcho" && echoAllowed) {
+      if (enemy.lastDamageSource === "starfall") starfallEchoBudget -= 1;
       const cfg = GAME_CONFIG.cannon.split;
       const radius = cfg.echoRadius;
       const damage = getTowerStats(state).damage * cfg.echoDamageMultiplier * state.tower.upgrades.cannonEcho;
       let hits = 0;
       for (const target of state.enemies) {
-        if (target === enemy || target.hp <= 0 || Math.hypot(target.x - enemy.x, target.y - enemy.y) > radius + target.radius) continue;
+        const dx = target.x - enemy.x;
+        const dy = target.y - enemy.y;
+        const reach = radius + target.radius;
+        if (target === enemy || target.hp <= 0 || dx * dx + dy * dy > reach * reach) continue;
         damageEnemy(state, target, damage, "cannonEcho");
         hits += 1;
       }
-      state.events.push({ type: "cannonEcho", x: enemy.x, y: enemy.y, radius, damage, hits });
+      if (hits > 0) state.events.push({ type: "cannonEcho", x: enemy.x, y: enemy.y, radius, damage, hits });
     }
     if (state.relics.owned.frostbloom && (enemy.freezeTimer ?? 0) > 0) {
       const cfg = GAME_CONFIG.relics.frostbloom;
@@ -1349,6 +1376,15 @@ function resolveDeaths(state) {
       }
       state.events.push({ type: "eliteSplit", x: enemy.x, y: enemy.y, count: cfg.count });
     }
+  }
+  if (areaUnits > 0) {
+    state.floaters.push({
+      x: areaX / areaEnemies,
+      y: areaY / areaEnemies - 18,
+      text: `${areaIncludesStarfall ? "星落连锁" : "晶爆连锁"} ×${areaUnits} · +${areaScore} 分`,
+      life: 1,
+      color: "#ffe59a"
+    });
   }
   state.enemies = state.enemies.filter((enemy) => !enemy.deadHandled);
 }
@@ -2649,6 +2685,10 @@ export function useSkill(state, key, options = {}) {
       hitTargets.push(enemy);
       damageEnemy(state, enemy, damage, "starfall");
       if (hasSkillResearchNode(state, "starfall", "starMark") && enemy.hp > 0) enemy.starMarkTimer = Math.max(enemy.starMarkTimer ?? 0, research.markDuration);
+    }
+    if (hitTargets.length > 0) {
+      state.floaters.push({ x: centerX + Math.cos(angle) * 112, y: centerY + Math.sin(angle) * 112, text: `星落命中 ×${hitTargets.length}`, life: .72, color: "#fff1a8" });
+      state.events.push({ type: "hit", source: "starfall", count: hitTargets.length });
     }
     if (hasSkillResearchNode(state, "starfall", "counterBurst") && (hitTargets.length >= research.followupMinHits || countered)) {
       const counterTarget = countered ? hitTargets.find((enemy) => enemy.type === "colossus") : null;

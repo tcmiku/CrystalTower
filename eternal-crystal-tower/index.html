@@ -51,17 +51,18 @@
       <div id="tutorialChoices" class="tutorial-choices"></div>
       <button id="tutorialDismiss" type="button">继续守望</button>
     </aside>
-    <main class="game-shell">
-      <header class="topbar">
+    <main class="game-shell topbar-collapsed">
+      <header id="topbar" class="topbar is-collapsed">
+        <button id="topbarToggle" class="topbar-toggle" type="button" aria-label="展开顶部信息栏" aria-expanded="false" title="展开顶部信息栏"><span aria-hidden="true">⌃</span></button>
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"></span>
           <div><h1>永耀晶塔</h1><p>守住光，直到最后一击</p></div>
         </div>
         <div class="status-strip" aria-label="战斗状态">
-          <div class="status health-status"><span><i class="art-icon status-art icon-health" aria-hidden="true"></i>晶塔</span><strong id="healthText">600 / 600</strong><div class="health-track"><i id="healthFill"></i></div></div>
-          <div class="status"><span><i class="art-icon status-art icon-coins" aria-hidden="true"></i>金币</span><strong id="coinsText">0</strong></div>
-          <div class="status"><span><i class="art-icon status-art icon-threat" aria-hidden="true"></i>威胁</span><strong id="threatText">Ⅰ</strong></div>
-          <div class="status"><span><i class="art-icon status-art icon-time" aria-hidden="true"></i>坚守</span><strong id="timeText">00:00</strong></div>
+          <div class="status health-status"><span>晶塔</span><div class="status-readout"><i class="art-icon status-art icon-health" aria-hidden="true"></i><strong id="healthText">600 / 600</strong></div><div class="health-track"><i id="healthFill"></i></div></div>
+          <div class="status coin-status"><span>金币</span><div class="status-readout"><i class="art-icon status-art icon-coins" aria-hidden="true"></i><strong id="coinsText">0</strong></div></div>
+          <div class="status threat-status"><span>威胁</span><div class="status-readout"><i class="art-icon status-art icon-threat" aria-hidden="true"></i><strong id="threatText">5%</strong></div><div class="threat-track"><i id="threatFill"></i></div></div>
+          <div class="status hold-status"><span>坚守</span><div class="status-readout"><i class="art-icon status-art icon-time" aria-hidden="true"></i><strong id="timeText">00:00</strong></div></div>
         </div>
         <div class="top-actions">
           <button id="openBaseCampButton" class="icon-button basecamp-button hidden" type="button" aria-label="打开大本营核心室" title="大本营"><span class="art-icon system-art icon-home" aria-hidden="true"></span></button>
@@ -86,10 +87,13 @@
           <div id="pauseOverlay" class="pause-overlay hidden"><strong>战场凝固</strong><span>点击右上角，或按 P / Esc 继续</span></div>
         </div>
 
-        <aside class="upgrade-panel">
+        <aside id="upgradePanel" class="upgrade-panel" aria-label="战术侧栏">
+          <button id="upgradePanelToggle" class="upgrade-panel-toggle" type="button" aria-label="折叠战术侧栏" aria-expanded="true" title="折叠侧栏">
+            <span aria-hidden="true">›</span>
+          </button>
           <div class="panel-heading"><div><span>防线中枢</span><h2>科技树</h2></div><span class="key-hint">T</span></div>
           <p class="tech-summary-copy">展开独立面板，查看完整分支、前置科技与威胁门槛。</p>
-          <button id="openTechTreeButton" class="tech-tree-launch" type="button" aria-haspopup="dialog" aria-controls="techTreePanel">
+          <button id="openTechTreeButton" class="tech-tree-launch" type="button" aria-haspopup="dialog" aria-controls="techTreePanel" title="打开科技树">
             <i class="art-icon system-art icon-tech-tree" aria-hidden="true"></i>
             <span><b>打开科技树</b><small>打开后自动暂停战斗</small></span><kbd>T</kbd>
           </button>
@@ -101,16 +105,17 @@
           <section class="target-protocol" aria-labelledby="targetProtocolTitle">
             <header><span id="targetProtocolTitle">目标协议</span><kbd>R</kbd></header>
             <div id="targetProtocolList" class="protocol-grid">
-              <button type="button" data-protocol="guard" aria-pressed="true"><i class="art-icon battle-art icon-guard" aria-hidden="true"></i><span><b>近卫</b><small>最近目标</small></span></button>
-              <button type="button" data-protocol="hunter" aria-pressed="false"><i class="art-icon battle-art icon-hunter" aria-hidden="true"></i><span><b>猎杀号</b><small>高价值目标</small></span></button>
-              <button type="button" data-protocol="breach" aria-pressed="false"><i class="art-icon battle-art icon-breach" aria-hidden="true"></i><span><b>破阵</b><small>最快接触</small></span></button>
-              <button type="button" data-protocol="radar" aria-pressed="false"><i class="art-icon battle-art icon-radar" aria-hidden="true"></i><span><b>雷达</b><small>远程单位</small></span></button>
+              <button type="button" data-protocol="guard" aria-pressed="true" title="近卫 · 最近目标"><i class="art-icon battle-art icon-guard" aria-hidden="true"></i><span><b>近卫</b><small>最近目标</small></span></button>
+              <button type="button" data-protocol="hunter" aria-pressed="false" title="猎杀号 · 高价值目标"><i class="art-icon battle-art icon-hunter" aria-hidden="true"></i><span><b>猎杀号</b><small>高价值目标</small></span></button>
+              <button type="button" data-protocol="breach" aria-pressed="false" title="破阵 · 最快接触"><i class="art-icon battle-art icon-breach" aria-hidden="true"></i><span><b>破阵</b><small>最快接触</small></span></button>
+              <button type="button" data-protocol="radar" aria-pressed="false" title="雷达 · 远程单位"><i class="art-icon battle-art icon-radar" aria-hidden="true"></i><span><b>雷达</b><small>远程单位</small></span></button>
             </div>
             <p id="targetProtocolHint">优先锁定距离晶塔最近的敌人。</p>
           </section>
           <button id="droneModeButton" class="drone-mode-button side-drone-mode" type="button" aria-pressed="false" disabled>
             <span class="art-icon battle-art drone-mode-icon" aria-hidden="true"></span>
             <span><b id="droneModeText">战术节点 · 攻击模式未解锁</b><small id="droneModeHint">需要晶塔磁吸核心</small><span class="drone-energy-track"><i id="droneEnergyFill"></i></span></span>
+            <kbd class="drone-shortcut">G</kbd>
           </button>
           <button id="droneProtocolButton" class="drone-protocol-button hidden" type="button" aria-pressed="false" disabled>
             <span class="art-icon battle-art drone-protocol-icon" aria-hidden="true"></span>
@@ -126,7 +131,8 @@
         </aside>
       </section>
 
-      <footer class="skill-bar">
+      <footer id="skillBar" class="skill-bar" aria-label="主动技能栏">
+        <button id="skillBarToggle" class="skill-bar-toggle" type="button" aria-label="收起主动技能栏" aria-expanded="true" title="收起主动技能栏"><span aria-hidden="true">⌄</span></button>
         <div class="objective"><span class="pulse-dot"></span><div><strong id="objectiveTitle">怪潮已至</strong><small id="objectiveText">晶塔会自动攻击。用金币加固防线。</small></div></div>
         <div id="skillList" class="skill-list"></div>
         <div class="seed-label">种子 <span id="seedText"></span></div>
