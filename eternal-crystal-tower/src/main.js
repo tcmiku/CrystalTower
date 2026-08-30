@@ -120,13 +120,30 @@ const RELIC_ICON_CELLS = Object.freeze({
   decoyWard: [0, 3], perpetualOverload: [1, 3], globalStarfall: [2, 3], omniversalPiercer: [3, 3],
   frostRift: [0, 4], droneDuplex: [1, 4], finalInsurance: [2, 4], breakthroughLimit: [3, 4]
 });
+const SIGNATURE_RELIC_ICON_ATLAS = "./assets/generated/relic-icons-signature-ai-v1.png";
+const SIGNATURE_RELIC_ICON_CELLS = Object.freeze({
+  perpetualOverload: 0,
+  globalStarfall: 1,
+  omniversalPiercer: 2,
+  frostRift: 3,
+  droneDuplex: 4,
+  finalInsurance: 5,
+  breakthroughLimit: 6
+});
 function relicIconMarkup(id, fallback = "", className = "relic-icon-sprite") {
   const classes = className.includes("relic-icon-sprite") ? className : `${className} relic-icon-sprite`;
   if (id === "boost:endless") return `<span class="${classes} relic-icon-standalone" aria-hidden="true" style="background-image:url('./assets/generated/relic-endless-amplifier-icon-ai-v1.png')"><span>${fallback}</span></span>`;
+  const signatureCell = SIGNATURE_RELIC_ICON_CELLS[id];
+  if (signatureCell !== undefined) {
+    const positionX = signatureCell / 6 * 100;
+    return `<span class="${classes}" aria-hidden="true" style="background-image:url('${SIGNATURE_RELIC_ICON_ATLAS}');background-size:700% 100%;background-position:${positionX}% 50%"><span>${fallback}</span></span>`;
+  }
   const cell = RELIC_ICON_CELLS[id];
   if (!cell) return `<span class="${classes} fallback" aria-hidden="true">${fallback}</span>`;
   const [column, row] = cell;
-  return `<span class="${classes}" aria-hidden="true" style="--icon-pos-x:${column / 3 * 100}%;--icon-pos-y:${row / 4 * 100}%;background-image:url('${RELIC_ICON_ATLAS}')"><span>${fallback}</span></span>`;
+  const positionX = column / 3 * 100;
+  const positionY = row / 4 * 100;
+  return `<span class="${classes}" aria-hidden="true" style="background-image:url('${RELIC_ICON_ATLAS}');background-position:${positionX}% ${positionY}%"><span>${fallback}</span></span>`;
 }
 const RELIC_SET_META = {
   prismArc: { name: "雷镜折光套", hint: "镜面裂片 + 雷脉导体", effect: "发现折光雷晶；登记后优先补齐三件套" },
