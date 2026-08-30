@@ -31,6 +31,11 @@ export const ENDLESS_RELICS = Object.freeze({
     name: "终焉保险协议", icon: "⬡", iconCell: [1, 1], basePrice: 72000, type: "生存协议",
     description: "致命伤时保留 1 点生命，恢复生命并获得护盾；每次商店刷新充能。",
     effect: "恢复 20% · 护盾 30% · 免疫 1s"
+  },
+  breakthroughLimit: {
+    name: "突破极限", icon: "✧", iconCell: [2, 1], basePrice: 90000, type: "禁制协议",
+    description: "解除科技树互斥限制，让原本互斥的研究路线可以同时接入。",
+    effect: "允许研究全部互斥科技 · 仅本次无尽挑战生效"
   }
 });
 

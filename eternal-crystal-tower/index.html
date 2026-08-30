@@ -71,7 +71,7 @@
           <button id="openUpdatesButton" class="icon-button updates-button" type="button" aria-label="查看游戏更新公告" aria-haspopup="dialog" aria-controls="updatesModal" aria-expanded="false" title="游戏更新公告"><span class="art-icon system-art icon-updates" aria-hidden="true"></span></button>
           <button id="accountButton" class="icon-button account-button" type="button" aria-label="游客账号" aria-haspopup="dialog" aria-controls="accountModal" aria-expanded="false" title="登录或注册"><span class="art-icon system-art icon-account" aria-hidden="true"></span></button>
           <button id="muteButton" class="icon-button" type="button" aria-label="静音"><span class="art-icon system-art icon-sound" aria-hidden="true"></span></button>
-          <button id="pauseButton" class="icon-button" type="button" aria-label="暂停"><span class="art-icon system-art icon-pause" aria-hidden="true"></span></button>
+          <button id="pauseButton" class="icon-button" type="button" aria-label="暂停" title="暂停 / 继续（空格）"><span class="art-icon system-art icon-pause" aria-hidden="true"></span></button>
         </div>
       </header>
 
@@ -92,7 +92,7 @@
           <button id="openLeaderboardButton" class="score-hud" type="button" aria-label="查看全服积分排行榜" aria-haspopup="dialog" aria-controls="leaderboardModal" aria-expanded="false" title="查看全服积分排行榜"><i class="art-icon system-art icon-trophy" aria-hidden="true"></i><span>SCORE · RANKING</span><strong id="scoreText">000000</strong></button>
           <div id="announcement" class="announcement" aria-live="polite"></div>
           <div id="toast" class="toast" aria-live="polite"></div>
-          <div id="pauseOverlay" class="pause-overlay hidden"><strong>战场凝固</strong><span>点击右上角，或按 P / Esc 继续</span></div>
+          <div id="pauseOverlay" class="pause-overlay hidden"><strong>战场凝固</strong><span>点击右上角，或按空格 / P / Esc 继续</span></div>
         </div>
 
         <aside id="upgradePanel" class="upgrade-panel" aria-label="战术侧栏">
@@ -156,6 +156,11 @@
           <button id="closeEndlessShopButton" type="button">返回战场 <kbd>M</kbd></button>
         </header>
         <div id="endlessShopLock" class="endless-shop-lock hidden"><strong>首领在场 · 交易锁定</strong><span>可以查看商品，击败首领后恢复购买。</span></div>
+        <aside class="endless-shop-merchant-rail" aria-label="老板娘弥罗">
+          <div class="endless-shop-merchant-sign"><span>SHOPKEEPER</span><strong>老板娘 · 弥罗</strong></div>
+          <div class="endless-shop-merchant-stage"><img src="./assets/generated/npc-rift-merchant-miro-portrait-ai-v1.png" alt="老板娘弥罗立绘"></div>
+          <div id="endlessShopBanter" class="endless-shop-banter" role="status" aria-live="polite">慢慢挑，越贵的越不容易后悔。</div>
+        </aside>
         <div class="endless-shop-grid">
           <section class="endless-shop-section signature"><header><span>SIGNATURE RELICS</span><h3>专属遗物</h3><b id="endlessRelicSlots">0 / 2</b></header><div id="endlessRelicOffers" class="endless-shop-list relics"></div></section>
           <section class="endless-shop-section"><header><span>STANDING STOCK</span><h3>固定商品</h3><b>持续强化</b></header><div id="endlessFixedOffers" class="endless-shop-list"></div></section>
@@ -371,7 +376,7 @@
           <p>升级构筑管理容量，为下一局禁用最多 3 件已发现遗物；套装登记仍会提高后续补件优先级。</p>
           <div class="archive-layout">
             <section class="archive-block"><header><span>EXCLUSION PROTOCOL</span><h4>下局禁用</h4><small>消耗遗响升级容量，最多禁用三件已发现遗物。</small></header><div id="relicArchiveDisabledList" class="archive-disable-list"></div></section>
-            <section class="archive-block archive-codex-block"><header><span>RELIC CODEX</span><h4>遗物图鉴</h4><small>未发现的隐藏回路只显示组合线索。</small></header><div id="relicArchiveCodexList" class="archive-codex-list"></div></section>
+            <section class="archive-block archive-codex-block"><header><span>RELIC CODEX</span><h4>遗物图鉴</h4><small>未发现的隐藏回路只显示组合线索；无尽传说在商店购买后登记。</small></header><div id="relicArchiveCodexList" class="archive-codex-list"></div></section>
             <section class="archive-block"><header><span>SET REGISTRY</span><h4>套装登记</h4><small>登记后，持有一件时会优先补出同套装组件。</small></header><div id="relicArchiveSetList" class="archive-set-list"></div></section>
           </div>
         </section>

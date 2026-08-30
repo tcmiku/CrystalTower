@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, relicArchiveCapacity, repairChapterNode, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
+import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverEndlessRelic, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, relicArchiveCapacity, repairChapterNode, researchCost, registerFailure, sanitizeLeaderboardMessage, sanitizePlayerName, sanitizeSave, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, SAVE_KEY, submitLeaderboardEntry, unlockDoubleSpeed, writeSave } from "../src/storage.js";
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -230,4 +230,16 @@ test("遗物档案馆升级后可安全保存最多三件禁用、发现与套�
   const forged = sanitizeSave({ ...save, relicArchive: { disabledRelic: "unknown", discovered: { prismArc: false }, registeredSets: { prismArc: true } } });
   assert.deepEqual(forged.relicArchive.disabledRelics, []);
   assert.equal(forged.relicArchive.registeredSets.prismArc, false);
+});
+
+test("无尽商店传说遗物发现后会持久写入遗物档案馆", () => {
+  const save = defaultSave();
+  assert.equal(save.relicArchive.endlessDiscovered.breakthroughLimit, false);
+  assert.equal(discoverEndlessRelic(save, "breakthroughLimit"), true);
+  assert.equal(discoverEndlessRelic(save, "breakthroughLimit"), false);
+  const safe = sanitizeSave(save);
+  assert.equal(safe.relicArchive.endlessDiscovered.breakthroughLimit, true);
+  const forged = sanitizeSave({ version: 1, relicArchive: { endlessDiscovered: { breakthroughLimit: true, unknown: true } } });
+  assert.equal(forged.relicArchive.endlessDiscovered.breakthroughLimit, true);
+  assert.equal(forged.relicArchive.endlessDiscovered.unknown, undefined);
 });

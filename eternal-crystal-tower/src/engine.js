@@ -272,7 +272,8 @@ export function getTechStatus(state, key) {
   const level = state.tower.upgrades[key];
   if (!cfg || level == null) return { unlocked: false, maxed: true, cost: Infinity, reason: "未知科技" };
   if (level >= cfg.maxLevel) return { unlocked: false, maxed: true, cost: Infinity, reason: "研究完成" };
-  const excluded = cfg.excludes?.find((excludedKey) => (state.tower.upgrades[excludedKey] ?? 0) > 0);
+  const limitBroken = state.endlessMode === true && state.endlessShop?.equippedRelics?.includes("breakthroughLimit");
+  const excluded = limitBroken ? null : cfg.excludes?.find((excludedKey) => (state.tower.upgrades[excludedKey] ?? 0) > 0);
   if (excluded) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), reason: `已选择${TECH_NAMES[excluded]}分支` };
   const requiredThreat = cfg.threat[level] ?? cfg.threat.at(-1);
   if (state.threat < requiredThreat) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, reason: `威胁 ${requiredThreat} 解锁` };

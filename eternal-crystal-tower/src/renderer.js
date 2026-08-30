@@ -533,18 +533,72 @@ export class Renderer {
     if (!aiming && skill.protocol === "global") {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = `rgba(146,102,255,${0.12 * releaseAlpha})`;
+      const arenaWidth = GAME_CONFIG.arena.width;
+      const arenaHeight = GAME_CONFIG.arena.height;
+      const arenaCenterX = arenaWidth / 2;
+      const arenaCenterY = arenaHeight / 2;
+      const globalPulse = Math.sin(releaseProgress * Math.PI);
+      const aperture = Math.min(1, releaseProgress * 3.2);
+      const collapse = Math.min(1, Math.max(0, (releaseProgress - .58) / .42));
+      ctx.fillStyle = `rgba(126,83,255,${(0.08 + globalPulse * .1) * releaseAlpha})`;
       ctx.fillRect(0, 0, GAME_CONFIG.arena.width, GAME_CONFIG.arena.height);
-      const living = state.enemies.filter((enemy) => enemy.hp > 0).slice(0, 28);
+
+      // A brief orbital aperture makes the protocol read as a battlefield-wide
+      // override rather than a larger directional cone.
+      ctx.save();
+      ctx.translate(arenaCenterX, arenaCenterY);
+      ctx.rotate(this.time * .32);
+      ctx.globalAlpha = (.24 + globalPulse * .46) * releaseAlpha;
+      ctx.lineWidth = 2.5;
+      for (let ring = 0; ring < 4; ring += 1) {
+        const radiusRing = 95 + aperture * 470 + ring * 23;
+        ctx.strokeStyle = ring % 2 ? "#c396ff" : "#fff0ad";
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = 16;
+        ctx.setLineDash([18 + ring * 4, 10 + ring * 2]);
+        ctx.beginPath(); ctx.arc(0, 0, radiusRing, ring * .7, Math.PI * 2 - ring * .32); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.globalAlpha = (.16 + globalPulse * .18) * releaseAlpha;
+      ctx.strokeStyle = "#9b76ff"; ctx.lineWidth = 1.2;
+      for (let ray = 0; ray < 16; ray += 1) {
+        const rayAngle = ray * Math.PI * 2 / 16 + this.time * .08;
+        const rayLength = 130 + aperture * 520;
+        ctx.beginPath(); ctx.moveTo(Math.cos(rayAngle) * 68, Math.sin(rayAngle) * 68); ctx.lineTo(Math.cos(rayAngle) * rayLength, Math.sin(rayAngle) * rayLength); ctx.stroke();
+      }
+      ctx.restore();
+
+      // The center shock ring peaks after the first impacts and contracts as
+      // the full-screen barrage resolves.
+      ctx.save();
+      ctx.globalAlpha = (globalPulse * .72 + collapse * .22) * releaseAlpha;
+      ctx.strokeStyle = "#fff4bf"; ctx.shadowColor = "#9d68ff"; ctx.shadowBlur = 22; ctx.lineWidth = 5 - collapse * 2.5;
+      ctx.beginPath(); ctx.arc(arenaCenterX, arenaCenterY, 38 + aperture * 570, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha *= .45; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(arenaCenterX, arenaCenterY, 72 + aperture * 470, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+
+      const living = state.enemies.filter((enemy) => enemy.hp > 0).slice(0, 36);
       living.forEach((enemy, index) => {
-        const fall = Math.max(0, Math.min(1, (releaseProgress + .1 - (index % 7) * .035) / .32));
+        const fall = Math.max(0, Math.min(1, (releaseProgress + .12 - (index % 9) * .028) / .34));
         if (fall <= 0) return;
-        const headY = enemy.y - (1 - fall) * 210;
-        ctx.globalAlpha = (1 - releaseProgress * .65) * .82;
+        const enemyAngle = Math.atan2(enemy.y - arenaCenterY, enemy.x - arenaCenterX);
+        const sourceRadius = 560 + (index % 5) * 42;
+        const sourceX = arenaCenterX + Math.cos(enemyAngle) * sourceRadius;
+        const sourceY = arenaCenterY + Math.sin(enemyAngle) * sourceRadius;
+        const headX = sourceX + (enemy.x - sourceX) * fall;
+        const headY = sourceY + (enemy.y - sourceY) * fall;
+        ctx.globalAlpha = (1 - releaseProgress * .62) * (.56 + fall * .42) * releaseAlpha;
         ctx.strokeStyle = index % 2 ? "#d8b9ff" : "#fff0a6";
-        ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.moveTo(enemy.x - 34, headY - 72); ctx.lineTo(enemy.x, headY); ctx.stroke();
-        ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius + 8 + fall * 12, 0, Math.PI * 2); ctx.stroke();
+        ctx.shadowColor = "#9d68ff"; ctx.shadowBlur = 12; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(sourceX, sourceY); ctx.lineTo(headX, headY); ctx.stroke();
+        ctx.strokeStyle = "#fff8d2"; ctx.shadowBlur = 5; ctx.lineWidth = 1.7;
+        ctx.beginPath(); ctx.moveTo(sourceX, sourceY); ctx.lineTo(headX, headY); ctx.stroke();
+        ctx.globalAlpha = (1 - releaseProgress * .68) * releaseAlpha;
+        ctx.strokeStyle = index % 2 ? "#c79aff" : "#ffe89c"; ctx.lineWidth = 2.2; ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius + 10 + fall * 17, 0, Math.PI * 2); ctx.stroke();
+        ctx.save(); ctx.translate(headX, headY); ctx.rotate(enemyAngle + Math.PI / 2);
+        ctx.fillStyle = "#fff8ce"; ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(4, 0); ctx.lineTo(0, 7); ctx.lineTo(-4, 0); ctx.closePath(); ctx.fill(); ctx.restore();
       });
       ctx.restore();
       return;

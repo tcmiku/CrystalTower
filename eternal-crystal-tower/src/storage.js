@@ -1,10 +1,13 @@
 import { GAME_CONFIG } from "./config.js";
+import { ENDLESS_RELICS } from "./endless-shop.js";
 
 export const SAVE_KEY = "eternal-crystal-tower.save.v1";
 
 function relicIds() {
   return [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)];
 }
+
+const endlessRelicIds = () => Object.keys(ENDLESS_RELICS);
 
 export function defaultSave() {
   return {
@@ -20,6 +23,7 @@ export function defaultSave() {
       exclusionLevel: 0,
       upgrades: Object.fromEntries(relicIds().map((key) => [key, 0])),
       discovered: Object.fromEntries(relicIds().map((key) => [key, false])),
+      endlessDiscovered: Object.fromEntries(endlessRelicIds().map((key) => [key, false])),
       registeredSets: Object.fromEntries(Object.keys(GAME_CONFIG.relicCombos).map((key) => [key, false]))
     },
     unlocks: { doubleSpeed: false },
@@ -87,6 +91,9 @@ export function sanitizeSave(candidate) {
     const wasUnlocked = legacyRelicArchive && Object.hasOwn(GAME_CONFIG.relicResearch, key) && candidate.relicUnlocks?.[key] === true;
     safe.relicArchive.discovered[key] = candidate.relicArchive?.discovered?.[key] === true || wasUnlocked;
     safe.relicArchive.upgrades[key] = boundedInt(candidate.relicArchive?.upgrades?.[key], 0, GAME_CONFIG.relicUpgradeResearch.maxLevel);
+  }
+  for (const key of endlessRelicIds()) {
+    safe.relicArchive.endlessDiscovered[key] = candidate.relicArchive?.endlessDiscovered?.[key] === true;
   }
   for (const key of Object.keys(GAME_CONFIG.relicCombos)) {
     safe.relicArchive.registeredSets[key] = safe.relicArchive.discovered[key] && candidate.relicArchive?.registeredSets?.[key] === true;
@@ -395,6 +402,15 @@ export function discoverHiddenRelic(save, id) {
   save.relicArchive ??= defaultSave().relicArchive;
   if (save.relicArchive.discovered[id]) return false;
   save.relicArchive.discovered[id] = true;
+  return true;
+}
+
+export function discoverEndlessRelic(save, id) {
+  if (!endlessRelicIds().includes(id)) return false;
+  save.relicArchive ??= defaultSave().relicArchive;
+  save.relicArchive.endlessDiscovered ??= Object.fromEntries(endlessRelicIds().map((key) => [key, false]));
+  if (save.relicArchive.endlessDiscovered[id] === true) return false;
+  save.relicArchive.endlessDiscovered[id] = true;
   return true;
 }
 

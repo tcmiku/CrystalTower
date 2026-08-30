@@ -206,6 +206,25 @@ test("晶塔火力炮膛分支互斥并提供首领/怪潮两套专精", () => {
   assert.equal(purchaseUpgrade(split, "cannonCascade"), true);
 });
 
+test("突破极限解除无尽模式科技树互斥限制", () => {
+  const state = createGameState(183);
+  state.endlessMode = true;
+  state.threat = 30;
+  state.coins = 100_000;
+  state.endlessShop.equippedRelics = ["breakthroughLimit"];
+  state.tower.upgrades.damage = 3;
+  state.tower.upgrades.saw = 3;
+
+  assert.equal(getTechStatus(state, "cannonSiege").unlocked, true);
+  assert.equal(purchaseUpgrade(state, "cannonSiege"), true);
+  assert.equal(getTechStatus(state, "cannonSplit").unlocked, true);
+  assert.equal(purchaseUpgrade(state, "cannonSplit"), true);
+
+  state.tower.upgrades.sawOverdrive = 1;
+  assert.equal(getTechStatus(state, "sawLaunch").unlocked, true);
+  assert.equal(purchaseUpgrade(state, "sawLaunch"), true);
+});
+
 test("破城炮膛蓄能与穿透会强化连续单体攻击", () => {
   const state = createGameState(503);
   state.threat = 12; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.hp = 1_000_000;

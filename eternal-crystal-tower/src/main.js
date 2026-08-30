@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
-import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
+import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverEndlessRelic, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
@@ -110,6 +110,24 @@ const RELIC_META = {
   "boost:hybrid": { icon: "✧", art: "./assets/generated/relic-boost-ai.png", name: "双相增幅", type: "缺口强化", description: "栏位多于已解锁遗物，将富余能量均衡分配。", effect: "本局攻击力 +4% · 攻速 +3%" },
   "boost:endless": { icon: "∞", art: "./assets/generated/relic-endless-amplifier-ai.png", name: "无界增幅核", type: "无尽专属 · 无限叠层", description: "每肃清一轮无尽怪潮，核心便复制一层火力回路；不占用遗物栏位。", effect: "每层攻击力 +8% · 攻击速度 +5%" }
 };
+// v2 uses transparent gutters around every emblem so sprite crops cannot pick up
+// neighboring glow or edge fragments in the archive and HUD.
+const RELIC_ICON_ATLAS = "./assets/generated/relic-icons-atlas-ai-v2.png";
+const RELIC_ICON_CELLS = Object.freeze({
+  decoy: [0, 0], lunar: [1, 0], mirror: [2, 0], ember: [3, 0],
+  ward: [0, 1], frostbloom: [1, 1], stormglass: [2, 1], gilded: [3, 1],
+  execution: [0, 2], hourglass: [1, 2], prismArc: [2, 2], frostfire: [3, 2],
+  decoyWard: [0, 3], perpetualOverload: [1, 3], globalStarfall: [2, 3], omniversalPiercer: [3, 3],
+  frostRift: [0, 4], droneDuplex: [1, 4], finalInsurance: [2, 4], breakthroughLimit: [3, 4]
+});
+function relicIconMarkup(id, fallback = "", className = "relic-icon-sprite") {
+  const classes = className.includes("relic-icon-sprite") ? className : `${className} relic-icon-sprite`;
+  if (id === "boost:endless") return `<span class="${classes} relic-icon-standalone" aria-hidden="true" style="background-image:url('./assets/generated/relic-endless-amplifier-icon-ai-v1.png')"><span>${fallback}</span></span>`;
+  const cell = RELIC_ICON_CELLS[id];
+  if (!cell) return `<span class="${classes} fallback" aria-hidden="true">${fallback}</span>`;
+  const [column, row] = cell;
+  return `<span class="${classes}" aria-hidden="true" style="--icon-pos-x:${column / 3 * 100}%;--icon-pos-y:${row / 4 * 100}%;background-image:url('${RELIC_ICON_ATLAS}')"><span>${fallback}</span></span>`;
+}
 const RELIC_SET_META = {
   prismArc: { name: "雷镜折光套", hint: "镜面裂片 + 雷脉导体", effect: "发现折光雷晶；登记后优先补齐三件套" },
   frostfire: { name: "霜烬轮回套", hint: "霜葬花冠 + 余烬回收", effect: "发现霜烬共生核；登记后优先补齐三件套" },
@@ -168,7 +186,7 @@ const dom = Object.fromEntries([
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
   "baseCampModal", "baseCampShell", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "baseCampModuleList", "baseCampModulePage", "closeBaseCampModuleButton", "baseCampModulePageIcon", "baseCampModulePageKicker", "baseCampModulePageTitle", "baseCampModulePageSummary", "baseCampModulePageStatus", "campaignPanel", "campaignProgressText", "chapterNodeList", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "threatSealPanel", "threatSealUnlockStatus", "threatSealList", "sealScoreMultiplier", "sealResourceMultiplier", "sealRelicChance", "sealAchievementMultiplier", "sealEquippedSummary", "sealAchievementProgress", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "relicResearchTab", "skillResearchTab", "relicResearchView", "skillResearchView", "activeSkillResearchList", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "chapterCompleteModal", "chapterCoreAwardStatus", "finishExpeditionButton", "startEndlessButton",
   "relicRunHud", "threatSealHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList", "relicChoiceKeys",
-  "endlessShopHud", "openEndlessShopButton", "toggleAutoCoinButton", "endlessShopModal", "closeEndlessShopButton", "endlessShopCoins", "endlessShopStage", "endlessShopLock", "endlessRelicSlots", "endlessRelicOffers", "endlessFixedOffers", "endlessRandomOffers", "endlessShopSpent", "rerollEndlessShopButton", "endlessShopRerollPrice"
+  "endlessShopHud", "openEndlessShopButton", "toggleAutoCoinButton", "endlessShopModal", "closeEndlessShopButton", "endlessShopCoins", "endlessShopStage", "endlessShopLock", "endlessRelicSlots", "endlessRelicOffers", "endlessFixedOffers", "endlessRandomOffers", "endlessShopSpent", "rerollEndlessShopButton", "endlessShopRerollPrice", "endlessShopBanter"
 ].map((id) => [id, document.getElementById(id)]));
 
 const BASECAMP_MODULES = [
@@ -687,6 +705,7 @@ let restoreDoubleSpeedAfterSovereign = false;
 let chapterCompleteOpen = false;
 let chapterClearWasFirst = false;
 let endlessShopOpen = false;
+let endlessShopBanterTimer = null;
 let resumeAfterEndlessShop = false;
 const firstRunTutorial = save.records.totalKills === 0 && !previewMode;
 let tutorialStep = 0;
@@ -1139,7 +1158,8 @@ function selectTechBranch(branchKey, focusNode = true) {
   stage.style.setProperty("--tech-rows", layout.rows);
   const heading = document.createElement("header");
   heading.className = "tech-stage-heading";
-  heading.innerHTML = `<span class="tech-stage-branch-art" aria-hidden="true"></span><div><h3>${branch.name}</h3><p>${branch.routes?.join("　/　") || branch.subtitle}</p></div>`;
+  const limitStatus = hasEndlessRelic(state, "breakthroughLimit") ? "　·　突破极限：互斥已解除" : "";
+  heading.innerHTML = `<span class="tech-stage-branch-art" aria-hidden="true"></span><div><h3>${branch.name}</h3><p>${branch.routes?.join("　/　") || branch.subtitle}${limitStatus}</p></div>`;
   applyTechIconArt(heading.querySelector(".tech-stage-branch-art"), branch.artKey);
   const graph = document.createElement("div");
   graph.className = "tech-graph";
@@ -1214,7 +1234,8 @@ function updateTechDetail() {
   detail.querySelector("h3").textContent = meta.name;
   detail.querySelector(".tech-detail-description").textContent = meta.description;
   const nextThreat = cfg.threat[level] ?? cfg.threat.at(-1);
-  detail.querySelector(".tech-detail-facts").innerHTML = `<div><dt>研究进度</dt><dd>${level} / ${meta.max}</dd></div><div><dt>本级效果</dt><dd>${level > 0 ? `${meta.description} · 已生效 ${level} 级` : "尚未研究"}</dd></div><div><dt>下一等级</dt><dd>${status.maxed ? "全部等级已完成" : meta.description}</dd></div><div><dt>金币成本</dt><dd>${status.maxed ? "—" : `${formatNumber(status.cost)} 金币`}</dd></div><div><dt>威胁要求</dt><dd>${status.maxed ? "已满足" : `威胁 ${formatThreat(nextThreat)}`}</dd></div><div><dt>晶塔等级</dt><dd>${cfg.towerLevel ? `${cfg.towerLevel} 级` : "无"}</dd></div><div><dt>前置科技</dt><dd>${techRequirementsText(key)}</dd></div><div><dt>互斥科技</dt><dd>${cfg.excludes?.map((excluded) => UPGRADE_META[excluded].name).join("、") || "无"}</dd></div>`;
+  const exclusionText = cfg.excludes?.length ? (hasEndlessRelic(state, "breakthroughLimit") ? "已解除 · 突破极限" : cfg.excludes.map((excluded) => UPGRADE_META[excluded].name).join("、")) : "无";
+  detail.querySelector(".tech-detail-facts").innerHTML = `<div><dt>研究进度</dt><dd>${level} / ${meta.max}</dd></div><div><dt>本级效果</dt><dd>${level > 0 ? `${meta.description} · 已生效 ${level} 级` : "尚未研究"}</dd></div><div><dt>下一等级</dt><dd>${status.maxed ? "全部等级已完成" : meta.description}</dd></div><div><dt>金币成本</dt><dd>${status.maxed ? "—" : `${formatNumber(status.cost)} 金币`}</dd></div><div><dt>威胁要求</dt><dd>${status.maxed ? "已满足" : `威胁 ${formatThreat(nextThreat)}`}</dd></div><div><dt>晶塔等级</dt><dd>${cfg.towerLevel ? `${cfg.towerLevel} 级` : "无"}</dd></div><div><dt>前置科技</dt><dd>${techRequirementsText(key)}</dd></div><div><dt>互斥科技</dt><dd>${exclusionText}</dd></div>`;
   const route = detail.querySelector(".tech-detail-route");
   route.classList.toggle("hidden", !status.reason || status.unlocked || status.maxed);
   route.textContent = !status.unlocked && !status.maxed ? `首要缺口 · ${status.reason}` : "";
@@ -1918,10 +1939,13 @@ function renderRelicArchive() {
   if (!dom.relicArchivePanel) return;
   const hiddenIds = new Set(Object.keys(GAME_CONFIG.relicCombos));
   const discovered = (id) => save.relicArchive.discovered[id] === true;
-  const discoveredCount = configuredRelicIds().filter(discovered).length;
+  const endlessIds = Object.keys(ENDLESS_RELICS);
+  const endlessDiscovered = save.relicArchive.endlessDiscovered ?? {};
+  const archiveTotal = configuredRelicIds().length + endlessIds.length;
+  const discoveredCount = configuredRelicIds().filter(discovered).length + endlessIds.filter((id) => endlessDiscovered[id] === true).length;
   const disabledRelics = save.relicArchive.disabledRelics ?? [];
   const disabledCapacity = relicArchiveCapacity(save);
-  dom.relicArchiveProgress.textContent = `${discoveredCount} / ${configuredRelicIds().length}`;
+  dom.relicArchiveProgress.textContent = `${discoveredCount} / ${archiveTotal}`;
 
   dom.relicArchiveDisabledList.replaceChildren();
   const upgrade = document.createElement("button");
@@ -1949,7 +1973,7 @@ function renderRelicArchive() {
     const disabled = disabledRelics.includes(id);
     button.classList.toggle("active", disabled);
     button.disabled = !disabled && disabledRelics.length >= disabledCapacity;
-    button.innerHTML = `<i>${meta.icon}</i><span><strong>${meta.name}</strong><small>${disabled ? "已从下一局候选池排除" : button.disabled ? "禁用容量已满" : "点击加入下局禁用列表"}</small></span>`;
+    button.innerHTML = `${relicIconMarkup(id, meta.icon, "archive-disable-icon")}<span><strong>${meta.name}</strong><small>${disabled ? "已从下一局候选池排除" : button.disabled ? "禁用容量已满" : "点击加入下局禁用列表"}</small></span>`;
     button.addEventListener("click", () => { if (!setDisabledRelic(save, id)) return; persistSave(); audio.play("purchase"); renderRelicArchive(); });
     dom.relicArchiveDisabledList.append(button);
   }
@@ -1964,10 +1988,20 @@ function renderRelicArchive() {
     card.className = `archive-codex-card ${relicRarityClass(level)}${known ? " discovered" : " locked"}${hidden ? " hidden-relic" : ""}`;
     const combo = hidden ? RELIC_SET_META[id] : null;
     card.innerHTML = known
-      ? `<img src="${meta.art}" alt=""><span><small>${relicRarityName(level)} · +${level} · ${meta.type}</small><strong>${meta.name}</strong><p>${relicDescription(id, level)}</p><b>${relicEffect(id, level)}</b></span>`
+      ? `${relicIconMarkup(id, meta.icon, "archive-relic-icon")}<span><small>${relicRarityName(level)} · +${level} · ${meta.type}</small><strong>${meta.name}</strong><p>${relicDescription(id, level)}</p><b>${relicEffect(id, level)}</b></span>`
       : hidden
         ? `<div class="archive-silhouette">?</div><span><small>隐藏回路 · 未发现</small><strong>未知遗物</strong><p>组合线索：${combo.hint}</p><b>在同一局装配两件基础遗物</b></span>`
-        : `<div class="archive-silhouette">◇</div><span><small>尚未发现</small><strong>${meta.name}</strong><p>该遗物已在候选池开放，获得一次后即可管理与强化。</p><b>进入战局寻找遗物</b></span>`;
+        : `${relicIconMarkup(id, meta.icon, "archive-relic-icon locked")}<span><small>尚未发现</small><strong>${meta.name}</strong><p>该遗物已在候选池开放，获得一次后即可管理与强化。</p><b>进入战局寻找遗物</b></span>`;
+    dom.relicArchiveCodexList.append(card);
+  }
+  for (const id of endlessIds) {
+    const meta = ENDLESS_RELICS[id];
+    const known = endlessDiscovered[id] === true;
+    const card = document.createElement("article");
+    card.className = `archive-codex-card archive-endless-card ${known ? "discovered" : "locked"}`;
+    card.innerHTML = known
+      ? `${relicIconMarkup(id, meta.icon, "archive-endless-icon")}<span><small>无尽传说 · ${meta.type}</small><strong>${meta.name}</strong><p>${meta.description}</p><b>${meta.effect}</b></span>`
+      : `<div class="archive-endless-icon locked"><span>?</span></div><span><small>无尽传说 · 尚未发现</small><strong>${meta.name}</strong><p>在无尽商店购买后写入档案馆。</p><b>达到威胁 25 后寻找裂隙行商</b></span>`;
     dom.relicArchiveCodexList.append(card);
   }
 
@@ -2115,6 +2149,28 @@ function switchDroneProtocol() {
   updateUi();
 }
 
+const ENDLESS_SHOP_BANTER = Object.freeze({
+  idle: ["慢慢挑，越贵的越不容易后悔。", "别只盯着价格看，命可是无价的。"],
+  purchase: ["眼光不错，这件会让怪物重新考虑人生。", "成交。别说我没提醒你，它很贵但确实好用。", "收好啦，下一波怪潮会替我验货。"],
+  reroll: ["换一批？行，但裂隙手续费可不会消失。", "重新摆货完毕，今天的好运要收费。"],
+  locked: ["老板在场，概不赊账。先把它请出场外。"],
+  poor: ["金币不够就先攒着，别让钱包发出惨叫。"],
+  full: ["两个专属位已经够挤了，再买就要打起来。"]
+});
+
+function setEndlessShopBanter(kind = "idle", detail = "") {
+  const bubble = dom.endlessShopBanter;
+  if (!bubble) return;
+  const lines = ENDLESS_SHOP_BANTER[kind] ?? ENDLESS_SHOP_BANTER.idle;
+  const line = lines[Math.floor(Math.random() * lines.length)];
+  bubble.textContent = detail ? `${line}（${detail}）` : line;
+  bubble.classList.remove("is-visible");
+  void bubble.offsetWidth;
+  bubble.classList.add("is-visible");
+  clearTimeout(endlessShopBanterTimer);
+  endlessShopBanterTimer = setTimeout(() => bubble.classList.remove("is-visible"), 6200);
+}
+
 function createEndlessShopCard(id, item, relic = false) {
   const status = getEndlessShopPurchaseStatus(state, id);
   const level = state.endlessShop.levels[id] ?? 0;
@@ -2126,11 +2182,24 @@ function createEndlessShopCard(id, item, relic = false) {
   const levelText = relic ? item.type : item.maxLevel === Infinity ? "即时补给" : `等级 ${level} / ${item.maxLevel}`;
   const effectText = relic ? item.effect : item.description;
   const [iconCol, iconRow] = item.iconCell ?? [0, 0];
-  button.innerHTML = `<span class="shop-item-icon" style="--icon-col:${iconCol};--icon-row:${iconRow}" aria-hidden="true"><img src="./assets/generated/endless-shop-icon-atlas-ai-v1.png" alt=""><span class="shop-item-icon-glyph">${item.icon}</span></span><span><small>${levelText}</small><strong>${item.name}</strong><p>${item.description}</p>${relic ? `<em>${effectText}</em>` : ""}<b>${formatNumber(status.price)} 金币</b>${status.allowed ? "" : `<em class="shop-item-status">${status.reason}</em>`}</span>`;
+  const iconMarkup = relic
+    ? relicIconMarkup(id, item.icon, "shop-item-icon relic-icon-sprite")
+    : `<span class="shop-item-icon" style="--icon-col:${iconCol};--icon-row:${iconRow}" aria-hidden="true"><img src="./assets/generated/endless-shop-icon-atlas-ai-v1.png" alt=""><span class="shop-item-icon-glyph">${item.icon}</span></span>`;
+  button.innerHTML = `${iconMarkup}<span><small>${levelText}</small><strong>${item.name}</strong><p>${item.description}</p>${relic ? `<em>${effectText}</em>` : ""}<b>${formatNumber(status.price)} 金币</b>${status.allowed ? "" : `<em class="shop-item-status">${status.reason}</em>`}</span>`;
   button.addEventListener("click", () => {
     const result = purchaseEndlessShopItem(state, id, getTowerStats(state));
-    if (!result.allowed) { showToast(result.reason); renderEndlessShop(); return; }
+    if (!result.allowed) {
+      const kind = result.reason.includes("金币") ? "poor" : result.reason.includes("栏") ? "full" : result.reason.includes("首领") ? "locked" : "idle";
+      setEndlessShopBanter(kind, result.reason);
+      showToast(result.reason); renderEndlessShop(); return;
+    }
     audio.play("purchase");
+    if (relic && discoverEndlessRelic(save, id)) {
+      persistSave();
+      renderRelicArchive();
+      announce(`${item.name} · 已写入遗物档案馆`);
+    }
+    setEndlessShopBanter("purchase", item.name);
     handleEvents(state.events);
     renderEndlessShop();
     updateUi();
@@ -2188,6 +2257,7 @@ function setEndlessShopOpen(open, restoreFocus = false) {
     state.paused = true;
     dom.pauseOverlay.classList.add("hidden");
     renderEndlessShop();
+    setEndlessShopBanter(bossPresent(state) ? "locked" : "idle");
     dom.closeEndlessShopButton.focus({ preventScroll: true });
   } else {
     state.paused = resumeAfterEndlessShop && !state.over ? false : state.paused;
@@ -2200,19 +2270,23 @@ function setEndlessShopOpen(open, restoreFocus = false) {
 
 function buyEndlessShopReroll() {
   const result = rerollEndlessShop(state);
-  if (!result.allowed) { showToast(result.reason); return; }
+  if (!result.allowed) {
+    setEndlessShopBanter(result.reason.includes("金币") ? "poor" : result.reason.includes("首领") ? "locked" : "idle", result.reason);
+    showToast(result.reason); return;
+  }
   audio.play("purchase");
+  setEndlessShopBanter("reroll");
   handleEvents(state.events);
   renderEndlessShop();
 }
 
-function createRelicHudChip({ icon, name, label = name, description, effect, rarityClass = "" }) {
+function createRelicHudChip({ id, icon, name, label = name, description, effect, rarityClass = "" }) {
   const chip = document.createElement("button");
   chip.type = "button";
   chip.className = `relic-run-chip ${rarityClass}`;
   chip.title = effect;
   chip.setAttribute("aria-label", `${name}：${effect}`);
-  chip.innerHTML = `<i aria-hidden="true">${icon}</i><span class="relic-run-name">${label}</span><span class="relic-run-tooltip" role="tooltip"><strong>${name}</strong><small>${description}</small><b>${effect}</b></span>`;
+  chip.innerHTML = `${relicIconMarkup(id, icon, "relic-run-icon")}<span class="relic-run-name">${label}</span><span class="relic-run-tooltip" role="tooltip"><strong>${name}</strong><small>${description}</small><b>${effect}</b></span>`;
   return chip;
 }
 
@@ -2227,11 +2301,12 @@ function renderRelicHud() {
   for (const id of owned) {
     const meta = RELIC_META[id];
     const level = state.relics.upgrades[id] ?? 0;
-    dom.relicRunHud.append(createRelicHudChip({ ...meta, description: relicDescription(id, level), effect: relicEffect(id, level), rarityClass: relicRarityClass(level) }));
+    dom.relicRunHud.append(createRelicHudChip({ id, ...meta, description: relicDescription(id, level), effect: relicEffect(id, level), rarityClass: relicRarityClass(level) }));
   }
   for (const id of endlessRelics) {
     const meta = ENDLESS_RELICS[id];
     dom.relicRunHud.append(createRelicHudChip({
+      id,
       icon: meta.icon,
       name: meta.name,
       label: id === "finalInsurance" ? `${meta.name} · ${state.endlessShop.insuranceCharges ? "就绪" : "耗尽"}` : meta.name,
@@ -2244,6 +2319,7 @@ function renderRelicHud() {
     const damage = Math.round(endlessStacks * GAME_CONFIG.relics.endless.damagePerStack * 100);
     const rate = Math.round(endlessStacks * GAME_CONFIG.relics.endless.ratePerStack * 100);
     dom.relicRunHud.append(createRelicHudChip({
+      id: "boost:endless",
       icon: "∞",
       name: "无界增幅核",
       label: `无界增幅核 ×${endlessStacks}`,
@@ -2257,6 +2333,7 @@ function renderRelicHud() {
     const damage = Math.round(regularDamageBonus * 100);
     const rate = Math.round(regularRateBonus * 100);
     dom.relicRunHud.append(createRelicHudChip({
+      id: "boost:hybrid",
       icon: "✧",
       name: "数值增幅",
       label: `火力 +${damage}% · 攻速 +${rate}%`,
@@ -2311,7 +2388,7 @@ function renderRelicChoice() {
     button.className = `relic-card ${id.startsWith("boost:") ? "" : relicRarityClass(level)}`;
     button.dataset.relic = id;
     const effect = id === "boost:endless" ? `${meta.effect} · 选择后达到 ${(state.relics.endlessStacks ?? 0) + 1} 层` : relicEffect(id, level);
-    button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" aria-hidden="true" decoding="async"></span><span class="relic-card-index">0${index + 1}</span><span class="relic-card-icon">${meta.icon}</span><span class="relic-card-body"><span class="relic-card-type">${id.startsWith("boost:") ? meta.type : `${relicRarityName(level)} · +${level} · ${meta.type}`}</span><h3>${meta.name}</h3><p>${relicDescription(id, level)}</p><span class="relic-card-effect">${effect}</span></span>`;
+    button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" aria-hidden="true" decoding="async"></span><span class="relic-card-index">0${index + 1}</span>${relicIconMarkup(id, meta.icon, "relic-card-icon")}<span class="relic-card-body"><span class="relic-card-type">${id.startsWith("boost:") ? meta.type : `${relicRarityName(level)} · +${level} · ${meta.type}`}</span><h3>${meta.name}</h3><p>${relicDescription(id, level)}</p><span class="relic-card-effect">${effect}</span></span>`;
     button.addEventListener("click", () => selectRunRelic(id));
     wrapper.append(button);
     if (!id.startsWith("boost:")) {
@@ -3159,6 +3236,7 @@ document.addEventListener("keydown", (event) => {
   else if (event.key.toLowerCase() === "t") setTechTreeOpen(!techTreeOpen, techTreeOpen);
   else if (event.key.toLowerCase() === "u") setUpdatesOpen(!updatesModalOpen, updatesModalOpen);
   else if (event.key === "Escape" && techTreeOpen) setTechTreeOpen(false, true);
+  else if (event.key === " " || event.code === "Space") { event.preventDefault(); togglePause(); }
   else if (event.key.toLowerCase() === "p" || event.key === "Escape") togglePause();
 });
 dom.openBaseCampButton.addEventListener("click", () => setBaseCampOpen(true));
