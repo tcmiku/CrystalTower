@@ -20,6 +20,84 @@
   --ui-secondary: #b5b8d0;
 }
 
+/* Endless-mode Rift Merchant: compact icon docked below the score card. */
+.endless-shop-hud { position:absolute; z-index:12; top:94px; right:18px; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+.endless-shop-icon-button { position:relative; width:54px; height:54px; padding:3px; overflow:visible; border:1px solid rgba(202,153,255,.72); border-radius:15px; color:#eee5ff; background:linear-gradient(145deg,rgba(37,17,73,.97),rgba(8,7,27,.98)); box-shadow:0 7px 24px rgba(27,7,51,.42), 0 0 18px rgba(156,95,255,.17), inset 0 1px rgba(255,255,255,.16); cursor:pointer; transition:transform .18s,border-color .18s,box-shadow .18s,filter .18s; }
+.endless-shop-icon-button:hover { transform:translateY(-2px) scale(1.03); border-color:#e3c6ff; box-shadow:0 10px 28px rgba(27,7,51,.5), 0 0 24px rgba(174,110,255,.34), inset 0 1px rgba(255,255,255,.22); }
+.endless-shop-icon-button:active { transform:scale(.97); }
+.endless-shop-icon-button img { display:block; width:100%; height:100%; object-fit:cover; object-position:50% 21%; border-radius:11px; background:radial-gradient(circle at 48% 34%,rgba(154,91,255,.32),rgba(11,7,33,.9) 72%); }
+.endless-shop-icon-button::before { content:""; position:absolute; inset:-4px; z-index:-1; border:1px solid rgba(168,113,255,.3); border-radius:18px; opacity:.75; animation:merchant-icon-pulse 2.4s ease-in-out infinite; }
+.endless-shop-icon-status { position:absolute; right:-3px; bottom:-3px; width:13px; height:13px; display:block; border:2px solid #0a0822; border-radius:50%; background:#8ff2d1; box-shadow:0 0 10px rgba(143,242,209,.8); }
+.endless-shop-icon-status[data-locked="true"] { background:#ff7180; box-shadow:0 0 10px rgba(255,113,128,.8); }
+.merchant-icon-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; }
+.endless-shop-icon-button kbd { position:absolute; right:4px; top:3px; padding:1px 3px; border:1px solid rgba(255,255,255,.38); border-radius:4px; color:#f7eaff; background:rgba(13,7,33,.74); font:800 7px ui-monospace,monospace; line-height:1; }
+.endless-shop-hud #toggleAutoCoinButton { min-width:54px; height:24px; display:flex; align-items:center; justify-content:center; gap:4px; padding:3px 7px; border:1px solid rgba(255,210,109,.42); border-radius:8px; color:#ffe6a1; background:rgba(29,19,39,.9); box-shadow:0 4px 14px rgba(27,7,51,.3); cursor:pointer; }
+.endless-shop-hud #toggleAutoCoinButton span { color:#ffd36d; font-size:12px; }
+.endless-shop-hud #toggleAutoCoinButton b { font-size:9px; }
+.endless-shop-hud #toggleAutoCoinButton[aria-pressed="false"] { filter:saturate(.45); opacity:.72; }
+@keyframes merchant-icon-pulse { 50% { transform:scale(1.06); opacity:.38; } }
+
+.endless-shop-modal { position:fixed; z-index:120; inset:0; display:grid; place-items:center; padding:18px; background:rgba(3,3,14,.84); backdrop-filter:blur(9px); }
+.endless-shop-shell { width:min(1180px,97vw); max-height:calc(100dvh - 28px); overflow:auto; padding:18px; border:1px solid rgba(189,137,255,.36); border-radius:18px; color:#f4efff; background:radial-gradient(circle at 18% 0,rgba(119,61,177,.18),transparent 32%),linear-gradient(155deg,rgba(23,12,46,.98),rgba(5,6,18,.99)); box-shadow:0 28px 90px rgba(0,0,0,.66),inset 0 0 50px rgba(124,75,185,.05); }
+.endless-shop-header { min-height:118px; display:grid; grid-template-columns:112px minmax(0,1fr) auto auto; align-items:center; gap:16px; padding:0 0 15px; border-bottom:1px solid rgba(255,255,255,.09); }
+.endless-shop-header > img { width:112px; height:112px; object-fit:cover; object-position:50% 18%; border:1px solid rgba(195,149,255,.42); border-radius:12px; box-shadow:0 0 24px rgba(126,76,209,.22); }
+.endless-shop-header span,.endless-shop-header h2,.endless-shop-header p { display:block; }
+.endless-shop-header > div > span { color:#c693ff; font:800 8px ui-monospace,monospace; letter-spacing:.18em; }
+.endless-shop-header h2 { margin:4px 0 5px; font-size:25px; }
+.endless-shop-header p { margin:0; color:#aaa1be; font-size:11px; }
+.endless-shop-wallet { min-width:130px; padding:10px 13px; border:1px solid rgba(255,204,100,.25); border-radius:10px; background:rgba(255,194,72,.055); text-align:right; }
+.endless-shop-wallet small,.endless-shop-wallet strong,.endless-shop-wallet span { display:block; }
+.endless-shop-wallet small { color:#9e95ae; font-size:8px; }
+.endless-shop-wallet strong { color:#ffe697; font:900 22px ui-monospace,monospace; }
+.endless-shop-wallet span { margin-top:3px; color:#cdbb8c; font-size:8px; }
+.endless-shop-header > button { align-self:start; padding:9px 12px; border:1px solid rgba(255,255,255,.14); border-radius:9px; color:#e9e3f7; background:rgba(255,255,255,.05); cursor:pointer; }
+.endless-shop-lock { margin:12px 0 0; padding:9px 13px; display:flex; justify-content:center; gap:10px; border:1px solid rgba(255,92,116,.4); border-radius:9px; color:#ffafbd; background:rgba(108,13,40,.16); font-size:10px; }
+.endless-shop-lock span { color:#b69aa5; }
+.endless-shop-grid { margin-top:14px; display:grid; grid-template-columns:1.25fr 1fr 1fr; gap:12px; }
+.endless-shop-section { min-width:0; padding:12px; border:1px solid rgba(255,255,255,.09); border-radius:13px; background:rgba(2,4,15,.42); }
+.endless-shop-section.signature { border-color:rgba(190,126,255,.22); background:linear-gradient(160deg,rgba(82,35,122,.14),rgba(2,4,15,.45)); }
+.endless-shop-section > header { display:grid; grid-template-columns:1fr auto; align-items:end; margin-bottom:9px; }
+.endless-shop-section > header span { grid-column:1 / -1; color:#a681cc; font:800 7px ui-monospace,monospace; letter-spacing:.17em; }
+.endless-shop-section > header h3 { margin:2px 0 0; font-size:15px; }
+.endless-shop-section > header b { color:#dcc4ff; font:800 9px ui-monospace,monospace; }
+.endless-shop-list { display:grid; gap:8px; }
+.endless-shop-card { width:100%; min-height:92px; display:grid; grid-template-columns:38px minmax(0,1fr); gap:8px; padding:9px; border:1px solid rgba(255,255,255,.1); border-radius:10px; color:#f4f0ff; background:rgba(255,255,255,.035); cursor:pointer; text-align:left; }
+.endless-shop-card:hover:not(:disabled) { transform:translateY(-1px); border-color:rgba(214,174,255,.58); background:rgba(174,108,255,.08); }
+.endless-shop-card:disabled { opacity:.52; cursor:not-allowed; }
+.endless-shop-card .shop-item-icon { position:relative; width:38px; height:38px; display:block; overflow:hidden; border:1px solid rgba(193,141,255,.35); border-radius:9px; color:#ead5ff; background:radial-gradient(circle at 50% 35%,rgba(145,91,224,.24),rgba(21,13,51,.9)); font-size:18px; isolation:isolate; }
+.endless-shop-card .shop-item-icon img { position:absolute; left:calc(var(--icon-col, 0) * -100%); top:calc(var(--icon-row, 0) * -100%); width:400%; height:300%; max-width:none; object-fit:fill; pointer-events:none; }
+.endless-shop-card .shop-item-icon-glyph { position:absolute; inset:0; display:grid; place-items:center; opacity:0; pointer-events:none; }
+.endless-shop-card:disabled .shop-item-icon { filter:saturate(.7); }
+.endless-shop-card small,.endless-shop-card strong,.endless-shop-card p,.endless-shop-card b,.endless-shop-card em { display:block; }
+.endless-shop-card small { color:#9f82bd; font:800 7px ui-monospace,monospace; letter-spacing:.08em; }
+.endless-shop-card strong { margin:2px 0 3px; font-size:11px; }
+.endless-shop-card p { min-height:28px; margin:0; color:#aaa4b9; font-size:8px; line-height:1.45; }
+.endless-shop-card em { margin-top:4px; color:#c8b6e0; font-size:8px; font-style:normal; }
+.endless-shop-card b { margin-top:5px; color:#ffe29a; font:900 10px ui-monospace,monospace; }
+.endless-shop-card .shop-item-status { color:#ff9fae; }
+.endless-shop-footer { margin-top:12px; padding-top:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid rgba(255,255,255,.08); }
+.endless-shop-footer > div strong,.endless-shop-footer > div span { display:block; }
+.endless-shop-footer > div strong { color:#ffe29a; font:900 11px ui-monospace,monospace; }
+.endless-shop-footer > div span { margin-top:3px; color:#8f899e; font-size:8px; }
+.endless-shop-footer > button { min-width:220px; padding:9px 12px; border:1px solid rgba(197,140,255,.35); border-radius:10px; color:#eee4ff; background:rgba(119,60,177,.12); cursor:pointer; text-align:left; }
+.endless-shop-footer > button span,.endless-shop-footer > button b,.endless-shop-footer > button small { display:block; }
+.endless-shop-footer > button span { font-size:9px; }.endless-shop-footer > button b { margin-top:2px; color:#ffe29a; font:900 11px ui-monospace,monospace; }.endless-shop-footer > button small { color:#988ba8; font-size:7px; }
+.endless-shop-footer > button:disabled { opacity:.45; cursor:not-allowed; }
+
+@media (max-width:900px) {
+  .endless-shop-grid { grid-template-columns:1fr; }
+  .endless-shop-header { grid-template-columns:74px minmax(0,1fr); }
+  .endless-shop-header > img { width:74px; height:74px; }
+  .endless-shop-wallet,.endless-shop-header > button { grid-column:auto; }
+  .endless-shop-list.relics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@media (max-width:620px) {
+  .endless-shop-modal { padding:6px; }.endless-shop-shell { padding:12px; border-radius:12px; }
+  .endless-shop-header { grid-template-columns:60px minmax(0,1fr); gap:9px; }.endless-shop-header > img { width:60px; height:60px; }.endless-shop-header h2 { font-size:19px; }
+  .endless-shop-wallet { min-width:0; }.endless-shop-list.relics { grid-template-columns:1fr; }.endless-shop-footer { align-items:stretch; flex-direction:column; }.endless-shop-footer > button { width:100%; min-width:0; }
+  .endless-shop-hud { top:86px; right:8px; }.endless-shop-icon-button { width:48px; height:48px; }.endless-shop-icon-button kbd { display:none; }
+}
+
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { margin: 0; min-width: 0; min-height: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); }
@@ -762,6 +840,7 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .tech-node.selected::after { border-color: rgba(225,251,255,.9); box-shadow: inset 0 0 14px rgba(3,5,20,.7),0 0 0 3px rgba(124,238,255,.15); }
 .tech-node .upgrade-icon,.tech-detail-icon { background-image: var(--tech-icon-sheet); background-size: var(--tech-icon-size-x) var(--tech-icon-size-y); background-position: var(--tech-icon-pos-x) var(--tech-icon-pos-y); background-repeat: no-repeat; }
 .tech-node .upgrade-icon.tech-icon-terminal,.tech-detail-icon.tech-icon-terminal { display:grid; place-items:center; background-image:none; color:#fff5c6; font-size:22px; font-weight:900; text-shadow:0 0 12px currentColor; }
+.tech-node .upgrade-icon.tech-icon-generated,.tech-detail-icon.tech-icon-generated { background-size: cover; background-position: center; background-repeat: no-repeat; filter: drop-shadow(0 0 7px rgba(171,114,255,.42)); }
 .tech-node .upgrade-icon { position: absolute; z-index: 1; inset: 6px; width: auto; height: auto; display: block; border: 0; border-radius: 50%; background-color: #090b24; box-shadow: inset 0 0 16px rgba(2,3,15,.7); }
 .tech-node-level { position: absolute; z-index: 3; left: 50%; bottom: -5px; transform: translateX(-50%); min-width: 28px; padding: 2px 5px; border: 1px solid rgba(159,219,238,.26); border-radius: 99px; color: #d4f8ff; background: rgba(4,6,22,.94); font: 800 8px ui-monospace,monospace; box-shadow: 0 3px 9px rgba(0,0,0,.5); }
 .tech-node-mark { position: absolute; z-index: 3; left: 0; top: 0; width: 17px; height: 17px; display: grid; place-items: center; border: 1px solid rgba(211,231,255,.2); border-radius: 50%; color: #ced0df; background: #151735; font-size: 9px; }
@@ -4540,6 +4619,8 @@ kbd {
   }
   .skill-bar.is-collapsed .skill-icon { opacity: .82; }
   .score-hud { right: 280px; }
+  .endless-shop-hud { right: 280px; }
+  .side-panel-collapsed .endless-shop-hud { right: 82px; }
 }
 
 @media (max-width: 1180px) {

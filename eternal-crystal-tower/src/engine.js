@@ -1,5 +1,6 @@
 import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, UPGRADE_ORDER, getArenaEdgePosition } from "./config.js";
 import { SeededRng } from "./rng.js";
+import { ENDLESS_SHOP_RULES, createEndlessShopState, hasEndlessRelic, refreshEndlessShop, releaseEndlessShopNotice } from "./endless-shop.js";
 
 const ASCEND_NAMES = ["晶芽", "晶柱", "晶冠", "万象晶塔"];
 const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", cannonSiege: "破城炮膛", cannonCharge: "蓄能晶矢", cannonPierce: "贯星穿透", cannonWeakpoint: "弱点校准", cannonStarPiercer: "贯星炮", cannonSplit: "裂晶炮膛", cannonGrowth: "碎片增殖", cannonEcho: "晶爆回响", cannonCascade: "裂界连爆", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
@@ -112,6 +113,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     colossusEncounter: { spawned: false, defeated: false },
     sovereignEncounter: { spawned: false, defeated: false },
     endlessMode: false,
+    endlessShop: createEndlessShopState(),
     threatSeals: { equipped: threatSealModifiers.ids, modifiers: threatSealModifiers, resourceCarry: { echo: 0, core: 0 } },
     skillResearch: Object.fromEntries(Object.keys(GAME_CONFIG.skills).map((key) => [key, normalizeSkillResearchEntry(key, skillResearch?.[key])])),
     tower: {
@@ -141,12 +143,13 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       cannonEchoChain: 0,
       cannonEchoChainTimer: 0,
       cannonCascadeCooldown: 0,
+      damageImmunity: 0,
       sawAngle: 0,
       upgrades: { damage: 0, rate: 0, ascend: 0, cannonSiege: 0, cannonCharge: 0, cannonPierce: 0, cannonWeakpoint: 0, cannonStarPiercer: 0, cannonSplit: 0, cannonGrowth: 0, cannonEcho: 0, cannonCascade: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
     },
     skills: {
       heal: { cooldown: 0, active: 0, burst: 0, shieldBurstArmed: false, damageReduction: 0 },
-      overload: { cooldown: 0, active: 0, heat: 0, slow: 0, pulse: 0, overheated: false },
+      overload: { cooldown: 0, active: 0, heat: 0, slow: 0, pulse: 0, overheated: false, permanentEngaged: false, unstable: 0 },
       starfall: { cooldown: 0, active: 0, angle: 0, aimAngle: 0, aiming: false, protocol: "manual" },
       coinVacuum: { cooldown: 0, active: 0, trails: [], collected: 0, value: 0, cooldownCredit: 0, fireRateBuff: 0, damageBuff: 0 }
     },
@@ -233,17 +236,19 @@ export function getTowerStats(state) {
   const permanentDamage = 1 + research.damage * cfg.research.bonusPerLevel;
   const permanentHealth = 1 + research.health * cfg.research.bonusPerLevel;
   const relicDamage = 1 + (state.relics?.damageBonus ?? 0);
+  const shopDamage = 1 + (state.endlessShop?.levels?.attackProtocol ?? 0) * 0.12;
   const pierceLevel = tower.upgrades.cannonPierce ?? 0;
   const phaseDamage = (state.relics?.phaseBuff ?? 0) > 0 ? cfg.relics.lunar.transitionDamageMultiplier : 1;
   const economyDamage = (state.skills?.coinVacuum?.damageBuff ?? 0) > 0 ? cfg.activeSkillResearch.coinVacuum.damageMultiplier : 1;
-  const damage = cfg.tower.damage * (cfg.upgrades.damage.multiplier ** tower.upgrades.damage) * cfg.upgrades.ascend.damage[level] * permanentDamage * relicDamage * phaseDamage * economyDamage;
+  const damage = cfg.tower.damage * (cfg.upgrades.damage.multiplier ** tower.upgrades.damage) * cfg.upgrades.ascend.damage[level] * permanentDamage * relicDamage * shopDamage * phaseDamage * economyDamage;
   const rawRate = cfg.tower.fireRate * (cfg.upgrades.rate.multiplier ** tower.upgrades.rate) * cfg.upgrades.ascend.rate[level];
   const relicRate = (1 + (state.relics?.rateBonus ?? 0)) * ((state.relics?.phaseBuff ?? 0) > 0 ? cfg.relics.lunar.transitionRateMultiplier : 1);
+  const shopRate = 1 + (state.endlessShop?.levels?.rateProtocol ?? 0) * 0.08;
   const suppression = (tower.fireRateSuppression ?? 0) > 0 ? cfg.sovereign.rangedSlowMultiplier : 1;
   const relicRateCap = state.endlessMode ? Infinity : cfg.upgrades.rate.cap * 1.5;
   return {
     damage,
-    fireRate: Math.min(relicRateCap, Math.min(cfg.upgrades.rate.cap, rawRate) * relicRate) * suppression,
+    fireRate: Math.min(relicRateCap, Math.min(cfg.upgrades.rate.cap, rawRate) * relicRate * shopRate) * suppression,
     range: cfg.tower.range + cfg.upgrades.ascend.rangePerLevel * level,
     maxHp: (cfg.tower.maxHp + cfg.upgrades.ascend.hpPerLevel * level) * permanentHealth,
     projectileCount: level >= 3 ? 3 : level >= 2 ? 2 : 1,
@@ -706,39 +711,131 @@ export function chooseRelic(state, id) {
 export function findTargets(state, count = 1) {
   const { x: centerX, y: centerY } = getTowerPosition(state);
   const range = getTowerStats(state).range;
-  const candidates = state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - centerX, enemy.y - centerY) <= range);
-  return rankTargets(state, candidates).slice(0, count);
+  const rangeSquared = range * range;
+  const candidates = state.enemies.filter((enemy) => {
+    if (enemy.hp <= 0) return false;
+    const dx = enemy.x - centerX;
+    const dy = enemy.y - centerY;
+    return dx * dx + dy * dy <= rangeSquared;
+  });
+  return rankTargets(state, candidates, count);
 }
 
-function rankTargets(state, candidates) {
+function rankTargets(state, candidates, limit = candidates.length) {
   const { x: centerX, y: centerY } = getTowerPosition(state);
   const towerRadius = getTowerRadius(state);
-  const distance = (enemy) => Math.hypot(enemy.x - centerX, enemy.y - centerY);
-  const lockedPriority = (enemy) => Number(state.tower.anchorLockTimer > 0 && enemy.id === state.tower.anchorLockId);
-  const hunterPriority = (enemy) => enemy.type === "sovereign" ? 5 : enemy.type === "colossus" ? 4 : enemy.type === "boss" ? 3 : enemy.elite ? 2 : enemy.type === "hexer" ? 1 : 0;
-  const contactTime = (enemy) => Math.max(0, distance(enemy) - towerRadius - enemy.radius - (enemy.attackRange ?? 0)) / Math.max(1, enemy.speed);
-  const radarPriority = (enemy) => Number((enemy.attackRange ?? 0) > 0);
-  return [...candidates].sort((a, b) => {
-    const locked = lockedPriority(b) - lockedPriority(a);
+  const protocol = state.tower.targetProtocol;
+  const lockActive = state.tower.anchorLockTimer > 0;
+  const ranked = candidates.map((enemy) => {
+    const distance = Math.hypot(enemy.x - centerX, enemy.y - centerY);
+    return {
+      enemy,
+      distance,
+      locked: Number(lockActive && enemy.id === state.tower.anchorLockId),
+      hunter: enemy.type === "sovereign" ? 5 : enemy.type === "colossus" ? 4 : enemy.type === "boss" ? 3 : enemy.elite ? 2 : enemy.type === "hexer" ? 1 : 0,
+      contact: Math.max(0, distance - towerRadius - enemy.radius - (enemy.attackRange ?? 0)) / Math.max(1, enemy.speed),
+      radar: Number((enemy.attackRange ?? 0) > 0)
+    };
+  });
+  const compare = (a, b) => {
+    const locked = b.locked - a.locked;
     if (locked) return locked;
-    if (state.tower.targetProtocol === "hunter") {
-      const threat = hunterPriority(b) - hunterPriority(a);
+    if (protocol === "hunter") {
+      const threat = b.hunter - a.hunter;
       if (threat) return threat;
-    } else if (state.tower.targetProtocol === "breach") {
-      const breach = contactTime(a) - contactTime(b);
+    } else if (protocol === "breach") {
+      const breach = a.contact - b.contact;
       if (Math.abs(breach) > 0.0001) return breach;
-    } else if (state.tower.targetProtocol === "radar") {
-      const ranged = radarPriority(b) - radarPriority(a);
+    } else if (protocol === "radar") {
+      const ranged = b.radar - a.radar;
       if (ranged) return ranged;
     }
-    return distance(a) - distance(b) || a.id - b.id;
-  });
+    return a.distance - b.distance || a.enemy.id - b.enemy.id;
+  };
+  const safeLimit = Math.max(0, Math.min(ranked.length, limit));
+  if (safeLimit === 0) return [];
+  if (safeLimit >= ranked.length) return ranked.sort(compare).map((entry) => entry.enemy);
+  const selected = [];
+  for (const entry of ranked) {
+    if (selected.length === safeLimit && compare(entry, selected[selected.length - 1]) >= 0) continue;
+    let index = selected.length;
+    while (index > 0 && compare(entry, selected[index - 1]) < 0) index -= 1;
+    selected.splice(index, 0, entry);
+    if (selected.length > safeLimit) selected.pop();
+  }
+  return selected.map((entry) => entry.enemy);
+}
+
+const ENEMY_SPATIAL_CELL_SIZE = 96;
+const EMPTY_SPATIAL_QUERY = Object.freeze([]);
+
+function buildEnemySpatialIndex(enemies) {
+  const rows = new Map();
+  let maxRadius = 0;
+  for (let index = 0; index < enemies.length; index += 1) {
+    const enemy = enemies[index];
+    if (enemy.hp <= 0) continue;
+    maxRadius = Math.max(maxRadius, enemy.radius);
+    const cellX = Math.floor(enemy.x / ENEMY_SPATIAL_CELL_SIZE);
+    const cellY = Math.floor(enemy.y / ENEMY_SPATIAL_CELL_SIZE);
+    let row = rows.get(cellY);
+    if (!row) { row = new Map(); rows.set(cellY, row); }
+    let bucket = row.get(cellX);
+    if (!bucket) { bucket = []; row.set(cellX, bucket); }
+    bucket.push(index);
+  }
+  return { rows, maxRadius };
+}
+
+function queryEnemySpatialIndex(index, x, y, radius = 0) {
+  if (!index || index.rows.size === 0) return EMPTY_SPATIAL_QUERY;
+  const reach = radius + index.maxRadius;
+  const minX = Math.floor((x - reach) / ENEMY_SPATIAL_CELL_SIZE);
+  const maxX = Math.floor((x + reach) / ENEMY_SPATIAL_CELL_SIZE);
+  const minY = Math.floor((y - reach) / ENEMY_SPATIAL_CELL_SIZE);
+  const maxY = Math.floor((y + reach) / ENEMY_SPATIAL_CELL_SIZE);
+  let candidates = null;
+  for (let cellY = minY; cellY <= maxY; cellY += 1) {
+    const row = index.rows.get(cellY);
+    if (!row) continue;
+    for (let cellX = minX; cellX <= maxX; cellX += 1) {
+      const bucket = row.get(cellX);
+      if (!bucket) continue;
+      candidates ??= [];
+      candidates.push(...bucket);
+    }
+  }
+  if (!candidates) return EMPTY_SPATIAL_QUERY;
+  if (candidates.length > 1) candidates.sort((a, b) => a - b);
+  return candidates;
 }
 
 function fireStarPiercer(state, target, damage) {
   const cfg = GAME_CONFIG.cannon.siege;
   const { x, y } = getTowerPosition(state);
   damageEnemy(state, target, damage * cfg.starPiercerDamageMultiplier, "starPiercer");
+  if (hasEndlessRelic(state, "omniversalPiercer") && !target.elite && !isBossEnemy(target) && target.hp < 0) {
+    const overflow = -target.hp;
+    const dx = target.x - x;
+    const dy = target.y - y;
+    const length = Math.hypot(dx, dy) || 1;
+    const nx = dx / length;
+    const ny = dy / length;
+    const next = state.enemies
+      .filter((enemy) => enemy !== target && enemy.hp > 0)
+      .map((enemy) => {
+        const offsetX = enemy.x - x;
+        const offsetY = enemy.y - y;
+        return { enemy, forward: offsetX * nx + offsetY * ny, lateral: Math.abs(offsetX * ny - offsetY * nx) };
+      })
+      .filter((candidate) => candidate.forward > length && candidate.lateral <= 70 + candidate.enemy.radius)
+      .sort((a, b) => a.forward - b.forward || a.enemy.id - b.enemy.id)[0];
+    if (next) {
+      damageEnemy(state, next.enemy, overflow, "starPiercer");
+      state.elementFx.push({ element: "starPiercer", x1: target.x, y1: target.y, x2: next.enemy.x, y2: next.enemy.y, life: cfg.starPiercerDuration, maxLife: cfg.starPiercerDuration });
+      state.events.push({ type: "cannonStarPiercerOverflow", fromId: target.id, targetId: next.enemy.id, damage: overflow, x1: target.x, y1: target.y, x2: next.enemy.x, y2: next.enemy.y });
+    }
+  }
   state.elementFx.push({ element: "starPiercer", x1: x, y1: y, x2: target.x, y2: target.y, life: cfg.starPiercerDuration, maxLife: cfg.starPiercerDuration });
   state.events.push({ type: "cannonStarPiercer", targetId: target.id, enemyType: target.type, elite: target.elite, x1: x, y1: y, x2: target.x, y2: target.y, damage: damage * cfg.starPiercerDamageMultiplier });
 }
@@ -777,7 +874,7 @@ function fireTower(state) {
   }
   for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
     const target = targets[targetIndex];
-    if (targetIndex === 0 && fullCharge && state.tower.upgrades.cannonStarPiercer > 0 && (target.elite || isBossEnemy(target))) {
+    if (targetIndex === 0 && fullCharge && state.tower.upgrades.cannonStarPiercer > 0 && (target.elite || isBossEnemy(target) || hasEndlessRelic(state, "omniversalPiercer"))) {
       fireStarPiercer(state, target, stats.damage * chargeMultiplier);
       state.tower.siegeStreak = 0;
       continue;
@@ -794,7 +891,7 @@ function fireTower(state) {
       mirrorReady: mirrorReady && targetIndex === 0
     });
   }
-  if (state.skills.overload.active > 0) {
+  if (state.skills.overload.active > 0 || state.skills.overload.permanentEngaged) {
     const config = GAME_CONFIG.skills.overload;
     const heatMultiplier = hasSkillResearchNode(state, "overload", "stabilizer") ? GAME_CONFIG.activeSkillResearch.overload.heatGainMultiplier : 1;
     state.skills.overload.heat = Math.min(config.heatCap, state.skills.overload.heat + config.heatPerVolley * heatMultiplier);
@@ -808,8 +905,9 @@ function rollProjectileElement(state) {
   if (!enabled.length) return null;
   const roll = state.rng.next();
   let cursor = 0;
+  const calibration = (state.endlessShop?.levels?.elementCalibrator ?? 0) * 0.03;
   for (const key of enabled) {
-    cursor += GAME_CONFIG.elements[key].chance;
+    cursor += GAME_CONFIG.elements[key].chance + calibration;
     if (roll < cursor) return key;
   }
   return null;
@@ -1153,7 +1251,8 @@ export function collectPermanentResourceAt(state, x, y, clickRadius = GAME_CONFI
 
 export function getDroneEnergyMax(state) {
   const batteryLevel = state?.tower?.upgrades?.droneBattery ?? 0;
-  return GAME_CONFIG.drones.energyMax + batteryLevel * GAME_CONFIG.drones.batteryCapacityPerLevel;
+  const base = GAME_CONFIG.drones.energyMax + batteryLevel * GAME_CONFIG.drones.batteryCapacityPerLevel;
+  return base * (hasEndlessRelic(state, "droneDuplex") ? ENDLESS_SHOP_RULES.droneEnergyMultiplier : 1);
 }
 
 export function getDroneGuardShieldMax(state) {
@@ -1211,6 +1310,11 @@ function triggerCannonCascade(state, enemy) {
   for (const target of state.enemies) {
     if (target === enemy || target.hp <= 0 || Math.hypot(target.x - enemy.x, target.y - enemy.y) > cfg.cascadeRadius + target.radius) continue;
     targets.push({ x: target.x, y: target.y });
+    if (hasEndlessRelic(state, "frostRift") && !(target.type === "colossus" && target.enraged) && !(target.type === "sovereign" && target.elementImmune)) {
+      const duration = isBossEnemy(target) ? 0.25 : target.elite ? 0.6 : 1;
+      target.freezeTimer = Math.max(target.freezeTimer ?? 0, duration);
+      target.frostCascadeFrozen = true;
+    }
     damageEnemy(state, target, damage, "cannonCascade");
   }
   const effect = {
@@ -1229,6 +1333,7 @@ function resolveDeaths(state) {
   let areaY = 0;
   let areaIncludesStarfall = false;
   let starfallEchoBudget = 8;
+  let frostCascadeBloomBudget = ENDLESS_SHOP_RULES.frostCascadeChainLimit;
   for (const enemy of state.enemies) {
     if (enemy.hp > 0 || enemy.deadHandled) continue;
     enemy.deadHandled = true;
@@ -1296,7 +1401,9 @@ function resolveDeaths(state) {
       }
       if (hits > 0) state.events.push({ type: "cannonEcho", x: enemy.x, y: enemy.y, radius, damage, hits });
     }
-    if (state.relics.owned.frostbloom && (enemy.freezeTimer ?? 0) > 0) {
+    const frostCascadeBloomAllowed = !enemy.frostCascadeFrozen || frostCascadeBloomBudget > 0;
+    if (state.relics.owned.frostbloom && (enemy.freezeTimer ?? 0) > 0 && frostCascadeBloomAllowed) {
+      if (enemy.frostCascadeFrozen) frostCascadeBloomBudget -= 1;
       const cfg = GAME_CONFIG.relics.frostbloom;
       const potency = relicPotency(state, "frostbloom");
       for (const target of state.enemies) {
@@ -1414,6 +1521,7 @@ function updateThreat(state) {
     state.decoys.length = 0;
     spawnEnemy(state, "sovereign", { x: GAME_CONFIG.sovereign.fixedX, y: GAME_CONFIG.sovereign.fixedY });
   } else if (nextThreat % GAME_CONFIG.threat.bossEvery === 0) spawnEnemy(state, "boss");
+  refreshEndlessShop(state, nextThreat);
 }
 
 function activeColossus(state) {
@@ -1536,6 +1644,7 @@ function updateBossAnchor(state, anchor, dt) {
 }
 
 function damageTower(state, damage, heavy = false, source = "enemy") {
+  if ((state.tower.damageImmunity ?? 0) > 0) return false;
   if (heavy && state.tower.droneMode === "collect" && state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge > 0) {
     state.tower.interceptCharge = 0;
     state.tower.interceptRecharge = GAME_CONFIG.drones.interceptRecharge;
@@ -1554,6 +1663,14 @@ function damageTower(state, damage, heavy = false, source = "enemy") {
   state.tower.shield -= towerShieldAbsorbed;
   remainingDamage -= towerShieldAbsorbed;
   state.tower.hp = Math.max(0, state.tower.hp - remainingDamage);
+  if (state.tower.hp <= 0 && hasEndlessRelic(state, "finalInsurance") && state.endlessShop.insuranceCharges > 0) {
+    const maxHp = getTowerStats(state).maxHp;
+    state.endlessShop.insuranceCharges -= 1;
+    state.tower.hp = Math.max(1, maxHp * ENDLESS_SHOP_RULES.insuranceHealFraction);
+    state.tower.shield += maxHp * ENDLESS_SHOP_RULES.insuranceShieldFraction;
+    state.tower.damageImmunity = ENDLESS_SHOP_RULES.insuranceImmunity;
+    state.events.push({ type: "endlessInsurance", hp: state.tower.hp, shield: maxHp * ENDLESS_SHOP_RULES.insuranceShieldFraction, immunity: state.tower.damageImmunity });
+  }
   state.tower.healthBarTimer = GAME_CONFIG.tower.healthBarDuration;
   state.events.push({ type: "towerHit", damage: remainingDamage, absorbed: droneShieldAbsorbed + towerShieldAbsorbed, mitigated: damage - reducedDamage, droneShieldAbsorbed, heavy, source });
   return true;
@@ -2015,7 +2132,7 @@ function updateEnemies(state, dt) {
   }
 }
 
-function updateSaws(state, dt) {
+function updateSaws(state, dt, enemySpatialIndex = null) {
   const count = state.tower.upgrades.saw;
   if (!count) return;
   while (state.tower.sawRecoveries.length < count) state.tower.sawRecoveries.push(0);
@@ -2032,9 +2149,15 @@ function updateSaws(state, dt) {
     const radius = cfg.radius * getTowerScale(state);
     const x = centerX + Math.cos(angle) * radius;
     const y = centerY + Math.sin(angle) * radius;
-    for (const enemy of state.enemies) {
+    const nearby = enemySpatialIndex ? queryEnemySpatialIndex(enemySpatialIndex, x, y, 17) : null;
+    const candidateCount = nearby ? nearby.length : state.enemies.length;
+    for (let candidateIndex = 0; candidateIndex < candidateCount; candidateIndex += 1) {
+      const enemy = state.enemies[nearby ? nearby[candidateIndex] : candidateIndex];
       if (enemy.sawCooldown > 0 || enemy.hp <= 0) continue;
-      if (Math.hypot(enemy.x - x, enemy.y - y) <= enemy.radius + 17) {
+      const dx = enemy.x - x;
+      const dy = enemy.y - y;
+      const reach = enemy.radius + 17;
+      if (dx * dx + dy * dy <= reach * reach) {
         damageEnemy(state, enemy, damage, "saw");
         enemy.sawCooldown = cfg.hitInterval;
       }
@@ -2050,7 +2173,7 @@ function finishLaunchedSaw(state, saw) {
   state.events.push({ type: "sawRecover", bladeIndex: saw.bladeIndex, recovery: state.tower.sawRecoveries[saw.bladeIndex] });
 }
 
-function updateLaunchedSaws(state, dt) {
+function updateLaunchedSaws(state, dt, enemySpatialIndex = null) {
   if (!state.tower.upgrades.sawLaunch) return;
   const cfg = GAME_CONFIG.upgrades.sawLaunch;
   const { width, height, centerX, centerY } = GAME_CONFIG.arena;
@@ -2058,13 +2181,19 @@ function updateLaunchedSaws(state, dt) {
     saw.x += saw.vx * dt;
     saw.y += saw.vy * dt;
     saw.life -= dt;
-    for (const enemy of state.enemies) {
+    const nearby = enemySpatialIndex ? queryEnemySpatialIndex(enemySpatialIndex, saw.x, saw.y, cfg.radius) : null;
+    const candidateCount = nearby ? nearby.length : state.enemies.length;
+    for (let candidateIndex = 0; candidateIndex < candidateCount; candidateIndex += 1) {
+      const enemy = state.enemies[nearby ? nearby[candidateIndex] : candidateIndex];
       if (enemy.hp <= 0 || saw.hitIds.includes(enemy.id)) continue;
-      if (Math.hypot(saw.x - enemy.x, saw.y - enemy.y) > cfg.radius + enemy.radius) continue;
+      const dx = saw.x - enemy.x;
+      const dy = saw.y - enemy.y;
+      const reach = cfg.radius + enemy.radius;
+      if (dx * dx + dy * dy > reach * reach) continue;
       saw.hitIds.push(enemy.id);
       damageEnemy(state, enemy, saw.damage, "launchedSaw");
       const nextTarget = saw.bouncesRemaining > 0
-        ? rankTargets(state, state.enemies.filter((candidate) => candidate.hp > 0 && !saw.hitIds.includes(candidate.id) && Math.hypot(candidate.x - saw.x, candidate.y - saw.y) <= cfg.bounceRange))[0]
+        ? rankTargets(state, state.enemies.filter((candidate) => candidate.hp > 0 && !saw.hitIds.includes(candidate.id) && Math.hypot(candidate.x - saw.x, candidate.y - saw.y) <= cfg.bounceRange), 1)[0]
         : null;
       if (nextTarget) {
         const angle = Math.atan2(nextTarget.y - saw.y, nextTarget.x - saw.x);
@@ -2090,7 +2219,7 @@ function updateLaunchedSaws(state, dt) {
   const radius = GAME_CONFIG.upgrades.saw.radius * getTowerScale(state);
   const x = centerX + Math.cos(angle) * radius;
   const y = centerY + Math.sin(angle) * radius;
-  const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range))[0];
+  const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range), 1)[0];
   if (!target) return;
   const launchAngle = Math.atan2(target.y - y, target.x - x);
   const sawCfg = GAME_CONFIG.upgrades.saw;
@@ -2122,7 +2251,7 @@ function updateSawGuns(state, dt) {
     const radius = GAME_CONFIG.upgrades.saw.radius * getTowerScale(state);
     const x = centerX + Math.cos(sawAngle) * radius;
     const y = centerY + Math.sin(sawAngle) * radius;
-    const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range))[0];
+    const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range), 1)[0];
     if (!target) continue;
     const angle = Math.atan2(target.y - y, target.x - x);
     state.projectiles.push({
@@ -2140,15 +2269,21 @@ function updateSawGuns(state, dt) {
   }
 }
 
-function updateProjectiles(state, dt) {
+function updateProjectiles(state, dt, enemySpatialIndex = null) {
   const { width, height } = GAME_CONFIG.arena;
   for (const projectile of state.projectiles) {
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
     projectile.life -= dt;
-    for (const enemy of state.enemies) {
+    const nearby = enemySpatialIndex ? queryEnemySpatialIndex(enemySpatialIndex, projectile.x, projectile.y, projectile.radius) : null;
+    const candidateCount = nearby ? nearby.length : state.enemies.length;
+    for (let candidateIndex = 0; candidateIndex < candidateCount; candidateIndex += 1) {
+      const enemy = state.enemies[nearby ? nearby[candidateIndex] : candidateIndex];
       if (enemy.hp <= 0 || projectile.hitIds?.has(enemy.id)) continue;
-      if (Math.hypot(projectile.x - enemy.x, projectile.y - enemy.y) <= projectile.radius + enemy.radius) {
+      const dx = projectile.x - enemy.x;
+      const dy = projectile.y - enemy.y;
+      const reach = projectile.radius + enemy.radius;
+      if (dx * dx + dy * dy <= reach * reach) {
         projectile.hitIds ??= new Set();
         projectile.hitIds.add(enemy.id);
         const markedMultiplier = enemy.markTimer > 0 ? GAME_CONFIG.drones.huntDamageMultiplier : 1;
@@ -2268,11 +2403,39 @@ function moveDroneTowards(drone, target, speed, dt) {
   return distance;
 }
 
-function rankDroneDetonationTargets(state, drone) {
+function findDroneDetonationTarget(state, drone) {
   const priority = (enemy) => enemy.type === "sovereign" ? 0 : enemy.type === "colossus" ? 1 : enemy.type === "boss" ? 2 : enemy.elite ? 3 : 4;
-  return state.enemies
-    .filter((enemy) => enemy.hp > 0)
-    .sort((a, b) => priority(a) - priority(b) || Math.hypot(a.x - drone.x, a.y - drone.y) - Math.hypot(b.x - drone.x, b.y - drone.y) || a.id - b.id);
+  let best = null;
+  let bestPriority = Infinity;
+  let bestDistance = Infinity;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0) continue;
+    const enemyPriority = priority(enemy);
+    const distance = Math.hypot(enemy.x - drone.x, enemy.y - drone.y);
+    if (enemyPriority < bestPriority || (enemyPriority === bestPriority && (distance < bestDistance || (distance === bestDistance && enemy.id < best.id)))) {
+      best = enemy;
+      bestPriority = enemyPriority;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+function findDroneHuntTarget(enemies, drone) {
+  let best = null;
+  let bestMarked = Infinity;
+  let bestDistance = Infinity;
+  for (const enemy of enemies) {
+    if (enemy.hp <= 0 || !enemy.elite) continue;
+    const marked = Number(enemy.markTimer > 0);
+    const distance = Math.hypot(enemy.x - drone.x, enemy.y - drone.y);
+    if (marked < bestMarked || (marked === bestMarked && (distance < bestDistance || (distance === bestDistance && enemy.id < best.id)))) {
+      best = enemy;
+      bestMarked = marked;
+      bestDistance = distance;
+    }
+  }
+  return best;
 }
 
 function detonateDrone(state, drone, droneIndex, target) {
@@ -2368,13 +2531,27 @@ function updateDrones(state, dt) {
   if (state.tower.upgrades.droneGuard > 0 && !guardMode && !state.tower.droneDetonateActive) {
     state.tower.droneGuardShield = Math.max(0, state.tower.droneGuardShield - cfg.guard.shieldDecayPerSecond * dt);
   }
+  if (hasEndlessRelic(state, "droneDuplex") && !detonateMode && state.tower.droneMode === "collect" && count > 0) {
+    state.endlessShop.droneSupportTimer = Math.max(0, (state.endlessShop.droneSupportTimer ?? 0) - dt);
+    if (state.endlessShop.droneSupportTimer <= 0) {
+      const marked = state.enemies.find((enemy) => enemy.hp > 0 && state.tower.priorityTargetIds.includes(enemy.id))
+        ?? rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0), 1)[0];
+      if (marked) {
+        damageEnemy(state, marked, getTowerStats(state).damage * cfg.damageMultiplier, "drone");
+        const droneIndex = Math.floor(state.time / ENDLESS_SHOP_RULES.droneSupportInterval) % count;
+        const drone = state.drones[droneIndex];
+        state.events.push({ type: "droneSupport", droneIndex, x1: drone?.x ?? marked.x, y1: drone?.y ?? marked.y, x2: marked.x, y2: marked.y, targetId: marked.id });
+        state.endlessShop.droneSupportTimer = ENDLESS_SHOP_RULES.droneSupportInterval;
+      }
+    }
+  }
   const damage = getTowerStats(state).damage * cfg.damageMultiplier;
   for (let index = 0; index < state.drones.length; index += 1) {
     const drone = state.drones[index];
     drone.hitCooldown = Math.max(0, drone.hitCooldown - dt);
     if (drone.recoveryTimer > 0) continue;
     if (detonateMode && state.tower.droneDetonateActive) {
-      const target = rankDroneDetonationTargets(state, drone)[0];
+      const target = findDroneDetonationTarget(state, drone);
       if (!target) {
         drone.targetId = null;
         moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed, dt);
@@ -2391,12 +2568,9 @@ function updateDrones(state, dt) {
       continue;
     }
     const living = state.enemies.filter((enemy) => enemy.hp > 0);
-    const huntTargets = state.tower.upgrades.droneHunt > 0 ? living.filter((enemy) => enemy.elite) : [];
     const lockedAnchor = state.tower.anchorLockTimer > 0 ? living.find((enemy) => enemy.id === state.tower.anchorLockId && enemy.type === "anchor") : null;
-    const target = lockedAnchor
-      ?? (huntTargets.length
-        ? [...huntTargets].sort((a, b) => Number(a.markTimer > 0) - Number(b.markTimer > 0) || Math.hypot(a.x - drone.x, a.y - drone.y) - Math.hypot(b.x - drone.x, b.y - drone.y) || a.id - b.id)[0]
-        : rankTargets(state, living)[0]);
+    const huntTarget = state.tower.upgrades.droneHunt > 0 ? findDroneHuntTarget(living, drone) : null;
+    const target = lockedAnchor ?? huntTarget ?? rankTargets(state, living, 1)[0];
     if (!target) {
       drone.targetId = null;
       moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed, dt);
@@ -2452,7 +2626,8 @@ function updateCoinOrbs(state, dt) {
   const incomeMultiplier = 1 + state.research.income * GAME_CONFIG.research.bonusPerLevel;
   const droneCount = state.tower.upgrades.drone;
   const guardMode = state.tower.droneMode === "collect";
-  if (guardMode && droneCount > 0 && !state.threatSeals?.modifiers?.severedSupply) {
+  const duplexAttackCollection = state.tower.droneMode === "attack" && hasEndlessRelic(state, "droneDuplex");
+  if ((guardMode || duplexAttackCollection) && droneCount > 0 && !state.threatSeals?.modifiers?.severedSupply) {
     state.tower.droneCooldown -= dt;
     if (state.tower.droneCooldown <= 0) {
       const orb = state.coinOrbs.find((item) => !item.collector);
@@ -2460,7 +2635,8 @@ function updateCoinOrbs(state, dt) {
         const droneIndex = state.nextId % droneCount;
         beginCoinCollection(orb, "drone", droneIndex);
         const scavengeMultiplier = state.tower.upgrades.droneScavenge > 0 ? GAME_CONFIG.drones.scavengeIntervalMultiplier : 1;
-        state.tower.droneCooldown += GAME_CONFIG.coins.droneInterval * scavengeMultiplier / droneCount;
+        const duplexEfficiency = duplexAttackCollection ? ENDLESS_SHOP_RULES.droneAttackCollectEfficiency : 1;
+        state.tower.droneCooldown += GAME_CONFIG.coins.droneInterval * scavengeMultiplier / droneCount / duplexEfficiency;
       } else state.tower.droneCooldown = 0;
     }
   }
@@ -2636,6 +2812,17 @@ export function useSkill(state, key, options = {}) {
   const config = GAME_CONFIG.skills[key];
   if (!skill || !config) return false;
   if (sovereignEntryActive(state) && (key === "overload" || key === "starfall")) return false;
+  if (key === "overload" && hasEndlessRelic(state, "perpetualOverload") && skill.permanentEngaged) {
+    if (skill.cooldown > 0) return false;
+    if (counterColossusBulwark(state)) skill.heat = Math.min(config.heatCap, skill.heat + GAME_CONFIG.colossus.counters.bulwarkHeat);
+    releaseOverloadPulse(state, true);
+    skill.heat = 30;
+    skill.slow = 0;
+    skill.unstable = ENDLESS_SHOP_RULES.overloadUnstableDuration;
+    skill.cooldown = config.cooldown;
+    state.events.push({ type: "skill", key });
+    return true;
+  }
   if (key === "overload" && skill.active > 0) {
     if (counterColossusBulwark(state)) skill.heat = Math.min(config.heatCap, skill.heat + GAME_CONFIG.colossus.counters.bulwarkHeat);
     skill.active = 0;
@@ -2663,25 +2850,29 @@ export function useSkill(state, key, options = {}) {
       state.events.push({ type: "healLastStand", duration: skill.damageReduction, reduction: research.damageReduction });
     }
   } else if (key === "overload") {
-    skill.active = config.duration * (hasSkillResearchNode(state, "overload", "stabilizer") ? GAME_CONFIG.activeSkillResearch.overload.durationMultiplier : 1);
+    skill.permanentEngaged = hasEndlessRelic(state, "perpetualOverload");
+    skill.active = skill.permanentEngaged ? 0 : config.duration * (hasSkillResearchNode(state, "overload", "stabilizer") ? GAME_CONFIG.activeSkillResearch.overload.durationMultiplier : 1);
     skill.heat = 0;
     skill.slow = 0;
     skill.pulse = 0;
     skill.overheated = false;
     if (counterColossusBulwark(state)) skill.heat = Math.min(config.heatCap, GAME_CONFIG.colossus.counters.bulwarkHeat);
   } else if (key === "starfall") {
+    const globalProtocol = hasEndlessRelic(state, "globalStarfall");
     const requestedAngle = Number(options.angle);
-    if (!Number.isFinite(requestedAngle) || !state.enemies.some((enemy) => enemy.hp > 0)) return false;
+    if ((!globalProtocol && !Number.isFinite(requestedAngle)) || !state.enemies.some((enemy) => enemy.hp > 0)) return false;
     const research = GAME_CONFIG.activeSkillResearch.starfall;
-    const angle = Math.atan2(Math.sin(requestedAngle), Math.cos(requestedAngle));
-    const coneHalfAngle = getStarfallConeHalfAngle(state);
+    const firstTarget = state.enemies.find((enemy) => enemy.hp > 0);
+    const fallbackAngle = firstTarget ? Math.atan2(firstTarget.y - getTowerPosition(state).y, firstTarget.x - getTowerPosition(state).x) : 0;
+    const angle = globalProtocol ? fallbackAngle : Math.atan2(Math.sin(requestedAngle), Math.cos(requestedAngle));
+    const coneHalfAngle = globalProtocol ? Math.PI : getStarfallConeHalfAngle(state);
     const countered = counterColossusBeam(state, angle, coneHalfAngle);
     const damage = getTowerStats(state).damage * config.damageMultiplier;
     const { x: centerX, y: centerY } = getTowerPosition(state);
     const hitTargets = [];
     for (const enemy of state.enemies) {
       const enemyAngle = Math.atan2(enemy.y - centerY, enemy.x - centerX);
-      if (enemy.hp <= 0 || angleDistance(enemyAngle, angle) > coneHalfAngle) continue;
+      if (enemy.hp <= 0 || (!globalProtocol && angleDistance(enemyAngle, angle) > coneHalfAngle)) continue;
       hitTargets.push(enemy);
       damageEnemy(state, enemy, damage, "starfall");
       if (hasSkillResearchNode(state, "starfall", "starMark") && enemy.hp > 0) enemy.starMarkTimer = Math.max(enemy.starMarkTimer ?? 0, research.markDuration);
@@ -2711,7 +2902,7 @@ export function useSkill(state, key, options = {}) {
     skill.angle = angle;
     skill.aimAngle = angle;
     skill.aiming = false;
-    skill.protocol = "manual";
+    skill.protocol = globalProtocol ? "global" : "manual";
     skill.active = config.activeDuration;
     resolveDeaths(state);
   } else if (key === "coinVacuum") {
@@ -2752,7 +2943,8 @@ export function calculateStardust(state) {
 
 export function calculateRunScore(state) {
   const combat = Math.max(0, Math.floor(state.stats.score));
-  const coinBonus = Math.max(0, Math.floor(state.coins)) * GAME_CONFIG.score.coinMultiplier;
+  const coinBasis = Math.max(0, Math.floor(state.coins + (state.endlessShop?.spent ?? 0) * 0.5));
+  const coinBonus = coinBasis * GAME_CONFIG.score.coinMultiplier;
   const total = Math.round((combat + coinBonus) * (state.threatSeals?.modifiers?.scoreMultiplier ?? 1));
   return { combat, coinBonus, total };
 }
@@ -2772,8 +2964,20 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   updateWave(state, dt);
   updateSpawning(state, dt);
 
-  const skillCooldownDt = dt * (state.relics.owned.hourglass ? amplifyMultiplier(GAME_CONFIG.relics.hourglass.cooldownRateMultiplier, relicPotency(state, "hourglass")) : 1);
+  const shopCooldownRate = 1 + (state.endlessShop?.levels?.tacticalClock ?? 0) * 0.08;
+  const skillCooldownDt = dt * (state.relics.owned.hourglass ? amplifyMultiplier(GAME_CONFIG.relics.hourglass.cooldownRateMultiplier, relicPotency(state, "hourglass")) : 1) * shopCooldownRate;
   for (const skill of Object.values(state.skills)) skill.cooldown = Math.max(0, skill.cooldown - skillCooldownDt);
+  if ((state.endlessShop?.levels?.autoCoinVacuum ?? 0) > 0 && state.endlessShop.autoCoinEnabled && state.skills.coinVacuum.cooldown <= 0) {
+    let coinCount = 0;
+    let coinValue = 0;
+    for (const orb of state.coinOrbs) {
+      if (orb.expired || orb.collected) continue;
+      coinCount += orb.pileCount ?? 1;
+      coinValue += orb.value ?? 0;
+      if (coinCount >= ENDLESS_SHOP_RULES.coinCountThreshold || coinValue >= ENDLESS_SHOP_RULES.coinValueThreshold) break;
+    }
+    if (coinCount >= ENDLESS_SHOP_RULES.coinCountThreshold || coinValue >= ENDLESS_SHOP_RULES.coinValueThreshold) useSkill(state, "coinVacuum", { automatic: true });
+  }
   state.skills.heal.active = Math.max(0, state.skills.heal.active - dt);
   state.skills.heal.burst = Math.max(0, state.skills.heal.burst - dt);
   state.skills.heal.damageReduction = Math.max(0, (state.skills.heal.damageReduction ?? 0) - dt);
@@ -2786,6 +2990,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   state.tower.healthBarTimer = Math.max(0, (state.tower.healthBarTimer ?? 0) - dt);
   state.tower.cannonEchoChainTimer = Math.max(0, (state.tower.cannonEchoChainTimer ?? 0) - dt);
   state.tower.cannonCascadeCooldown = Math.max(0, (state.tower.cannonCascadeCooldown ?? 0) - dt);
+  state.tower.damageImmunity = Math.max(0, (state.tower.damageImmunity ?? 0) - dt);
   if (state.tower.cannonEchoChainTimer <= 0) state.tower.cannonEchoChain = 0;
   if (state.skills.coinVacuum.active <= 0) state.skills.coinVacuum.trails = [];
   if (state.tower.anchorLockTimer > 0) {
@@ -2798,7 +3003,17 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   }
   const overloadSkill = state.skills.overload;
   overloadSkill.pulse = Math.max(0, overloadSkill.pulse - dt);
-  if (overloadSkill.active > 0) {
+  overloadSkill.unstable = Math.max(0, (overloadSkill.unstable ?? 0) - dt);
+  if (hasEndlessRelic(state, "perpetualOverload") && overloadSkill.permanentEngaged) {
+    const heatMultiplier = hasSkillResearchNode(state, "overload", "stabilizer") ? GAME_CONFIG.activeSkillResearch.overload.heatGainMultiplier : 1;
+    overloadSkill.heat = Math.min(GAME_CONFIG.skills.overload.heatCap, overloadSkill.heat + GAME_CONFIG.skills.overload.passiveHeatPerSecond * heatMultiplier * dt);
+    if (overloadSkill.heat >= GAME_CONFIG.skills.overload.heatCap) {
+      releaseOverloadPulse(state);
+      overloadSkill.heat = 30;
+      overloadSkill.slow = 0;
+      overloadSkill.unstable = ENDLESS_SHOP_RULES.overloadUnstableDuration;
+    }
+  } else if (overloadSkill.active > 0) {
     overloadSkill.active = Math.max(0, overloadSkill.active - dt);
     const heatMultiplier = hasSkillResearchNode(state, "overload", "stabilizer") ? GAME_CONFIG.activeSkillResearch.overload.heatGainMultiplier : 1;
     overloadSkill.heat = Math.min(GAME_CONFIG.skills.overload.heatCap, overloadSkill.heat + GAME_CONFIG.skills.overload.passiveHeatPerSecond * heatMultiplier * dt);
@@ -2816,8 +3031,9 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   // an enemy finally enters range.
   state.tower.fireCooldown = Math.max(0, state.tower.fireCooldown - dt);
   if (!entryCombatLocked && state.tower.fireCooldown <= 0 && fireTower(state)) {
-    const overloadRateMultiplier = overloadSkill.active > 0
-      ? GAME_CONFIG.skills.overload.rateMultiplier
+    const overloadRateMultiplier = overloadSkill.permanentEngaged
+      ? overloadSkill.unstable > 0 ? ENDLESS_SHOP_RULES.overloadUnstableRateMultiplier : GAME_CONFIG.skills.overload.rateMultiplier
+      : overloadSkill.active > 0 ? GAME_CONFIG.skills.overload.rateMultiplier
       : overloadSkill.slow > 0 ? GAME_CONFIG.skills.overload.slowRateMultiplier : 1;
     const economyRateMultiplier = state.skills.coinVacuum.fireRateBuff > 0 ? GAME_CONFIG.activeSkillResearch.coinVacuum.fireRateMultiplier : 1;
     state.tower.fireCooldown = 1 / (stats.fireRate * overloadRateMultiplier * economyRateMultiplier);
@@ -2826,15 +3042,18 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   updateEnemies(state, dt);
   if (!entryCombatLocked) {
     updateDrones(state, dt);
-    updateSaws(state, dt);
-    updateLaunchedSaws(state, dt);
+    const needsEnemySpatialIndex = state.projectiles.length > 0 || state.launchedSaws.length > 0 || state.tower.upgrades.saw > 0;
+    const enemySpatialIndex = needsEnemySpatialIndex ? buildEnemySpatialIndex(state.enemies) : null;
+    updateSaws(state, dt, enemySpatialIndex);
+    updateLaunchedSaws(state, dt, enemySpatialIndex);
     updateSawGuns(state, dt);
-    updateProjectiles(state, dt);
+    updateProjectiles(state, dt, enemySpatialIndex);
     updateHostileProjectiles(state, dt);
     updateRelicDecoys(state, dt);
     updateEmberZones(state, dt);
   }
   resolveDeaths(state);
+  releaseEndlessShopNotice(state);
   resolveWaveClears(state);
   if (!entryCombatLocked) updateSummonRifts(state, dt);
   updateCoinOrbs(state, dt);
@@ -2851,7 +3070,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 
 export function snapshotState(state) {
   return {
-    time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry }, skillResearch: { ...state.skillResearch },
+    time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry }, skillResearch: { ...state.skillResearch }, endlessShop: { ...state.endlessShop, equippedRelics: [...state.endlessShop.equippedRelics], relicOffers: [...state.endlessShop.relicOffers], randomOffers: [...state.endlessShop.randomOffers], cyclePurchases: [...state.endlessShop.cyclePurchases], levels: { ...state.endlessShop.levels } },
     towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), cannonCascadeCooldown: Number((state.tower.cannonCascadeCooldown ?? 0).toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3))]),
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),

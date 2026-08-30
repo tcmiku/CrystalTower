@@ -81,6 +81,14 @@
           <div class="permanent-resource-hud" aria-label="永久资源"><span class="echo-resource"><i></i><small>遗响</small><b id="battleEchoShardText">0</b></span><span class="core-resource"><i></i><small>核心</small><b id="battleCoreFragmentText">0</b></span></div>
           <div id="threatSealHud" class="threat-seal-hud hidden" aria-label="本局威胁封印"></div>
           <div id="relicRunHud" class="relic-run-hud" aria-label="本局临时遗物"></div>
+          <div id="endlessShopHud" class="endless-shop-hud hidden" aria-label="裂隙行商">
+            <button id="openEndlessShopButton" class="endless-shop-icon-button" type="button" aria-label="裂隙行商·弥罗，打开商店" aria-haspopup="dialog" aria-controls="endlessShopModal" title="裂隙行商·弥罗 · 打开商店（M）">
+              <img src="./assets/generated/npc-rift-merchant-miro-icon-ai-v1.png" alt="" aria-hidden="true">
+              <span class="endless-shop-icon-status" aria-hidden="true"></span>
+              <b class="merchant-icon-label">打开商店</b><kbd aria-hidden="true">M</kbd>
+            </button>
+            <button id="toggleAutoCoinButton" class="hidden" type="button" aria-pressed="true" title="切换自动金潮"><span>¤</span><b>ON</b></button>
+          </div>
           <button id="openLeaderboardButton" class="score-hud" type="button" aria-label="查看全服积分排行榜" aria-haspopup="dialog" aria-controls="leaderboardModal" aria-expanded="false" title="查看全服积分排行榜"><i class="art-icon system-art icon-trophy" aria-hidden="true"></i><span>SCORE · RANKING</span><strong id="scoreText">000000</strong></button>
           <div id="announcement" class="announcement" aria-live="polite"></div>
           <div id="toast" class="toast" aria-live="polite"></div>
@@ -138,6 +146,24 @@
         <div class="seed-label">种子 <span id="seedText"></span></div>
       </footer>
     </main>
+
+    <section id="endlessShopModal" class="endless-shop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="endlessShopTitle">
+      <div class="endless-shop-shell">
+        <header class="endless-shop-header">
+          <img src="./assets/generated/npc-rift-merchant-miro-portrait-ai-v1.png" alt="裂隙行商弥罗">
+          <div><span>RIFT MERCHANT · ENDLESS ONLY</span><h2 id="endlessShopTitle">裂隙行商 · 弥罗</h2><p>“金币留在身上只会生锈。换成一次越界，如何？”</p></div>
+          <div class="endless-shop-wallet"><small>当前金币</small><strong id="endlessShopCoins">0</strong><span id="endlessShopStage">威胁 XXV · 基础价</span></div>
+          <button id="closeEndlessShopButton" type="button">返回战场 <kbd>M</kbd></button>
+        </header>
+        <div id="endlessShopLock" class="endless-shop-lock hidden"><strong>首领在场 · 交易锁定</strong><span>可以查看商品，击败首领后恢复购买。</span></div>
+        <div class="endless-shop-grid">
+          <section class="endless-shop-section signature"><header><span>SIGNATURE RELICS</span><h3>专属遗物</h3><b id="endlessRelicSlots">0 / 2</b></header><div id="endlessRelicOffers" class="endless-shop-list relics"></div></section>
+          <section class="endless-shop-section"><header><span>STANDING STOCK</span><h3>固定商品</h3><b>持续强化</b></header><div id="endlessFixedOffers" class="endless-shop-list"></div></section>
+          <section class="endless-shop-section"><header><span>RIFT STOCK</span><h3>随机商品</h3><b>本轮 3 件</b></header><div id="endlessRandomOffers" class="endless-shop-list"></div></section>
+        </div>
+        <footer class="endless-shop-footer"><div><strong id="endlessShopSpent">本局消费 0</strong><span>结算时返还 50% 消费金币的计分价值</span></div><button id="rerollEndlessShopButton" type="button"><span>重置专属与随机商品</span><b id="endlessShopRerollPrice">6,000 金币</b><small>本轮剩余 3 次</small></button></footer>
+      </div>
+    </section>
 
     <section id="accountModal" class="account-modal hidden" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
       <div class="account-shell">

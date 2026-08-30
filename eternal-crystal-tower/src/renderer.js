@@ -101,6 +101,8 @@ const GENERATED_ASSETS = {
   coreFragment: "./assets/generated/resource-core-fragment-ai.png"
 };
 
+const CRITICAL_ASSET_KEYS = new Set(["arena", "tower", "enemies"]);
+
 const CUTOUT_ASSETS = new Set([
   "projectileFrost", "projectileLightning", "moduleFrost", "towerUltimate",
   "effectFrost", "effectFire", "effectLightning"
@@ -152,7 +154,10 @@ function loadGeneratedAssets(onProgress = () => {}) {
   const assets = {};
   let completed = 0;
   let failed = 0;
-  const promises = entries.map(([key, src]) => new Promise((resolve) => {
+  const criticalEntries = entries.filter(([key]) => CRITICAL_ASSET_KEYS.has(key));
+  const deferredEntries = entries.filter(([key]) => !CRITICAL_ASSET_KEYS.has(key));
+  const loadAsset = ([key, src], reportProgress = false) => new Promise((resolve) => {
+    if (assets[key]) return resolve({ key, ok: imageReady(assets[key]) });
     const image = new Image();
     image.decoding = "async";
     if (CUTOUT_ASSETS.has(key)) {
@@ -161,17 +166,29 @@ function loadGeneratedAssets(onProgress = () => {}) {
       }, { once: true });
     }
     const settle = (ok) => {
-      completed += 1;
-      if (!ok) failed += 1;
-      onProgress({ completed, total: entries.length, failed });
+      if (reportProgress) {
+        completed += 1;
+        if (!ok) failed += 1;
+        onProgress({ completed, total: criticalEntries.length, failed });
+      }
       resolve({ key, ok });
     };
     image.addEventListener("load", () => settle(true), { once: true });
     image.addEventListener("error", () => settle(false), { once: true });
     image.src = src;
     assets[key] = image;
-  }));
-  return { assets, ready: Promise.all(promises) };
+  });
+  const ready = Promise.all(criticalEntries.map((entry) => loadAsset(entry, true))).then((results) => {
+    const loadDeferred = () => { deferredEntries.forEach((entry) => { void loadAsset(entry); }); };
+    const scheduleDeferred = () => {
+      if (typeof requestIdleCallback === "function") requestIdleCallback(loadDeferred, { timeout: 1_500 });
+      else setTimeout(loadDeferred, 250);
+    };
+    if (document.readyState === "complete") scheduleDeferred();
+    else window.addEventListener("load", scheduleDeferred, { once: true });
+    return results;
+  });
+  return { assets, ready };
 }
 
 function imageReady(image) {
@@ -326,16 +343,27 @@ export class Renderer {
   }
 
   drawBackdrop(ctx, state, width, height) {
-    if (imageReady(this.assets.arena) && imageReady(this.assets.arenaDay)) {
+    const arenaReady = imageReady(this.assets.arena);
+    const arenaDayReady = imageReady(this.assets.arenaDay);
+    if (arenaReady || arenaDayReady) {
+      const arena = arenaReady ? this.assets.arena : this.assets.arenaDay;
+      const arenaDay = arenaDayReady ? this.assets.arenaDay : arena;
       const drawCover = (image) => {
         const crop = getCoverCrop(image.naturalWidth || image.width, image.naturalHeight || image.height, width, height, 0.4, 0.42);
         ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
       };
-      drawCover(this.assets.arena);
-      ctx.globalAlpha = this.dayMix;
-      drawCover(this.assets.arenaDay);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = state.skills.overload.active > 0 ? "rgba(21,7,56,.28)" : `rgba(3,5,20,${0.14 + (1 - this.dayMix) * 0.1})`;
+      const sameBackdrop = arena === arenaDay || arena.src === arenaDay.src;
+      if (sameBackdrop || this.dayMix <= 0.001) {
+        drawCover(arena);
+      } else if (this.dayMix >= 0.999) {
+        drawCover(arenaDay);
+      } else {
+        drawCover(arena);
+        ctx.globalAlpha = this.dayMix;
+        drawCover(arenaDay);
+        ctx.globalAlpha = 1;
+      }
+      ctx.fillStyle = state.skills.overload.active > 0 || state.skills.overload.permanentEngaged ? "rgba(21,7,56,.28)" : `rgba(3,5,20,${0.14 + (1 - this.dayMix) * 0.1})`;
       ctx.fillRect(0, 0, width, height);
       return;
     }
@@ -501,6 +529,26 @@ export class Renderer {
     const pulse = .5 + Math.sin(this.time * 7) * .5;
     const releaseProgress = aiming ? 0 : Math.max(0, Math.min(1, 1 - skill.active / config.activeDuration));
     const releaseAlpha = aiming ? 1 : Math.max(0, 1 - releaseProgress * .72);
+
+    if (!aiming && skill.protocol === "global") {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = `rgba(146,102,255,${0.12 * releaseAlpha})`;
+      ctx.fillRect(0, 0, GAME_CONFIG.arena.width, GAME_CONFIG.arena.height);
+      const living = state.enemies.filter((enemy) => enemy.hp > 0).slice(0, 28);
+      living.forEach((enemy, index) => {
+        const fall = Math.max(0, Math.min(1, (releaseProgress + .1 - (index % 7) * .035) / .32));
+        if (fall <= 0) return;
+        const headY = enemy.y - (1 - fall) * 210;
+        ctx.globalAlpha = (1 - releaseProgress * .65) * .82;
+        ctx.strokeStyle = index % 2 ? "#d8b9ff" : "#fff0a6";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(enemy.x - 34, headY - 72); ctx.lineTo(enemy.x, headY); ctx.stroke();
+        ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius + 8 + fall * 12, 0, Math.PI * 2); ctx.stroke();
+      });
+      ctx.restore();
+      return;
+    }
 
     // Directional orbital corridor: a quieter purple field supports crisp gold
     // boundaries so the player can read the actual hit sector at a glance.
@@ -1203,6 +1251,7 @@ export class Renderer {
 
   drawEnemies(ctx, state) {
     const towerPosition = getTowerPosition(state);
+    const crowdMode = state.enemies.length >= 160;
     for (const anchor of state.enemies.filter((enemy) => enemy.type === "anchor" && enemy.hp > 0 && !enemy.riftAnchor)) {
       const boss = state.enemies.find((enemy) => enemy.id === anchor.anchorBossId && enemy.hp > 0);
       if (!boss) continue;
@@ -1232,7 +1281,7 @@ export class Renderer {
       ctx.rotate(angle);
       const resistanceColor = { frost: "#7de8ff", fire: "#ff754d", lightning: "#c6a2ff" }[enemy.resistance];
       ctx.shadowColor = enemy.type === "boss" ? resistanceColor ?? bright : bright;
-      ctx.shadowBlur = enemy.type === "sovereign" ? 34 : enemy.type === "colossus" ? 24 : enemy.type === "boss" ? 18 : 7;
+      ctx.shadowBlur = enemy.type === "sovereign" ? 34 : enemy.type === "colossus" ? 24 : enemy.type === "boss" ? 18 : crowdMode ? 0 : 7;
       const isBoss = enemy.type === "boss";
       const isColossus = enemy.type === "colossus";
       const isSovereign = enemy.type === "sovereign";

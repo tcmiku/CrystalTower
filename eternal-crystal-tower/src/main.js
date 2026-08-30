@@ -7,6 +7,7 @@ import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
 import { AudioSynth } from "./audio.js";
 import { getCombatViewport, Renderer } from "./renderer.js";
+import { ENDLESS_PRODUCTS, ENDLESS_RELICS, ENDLESS_SHOP_RULES, bossPresent, getEndlessShopPurchaseStatus, hasEndlessRelic, purchaseEndlessShopItem, refreshEndlessShop, rerollEndlessShop, toggleAutoCoinVacuum } from "./endless-shop.js";
 
 const UPGRADE_META = {
   damage: { icon: "✦", name: "淬亮晶矢", description: "每级伤害 +25%", max: 10 },
@@ -73,6 +74,10 @@ const TECH_ART = {
   blade: { sheet: "./assets/generated/tech-icons-blade-v2.png", cols: 3, rows: 2 },
   economy: { sheet: "./assets/generated/tech-icons-drone-v2.png", cols: 5, rows: 2 },
   element: { sheet: "./assets/generated/tech-icons-element-v2.png", cols: 3, rows: 1 }
+};
+const TECH_NODE_ART = {
+  cannonStarPiercer: "./assets/generated/tech-cannon-star-piercer-ai-v1.png",
+  cannonCascade: "./assets/generated/tech-cannon-cascade-ai-v1.png"
 };
 const SKILL_META = {
   heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片", tooltip: "恢复晶塔生命；生命已满时转化为护盾，满盾受击会引爆晶片。", art: "./assets/generated/skill-heal-ai-v1.png" },
@@ -162,7 +167,8 @@ const dom = Object.fromEntries([
   "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent", "storyIntro", "storyIntroStage", "storyIntroBackdrop", "storyIntroLayers", "storyIntroBubbles", "storyIntroChapter", "storyIntroProgress", "storyIntroTimeline", "storyIntroDisable", "storyIntroSkip", "storyIntroNext", "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
   "baseCampModal", "baseCampShell", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "baseCampModuleList", "baseCampModulePage", "closeBaseCampModuleButton", "baseCampModulePageIcon", "baseCampModulePageKicker", "baseCampModulePageTitle", "baseCampModulePageSummary", "baseCampModulePageStatus", "campaignPanel", "campaignProgressText", "chapterNodeList", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "threatSealPanel", "threatSealUnlockStatus", "threatSealList", "sealScoreMultiplier", "sealResourceMultiplier", "sealRelicChance", "sealAchievementMultiplier", "sealEquippedSummary", "sealAchievementProgress", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "relicResearchTab", "skillResearchTab", "relicResearchView", "skillResearchView", "activeSkillResearchList", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "chapterCompleteModal", "chapterCoreAwardStatus", "finishExpeditionButton", "startEndlessButton",
-  "relicRunHud", "threatSealHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList", "relicChoiceKeys"
+  "relicRunHud", "threatSealHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList", "relicChoiceKeys",
+  "endlessShopHud", "openEndlessShopButton", "toggleAutoCoinButton", "endlessShopModal", "closeEndlessShopButton", "endlessShopCoins", "endlessShopStage", "endlessShopLock", "endlessRelicSlots", "endlessRelicOffers", "endlessFixedOffers", "endlessRandomOffers", "endlessShopSpent", "rerollEndlessShopButton", "endlessShopRerollPrice"
 ].map((id) => [id, document.getElementById(id)]));
 
 const BASECAMP_MODULES = [
@@ -226,17 +232,20 @@ const INTRO_SCENES = [
   { background: "./assets/story/intro-bg-horde-night-v1.png", layers: [{ src: "./assets/story/intro-layer-monster-horde-v1.png", className: "layer-horde layer-horde-distant" }, { src: "./assets/story/intro-layer-elemental-burst-v1.png", className: "layer-elemental layer-elemental-behind" }, { src: "./assets/story/intro-layer-last-tower-v1.png", className: "layer-tower layer-tower-final" }], chapter: "序章 · 第一波防线", bubbles: [{ text: "检测到共鸣者。", kind: "system", position: "top-right" }, { text: "怪潮来袭。守住最后的光。", kind: "narration", position: "bottom-right" }], motion: "motion-flare", tone: "final", duration: 3200 }
 ];
 const INTRO_MOTIONS = ["motion-push", "motion-shake", "motion-pan-right", "motion-rise", "motion-pull", "motion-flare"];
-const introAssetsNeeded = previewMode === "intro" || save.settings.introDisabled !== true;
-if (introAssetsNeeded) {
-  for (const scene of INTRO_SCENES) {
-    const preload = new Image();
-    preload.src = scene.background;
-    for (const layer of scene.layers) {
-      const layerPreload = new Image();
-      layerPreload.src = layer.src;
-    }
+const introAssetsNeeded = previewMode === "intro" || (!previewMode && save.settings.introDisabled !== true);
+const preloadedIntroAssets = new Set();
+function preloadIntroSceneAssets(index) {
+  const scene = INTRO_SCENES[index];
+  if (!scene) return;
+  for (const src of [scene.background, ...scene.layers.map((layer) => layer.src)]) {
+    if (preloadedIntroAssets.has(src)) continue;
+    preloadedIntroAssets.add(src);
+    const image = new Image();
+    image.decoding = "async";
+    image.src = src;
   }
 }
+if (introAssetsNeeded) preloadIntroSceneAssets(0);
 if (previewMode === "wave-warning") state.time = GAME_CONFIG.waves.firstAt - GAME_CONFIG.waves.warning - 0.35;
 if (previewMode === "wave") state.time = GAME_CONFIG.waves.firstAt - 0.35;
 if (previewMode === "late-wave") {
@@ -636,6 +645,8 @@ let leaderboardLoading = true;
 let leaderboardError = "";
 let lastFrame = performance.now();
 let accumulator = 0;
+const UI_REFRESH_INTERVAL = 1 / 12;
+let uiRefreshElapsed = UI_REFRESH_INTERVAL;
 let toastTimer = 0;
 let announcementTimer = 0;
 let techTreeOpen = false;
@@ -675,6 +686,8 @@ let sovereignSpeedLocked = false;
 let restoreDoubleSpeedAfterSovereign = false;
 let chapterCompleteOpen = false;
 let chapterClearWasFirst = false;
+let endlessShopOpen = false;
+let resumeAfterEndlessShop = false;
 const firstRunTutorial = save.records.totalKills === 0 && !previewMode;
 let tutorialStep = 0;
 const loadingStartedAt = performance.now();
@@ -872,6 +885,7 @@ async function revealGameWhenReady() {
 function renderStoryIntroScene(index) {
   const safeIndex = Math.max(0, Math.min(INTRO_SCENES.length - 1, index));
   const scene = INTRO_SCENES[safeIndex];
+  preloadIntroSceneAssets(safeIndex + 1);
   introSceneIndex = safeIndex;
   window.clearTimeout(introTimer);
   dom.storyIntro.classList.remove("scene-playing");
@@ -1082,9 +1096,12 @@ function createTechEdge(svg, from, to, layout, exclusive = false) {
 }
 
 function applyTechIconArt(element, key) {
+  element.classList.remove("tech-icon-terminal", "tech-icon-generated");
+  element.style.removeProperty("background-image");
   if (key === "cannonStarPiercer" || key === "cannonCascade") {
-    element.classList.add("tech-icon-terminal");
-    element.textContent = UPGRADE_META[key].icon;
+    element.classList.add("tech-icon-generated");
+    element.style.backgroundImage = `url("${TECH_NODE_ART[key]}")`;
+    element.textContent = "";
     return;
   }
   element.classList.remove("tech-icon-terminal");
@@ -1989,6 +2006,14 @@ function buyUpgrade(key) {
 function activateSkill(key) {
   audio.ensureContext()?.resume();
   if (key === "starfall") {
+    if (hasEndlessRelic(state, "globalStarfall")) {
+      if (useSkill(state, "starfall")) {
+        handleEvents(state.events);
+        showToast("全目标星落已释放");
+      } else if (state.skills.starfall.cooldown > 0) showToast(`${SKILL_META.starfall.name}还需 ${Math.ceil(state.skills.starfall.cooldown)} 秒`);
+      else showToast("没有可轰击目标");
+      return;
+    }
     if (starfallAiming) {
       cancelStarfallAim();
       return;
@@ -2012,10 +2037,10 @@ function activateSkill(key) {
     updateUi();
     return;
   }
-  const endingOverloadEarly = key === "overload" && state.skills.overload.active > 0;
+  const endingOverloadEarly = key === "overload" && (state.skills.overload.active > 0 || state.skills.overload.permanentEngaged);
   if (useSkill(state, key)) {
     handleEvents(state.events);
-    showToast(endingOverloadEarly ? "超载提前结束 · 冲击释放" : `${SKILL_META[key].name}已释放`);
+    showToast(endingOverloadEarly ? (state.skills.overload.permanentEngaged ? "永续超载泄压 · 运转继续" : "超载提前结束 · 冲击释放") : `${SKILL_META[key].name}已释放`);
   } else if (key === "heal" && state.tower.hp >= getTowerStats(state).maxHp) {
     showToast("生命与护盾均已充盈");
   } else if (key === "coinVacuum" && !state.coinOrbs.some((orb) => !orb.expired && !orb.collected)) {
@@ -2090,6 +2115,97 @@ function switchDroneProtocol() {
   updateUi();
 }
 
+function createEndlessShopCard(id, item, relic = false) {
+  const status = getEndlessShopPurchaseStatus(state, id);
+  const level = state.endlessShop.levels[id] ?? 0;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "endless-shop-card";
+  button.dataset.shopItem = id;
+  button.disabled = !status.allowed;
+  const levelText = relic ? item.type : item.maxLevel === Infinity ? "即时补给" : `等级 ${level} / ${item.maxLevel}`;
+  const effectText = relic ? item.effect : item.description;
+  const [iconCol, iconRow] = item.iconCell ?? [0, 0];
+  button.innerHTML = `<span class="shop-item-icon" style="--icon-col:${iconCol};--icon-row:${iconRow}" aria-hidden="true"><img src="./assets/generated/endless-shop-icon-atlas-ai-v1.png" alt=""><span class="shop-item-icon-glyph">${item.icon}</span></span><span><small>${levelText}</small><strong>${item.name}</strong><p>${item.description}</p>${relic ? `<em>${effectText}</em>` : ""}<b>${formatNumber(status.price)} 金币</b>${status.allowed ? "" : `<em class="shop-item-status">${status.reason}</em>`}</span>`;
+  button.addEventListener("click", () => {
+    const result = purchaseEndlessShopItem(state, id, getTowerStats(state));
+    if (!result.allowed) { showToast(result.reason); renderEndlessShop(); return; }
+    audio.play("purchase");
+    handleEvents(state.events);
+    renderEndlessShop();
+    updateUi();
+  });
+  return button;
+}
+
+function renderEndlessShopHud() {
+  const unlocked = state.endlessMode && state.endlessShop?.unlocked;
+  dom.endlessShopHud.classList.toggle("hidden", !unlocked);
+  if (!unlocked) return;
+  const locked = bossPresent(state);
+  const merchantLabel = locked ? "裂隙行商·弥罗，交易锁定" : `裂隙行商·弥罗，打开商店，威胁 ${formatThreat(state.endlessShop.refreshThreat)}`;
+  dom.openEndlessShopButton.querySelector("b").textContent = merchantLabel;
+  dom.openEndlessShopButton.setAttribute("aria-label", merchantLabel);
+  dom.openEndlessShopButton.title = `${merchantLabel}（M）`;
+  dom.openEndlessShopButton.querySelector(".endless-shop-icon-status")?.setAttribute("data-locked", String(locked));
+  const autoOwned = (state.endlessShop.levels.autoCoinVacuum ?? 0) > 0;
+  dom.toggleAutoCoinButton.classList.toggle("hidden", !autoOwned);
+  dom.toggleAutoCoinButton.setAttribute("aria-pressed", String(state.endlessShop.autoCoinEnabled));
+  dom.toggleAutoCoinButton.querySelector("b").textContent = state.endlessShop.autoCoinEnabled ? "ON" : "OFF";
+}
+
+function renderEndlessShop() {
+  if (!state.endlessShop?.unlocked) return;
+  const shop = state.endlessShop;
+  dom.endlessShopCoins.textContent = formatNumber(state.coins);
+  dom.endlessShopStage.textContent = `威胁 ${formatThreat(shop.refreshThreat)} · 价格 ×${(ENDLESS_SHOP_RULES.stageGrowth ** shop.refreshIndex).toFixed(2)}`;
+  dom.endlessShopLock.classList.toggle("hidden", !bossPresent(state));
+  dom.endlessRelicSlots.textContent = `${shop.equippedRelics.length} / ${ENDLESS_SHOP_RULES.maxRelics}`;
+  dom.endlessRelicOffers.replaceChildren(...shop.relicOffers.map((id) => createEndlessShopCard(id, ENDLESS_RELICS[id], true)));
+  const fixedIds = Object.entries(ENDLESS_PRODUCTS).filter(([, item]) => item.group === "fixed").map(([id]) => id);
+  dom.endlessFixedOffers.replaceChildren(...fixedIds.map((id) => createEndlessShopCard(id, ENDLESS_PRODUCTS[id])));
+  dom.endlessRandomOffers.replaceChildren(...shop.randomOffers.map((id) => createEndlessShopCard(id, ENDLESS_PRODUCTS[id])));
+  if (!shop.randomOffers.length) {
+    const empty = document.createElement("p"); empty.className = "endless-shop-empty"; empty.textContent = "本轮可用随机商品已购完。"; dom.endlessRandomOffers.append(empty);
+  }
+  dom.endlessShopSpent.textContent = `本局消费 ${formatNumber(shop.spent)}`;
+  const rerollPrice = ENDLESS_SHOP_RULES.rerollPrices[shop.rerolls];
+  dom.endlessShopRerollPrice.textContent = rerollPrice == null ? "本轮已达上限" : `${formatNumber(rerollPrice)} 金币`;
+  dom.rerollEndlessShopButton.querySelector("small").textContent = `本轮剩余 ${Math.max(0, ENDLESS_SHOP_RULES.rerollPrices.length - shop.rerolls)} 次`;
+  dom.rerollEndlessShopButton.disabled = rerollPrice == null || bossPresent(state) || state.coins < rerollPrice;
+  renderEndlessShopHud();
+}
+
+function setEndlessShopOpen(open, restoreFocus = false) {
+  if (open && (!state.endlessMode || !state.endlessShop?.unlocked || state.over)) return false;
+  if (open === endlessShopOpen) return true;
+  endlessShopOpen = open;
+  dom.endlessShopModal.classList.toggle("hidden", !open);
+  dom.openEndlessShopButton.setAttribute("aria-expanded", String(open));
+  if (open) {
+    cancelStarfallAim(false);
+    resumeAfterEndlessShop = !state.paused;
+    state.paused = true;
+    dom.pauseOverlay.classList.add("hidden");
+    renderEndlessShop();
+    dom.closeEndlessShopButton.focus({ preventScroll: true });
+  } else {
+    state.paused = resumeAfterEndlessShop && !state.over ? false : state.paused;
+    resumeAfterEndlessShop = false;
+    if (restoreFocus) dom.openEndlessShopButton.focus({ preventScroll: true });
+  }
+  updateUi();
+  return true;
+}
+
+function buyEndlessShopReroll() {
+  const result = rerollEndlessShop(state);
+  if (!result.allowed) { showToast(result.reason); return; }
+  audio.play("purchase");
+  handleEvents(state.events);
+  renderEndlessShop();
+}
+
 function createRelicHudChip({ icon, name, label = name, description, effect, rarityClass = "" }) {
   const chip = document.createElement("button");
   chip.type = "button";
@@ -2102,8 +2218,9 @@ function createRelicHudChip({ icon, name, label = name, description, effect, rar
 
 function renderRelicHud() {
   const owned = Object.entries(state.relics.owned).filter(([, active]) => active).map(([id]) => id);
+  const endlessRelics = state.endlessShop?.equippedRelics ?? [];
   const endlessStacks = state.relics.endlessStacks ?? 0;
-  const signature = [owned.join(","), state.relics.damageBonus.toFixed(3), state.relics.rateBonus.toFixed(3), endlessStacks].join("|");
+  const signature = [owned.join(","), endlessRelics.join(","), state.relics.damageBonus.toFixed(3), state.relics.rateBonus.toFixed(3), endlessStacks, state.endlessShop?.insuranceCharges ?? 0].join("|");
   if (signature === relicHudSignature) return;
   relicHudSignature = signature;
   dom.relicRunHud.replaceChildren();
@@ -2111,6 +2228,17 @@ function renderRelicHud() {
     const meta = RELIC_META[id];
     const level = state.relics.upgrades[id] ?? 0;
     dom.relicRunHud.append(createRelicHudChip({ ...meta, description: relicDescription(id, level), effect: relicEffect(id, level), rarityClass: relicRarityClass(level) }));
+  }
+  for (const id of endlessRelics) {
+    const meta = ENDLESS_RELICS[id];
+    dom.relicRunHud.append(createRelicHudChip({
+      icon: meta.icon,
+      name: meta.name,
+      label: id === "finalInsurance" ? `${meta.name} · ${state.endlessShop.insuranceCharges ? "就绪" : "耗尽"}` : meta.name,
+      description: meta.description,
+      effect: meta.effect,
+      rarityClass: "endless-signature"
+    }));
   }
   if (endlessStacks > 0) {
     const damage = Math.round(endlessStacks * GAME_CONFIG.relics.endless.damagePerStack * 100);
@@ -2251,6 +2379,18 @@ function handleEvents(events) {
       }
       announce(event.id === "boost:endless" ? `无界增幅核 · 当前 ${state.relics.endlessStacks} 层` : `${RELIC_META[event.id]?.name ?? "战场回路"} · 已接入本局构筑`);
     }
+    else if (event.type === "endlessShopRefreshPending") showToast(`裂隙行商更新 · 击败首领后恢复交易`);
+    else if (event.type === "endlessShopRefreshReady") {
+      audio.play("ascend");
+      announce(`威胁 ${formatThreat(event.threat)} · 裂隙行商已更新商品`);
+      setEndlessShopOpen(true);
+    }
+    else if (event.type === "endlessShopPurchase") {
+      const meta = ENDLESS_RELICS[event.id] ?? ENDLESS_PRODUCTS[event.id];
+      showToast(`${meta?.name ?? "裂隙商品"} · ${event.relic ? "已装备" : `已购买${event.level ? ` · ${event.level} 级` : ""}`}`);
+    }
+    else if (event.type === "endlessShopReroll") showToast(`商品重置完成 · 消耗 ${formatNumber(event.price)} 金币`);
+    else if (event.type === "endlessInsurance") { audio.play("ascend"); renderer.trigger("shieldBurst", 1.6); announce("终焉保险触发 · 晶塔拒绝熄灭"); }
     else if (event.type === "relicDecoyExplode") { audio.play("overload"); renderer.trigger("overloadRelease", 0.7); announce("诡光诱饵崩解 · 爆炸清场"); }
     else if (event.type === "relicDecoySurvived") { audio.play("coin"); showToast(`诡光诱饵存活 · 转化金币 ${event.value}`); }
     else if (event.type === "relicPhaseBuff") { renderer.trigger("ascend", 0.45); showToast("月相调律 · 短暂火力强化"); }
@@ -2262,6 +2402,7 @@ function handleEvents(events) {
     else if (event.type === "cannonSplit") renderer.trigger("cannonSplit");
     else if (event.type === "cannonEcho") renderer.trigger("cannonEcho");
     else if (event.type === "cannonStarPiercer") { audio.play("ascend"); renderer.trigger("cannonStarPiercer"); showToast("破城终点 · 贯星炮穿透护盾"); }
+    else if (event.type === "cannonStarPiercerOverflow") renderer.trigger("cannonStarPiercer");
     else if (event.type === "cannonCascade") { audio.play("overload"); renderer.trigger("cannonCascade"); showToast(`裂晶终点 · 大型连锁爆炸 · 命中 ${event.hits}`); }
     else if (event.type === "shoot") audio.play("shoot");
     else if (event.type === "sawShoot") audio.play("sawShoot");
@@ -2390,6 +2531,7 @@ function updateUi() {
   dom.waveText.closest(".wave-status").classList.toggle("warning", state.wave.warningStarted || state.wave.active);
   renderRelicHud();
   renderThreatSealHud();
+  renderEndlessShopHud();
   dom.damageStat.textContent = Math.round(stats.damage);
   dom.rateStat.textContent = stats.fireRate.toFixed(1);
   dom.rangeStat.textContent = Math.round(stats.range);
@@ -2461,7 +2603,7 @@ function updateUi() {
     const cooldown = state.skills[key].cooldown;
     const total = GAME_CONFIG.skills[key].cooldown * (key === "heal" ? state.threatSeals?.modifiers?.healCooldownMultiplier ?? 1 : 1);
     const shieldFull = state.tower.shield >= stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction - 0.01;
-    const overloadCanEnd = key === "overload" && state.skills.overload.active > 0;
+    const overloadCanEnd = key === "overload" && (state.skills.overload.active > 0 || (state.skills.overload.permanentEngaged && cooldown <= 0));
     button.disabled = state.over || (cooldown > 0 && !overloadCanEnd) || (key === "heal" && hpRatio >= 0.999 && shieldFull) || (key === "starfall" && !starfallAiming && !state.enemies.some((enemy) => enemy.hp > 0)) || (key === "coinVacuum" && !state.coinOrbs.some((orb) => !orb.expired && !orb.collected));
     if (key === "starfall") {
       button.classList.toggle("aiming", starfallAiming);
@@ -2470,7 +2612,7 @@ function updateUi() {
     button.querySelector(".cooldown-mask").style.height = `${Math.min(100, cooldown / total * 100)}%`;
     button.querySelector(".cooldown-text").textContent = cooldown > 0 ? `${cooldown.toFixed(1)}s` : "";
     const tooltip = button.querySelector(".skill-tooltip span");
-    if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${researchedNodes.length > 0 ? ` · ${ACTIVE_SKILL_RESEARCH_META[key].protocol} · ${activeRoute?.name ?? "未启用路线"} ${activeResearchLevel}/2 · 已研究 ${researchedNodes.length}/4` : ""}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
+    if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${key === "starfall" && hasEndlessRelic(state, "globalStarfall") ? " · 全目标火力协议：按 E 立即全屏轰击" : ""}${key === "overload" && hasEndlessRelic(state, "perpetualOverload") ? " · 永续超载核心：首次开启后永久运转" : ""}${researchedNodes.length > 0 ? ` · ${ACTIVE_SKILL_RESEARCH_META[key].protocol} · ${activeRoute?.name ?? "未启用路线"} ${activeResearchLevel}/2 · 已研究 ${researchedNodes.length}/4` : ""}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
   }
 
   const sovereign = state.enemies.find((enemy) => enemy.type === "sovereign" && enemy.hp > 0);
@@ -2691,6 +2833,7 @@ function finishEndlessChallenge() {
 
 function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat") {
   if (runSettled) return;
+  setEndlessShopOpen(false);
   dom.endEndlessButton.classList.add("hidden");
   cancelStarfallAim(false);
   runSettled = true;
@@ -2717,7 +2860,8 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
   dom.resultSealAchievement.textContent = `+${sealAchievement}`;
   dom.resultScore.textContent = formatScore(currentRunScore.total);
   dom.resultCombatScore.textContent = formatNumber(currentRunScore.combat);
-  dom.resultCoinScore.textContent = `${Math.floor(state.coins)} × ${GAME_CONFIG.score.coinMultiplier} = ${formatNumber(currentRunScore.coinBonus)}`;
+  const scoredCoins = Math.max(0, Math.floor(state.coins + (state.endlessShop?.spent ?? 0) * 0.5));
+  dom.resultCoinScore.textContent = `${formatNumber(scoredCoins)} × ${GAME_CONFIG.score.coinMultiplier} = ${formatNumber(currentRunScore.coinBonus)}`;
   dom.resultScoreMultiplier.textContent = `封印 ×${(state.threatSeals?.modifiers?.scoreMultiplier ?? 1).toFixed(2)}`;
   dom.gameOverTitle.textContent = outcome === "victory" ? "远征凯旋" : outcome === "endless" ? "无尽挑战结束" : "晶光熄灭";
   dom.gameOverLine.textContent = outcome === "victory" ? "核心能源已带回大本营，等待装配。" : outcome === "endless" ? "排行榜数据已锁定，主线核心能源完好无损。" : "裂隙吞没了最后一道光。";
@@ -2742,6 +2886,10 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
 
 function togglePause(force) {
   if (state.over) return;
+  if (endlessShopOpen) {
+    state.paused = true;
+    return;
+  }
   if (relicChoiceOpen) {
     state.paused = true;
     return;
@@ -2802,9 +2950,12 @@ function restart() {
   sealHudSignature = "";
   chapterCompleteOpen = false;
   chapterClearWasFirst = false;
+  endlessShopOpen = false;
+  resumeAfterEndlessShop = false;
   dom.chapterCompleteModal.classList.add("hidden");
   dom.endEndlessButton.classList.add("hidden");
   dom.relicChoiceModal.classList.add("hidden");
+  dom.endlessShopModal.classList.add("hidden");
   runIndex += 1;
   state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped, save.skillResearch);
   runSettled = false;
@@ -2813,6 +2964,7 @@ function restart() {
   currentRunMode = "standard";
   currentEntryDate = null;
   accumulator = 0;
+  uiRefreshElapsed = UI_REFRESH_INTERVAL;
   lastFrame = performance.now();
   dom.gameOverModal.classList.add("hidden");
   setUpdatesOpen(false);
@@ -2839,7 +2991,11 @@ function loop(now) {
   if (toastTimer > 0 && (toastTimer -= frameDelta) <= 0) dom.toast.classList.remove("show");
   if (announcementTimer > 0 && (announcementTimer -= frameDelta) <= 0) dom.announcement.classList.remove("show");
   renderer.render(state, frameDelta);
-  updateUi();
+  uiRefreshElapsed += frameDelta;
+  if (uiRefreshElapsed >= UI_REFRESH_INTERVAL) {
+    uiRefreshElapsed %= UI_REFRESH_INTERVAL;
+    updateUi();
+  }
   requestAnimationFrame(loop);
 }
 
@@ -2914,6 +3070,16 @@ if (previewMode === "endless-relic") {
   offerRelicChoice(state, "endlessWave");
   handleEvents(state.events);
 }
+if (previewMode === "endless-shop") {
+  state.endlessMode = true;
+  state.time = GAME_CONFIG.threat.duration * 24;
+  state.threat = 25;
+  state.stats.highestThreat = 25;
+  state.coins = 360000;
+  Object.assign(state.tower.upgrades, { cannonSiege: 1, cannonStarPiercer: 1, cannonCascade: 1, frost: 1, drone: 3, autoCollect: 1 });
+  refreshEndlessShop(state, 25);
+  handleEvents(state.events);
+}
 if (previewMode === "leaderboard") {
   updateGame(state, GAME_CONFIG.fixedStep);
   handleEvents(state.events);
@@ -2937,6 +3103,10 @@ document.addEventListener("keydown", (event) => {
     if (index >= 0 && index < (state.relicChoice?.choices.length ?? 0)) selectRunRelic(state.relicChoice.choices[index]);
     return;
   }
+  if (endlessShopOpen) {
+    if (event.key === "Escape" || event.key.toLowerCase() === "m") setEndlessShopOpen(false, true);
+    return;
+  }
   if (firstFailureFlow) {
     if (event.key === "Enter" || event.key === " ") advanceBaseRecoveryEvent();
     return;
@@ -2955,6 +3125,10 @@ document.addEventListener("keydown", (event) => {
   }
   if (accountModalOpen) {
     if (event.key === "Escape") setAccountOpen(false, true);
+    return;
+  }
+  if (event.key.toLowerCase() === "m" && state.endlessShop?.unlocked) {
+    setEndlessShopOpen(true);
     return;
   }
   if (starfallAiming) {
@@ -2998,6 +3172,16 @@ dom.recoveryContinueButton.addEventListener("click", advanceBaseRecoveryEvent);
 dom.finishExpeditionButton.addEventListener("click", finishChapterExpedition);
 dom.startEndlessButton.addEventListener("click", startEndlessChallenge);
 dom.endEndlessButton.addEventListener("click", finishEndlessChallenge);
+dom.openEndlessShopButton.addEventListener("click", () => setEndlessShopOpen(true));
+dom.closeEndlessShopButton.addEventListener("click", () => setEndlessShopOpen(false, true));
+dom.rerollEndlessShopButton.addEventListener("click", buyEndlessShopReroll);
+dom.toggleAutoCoinButton.addEventListener("click", () => {
+  if (!toggleAutoCoinVacuum(state)) return;
+  audio.play("purchase");
+  showToast(`自动金潮 · ${state.endlessShop.autoCoinEnabled ? "开启" : "关闭"}`);
+  renderEndlessShopHud();
+});
+dom.endlessShopModal.addEventListener("pointerdown", (event) => { if (event.target === dom.endlessShopModal) setEndlessShopOpen(false, true); });
 dom.openLeaderboardButton.addEventListener("click", () => setLeaderboardOpen(true));
 dom.openUpdatesButton.addEventListener("click", () => setUpdatesOpen(true));
 dom.closeUpdatesButton.addEventListener("click", () => setUpdatesOpen(false, true));

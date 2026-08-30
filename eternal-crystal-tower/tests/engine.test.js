@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { applyElementalHit, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, getStarfallConeHalfAngle, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG } from "../src/config.js";
+import { ENDLESS_SHOP_RULES, getEndlessShopPrice, purchaseEndlessShopItem, refreshEndlessShop, rerollEndlessShop } from "../src/endless-shop.js";
 
 test("基础塔属性符合策划", () => {
   const state = createGameState(1);
@@ -159,6 +160,23 @@ test("弹丸首次命中后立即消失且不会继续命中后方目标", () =>
   assert.equal(state.projectiles.length, 0);
   assert.equal(first.hp, firstHp - 10);
   assert.equal(second.hp, secondHp);
+});
+
+test("弹丸空间索引不会漏掉跨网格的大体型目标", () => {
+  const state = createGameState(52);
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.fireCooldown = 999;
+  const target = spawnEnemy(state, "brute", { x: 250, y: 250 });
+  target.speed = 0;
+  target.radius = 130;
+  target.hp = target.maxHp = 1_000;
+  state.projectiles.push({ id: 9992, x: 125, y: 250, vx: 0, vy: 0, damage: 10, radius: 7, pierce: 0, life: 1, tier: 0 });
+
+  updateGame(state);
+
+  assert.equal(target.hp, 990);
+  assert.equal(state.projectiles.length, 0);
 });
 
 test("晶塔火力炮膛分支互斥并提供首领/怪潮两套专精", () => {
@@ -2255,4 +2273,69 @@ test("永久资源倍率通过余数累计，避免低值掉落被向上取整�
   const drops = Array.from({ length: 7 }, () => spawnPermanentResourceDrop(state, "echo", 2));
   assert.deepEqual(drops.map((drop) => drop.value), [2, 2, 2, 2, 2, 2, 3]);
   assert.ok(Math.abs(state.threatSeals.resourceCarry.echo - 0.12) < 1e-9);
+});
+
+test("威胁二十五开启裂隙商店并按五级威胁刷新涨价", () => {
+  const state = createGameState(9801);
+  state.endlessMode = true;
+  state.coins = 500_000;
+  assert.equal(refreshEndlessShop(state, 25), true);
+  assert.equal(state.endlessShop.unlocked, true);
+  assert.equal(state.endlessShop.relicOffers.length, 3);
+  assert.equal(state.endlessShop.randomOffers.length, 3);
+  assert.equal(getEndlessShopPrice(state, "attackProtocol"), 10_000);
+  assert.equal(refreshEndlessShop(state, 30), true);
+  assert.equal(getEndlessShopPrice(state, "attackProtocol"), 13_500);
+  assert.equal(state.endlessShop.refreshSerial, 2);
+});
+
+test("裂隙商店重复升级、三级重置和消费计分返还生效", () => {
+  const state = createGameState(9802);
+  state.endlessMode = true;
+  state.coins = 500_000;
+  refreshEndlessShop(state, 25);
+  const baseDamage = getTowerStats(state).damage;
+  assert.equal(purchaseEndlessShopItem(state, "attackProtocol", getTowerStats(state)).allowed, true);
+  assert.equal(getTowerStats(state).damage, baseDamage * 1.12);
+  assert.equal(getEndlessShopPrice(state, "attackProtocol"), 15_500);
+  assert.equal(rerollEndlessShop(state).price, 6_000);
+  assert.equal(rerollEndlessShop(state).price, 12_000);
+  assert.equal(rerollEndlessShop(state).price, 24_000);
+  assert.equal(rerollEndlessShop(state).allowed, false);
+  const expectedCoinBasis = Math.floor(state.coins + state.endlessShop.spent * 0.5);
+  assert.equal(calculateRunScore(state).coinBonus, expectedCoinBasis * GAME_CONFIG.score.coinMultiplier);
+});
+
+test("永续超载、全屏星落与终焉保险按专属遗物规则工作", () => {
+  const overload = createGameState(9803);
+  overload.endlessMode = true;
+  overload.endlessShop.equippedRelics.push("perpetualOverload");
+  assert.equal(useSkill(overload, "overload"), true);
+  assert.equal(overload.skills.overload.permanentEngaged, true);
+  overload.skills.overload.heat = GAME_CONFIG.skills.overload.heatCap - 0.1;
+  updateGame(overload, 0.1);
+  assert.ok(overload.skills.overload.heat >= 30 && overload.skills.overload.heat < 31);
+  assert.ok(overload.skills.overload.unstable > 1);
+
+  const starfall = createGameState(9804);
+  starfall.endlessMode = true;
+  starfall.endlessShop.equippedRelics.push("globalStarfall");
+  const east = spawnEnemy(starfall, "brute", { x: 700, y: 360 });
+  const west = spawnEnemy(starfall, "brute", { x: 260, y: 360 });
+  assert.equal(useSkill(starfall, "starfall"), true);
+  assert.ok(east.hp < east.maxHp && west.hp < west.maxHp);
+  assert.equal(starfall.skills.starfall.protocol, "global");
+
+  const insurance = createGameState(9805);
+  insurance.endlessMode = true;
+  insurance.endlessShop.equippedRelics.push("finalInsurance");
+  insurance.endlessShop.insuranceCharges = 1;
+  insurance.tower.hp = 1;
+  const attacker = spawnEnemy(insurance, "brute", getTowerPosition(insurance));
+  attacker.damage = 10_000;
+  attacker.speed = 0;
+  updateGame(insurance, 0.02);
+  assert.ok(insurance.tower.hp > 1);
+  assert.equal(insurance.endlessShop.insuranceCharges, 0);
+  assert.ok(insurance.tower.damageImmunity > 0);
 });

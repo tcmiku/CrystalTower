@@ -81,6 +81,7 @@ npm start
 | `?preview=recovery`                     | 首次失败核心残响事件     |
 | `?preview=basecamp`                     | 大本营核心室             |
 | `?preview=relics&seed=42`               | 临时遗物三选一界面       |
+| `?preview=endless-shop`                 | 威胁 25 裂隙行商商店     |
 
 ---
 
@@ -192,6 +193,7 @@ npm start
 | `P` / `Esc`       | 暂停/继续                                 |
 | `U`               | 打开/关闭更新公告                         |
 | `X`               | 切换 1×/2× 时流倍率（需解锁）           |
+| `M`               | 打开/关闭无尽模式裂隙行商（威胁 25 后） |
 
 ### 触屏
 
