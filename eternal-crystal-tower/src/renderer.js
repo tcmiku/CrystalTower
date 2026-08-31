@@ -1,5 +1,5 @@
 import { GAME_CONFIG, getArenaEdgePosition } from "./config.js";
-import { getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
+import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 import { isChapterTwo } from "./chapter-two.js";
 
 const ENEMY_COLORS = {
@@ -1054,6 +1054,26 @@ export class Renderer {
         ctx.restore();
         continue;
       }
+      if (projectile.source?.startsWith("drone")) {
+        const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
+        const ux = projectile.vx / speed;
+        const uy = projectile.vy / speed;
+        const angle = Math.atan2(projectile.vy, projectile.vx);
+        const role = projectile.droneClass ?? "fighter";
+        const color = role === "bomber" ? "#ffad62" : role === "attacker" ? "#ffd96d" : "#72efff";
+        ctx.save();
+        ctx.strokeStyle = color; ctx.shadowColor = color; ctx.shadowBlur = role === "bomber" ? 20 : 12;
+        ctx.lineWidth = role === "bomber" ? 6 : role === "attacker" ? 3.5 : 2;
+        ctx.beginPath(); ctx.moveTo(projectile.x - ux * (role === "bomber" ? 24 : 18), projectile.y - uy * (role === "bomber" ? 24 : 18)); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
+        ctx.translate(projectile.x, projectile.y); ctx.rotate(angle);
+        ctx.fillStyle = role === "bomber" ? "#5b2631" : role === "attacker" ? "#6a421e" : "#dfffff";
+        ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (role === "bomber") ctx.arc(0, 0, 8, 0, Math.PI * 2);
+        else { ctx.moveTo(9, 0); ctx.lineTo(-5, -4); ctx.lineTo(-2, 0); ctx.lineTo(-5, 4); ctx.closePath(); }
+        ctx.fill(); ctx.stroke(); ctx.restore();
+        continue;
+      }
       if (projectile.source === "sawGun") {
         const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
         const tx = projectile.x - projectile.vx / speed * 9;
@@ -1272,6 +1292,17 @@ export class Renderer {
 
   drawElementFx(ctx, state) {
     for (const effect of state.elementFx) {
+      if (effect.element === "droneBomb") {
+        const alpha = Math.max(0, effect.life / effect.maxLife);
+        const progress = 1 - alpha;
+        const radius = effect.radius * (.2 + progress * .8);
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.translate(effect.x, effect.y);
+        ctx.globalAlpha = alpha * .72; ctx.fillStyle = "rgba(255,116,54,.28)"; ctx.shadowColor = "#ff8b4d"; ctx.shadowBlur = 24;
+        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#ffd478"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, radius * .72, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+        continue;
+      }
       if (effect.element === "starfallFollowup") {
         const alpha = Math.max(0, effect.life / effect.maxLife);
         const progress = 1 - alpha;
@@ -1846,7 +1877,9 @@ export class Renderer {
       }
       const travelAngle = enemyTarget ? Math.atan2(enemyTarget.y - y, enemyTarget.x - x) : target ? Math.atan2(target.renderY - y, target.renderX - x) : angle + Math.PI / 2;
       ctx.translate(x, y); ctx.rotate(travelAngle);
-      const primaryColor = recovering ? "#6c718c" : detonate ? "#ff715f" : defending ? "#a88cff" : attacking ? "#ffad4d" : "#7ceeff";
+      const droneClass = drone?.droneClass ?? "fighter";
+      const classColor = droneClass === "bomber" ? "#ff8e70" : droneClass === "attacker" ? "#ffd066" : "#6feaff";
+      const primaryColor = recovering ? "#6c718c" : detonate ? "#ff715f" : defending ? "#a88cff" : isChapterTwo(state) ? classColor : attacking ? "#ffad4d" : "#7ceeff";
       ctx.shadowColor = primaryColor; ctx.shadowBlur = recovering ? 5 : attacking || defending ? 15 : 10;
       if (isChapterTwo(state) && imageReady(this.assets.chapterTwoDrones)) {
         const atlas = this.assets.chapterTwoDrones;
@@ -1856,7 +1889,8 @@ export class Renderer {
         const column = attacking ? 1 : 0;
         const row = detonate || lowEnergyOverdrive || defending ? 1 : 0;
         ctx.globalAlpha = recovering ? .42 : 1;
-        ctx.drawImage(atlas, column * cellWidth, row * cellHeight, cellWidth, cellHeight, -22, -22, 44, 44);
+        const classScale = droneClass === "bomber" ? 1.16 : droneClass === "attacker" ? 1.04 : .92;
+        ctx.drawImage(atlas, column * cellWidth, row * cellHeight, cellWidth, cellHeight, -22 * classScale, -22 * classScale, 44 * classScale, 44 * classScale);
       } else {
         ctx.fillStyle = recovering ? "#20253d" : detonate ? "#4a2630" : defending ? "#302653" : attacking ? "#4a2630" : "#202949";
         ctx.strokeStyle = recovering ? "#747995" : detonate ? "#ffd171" : defending ? "#d2c4ff" : attacking ? "#ffd171" : "#b9f7ff"; ctx.lineWidth = attacking || defending ? 1.7 : 1.2;
@@ -1871,6 +1905,24 @@ export class Renderer {
         ctx.fillStyle = recovering ? "#8e94b7" : detonate ? "#fff0a7" : defending ? "#d9ccff" : attacking ? "#fff0a7" : "#ffc96b"; ctx.beginPath(); ctx.arc(0, 0, 2.8, 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
+      if (isChapterTwo(state)) {
+        const label = droneClass === "bomber" ? "轰" : droneClass === "attacker" ? "攻" : "截";
+        const phase = drone?.phase ?? "docked";
+        const ammo = Math.max(0, drone?.ammo ?? 0);
+        const ammoMax = getChapterTwoDroneAmmoMax(state, droneClass);
+        ctx.save();
+        ctx.fillStyle = "rgba(4,7,20,.82)"; ctx.strokeStyle = classColor; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(x - 13, y - 13, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#f4fbff"; ctx.font = "800 8px Microsoft YaHei UI,sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(label, x - 13, y - 13.5);
+        ctx.fillStyle = "rgba(4,7,20,.94)"; ctx.strokeStyle = ammo > 0 ? classColor : "rgba(130,140,170,.72)";
+        ctx.beginPath(); ctx.roundRect(x + 2, y - 27, 43, 18, 6); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = ammo > 0 ? "#f4fbff" : "#8f98b5"; ctx.font = "800 9px Microsoft YaHei UI,sans-serif";
+        ctx.fillText(`弹 ${ammo}/${ammoMax}`, x + 23.5, y - 18);
+        if (["refit", "docked", "recovery"].includes(phase)) {
+          ctx.fillStyle = "rgba(5,9,24,.78)"; ctx.font = "700 8px Microsoft YaHei UI,sans-serif"; ctx.fillText(phase === "refit" ? "补给" : phase === "recovery" ? "重组" : "待命", x, y + 25);
+        }
+        ctx.restore();
+      }
       const energyRatio = Math.max(0, Math.min(1, state.tower.droneEnergy / getDroneEnergyMax(state)));
       ctx.save(); ctx.fillStyle = "rgba(4,7,20,.72)"; ctx.fillRect(x - 12, y + 13, 24, 3); ctx.fillStyle = energyRatio < .2 ? "#ff705d" : detonate ? "#ffbd61" : defending ? "#c4a7ff" : attacking ? "#ffbd61" : "#74e7ff"; ctx.fillRect(x - 12, y + 13, 24 * energyRatio, 3); ctx.restore();
       if (recovering) {
@@ -1896,18 +1948,17 @@ export class Renderer {
     ctx.beginPath(); ctx.arc(0, 0, 55 + tier * 13 + Math.sin(this.time * 2.5) * 4, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
 
+    const crystalShieldRatio = state.tower.shield > 0
+      ? Math.min(1, state.tower.shield / (stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction))
+      : 0;
+    if (crystalShieldRatio > 0) {
+      this.drawTowerCrystalShield(ctx, tier, crystalShieldRatio, state.skills.heal.shieldBurstArmed, false);
+    }
+
     if (state.tower.droneGuardShield > 0) {
       const guardRatio = Math.min(1, state.tower.droneGuardShield / getDroneGuardShieldMax(state));
       ctx.save(); ctx.rotate(this.time * .55); ctx.globalAlpha = .24 + guardRatio * .42; ctx.strokeStyle = "#bfadff"; ctx.shadowColor = "#a789ff"; ctx.shadowBlur = 18; ctx.lineWidth = 3;
       ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.arc(0, 0, 72 + tier * 10, .2, .2 + Math.PI * 2 * guardRatio); ctx.stroke(); ctx.restore();
-    }
-    if (state.tower.shield > 0) {
-      const shieldRatio = Math.min(1, state.tower.shield / (stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction));
-      ctx.save(); ctx.rotate(-this.time * .45);
-      ctx.globalAlpha = .28 + shieldRatio * .38;
-      ctx.strokeStyle = "#bff9ff"; ctx.shadowColor = "#79eaff"; ctx.shadowBlur = 16; ctx.lineWidth = 3;
-      ctx.setLineDash([10, 5]); ctx.beginPath(); ctx.arc(0, 0, 66 + tier * 10, -.4, -.4 + Math.PI * 2 * shieldRatio); ctx.stroke();
-      ctx.restore();
     }
     if (state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge > 0 && state.tower.droneMode === "collect") {
       ctx.save(); ctx.rotate(this.time * .35); ctx.strokeStyle = "rgba(168,248,255,.78)"; ctx.shadowColor = "#69e4ff"; ctx.shadowBlur = 13; ctx.lineWidth = 2;
@@ -1973,12 +2024,154 @@ export class Renderer {
     ctx.shadowBlur = 0;
     if (tier < 3 && !isChapterTwo(state)) this.drawElementModules(ctx, state, tier);
 
+    if (crystalShieldRatio > 0) {
+      this.drawTowerCrystalShield(ctx, tier, crystalShieldRatio, state.skills.heal.shieldBurstArmed, true);
+    }
+
     if (hpRatio < 0.45) {
       ctx.strokeStyle = "rgba(255,100,120,.9)"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(-4, -22); ctx.lineTo(8, -7); ctx.lineTo(-1, 10); ctx.lineTo(10, 24); ctx.stroke();
     }
     ctx.restore();
     this.drawTowerHealthBar(ctx, state, x, y, towerScale * towerArtScale, tier, stats);
+  }
+
+  drawTowerCrystalShield(ctx, tier, ratio, armed, foreground) {
+    const radius = 69 + tier * 10;
+    const breath = Math.sin(this.time * 2.2) * 1.5;
+    const shellRadius = radius + breath;
+    const segmentCount = 12;
+    const activeSegments = Math.max(1, Math.ceil(ratio * segmentCount));
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+
+    if (!foreground) {
+      const field = ctx.createRadialGradient(-shellRadius * .3, -shellRadius * .38, 5, 0, 0, shellRadius * 1.08);
+      field.addColorStop(0, `rgba(225,253,255,${.12 + ratio * .08})`);
+      field.addColorStop(.55, `rgba(65,220,255,${.08 + ratio * .08})`);
+      field.addColorStop(.86, `rgba(30,164,224,${.05 + ratio * .06})`);
+      field.addColorStop(1, "rgba(38,185,235,0)");
+      ctx.fillStyle = field;
+      ctx.beginPath(); ctx.arc(0, 0, shellRadius + 7, 0, Math.PI * 2); ctx.fill();
+
+      ctx.rotate(-this.time * .16);
+      ctx.strokeStyle = `rgba(112,232,255,${.2 + ratio * .16})`;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 10]);
+      ctx.beginPath(); ctx.ellipse(0, 0, shellRadius + 2, shellRadius * .53, .22, 0, Math.PI * 2); ctx.stroke();
+      ctx.rotate(this.time * .32);
+      ctx.beginPath(); ctx.ellipse(0, 0, shellRadius + 2, shellRadius * .53, -1.05, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    ctx.shadowColor = armed ? "#d8ffff" : "#64e7ff";
+    ctx.shadowBlur = armed ? 24 + Math.sin(this.time * 5) * 5 : 13 + ratio * 7;
+    ctx.lineCap = "round";
+    const pulse = .5 + Math.sin(this.time * 3.6) * .5;
+
+    // A faceted shell gives the effect a crystal silhouette instead of reading
+    // as a generic circular range indicator at the game's zoomed-out scale.
+    ctx.globalAlpha = .08 + ratio * .08 + pulse * .025;
+    ctx.fillStyle = armed ? "#dcffff" : "#72eaff";
+    ctx.beginPath();
+    for (let side = 0; side < 6; side += 1) {
+      const angle = -Math.PI / 2 + Math.PI / 6 + side * Math.PI / 3;
+      const px = Math.cos(angle) * (shellRadius - 4);
+      const py = Math.sin(angle) * (shellRadius - 4);
+      side ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+
+    // Six live crystal plates and their energy ribs make shield strength
+    // legible as a structure: depleted plates remain as a dim blue scaffold.
+    for (let plate = 0; plate < 6; plate += 1) {
+      const angle = -Math.PI / 2 + plate * Math.PI / 3;
+      const live = plate * 2 < activeSegments;
+      const plateRadius = shellRadius + 1 + Math.sin(this.time * 2.8 + plate) * 1.2;
+      const px = Math.cos(angle) * plateRadius;
+      const py = Math.sin(angle) * plateRadius;
+      ctx.save(); ctx.translate(px, py); ctx.rotate(angle + Math.PI / 2);
+      ctx.globalAlpha = live ? .58 + ratio * .3 + pulse * .08 : .17;
+      ctx.fillStyle = live ? (armed ? "#f0ffff" : "#8cefff") : "#3d8eac";
+      ctx.strokeStyle = live ? "#e5ffff" : "#4c91aa";
+      ctx.lineWidth = live ? 1.5 : .75;
+      ctx.beginPath(); ctx.moveTo(0, -8 - pulse * 2); ctx.lineTo(4, 0); ctx.lineTo(0, 8 + pulse * 2); ctx.lineTo(-4, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+
+      if (live) {
+        ctx.globalAlpha = .22 + ratio * .2;
+        ctx.lineWidth = 1.15;
+        ctx.strokeStyle = armed ? "#f3ffff" : "#75edff";
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(angle) * (shellRadius - 8), Math.sin(angle) * (shellRadius - 8)); ctx.stroke();
+      }
+    }
+
+    ctx.globalAlpha = .3 + ratio * .28 + pulse * .08;
+    ctx.strokeStyle = armed ? "#f1ffff" : "#7eeeff";
+    ctx.lineWidth = 1.1;
+    ctx.setLineDash([3, 5]);
+    ctx.lineDashOffset = -this.time * 12;
+    ctx.beginPath();
+    for (let side = 0; side < 6; side += 1) {
+      const angle = -Math.PI / 2 + side * Math.PI / 3;
+      const px = Math.cos(angle) * (shellRadius - 4);
+      const py = Math.sin(angle) * (shellRadius - 4);
+      side ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath(); ctx.stroke();
+    ctx.setLineDash([]);
+
+    for (let index = 0; index < segmentCount; index += 1) {
+      const start = -Math.PI / 2 + index * Math.PI * 2 / segmentCount + .035;
+      const end = start + Math.PI * 2 / segmentCount - .07;
+      const lit = index < activeSegments;
+      ctx.globalAlpha = lit ? .58 + ratio * .34 : .13;
+      ctx.strokeStyle = lit ? (index % 3 === 0 ? "#efffff" : "#75ecff") : "#357b9d";
+      ctx.lineWidth = lit ? 2.7 : .9;
+      ctx.beginPath(); ctx.arc(0, 0, shellRadius, start, end); ctx.stroke();
+
+      const middle = (start + end) / 2;
+      const inner = shellRadius - (lit ? 8 : 4);
+      ctx.lineWidth = lit ? 1.25 : .6;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(middle) * inner, Math.sin(middle) * inner);
+      ctx.lineTo(Math.cos(middle) * (shellRadius + 2), Math.sin(middle) * (shellRadius + 2));
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = .48 + ratio * .25;
+    ctx.strokeStyle = "#d9fdff";
+    ctx.lineWidth = 1.35;
+    ctx.setLineDash([18, 48]);
+    ctx.lineDashOffset = -this.time * 18;
+    ctx.beginPath(); ctx.arc(0, 0, shellRadius + 4, 0, Math.PI * 2); ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.globalAlpha = .46 + ratio * .34;
+    ctx.strokeStyle = "#f1ffff";
+    ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(0, 0, shellRadius - 2, -2.72, -1.78); ctx.stroke();
+    ctx.globalAlpha *= .58;
+    ctx.beginPath(); ctx.arc(0, 0, shellRadius - 2, .35, .93); ctx.stroke();
+
+    if (armed) {
+      const armedPulse = .76 + Math.sin(this.time * 5.2) * .2;
+      ctx.fillStyle = "#eaffff";
+      ctx.strokeStyle = "#7feeff";
+      ctx.lineWidth = 1.25;
+      ctx.shadowBlur = 22;
+      for (let index = 0; index < 4; index += 1) {
+        const angle = this.time * .28 + index * Math.PI / 2;
+        const shardRadius = shellRadius + 10;
+        const sx = Math.cos(angle) * shardRadius;
+        const sy = Math.sin(angle) * shardRadius;
+        ctx.save(); ctx.translate(sx, sy); ctx.rotate(angle + Math.PI / 2); ctx.globalAlpha = armedPulse;
+        ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(3, 0); ctx.lineTo(0, 5); ctx.lineTo(-3, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+      }
+    }
+    ctx.restore();
   }
 
   drawTowerHealthBar(ctx, state, x, y, towerScale, tier, stats) {

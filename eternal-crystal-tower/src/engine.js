@@ -197,7 +197,12 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     events: [],
     stats: { kills: 0, bossKills: 0, highestThreat: 1, score: 0, echoShards: 0, coreFragments: 0 }
   };
-  if (isChapterTwo(state)) Object.assign(state.tower.upgrades, CHAPTER_TWO_CONFIG.starterUpgrades);
+  if (isChapterTwo(state)) {
+    Object.assign(state.tower.upgrades, CHAPTER_TWO_CONFIG.starterUpgrades);
+    // 舰载机是第二章的主武器：开局即主动离舰作战，G 键改为召回/再次出击。
+    state.tower.droneMode = "attack";
+    state.tower.targetProtocol = "radar";
+  }
   state.tower.droneEnergy = getDroneEnergyMax(state);
   state.tower.hp = getTowerStats(state).maxHp;
   return state;
@@ -353,6 +358,15 @@ export function toggleDroneDetonate(state) {
 export function setTargetProtocol(state, protocol) {
   if (state.over || !TARGET_PROTOCOL_ORDER.includes(protocol)) return false;
   state.tower.targetProtocol = protocol;
+  if (isChapterTwo(state)) {
+    // 切换编队战术时先让已出击单位重组，返航后按新规则重新分配目标。
+    for (const drone of state.drones) {
+      if (["outbound", "formation", "attack"].includes(drone.phase)) {
+        drone.phase = "return";
+        drone.targetId = null;
+      }
+    }
+  }
   if (protocol === "hunter") {
     for (const boss of state.enemies.filter((enemy) => enemy.type === "colossus" && enemy.hp > 0 && enemy.intentSkill === "summon" && !enemy.summonCountered)) {
       boss.summonCountered = true;
@@ -863,6 +877,11 @@ function fireStarPiercer(state, target, damage) {
 }
 
 function fireTower(state) {
+  // 第二章的航母是舰载机平台，不装备自动主炮；所有常规主动火力由无人机承担。
+  if (isChapterTwo(state)) {
+    state.tower.priorityTargetIds = [];
+    return false;
+  }
   const stats = getTowerStats(state);
   const targets = findTargets(state, stats.projectileCount);
   state.tower.priorityTargetIds = targets.map((target) => target.id);
@@ -1316,7 +1335,8 @@ function updatePermanentResourceDrops(state, dt) {
     drop.renderX = drop.x + Math.sin(drop.age * 1.7 + drop.phase) * 2.2;
     drop.renderY = drop.y - 7 - Math.sin(drop.age * 3.4 + drop.phase) * 4.5;
   }
-  if (state.tower.droneMode !== "collect" || state.tower.upgrades.autoCollect <= 0) return;
+  const carrierMagnet = isChapterTwo(state) && state.tower.upgrades.autoCollect > 0;
+  if ((!carrierMagnet && state.tower.droneMode !== "collect") || state.tower.upgrades.autoCollect <= 0) return;
   state.tower.autoCollectCooldown -= dt;
   if (state.tower.autoCollectCooldown > 0) return;
 
@@ -1380,7 +1400,7 @@ function resolveDeaths(state) {
     }
     const defeatedUnits = enemy.unitCount ?? 1;
     state.stats.kills += defeatedUnits;
-    if (isChapterTwo(state) && state.tower.upgrades.droneRepair > 0 && ["drone", "droneDetonate", "droneSalvo"].includes(enemy.lastDamageSource)) {
+    if (isChapterTwo(state) && state.tower.upgrades.droneRepair > 0 && (["drone", "droneDetonate", "droneSalvo"].includes(enemy.lastDamageSource) || enemy.lastDamageSource?.startsWith("drone"))) {
       state.tower.droneRepairKills += 1;
       if (state.tower.droneRepairKills >= CHAPTER_TWO_CONFIG.droneTech.repairEveryKills) {
         state.tower.droneRepairKills = 0;
@@ -2326,8 +2346,23 @@ function updateProjectiles(state, dt, enemySpatialIndex = null) {
           : 1;
         const bossMultiplier = isBossEnemy(enemy) ? (projectile.bossDamageMultiplier ?? 1) : 1;
         const damage = projectile.damage * markedMultiplier * starMarkMultiplier * bossMultiplier;
-        damageEnemy(state, enemy, damage, projectile.element ?? "shot");
+        const projectileSource = projectile.element ?? (projectile.source?.startsWith("drone") ? projectile.source : "shot");
+        damageEnemy(state, enemy, damage, projectileSource);
         if (projectile.element) applyElementalHit(state, enemy, projectile.element, damage);
+        if (projectile.source === "droneAttacker" && state.tower.upgrades.droneHunt > 0 && enemy.hp > 0) {
+          enemy.markTimer = Math.max(enemy.markTimer ?? 0, GAME_CONFIG.drones.huntMarkDuration);
+          state.events.push({ type: "eliteMarked", x: enemy.x, y: enemy.y, enemyId: enemy.id });
+        }
+        if ((projectile.splashRadius ?? 0) > 0) {
+          let splashHits = 0;
+          for (const nearbyEnemy of state.enemies) {
+            if (nearbyEnemy === enemy || nearbyEnemy.hp <= 0 || Math.hypot(nearbyEnemy.x - enemy.x, nearbyEnemy.y - enemy.y) > projectile.splashRadius + nearbyEnemy.radius) continue;
+            damageEnemy(state, nearbyEnemy, damage * (projectile.splashMultiplier ?? 0), projectileSource);
+            splashHits += 1;
+          }
+          state.elementFx.push({ element: "droneBomb", x: enemy.x, y: enemy.y, radius: projectile.splashRadius, life: 0.42, maxLife: 0.42 });
+          state.events.push({ type: "droneBomb", x: enemy.x, y: enemy.y, radius: projectile.splashRadius, hits: splashHits + 1 });
+        }
         const weakpointLevel = state.tower.upgrades.cannonWeakpoint;
         if (weakpointLevel > 0 && (enemy.elite || isBossEnemy(enemy)) && enemy.hp > 0) {
           const chance = Math.min(0.9, GAME_CONFIG.cannon.siege.weakpointChancePerLevel * weakpointLevel);
@@ -2531,14 +2566,290 @@ function updateDroneGuard(state, dt) {
   }
 }
 
+const CHAPTER_TWO_HEAVY_SHIPS = new Set(["brute", "sentinel", "rammer", "rustBeetle", "porcelainWarden", "boss", "colossus", "sovereign"]);
+
+function getChapterTwoDroneClass(state, index) {
+  if ((state.tower.upgrades.dronePayload ?? 0) > 0 && index % 3 === 2) return "bomber";
+  if ((state.tower.upgrades.droneHunt ?? 0) > 0 && index % 3 === 1) return "attacker";
+  return "fighter";
+}
+
+function hasChapterTwoAdvancedDroneTech(state) {
+  const upgrades = state?.tower?.upgrades ?? {};
+  return (upgrades.droneHunt ?? 0) > 0 || (upgrades.dronePayload ?? 0) > 0 || (upgrades.droneAfterburner ?? 0) > 0 || (upgrades.droneSalvo ?? 0) > 0;
+}
+
+function hasChapterTwoEarlyDroneBoost(state) {
+  return isChapterTwo(state) && (state.threat ?? 1) <= 3 && !hasChapterTwoAdvancedDroneTech(state);
+}
+
+export function getChapterTwoDroneAmmoMax(state, droneClass = "fighter") {
+  const role = CHAPTER_TWO_CONFIG.droneTech.sortie[droneClass] ? droneClass : "fighter";
+  const bomberBonus = role === "bomber" ? Math.max(0, (state?.tower?.upgrades?.dronePayload ?? 1) - 1) : 0;
+  const earlyFighterBonus = role === "fighter" && hasChapterTwoEarlyDroneBoost(state) ? 1 : 0;
+  return CHAPTER_TWO_CONFIG.droneTech.sortie[role].ammo + bomberBonus + earlyFighterBonus;
+}
+
+function getDroneDeckPosition(state, index, count) {
+  const { x, y } = getTowerPosition(state);
+  const cfg = CHAPTER_TWO_CONFIG.droneTech.sortie;
+  const angle = -Math.PI / 2 + (index - (count - 1) / 2) * 0.34;
+  return { x: x + Math.cos(angle) * cfg.deckRadius, y: y + Math.sin(angle) * cfg.deckRadius };
+}
+
+function isHeavyShip(enemy) {
+  return enemy.elite || CHAPTER_TWO_HEAVY_SHIPS.has(enemy.type);
+}
+
+function findChapterTwoDroneTarget(state, drone) {
+  const allLiving = state.enemies.filter((enemy) => enemy.hp > 0);
+  const lockedAnchor = state.tower.anchorLockTimer > 0
+    ? allLiving.find((enemy) => enemy.id === state.tower.anchorLockId && enemy.type === "anchor")
+    : null;
+  if (lockedAnchor) return lockedAnchor;
+  const living = allLiving.filter((enemy) => enemy.type !== "anchor");
+  const { x: centerX, y: centerY } = getTowerPosition(state);
+  const role = drone.droneClass ?? "fighter";
+  const rankedByRole = living
+    .map((enemy) => {
+      const distanceToCarrier = Math.hypot(enemy.x - centerX, enemy.y - centerY);
+      const distanceToDrone = Math.hypot(enemy.x - drone.x, enemy.y - drone.y);
+      let score;
+      if (role === "fighter") {
+        const interceptor = ["runner", "inkHound", "hexer", "orbitMote"].includes(enemy.type) ? 2600 : 0;
+        score = interceptor + enemy.speed * 18 + (enemy.attackRange ?? 0) * 7 - distanceToCarrier * 1.5;
+      } else if (role === "attacker") {
+        const surfaceShip = isHeavyShip(enemy) && !isBossEnemy(enemy) ? 2400 : 0;
+        score = surfaceShip + enemy.maxHp * 2.2 - distanceToCarrier * 0.7;
+      } else {
+        const capitalShip = enemy.type === "sovereign" ? 9000 : enemy.type === "colossus" ? 7600 : enemy.type === "boss" ? 6200 : enemy.elite ? 4600 : isHeavyShip(enemy) ? 2600 : 0;
+        score = capitalShip + enemy.maxHp * 3;
+      }
+      return { enemy, score, distanceToDrone };
+    })
+    .sort((a, b) => b.score - a.score || a.distanceToDrone - b.distanceToDrone || a.enemy.id - b.enemy.id)
+    .map((entry) => entry.enemy);
+  const protocol = state.tower.targetProtocol;
+  if (protocol === "guard") {
+    const escortRadius = 350;
+    const intruders = living
+      .map((enemy) => ({ enemy, distance: Math.hypot(enemy.x - centerX, enemy.y - centerY) }))
+      .filter((entry) => entry.distance <= escortRadius)
+      .sort((a, b) => a.distance - b.distance || a.enemy.id - b.enemy.id)
+      .map((entry) => entry.enemy);
+    return intruders.length ? intruders[drone.index % Math.min(3, intruders.length)] : null;
+  }
+  if (protocol === "hunter") {
+    return living
+      .map((enemy) => ({ enemy, score: (enemy.type === "sovereign" ? 12000 : enemy.type === "colossus" ? 10000 : enemy.type === "boss" ? 8000 : enemy.elite ? 6000 : isHeavyShip(enemy) ? 3000 : 0) + enemy.maxHp * 3 }))
+      .sort((a, b) => b.score - a.score || a.enemy.id - b.enemy.id)[0]?.enemy ?? null;
+  }
+  if (protocol === "breach") {
+    const claimed = new Set(state.drones.filter((candidate) => candidate !== drone && candidate.targetId != null).map((candidate) => candidate.targetId));
+    const unclaimed = living.filter((enemy) => !claimed.has(enemy.id));
+    const pool = unclaimed.length ? unclaimed : living;
+    return pool.sort((a, b) => a.hp - b.hp || Math.hypot(a.x - centerX, a.y - centerY) - Math.hypot(b.x - centerX, b.y - centerY) || a.id - b.id)[0] ?? null;
+  }
+  return rankedByRole[0] ?? null;
+}
+
+function getDroneFormationPoint(drone, target, roleCfg, dt) {
+  // 出航阶段先抵达固定编队点；进入编队后才开始环绕，避免追逐不断移动的集合点。
+  if (drone.phase !== "outbound") drone.formationAngle = (drone.formationAngle ?? 0) + roleCfg.orbitSpeed * dt;
+  return {
+    x: target.x + Math.cos(drone.formationAngle) * roleCfg.orbitRadius,
+    y: target.y + Math.sin(drone.formationAngle) * roleCfg.orbitRadius
+  };
+}
+
+function sendChapterTwoDroneHome(state, drone) {
+  if (drone.phase === "return" || drone.phase === "refit" || drone.phase === "docked") return;
+  drone.phase = "return";
+  drone.targetId = null;
+  state.events.push({ type: "droneReturn", droneIndex: drone.index, droneClass: drone.droneClass });
+}
+
+function launchChapterTwoDroneWeapon(state, drone, target) {
+  const sortie = CHAPTER_TWO_CONFIG.droneTech.sortie;
+  const role = drone.droneClass ?? "fighter";
+  const roleCfg = sortie[role];
+  const dx = target.x - drone.x;
+  const dy = target.y - drone.y;
+  const distance = Math.hypot(dx, dy) || 1;
+  const lowEnergy = state.tower.droneEnergy <= getDroneEnergyMax(state) * CHAPTER_TWO_CONFIG.droneTech.overdriveEnergyThreshold;
+  const overdrive = state.tower.upgrades.droneOverdrive > 0 && lowEnergy ? CHAPTER_TWO_CONFIG.droneTech.overdriveDamageMultiplier : 1;
+  const heavyMultiplier = isHeavyShip(target) ? roleCfg.heavyDamageMultiplier ?? 1 : 1;
+  const payloadLevel = role === "bomber" ? state.tower.upgrades.dronePayload ?? 0 : 0;
+  const payloadMultiplier = 1 + payloadLevel * CHAPTER_TWO_CONFIG.droneTech.payloadDamagePerLevel;
+  const earlyBoost = hasChapterTwoEarlyDroneBoost(state) ? 1.45 : 1;
+  const damage = getTowerStats(state).damage * CHAPTER_TWO_CONFIG.droneDamageMultiplier * earlyBoost * roleCfg.damageMultiplier * payloadMultiplier * heavyMultiplier * overdrive;
+  state.projectiles.push({
+    id: state.nextId++, x: drone.x, y: drone.y,
+    vx: dx / distance * roleCfg.projectileSpeed,
+    vy: dy / distance * roleCfg.projectileSpeed,
+    damage, radius: role === "bomber" ? 9 : role === "attacker" ? 6 : 4,
+    pierce: 0, life: distance / roleCfg.projectileSpeed + 0.45, tier: 0,
+    source: `drone${role[0].toUpperCase()}${role.slice(1)}`,
+    droneClass: role, splashRadius: roleCfg.splashRadius ?? 0, splashMultiplier: roleCfg.splashMultiplier ?? 0
+  });
+  drone.ammo = Math.max(0, (drone.ammo ?? 0) - 1);
+  if (overdrive > 1) state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - roleCfg.launchEnergy * 0.22);
+  drone.hitCooldown = roleCfg.fireInterval;
+  state.tower.droneSalvoHits += 1;
+  if (state.tower.upgrades.droneSalvo > 0 && state.tower.droneSalvoHits >= CHAPTER_TWO_CONFIG.droneTech.salvoEveryHits) {
+    state.tower.droneSalvoHits = 0;
+    triggerDroneSalvo(state, target, damage);
+  }
+  state.events.push({ type: "droneWeapon", droneIndex: drone.index, droneClass: role, targetId: target.id, ammo: drone.ammo, damage, x1: drone.x, y1: drone.y, x2: target.x, y2: target.y });
+}
+
+function updateChapterTwoDrones(state, dt) {
+  const cfg = GAME_CONFIG.drones;
+  const tech = CHAPTER_TWO_CONFIG.droneTech;
+  const sortie = tech.sortie;
+  const count = state.drones.length;
+  const afterburnerLevel = state.tower.upgrades.droneAfterburner ?? 0;
+  const movementMultiplier = 1 + afterburnerLevel * tech.afterburnerSpeedPerLevel;
+  const refitMultiplier = Math.max(0.55, 1 - afterburnerLevel * tech.afterburnerIntervalReductionPerLevel);
+  let detonateMode = state.tower.droneDetonateActive && state.tower.upgrades.droneDetonate > 0;
+  if (detonateMode && state.tower.droneEnergy < cfg.detonate.energyCost) {
+    state.tower.droneDetonateActive = false;
+    state.tower.droneMode = "attack";
+    detonateMode = false;
+    state.events.push({ type: "droneDetonateDepleted" });
+  }
+  const attackMode = !detonateMode && state.tower.droneMode === "attack";
+  const guardMode = !detonateMode && state.tower.droneMode === "collect" && state.tower.upgrades.droneGuard > 0;
+  let servicingDrones = 0;
+
+  if (guardMode || state.tower.droneGuardCooldown > 0) updateDroneGuard(state, dt);
+  for (let index = 0; index < count; index += 1) {
+    const drone = state.drones[index];
+    drone.index = index;
+    drone.hitCooldown = Math.max(0, (drone.hitCooldown ?? 0) - dt);
+    const deck = getDroneDeckPosition(state, index, count);
+    const wasRecovering = drone.recoveryTimer > 0;
+    drone.recoveryTimer = Math.max(0, (drone.recoveryTimer ?? 0) - dt);
+    if (drone.recoveryTimer > 0) {
+      drone.phase = "recovery";
+      drone.targetId = null;
+      moveDroneTowards(drone, deck, cfg.returnSpeed * movementMultiplier, dt);
+      servicingDrones += 1;
+      continue;
+    }
+    if (wasRecovering) {
+      drone.droneClass = getChapterTwoDroneClass(state, index);
+      drone.ammo = getChapterTwoDroneAmmoMax(state, drone.droneClass);
+      drone.phase = "docked";
+      state.events.push({ type: "droneRecovered", x: drone.x, y: drone.y, droneIndex: index });
+    }
+
+    if (detonateMode) {
+      const target = findDroneDetonationTarget(state, drone);
+      if (!target || state.tower.droneEnergy < cfg.detonate.energyCost) {
+        moveDroneTowards(drone, deck, cfg.returnSpeed * movementMultiplier, dt);
+        servicingDrones += 1;
+        continue;
+      }
+      drone.phase = "outbound";
+      drone.targetId = target.id;
+      const distance = moveDroneTowards(drone, target, cfg.attackSpeed * movementMultiplier, dt);
+      if (distance <= target.radius + cfg.detonate.triggerDistance && detonateDrone(state, drone, index, target)) drone.phase = "recovery";
+      continue;
+    }
+
+    if (!attackMode && !["return", "refit", "docked"].includes(drone.phase)) sendChapterTwoDroneHome(state, drone);
+    if (drone.phase === "return") {
+      const distance = moveDroneTowards(drone, deck, cfg.returnSpeed * movementMultiplier, dt);
+      servicingDrones += 1;
+      if (distance <= 8) {
+        drone.phase = "refit";
+        drone.refitTimer = sortie[drone.droneClass ?? "fighter"].refitDuration * refitMultiplier;
+        state.events.push({ type: "droneLanded", droneIndex: index, droneClass: drone.droneClass });
+      }
+      continue;
+    }
+    if (drone.phase === "refit") {
+      moveDroneTowards(drone, deck, cfg.returnSpeed * movementMultiplier, dt);
+      servicingDrones += 1;
+      drone.refitTimer = Math.max(0, (drone.refitTimer ?? 0) - dt);
+      if (drone.refitTimer <= 0) {
+        drone.droneClass = getChapterTwoDroneClass(state, index);
+        drone.ammo = getChapterTwoDroneAmmoMax(state, drone.droneClass);
+        drone.phase = "docked";
+        state.events.push({ type: "droneRearmed", droneIndex: index, droneClass: drone.droneClass, ammo: drone.ammo });
+      }
+      continue;
+    }
+    if (drone.phase === "docked" || !drone.phase) {
+      drone.phase = "docked";
+      drone.droneClass = getChapterTwoDroneClass(state, index);
+      moveDroneTowards(drone, deck, cfg.returnSpeed * movementMultiplier, dt);
+      servicingDrones += 1;
+      if (!attackMode) continue;
+      const target = findChapterTwoDroneTarget(state, drone);
+      const roleCfg = sortie[drone.droneClass];
+      if (!target || state.tower.droneEnergy < roleCfg.launchEnergy) continue;
+      state.tower.droneEnergy -= roleCfg.launchEnergy;
+      drone.ammo = getChapterTwoDroneAmmoMax(state, drone.droneClass);
+      drone.targetId = target.id;
+      drone.phase = "outbound";
+      drone.formationAngle = Math.atan2(drone.y - target.y, drone.x - target.x) + index * 0.28;
+      state.events.push({ type: "droneLaunch", droneIndex: index, droneClass: drone.droneClass, targetId: target.id, ammo: drone.ammo });
+      continue;
+    }
+
+    const target = state.enemies.find((enemy) => enemy.id === drone.targetId && enemy.hp > 0);
+    const outsideEscortZone = target && state.tower.targetProtocol === "guard" && Math.hypot(target.x - getTowerPosition(state).x, target.y - getTowerPosition(state).y) > 350;
+    if (!target || outsideEscortZone || drone.ammo <= 0) {
+      sendChapterTwoDroneHome(state, drone);
+      continue;
+    }
+    const roleCfg = sortie[drone.droneClass ?? "fighter"];
+    const formationPoint = getDroneFormationPoint(drone, target, roleCfg, dt);
+    const distance = moveDroneTowards(drone, formationPoint, cfg.attackSpeed * movementMultiplier, dt);
+    const targetDistance = Math.hypot(target.x - drone.x, target.y - drone.y);
+    // 敌舰本身也在高速移动，不能只等待追上一个持续移动的精确编队点。
+    // 一旦进入武器作战半径就开始编队，否则部分目标会让无人机永久卡在出航阶段。
+    if (drone.phase === "outbound" && (distance <= 18 || targetDistance <= roleCfg.weaponRange)) {
+      drone.phase = "formation";
+      drone.formationTimer = sortie.formationDuration * refitMultiplier;
+      state.events.push({ type: "droneFormation", droneIndex: index, droneClass: drone.droneClass, targetId: target.id });
+    } else if (drone.phase === "formation") {
+      drone.formationTimer = Math.max(0, (drone.formationTimer ?? 0) - dt);
+      if (drone.formationTimer <= 0) drone.phase = "attack";
+    } else if (drone.phase === "attack" && drone.hitCooldown <= 0 && Math.hypot(target.x - drone.x, target.y - drone.y) <= roleCfg.weaponRange) {
+      launchChapterTwoDroneWeapon(state, drone, target);
+      if (drone.ammo <= 0) sendChapterTwoDroneHome(state, drone);
+    }
+  }
+
+  if (!guardMode && !detonateMode && servicingDrones > 0) {
+    const relayMultiplier = 1 + (state.tower.upgrades.droneRelay ?? 0) * tech.relayRegenPerLevel;
+    const serviceRatio = Math.max(0.35, servicingDrones / Math.max(1, count));
+    state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + cfg.guardRegenPerSecond * relayMultiplier * serviceRatio * dt);
+  }
+  if (servicingDrones > 0 && state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge < 1) {
+    state.tower.interceptRecharge = Math.max(0, state.tower.interceptRecharge - dt);
+    if (state.tower.interceptRecharge <= 0) {
+      state.tower.interceptCharge = 1;
+      state.events.push({ type: "interceptReady" });
+    }
+  }
+}
+
 function updateDrones(state, dt) {
   const count = state.tower.upgrades.drone;
   while (state.drones.length < count) {
     const index = state.drones.length;
     const position = getDroneOrbitPosition(state, index);
-    state.drones.push({ x: position.x, y: position.y, angle: 0, hitCooldown: 0, targetId: null, recoveryTimer: 0 });
+    state.drones.push({ x: position.x, y: position.y, angle: 0, hitCooldown: 0, targetId: null, recoveryTimer: 0, phase: isChapterTwo(state) ? "docked" : null, droneClass: isChapterTwo(state) ? getChapterTwoDroneClass(state, index) : null, ammo: 0, refitTimer: 0, formationTimer: 0, formationAngle: 0, index });
   }
   if (state.drones.length > count) state.drones.length = count;
+  if (isChapterTwo(state)) {
+    updateChapterTwoDrones(state, dt);
+    return;
+  }
   const cfg = GAME_CONFIG.drones;
   const tech = CHAPTER_TWO_CONFIG.droneTech;
   const afterburnerLevel = isChapterTwo(state) ? state.tower.upgrades.droneAfterburner ?? 0 : 0;
@@ -2689,16 +3000,19 @@ function updateCoinOrbs(state, dt) {
   const droneCount = state.tower.upgrades.drone;
   const guardMode = state.tower.droneMode === "collect";
   const duplexAttackCollection = state.tower.droneMode === "attack" && hasEndlessRelic(state, "droneDuplex");
-  if ((guardMode || duplexAttackCollection) && droneCount > 0 && !state.threatSeals?.modifiers?.severedSupply) {
+  const carrierCollection = isChapterTwo(state) && state.tower.upgrades.autoCollect > 0;
+  const droneCollection = !isChapterTwo(state) && (guardMode || duplexAttackCollection) && droneCount > 0;
+  if ((carrierCollection || droneCollection) && !state.threatSeals?.modifiers?.severedSupply) {
     state.tower.droneCooldown -= dt;
     if (state.tower.droneCooldown <= 0) {
       const orb = state.coinOrbs.find((item) => !item.collector);
       if (orb) {
-        const droneIndex = state.nextId % droneCount;
-        beginCoinCollection(orb, "drone", droneIndex);
+        const droneIndex = droneCount > 0 ? state.nextId % droneCount : 0;
+        beginCoinCollection(orb, carrierCollection ? "carrier" : "drone", droneIndex);
         const scavengeMultiplier = state.tower.upgrades.droneScavenge > 0 ? GAME_CONFIG.drones.scavengeIntervalMultiplier : 1;
         const duplexEfficiency = duplexAttackCollection ? ENDLESS_SHOP_RULES.droneAttackCollectEfficiency : 1;
-        state.tower.droneCooldown += GAME_CONFIG.coins.droneInterval * scavengeMultiplier / droneCount / duplexEfficiency;
+        const collectorCount = carrierCollection ? 1 : droneCount;
+        state.tower.droneCooldown += GAME_CONFIG.coins.droneInterval * scavengeMultiplier / collectorCount / duplexEfficiency;
       } else state.tower.droneCooldown = 0;
     }
   }
@@ -2723,7 +3037,8 @@ function updateCoinOrbs(state, dt) {
     orb.renderY = orb.collectStartY + (target.y - orb.collectStartY) * ease - Math.sin(progress * Math.PI) * 28;
     if (progress >= 1 && !orb.collected) {
       orb.collected = true;
-      const scavengeValue = orb.collector === "drone" && state.tower.upgrades.droneScavenge > 0 ? GAME_CONFIG.drones.scavengeValueMultiplier : 1;
+      const automatedCollector = orb.collector === "drone" || orb.collector === "carrier";
+      const scavengeValue = automatedCollector && state.tower.upgrades.droneScavenge > 0 ? GAME_CONFIG.drones.scavengeValueMultiplier : 1;
       let value = Math.max(1, Math.round(orb.value * incomeMultiplier * scavengeValue));
       const gildedPotency = relicPotency(state, "gilded");
       if (state.relics.owned.gilded && state.rng.next() < Math.min(0.9, GAME_CONFIG.relics.gilded.chance * gildedPotency)) {
@@ -2732,7 +3047,7 @@ function updateCoinOrbs(state, dt) {
         state.events.push({ type: "relicGilded", value: bonus });
       }
       state.coins += value;
-      if (orb.collector === "drone" && state.tower.droneMode === "collect") {
+      if ((orb.collector === "drone" && state.tower.droneMode === "collect") || orb.collector === "carrier") {
         const relayMultiplier = 1 + (state.tower.upgrades.droneRelay ?? 0) * CHAPTER_TWO_CONFIG.droneTech.relayCoinEnergyPerLevel;
         state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + GAME_CONFIG.drones.coinEnergy * relayMultiplier);
       }
@@ -3137,7 +3452,7 @@ export function snapshotState(state) {
   return {
     chapter: state.chapter, time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry }, skillResearch: { ...state.skillResearch }, endlessShop: { ...state.endlessShop, equippedRelics: [...state.endlessShop.equippedRelics], relicOffers: [...state.endlessShop.relicOffers], randomOffers: [...state.endlessShop.randomOffers], cyclePurchases: [...state.endlessShop.cyclePurchases], levels: { ...state.endlessShop.levels } },
     towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), cannonCascadeCooldown: Number((state.tower.cannonCascadeCooldown ?? 0).toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
-    drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3))]),
+    drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3)), drone.droneClass ?? null, drone.phase ?? null, drone.ammo ?? 0, Number((drone.refitTimer ?? 0).toFixed(3))]),
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
     enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1, Number((enemy.starMarkTimer ?? 0).toFixed(3))]),
     hostileProjectiles: state.hostileProjectiles.map((projectile) => [projectile.kind, Number(projectile.x.toFixed(2)), Number(projectile.y.toFixed(2)), Number(projectile.life.toFixed(2))]),

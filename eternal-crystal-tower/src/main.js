@@ -174,10 +174,10 @@ const COLOSSUS_COUNTER_RESULTS = { artillery: "炮击锚点崩毁 · 弹幕削�
 const ELEMENT_NAMES = { frost: "冰霜", fire: "火焰", lightning: "雷电" };
 const ANCHOR_ROLE_NAMES = { shield: "护盾锚点", repair: "修复锚点", summon: "召唤锚点", overload: "过载锚点" };
 const TARGET_PROTOCOL_META = {
-  guard: { name: "近卫", hint: "优先锁定距离晶塔最近的敌人。" },
-  hunter: { name: "猎杀号", hint: "优先首领、精英怪和咒晶怪。" },
-  breach: { name: "破阵", hint: "优先预计最快接触晶塔的敌人。" },
-  radar: { name: "雷达", hint: "优先锁定拥有远程攻击的单位。" }
+  guard: { name: "近卫", short: "最近目标", hint: "优先锁定距离晶塔最近的敌人。" },
+  hunter: { name: "猎杀号", short: "高价值目标", hint: "优先首领、精英怪和咒晶怪。" },
+  breach: { name: "破阵", short: "最快接触", hint: "优先预计最快接触晶塔的敌人。" },
+  radar: { name: "雷达", short: "远程单位", hint: "优先锁定拥有远程攻击的单位。" }
 };
 function activeUpgradeMeta(key) {
   const base = UPGRADE_META[key];
@@ -212,7 +212,7 @@ for (const [id, label, value, icon] of [["phaseText", "天象", "白昼", "icon-
 
 const dom = Object.fromEntries([
   "gameCanvas", "healthText", "healthFill", "coinsText", "threatText", "threatFill", "timeText", "phaseText", "waveText", "waveMeta", "upgradeList", "damageStat", "rateStat", "rangeStat", "droneEnergyStat", "topbar", "topbarToggle", "upgradePanel", "upgradePanelToggle",
-  "skillBar", "skillBarToggle", "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolList", "targetProtocolHint",
+  "skillBar", "skillBarToggle", "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolTitle", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
   "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "deleteLocalSaveButton", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "gameOverTitle", "gameOverLine", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore", "resultScoreMultiplier", "resultSealAchievement", "endEndlessButton",
@@ -364,13 +364,21 @@ if (previewMode === "drones") {
   state.wave.nextAt = 999;
   state.spawnTimer = 999;
   state.coins = 100_000;
-  purchaseUpgrade(state, "damage");
-  purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
-  purchaseUpgrade(state, "autoCollect");
-  toggleDroneMode(state);
-  spawnEnemy(state, "brute", { x: 710, y: 250 });
-  spawnEnemy(state, "sentinel", { x: 720, y: 470 });
-  spawnEnemy(state, "crawler", { x: 260, y: 220 });
+  if (isChapterTwo(state)) {
+    Object.assign(state.tower.upgrades, { drone: 6, droneIntercept: 1, droneHunt: 1, dronePayload: 2, droneAfterburner: 2, droneSalvo: 1 });
+    state.tower.droneMode = "attack";
+    spawnEnemy(state, "runner", { x: 700, y: 205 });
+    spawnEnemy(state, "brute", { x: 735, y: 350 });
+    spawnEnemy(state, "boss", { x: 690, y: 505 });
+  } else {
+    purchaseUpgrade(state, "damage");
+    purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
+    purchaseUpgrade(state, "autoCollect");
+    toggleDroneMode(state);
+    spawnEnemy(state, "brute", { x: 710, y: 250 });
+    spawnEnemy(state, "sentinel", { x: 720, y: 470 });
+    spawnEnemy(state, "crawler", { x: 260, y: 220 });
+  }
 }
 if (previewMode === "astral-enemies") {
   state.threat = 6;
@@ -1060,14 +1068,14 @@ function announce(message) {
 
 function switchTargetProtocol(protocol, shouldAnnounce = true) {
   if (!setTargetProtocol(state, protocol)) return false;
-  if (shouldAnnounce) announce(`目标协议 · ${activeProtocolMeta(protocol).name}`);
+  if (shouldAnnounce) announce(`${isChapterTwo(state) ? "编队战术" : "目标协议"} · ${activeProtocolMeta(protocol).name}`);
   updateUi();
   return true;
 }
 
 function cycleProtocol() {
   if (!cycleTargetProtocol(state)) return;
-  announce(`目标协议 · ${activeProtocolMeta(state.tower.targetProtocol).name}`);
+  announce(`${isChapterTwo(state) ? "编队战术" : "目标协议"} · ${activeProtocolMeta(state.tower.targetProtocol).name}`);
   updateUi();
 }
 
@@ -1111,8 +1119,8 @@ function showFirstRunTutorial(step, force = false) {
 function createUpgradeUi() {
   dom.upgradeList.replaceChildren();
   const branches = activeBranchMeta();
-  document.getElementById("techTreeTitle").textContent = isChapterTwo(state) ? "舰载无人机科技树" : "防线科技树";
-  document.querySelector(".tech-tree-header p").textContent = isChapterTwo(state) ? "仅研究舰载无人机体系；扩编机库，并在能源、强袭火控和舰体保障之间安排投入。" : "沿四条分支强化晶塔；火力分支内再选择炮膛路线。高阶科技同时检查威胁、金币与晶塔等级。";
+  document.getElementById("techTreeTitle").textContent = isChapterTwo(state) ? "航母舰载航空科技树" : "防线科技树";
+  document.querySelector(".tech-tree-header p").textContent = isChapterTwo(state) ? "无人机按离舰、编队、开火、返航补给的循环作战，并逐步分化为截击战斗机、反舰攻击机与重型轰炸机。" : "沿四条分支强化晶塔；火力分支内再选择炮膛路线。高阶科技同时检查威胁、金币与晶塔等级。";
   document.querySelector(".tech-tree-footer span").textContent = isChapterTwo(state) ? "方向键选择 · Enter 研究 · 第二章科技不继承第一章" : "1–4 切换分支 · 方向键选择 · Enter 研究";
   const tabs = document.createElement("nav");
   tabs.className = "tech-branch-tabs";
@@ -2202,12 +2210,12 @@ function switchDroneMode() {
   }
   audio.ensureContext()?.resume();
   if (!toggleDroneMode(state)) {
-    showToast(isChapterTwo(state) ? "航母指挥核心尚未启动" : "先研究晶塔磁吸核心");
+    showToast(isChapterTwo(state) ? "飞行甲板尚未启动" : "先研究晶塔磁吸核心");
     return;
   }
   audio.play("purchase");
   handleEvents(state.events);
-  showToast(state.tower.droneMode === "attack" ? (isChapterTwo(state) ? "强袭编队离舰" : "无人机切换为攻击模式") : (isChapterTwo(state) ? "编队返航 · 开始打捞充能" : "无人机返回护航模式"));
+  showToast(state.tower.droneMode === "attack" ? (isChapterTwo(state) ? "无人机主动出击" : "无人机切换为攻击模式") : (isChapterTwo(state) ? "编队回防充能 · 回收甲板继续作业" : "无人机返回护航模式"));
 }
 
 function switchDroneProtocol() {
@@ -2712,10 +2720,12 @@ function updateUi() {
   const defenseUnlocked = state.tower.upgrades.droneGuard > 0;
   const defenseCooldown = state.tower.droneGuardCooldown;
   const readyDrones = state.drones.length === 0 ? state.tower.upgrades.drone : state.drones.filter((drone) => (drone.recoveryTimer ?? 0) <= 0).length;
+  const droneClassCounts = state.drones.reduce((counts, drone) => { counts[drone.droneClass ?? "fighter"] += 1; return counts; }, { fighter: 0, attacker: 0, bomber: 0 });
+  const servicingDroneCount = state.drones.filter((drone) => ["return", "refit", "recovery", "docked"].includes(drone.phase)).length;
   dom.droneModeButton.disabled = state.over || !droneModeUnlocked || energyTooLow || detonateActive;
   dom.droneModeButton.setAttribute("aria-pressed", String(droneAttacking));
   dom.droneModeButton.classList.toggle("attack", droneAttacking);
-  dom.droneModeText.textContent = detonateActive ? (isChapterTwo(state) ? "飞行甲板 · 饱和突击" : "战术节点 · 自爆模式") : droneModeUnlocked ? (droneAttacking ? (isChapterTwo(state) ? "飞行甲板 · 强袭编队" : "战术节点 · 攻击模式") : (isChapterTwo(state) ? "飞行甲板 · 护航编队" : "战术节点 · 护航模式")) : "战术节点 · 攻击模式未解锁";
+  dom.droneModeText.textContent = detonateActive ? (isChapterTwo(state) ? "飞行甲板 · 饱和突击" : "战术节点 · 自爆模式") : droneModeUnlocked ? (droneAttacking ? (isChapterTwo(state) ? "飞行甲板 · 主动强袭" : "战术节点 · 攻击模式") : (isChapterTwo(state) ? "飞行甲板 · 回防充能" : "战术节点 · 护航模式")) : "战术节点 · 攻击模式未解锁";
   dom.droneModeButton.setAttribute("aria-label", `${dom.droneModeText.textContent}，快捷键 G`);
   dom.droneModeButton.title = `${dom.droneModeText.textContent} · G`;
   const interceptText = state.tower.upgrades.droneIntercept > 0 ? ` · 拦截${state.tower.interceptCharge > 0 ? "就绪" : `${state.tower.interceptRecharge.toFixed(1)}s`}` : "";
@@ -2723,13 +2733,13 @@ function updateUi() {
     ? (detonateActive
       ? `优先锁定 Boss / 精英 · 每次消耗 ${GAME_CONFIG.drones.detonate.energyCost} 电量`
       : droneAttacking
-        ? `暂停自动回收 · 手动拾币可用 · 撞击耗电${state.tower.upgrades.droneHunt > 0 ? " · 猎杀标记" : ""}`
+        ? (isChapterTwo(state) ? `自动出击循环 · 截${droneClassCounts.fighter}/攻${droneClassCounts.attacker}/轰${droneClassCounts.bomber} · ${servicingDroneCount} 架返航/补给` : `暂停自动回收 · 手动拾币可用 · 撞击耗电${state.tower.upgrades.droneHunt > 0 ? " · 猎杀标记" : ""}`)
         : defenseUnlocked
           ? (defenseCooldown > 0 ? `防御护盾冷却 ${defenseCooldown.toFixed(1)}s` : `防御护盾 ${Math.round(state.tower.droneGuardShield)} · 电力持续消耗`)
-          : `资源磁吸充能 · 金币手动/无人机可用 · ${Math.max(0, state.tower.autoCollectCooldown).toFixed(1)}s${interceptText}`)
+          : (isChapterTwo(state) ? `编队回防充能 · 航母回收金币不受影响${interceptText}` : `资源磁吸充能 · 金币手动/无人机可用 · ${Math.max(0, state.tower.autoCollectCooldown).toFixed(1)}s${interceptText}`))
     : "研究晶塔磁吸核心后开放";
-  if (droneModeUnlocked && state.threatSeals?.modifiers?.severedSupply && !droneAttacking && !detonateActive) {
-    dom.droneModeHint.textContent = "断供封印生效 · 无人机无法拾币 · 手动拾取仍可用";
+  if (droneModeUnlocked && state.threatSeals?.modifiers?.severedSupply && !detonateActive) {
+    dom.droneModeHint.textContent = isChapterTwo(state) ? "断供封印生效 · 航母回收甲板停机 · 手动拾取仍可用" : "断供封印生效 · 无人机无法拾币 · 手动拾取仍可用";
   }
   dom.droneEnergyFill.style.width = `${Math.max(0, Math.min(100, state.tower.droneEnergy / droneEnergyMax * 100))}%`;
   dom.droneProtocolButton.classList.toggle("hidden", !detonateUnlocked);
@@ -2746,9 +2756,11 @@ function updateUi() {
     const selected = button.dataset.protocol === state.tower.targetProtocol;
     const protocolMeta = activeProtocolMeta(button.dataset.protocol);
     button.querySelector("b").textContent = protocolMeta.name;
-    button.title = protocolMeta.name;
+    button.querySelector("small").textContent = protocolMeta.short;
+    button.title = `${protocolMeta.name} · ${protocolMeta.short}`;
     button.setAttribute("aria-pressed", String(selected));
   }
+  dom.targetProtocolTitle.textContent = isChapterTwo(state) ? "无人机编队战术" : "目标协议";
   dom.targetProtocolHint.textContent = activeProtocolMeta(state.tower.targetProtocol).hint;
 
   updateTechTreeUi();
@@ -2799,8 +2811,8 @@ function updateUi() {
     dom.objectiveTitle.textContent = isChapterTwo(state) ? (state.wave.active ? "舰队压境" : "海域预警") : (state.wave.active ? "怪潮压境" : "怪潮预警");
     dom.objectiveText.textContent = isChapterTwo(state) ? (state.wave.active ? "敌舰沿主航道集中推进。安排强袭窗口，别让能源见底。" : "红色海域是主攻方向。保留甲板超载与定向空袭。") : (state.wave.active ? "敌群正在集中涌入，使用技能清开塔下空间。" : "地图红光标出了主攻方向，准备星落与超载。");
   } else if (state.threat < 2) {
-    dom.objectiveTitle.textContent = isChapterTwo(state) ? "护航编队待命" : "怪潮已至";
-    dom.objectiveText.textContent = isChapterTwo(state) ? "按 G 放出强袭编队。返航护航会打捞残骸并恢复能源。" : (state.coins < 20 ? "鼠标滑过战场金币即可拾取，10 秒未收集就会消失。" : "第一笔金币到手。沿科技树选择路线。");
+    dom.objectiveTitle.textContent = isChapterTwo(state) ? "舰载机群主动出击" : "怪潮已至";
+    dom.objectiveText.textContent = isChapterTwo(state) ? "发现敌舰后自动离舰、编队开火并返航补给。研究攻击机与轰炸机以应对不同舰种。" : (state.coins < 20 ? "鼠标滑过战场金币即可拾取，10 秒未收集就会消失。" : "第一笔金币到手。沿科技树选择路线。");
   } else if (state.threat < 5) {
     dom.objectiveTitle.textContent = isChapterTwo(state) ? "制海圈正在收紧" : "外圈正在收紧";
     dom.objectiveText.textContent = isChapterTwo(state) ? "快艇与铁甲舰同时出现。强袭负责远海，护航守住近海。" : "疾行怪与重甲怪已加入，留一个技能救场。";
@@ -3223,7 +3235,7 @@ setTopbarCollapsed(window.innerWidth > 1180);
 if (previewMode === "tutorial-coin") showFirstRunTutorial(1, true);
 if (previewMode === "tutorial-upgrade") showFirstRunTutorial(2, true);
 if (previewMode === "tutorial-branches") showFirstRunTutorial(3, true);
-if (previewMode === "tech" || previewMode === "drones" || previewMode === "element-tech" || previewMode === "drone-energy" || previewMode === "drone-protocols") setTechTreeOpen(true);
+if (previewMode === "tech" || previewMode === "element-tech" || previewMode === "drone-energy" || previewMode === "drone-protocols") setTechTreeOpen(true);
 announce(isChapterTwo(state) ? "极夜航道 · 护航与强袭由你调度" : "守住中央晶塔");
 refreshLeaderboard();
 void restoreAccountSession();
