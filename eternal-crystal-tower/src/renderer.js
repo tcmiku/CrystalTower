@@ -1,5 +1,6 @@
 import { GAME_CONFIG, getArenaEdgePosition } from "./config.js";
 import { getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
+import { isChapterTwo } from "./chapter-two.js";
 
 const ENEMY_COLORS = {
   wisp: ["#ff706d", "#8e273e"],
@@ -19,6 +20,12 @@ const ENEMY_COLORS = {
   porcelainWarden: ["#8db7ff", "#161d3a"]
 };
 const ASTRAL_ENEMY_TYPES = new Set(["inkHound", "orbitMote", "rustBeetle", "porcelainWarden"]);
+const CHAPTER_TWO_ENEMY_CELLS = {
+  wisp: [0, 0], runner: [0, 0], inkHound: [0, 0],
+  brute: [1, 0], sentinel: [1, 0], rammer: [1, 0], rustBeetle: [1, 0], porcelainWarden: [1, 0],
+  hexer: [0, 1], orbitMote: [0, 1],
+  crawler: [1, 1]
+};
 const TOWER_ART_SCALE = 1.08;
 const ANCHOR_VISUALS = {
   shield: { name: "护盾", color: "#78e9ff", dark: "#1f6688", symbol: "⬡" },
@@ -98,7 +105,13 @@ const GENERATED_ASSETS = {
   effectFire: "./assets/generated/effect-fire-ember-ring-ai.png",
   effectLightning: "./assets/generated/effect-lightning-chain-ai.png",
   echoShard: "./assets/generated/resource-echo-shard-ai.png",
-  coreFragment: "./assets/generated/resource-core-fragment-ai.png"
+  coreFragment: "./assets/generated/resource-core-fragment-ai.png",
+  chapterTwoArena: "./assets/generated/chapter2-polar-sea-ai-v1.png",
+  chapterTwoArenaForeground: "./assets/generated/chapter2-polar-sea-foreground-ai-v3.png",
+  chapterTwoCarrier: "./assets/generated/chapter2-hive-carrier-ai-v1.png",
+  chapterTwoEnemies: "./assets/generated/chapter2-enemy-fleet-atlas-ai-v1.png",
+  chapterTwoDrones: "./assets/generated/chapter2-drone-atlas-ai-v1.png",
+  chapterTwoSovereign: "./assets/generated/chapter2-abyss-sovereign-ai-v1.png"
 };
 
 const CRITICAL_ASSET_KEYS = new Set(["arena", "tower", "enemies"]);
@@ -343,6 +356,23 @@ export class Renderer {
   }
 
   drawBackdrop(ctx, state, width, height) {
+    if (isChapterTwo(state)) {
+      if (imageReady(this.assets.chapterTwoArenaForeground)) {
+        this.drawChapterTwoWater(ctx, state, width, height);
+        const foreground = this.assets.chapterTwoArenaForeground;
+        const crop = getCoverCrop(foreground.naturalWidth, foreground.naturalHeight, width, height, .5, .5);
+        ctx.drawImage(foreground, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
+        return;
+      }
+      if (imageReady(this.assets.chapterTwoArena)) {
+        const arena = this.assets.chapterTwoArena;
+        const crop = getCoverCrop(arena.naturalWidth, arena.naturalHeight, width, height, .5, .5);
+        ctx.drawImage(arena, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
+        return;
+      }
+      this.drawChapterTwoWater(ctx, state, width, height);
+      return;
+    }
     const arenaReady = imageReady(this.assets.arena);
     const arenaDayReady = imageReady(this.assets.arenaDay);
     if (arenaReady || arenaDayReady) {
@@ -375,6 +405,57 @@ export class Renderer {
     ctx.fillRect(0, 0, width, height);
   }
 
+  drawChapterTwoWater(ctx, state, width, height) {
+    const storm = 1 - this.dayMix;
+    const sea = ctx.createLinearGradient(0, 0, width, height);
+    sea.addColorStop(0, storm > .5 ? "#010813" : "#061c2b");
+    sea.addColorStop(.46, storm > .5 ? "#05182a" : "#0a3042");
+    sea.addColorStop(1, "#02111d");
+    ctx.fillStyle = sea;
+    ctx.fillRect(0, 0, width, height);
+
+    const depth = ctx.createRadialGradient(width * .5, height * .48, 20, width * .5, height * .48, Math.max(width, height) * .62);
+    depth.addColorStop(0, "rgba(3,20,34," + (.18 + storm * .12) + ")");
+    depth.addColorStop(.6, "rgba(8,58,72,.08)");
+    depth.addColorStop(1, "rgba(0,3,10,.34)");
+    ctx.fillStyle = depth;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (const layer of [
+      { gap: 27, step: 42, speed: .7, amplitude: 3.4 + storm * 2.6, alpha: .12 + storm * .05, color: "#4ec9df" },
+      { gap: 43, step: 54, speed: -.42, amplitude: 5.2 + storm * 3.4, alpha: .075 + storm * .035, color: "#8de8ed" }
+    ]) {
+      ctx.strokeStyle = layer.color;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = layer.alpha;
+      for (let row = -layer.gap; row < height + layer.gap; row += layer.gap) {
+        ctx.beginPath();
+        for (let x = -layer.step; x <= width + layer.step; x += layer.step) {
+          const y = row
+            + Math.sin(x * .014 + this.time * layer.speed + row * .031) * layer.amplitude
+            + Math.sin(x * .006 - this.time * layer.speed * .53) * 2.1;
+          x === -layer.step ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = .12 + storm * .08;
+    ctx.fillStyle = "#b5fbff";
+    for (const glint of this.stars.slice(0, 22)) {
+      const x = (glint.x / GAME_CONFIG.arena.width * width + this.time * (7 + glint.size * 2)) % (width + 30) - 15;
+      const y = glint.y / GAME_CONFIG.arena.height * height;
+      ctx.fillRect(x, y, 8 + glint.size * 5, .7 + glint.size * .45);
+    }
+    ctx.restore();
+
+    if (state.skills.overload.active > 0 || state.skills.overload.permanentEngaged) {
+      ctx.fillStyle = "rgba(36,10,70,.2)";
+      ctx.fillRect(0, 0, width, height);
+    }
+  }
+
   drawWorld(ctx, state) {
     this.drawGround(ctx, state);
     this.drawWaveWarning(ctx, state);
@@ -402,6 +483,15 @@ export class Renderer {
     const towerPosition = getTowerPosition(state);
     const towerX = towerPosition.x;
     const towerY = towerPosition.y;
+    if (isChapterTwo(state)) {
+      ctx.save(); ctx.strokeStyle = "rgba(93,224,244,.2)"; ctx.fillStyle = "rgba(156,244,255,.7)"; ctx.lineWidth = 1.5; ctx.font = "800 11px 'Microsoft YaHei UI',sans-serif"; ctx.textAlign = "center";
+      for (const [angle, label] of [[-Math.PI / 2, "北部航道"], [0, "东部航道"], [Math.PI / 2, "南部航道"], [Math.PI, "西部航道"]]) {
+        const x = centerX + Math.cos(angle) * 310, y = centerY + Math.sin(angle) * 245;
+        ctx.setLineDash([8, 9]); ctx.beginPath(); ctx.moveTo(centerX + Math.cos(angle) * 92, centerY + Math.sin(angle) * 72); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillText(label, x, y - 8);
+      }
+      ctx.restore();
+    }
     ctx.save();
     for (const star of this.stars) {
       const pulse = 0.35 + Math.sin(this.time * 0.9 + star.phase) * 0.2;
@@ -1349,6 +1439,44 @@ export class Renderer {
         ctx.fillStyle = enemy.hitFlash > 0 ? "#ffffff" : visual.dark; ctx.strokeStyle = visual.color; ctx.lineWidth = 2; ctx.shadowColor = visual.color; ctx.shadowBlur = 16;
         ctx.beginPath(); ctx.moveTo(0, -enemy.radius); ctx.lineTo(enemy.radius * .72, 0); ctx.lineTo(0, enemy.radius); ctx.lineTo(-enemy.radius * .72, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.rotate(-this.time * 1.7); ctx.fillStyle = "#fff"; ctx.font = "900 14px 'Microsoft YaHei UI',sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(visual.symbol, 0, 0);
+      } else if (isChapterTwo(state) && isSovereign && imageReady(this.assets.chapterTwoSovereign)) {
+        const flagship = this.assets.chapterTwoSovereign;
+        const width = 360;
+        const height = width * (flagship.naturalHeight / flagship.naturalWidth);
+        ctx.globalAlpha = Math.min(1, sovereignEntry * 1.35) * (enemy.hitFlash > 0 ? .72 : 1);
+        ctx.drawImage(flagship, -width / 2, -height * .38, width, height);
+        if (enemy.hitFlash > 0) {
+          ctx.globalCompositeOperation = "screen";
+          ctx.globalAlpha = Math.min(.68, enemy.hitFlash * 7);
+          ctx.drawImage(flagship, -width / 2, -height * .38, width, height);
+        }
+      } else if (isChapterTwo(state) && !isBoss && !isColossus && imageReady(this.assets.chapterTwoEnemies)) {
+        const atlas = this.assets.chapterTwoEnemies;
+        const [column, row] = CHAPTER_TWO_ENEMY_CELLS[enemy.type] ?? [0, 0];
+        const cellWidth = atlas.naturalWidth / 2;
+        const cellHeight = atlas.naturalHeight / 2;
+        const width = Math.max(42, enemy.radius * (enemy.type === "runner" || enemy.type === "inkHound" ? 4.8 : 4.45));
+        const height = width * (cellHeight / cellWidth);
+        ctx.globalAlpha = enemy.hitFlash > 0 ? .7 : 1;
+        ctx.drawImage(atlas, column * cellWidth, row * cellHeight, cellWidth, cellHeight, -width / 2, -height / 2, width, height);
+        if (enemy.hitFlash > 0) {
+          ctx.globalCompositeOperation = "screen";
+          ctx.globalAlpha = Math.min(.62, enemy.hitFlash * 7);
+          ctx.drawImage(atlas, column * cellWidth, row * cellHeight, cellWidth, cellHeight, -width / 2, -height / 2, width, height);
+        }
+      } else if (isChapterTwo(state)) {
+        const large = isSovereign || isColossus || isBoss;
+        const length = isSovereign ? 410 : isColossus ? 190 : isBoss ? 132 : enemy.radius * 3.8;
+        const beam = isSovereign ? 92 : isColossus ? 62 : isBoss ? 48 : Math.max(16, enemy.radius * 1.35);
+        const hull = ctx.createLinearGradient(-length / 2, 0, length / 2, 0);
+        hull.addColorStop(0, enemy.hitFlash > 0 ? "#ffffff" : "#102b3b"); hull.addColorStop(.55, large ? "#31536a" : dark); hull.addColorStop(1, "#07141d");
+        ctx.fillStyle = hull; ctx.strokeStyle = large ? "#ff8371" : bright; ctx.lineWidth = large ? 3 : 1.6;
+        ctx.beginPath(); ctx.moveTo(length * .52, 0); ctx.lineTo(length * .28, -beam * .48); ctx.lineTo(-length * .38, -beam * .42); ctx.lineTo(-length * .52, 0); ctx.lineTo(-length * .34, beam * .42); ctx.lineTo(length * .3, beam * .46); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = large ? "#ff735f" : "#8cecff"; ctx.globalAlpha = .9;
+        ctx.fillRect(-length * .12, -beam * .34, length * .36, beam * .16);
+        ctx.fillStyle = "#d8fbff"; ctx.fillRect(length * .03, -beam * .2, length * .1, beam * .4);
+        if (enemy.type === "orbitMote") { ctx.globalAlpha = .48; ctx.strokeStyle = "#75dfff"; ctx.beginPath(); ctx.arc(0, 0, length * .62, 0, Math.PI * 2); ctx.stroke(); }
+        if (isSovereign) { ctx.fillStyle = "#ffb36d"; for (const offset of [-.3, -.08, .16, .36]) ctx.fillRect(length * offset, -beam * .58, 24, 9); }
       } else if (isSovereign && imageReady(this.assets.sovereign)) {
         const width = 760;
         const height = width * (this.assets.sovereign.naturalHeight / this.assets.sovereign.naturalWidth);
@@ -1716,21 +1844,32 @@ export class Renderer {
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(enemyTarget.x, enemyTarget.y); ctx.stroke();
         ctx.setLineDash([]);
       }
-      ctx.translate(x, y); ctx.rotate(angle + Math.PI / 2);
+      const travelAngle = enemyTarget ? Math.atan2(enemyTarget.y - y, enemyTarget.x - x) : target ? Math.atan2(target.renderY - y, target.renderX - x) : angle + Math.PI / 2;
+      ctx.translate(x, y); ctx.rotate(travelAngle);
       const primaryColor = recovering ? "#6c718c" : detonate ? "#ff715f" : defending ? "#a88cff" : attacking ? "#ffad4d" : "#7ceeff";
       ctx.shadowColor = primaryColor; ctx.shadowBlur = recovering ? 5 : attacking || defending ? 15 : 10;
-      ctx.fillStyle = recovering ? "#20253d" : detonate ? "#4a2630" : defending ? "#302653" : attacking ? "#4a2630" : "#202949";
-      ctx.strokeStyle = recovering ? "#747995" : detonate ? "#ffd171" : defending ? "#d2c4ff" : attacking ? "#ffd171" : "#b9f7ff"; ctx.lineWidth = attacking || defending ? 1.7 : 1.2;
-      ctx.beginPath();
-      if (recovering) {
-        ctx.arc(0, 0, 8, 0, Math.PI * 2);
-      } else if (attacking || defending) {
-        ctx.moveTo(0, -15); ctx.lineTo(8, 2); ctx.lineTo(3, 0); ctx.lineTo(0, 8); ctx.lineTo(-3, 0); ctx.lineTo(-8, 2);
+      if (isChapterTwo(state) && imageReady(this.assets.chapterTwoDrones)) {
+        const atlas = this.assets.chapterTwoDrones;
+        const cellWidth = atlas.naturalWidth / 2;
+        const cellHeight = atlas.naturalHeight / 2;
+        const lowEnergyOverdrive = state.tower.upgrades.droneOverdrive > 0 && state.tower.droneEnergy / getDroneEnergyMax(state) <= .35;
+        const column = attacking ? 1 : 0;
+        const row = detonate || lowEnergyOverdrive || defending ? 1 : 0;
+        ctx.globalAlpha = recovering ? .42 : 1;
+        ctx.drawImage(atlas, column * cellWidth, row * cellHeight, cellWidth, cellHeight, -22, -22, 44, 44);
       } else {
-        ctx.moveTo(0, -10); ctx.lineTo(8, 0); ctx.lineTo(0, 7); ctx.lineTo(-8, 0);
+        ctx.fillStyle = recovering ? "#20253d" : detonate ? "#4a2630" : defending ? "#302653" : attacking ? "#4a2630" : "#202949";
+        ctx.strokeStyle = recovering ? "#747995" : detonate ? "#ffd171" : defending ? "#d2c4ff" : attacking ? "#ffd171" : "#b9f7ff"; ctx.lineWidth = attacking || defending ? 1.7 : 1.2;
+        ctx.beginPath();
+        if (recovering) ctx.arc(0, 0, 8, 0, Math.PI * 2);
+        else if (attacking || defending) {
+          ctx.moveTo(0, -15); ctx.lineTo(8, 2); ctx.lineTo(3, 0); ctx.lineTo(0, 8); ctx.lineTo(-3, 0); ctx.lineTo(-8, 2);
+        } else {
+          ctx.moveTo(0, -10); ctx.lineTo(8, 0); ctx.lineTo(0, 7); ctx.lineTo(-8, 0);
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = recovering ? "#8e94b7" : detonate ? "#fff0a7" : defending ? "#d9ccff" : attacking ? "#fff0a7" : "#ffc96b"; ctx.beginPath(); ctx.arc(0, 0, 2.8, 0, Math.PI * 2); ctx.fill();
       }
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = recovering ? "#8e94b7" : detonate ? "#fff0a7" : defending ? "#d9ccff" : attacking ? "#fff0a7" : "#ffc96b"; ctx.beginPath(); ctx.arc(0, 0, 2.8, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
       const energyRatio = Math.max(0, Math.min(1, state.tower.droneEnergy / getDroneEnergyMax(state)));
       ctx.save(); ctx.fillStyle = "rgba(4,7,20,.72)"; ctx.fillRect(x - 12, y + 13, 24, 3); ctx.fillStyle = energyRatio < .2 ? "#ff705d" : detonate ? "#ffbd61" : defending ? "#c4a7ff" : attacking ? "#ffbd61" : "#74e7ff"; ctx.fillRect(x - 12, y + 13, 24 * energyRatio, 3); ctx.restore();
@@ -1786,7 +1925,24 @@ export class Renderer {
       ctx.restore();
     }
 
-    if (tier === 3 && imageReady(this.assets.towerUltimate)) {
+    if (isChapterTwo(state)) {
+      const deckLength = 166 + tier * 18;
+      if (imageReady(this.assets.chapterTwoCarrier)) {
+        const carrier = this.assets.chapterTwoCarrier;
+        const deckHeight = deckLength * (carrier.naturalHeight / carrier.naturalWidth);
+        ctx.shadowColor = overload ? "#d89cff" : "#5de4ff";
+        ctx.shadowBlur = 18 + tier * 4;
+        ctx.drawImage(carrier, -deckLength / 2, -deckHeight / 2, deckLength, deckHeight);
+      } else {
+        const deckWidth = 58 + tier * 8;
+        const hull = ctx.createLinearGradient(-deckLength / 2, 0, deckLength / 2, 0);
+        hull.addColorStop(0, "#071722"); hull.addColorStop(.5, overload ? "#58447d" : "#244e64"); hull.addColorStop(1, "#081821");
+        ctx.fillStyle = hull; ctx.strokeStyle = overload ? "#e2b0ff" : "#78e9ff"; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(deckLength * .54, 0); ctx.lineTo(deckLength * .32, -deckWidth * .48); ctx.lineTo(-deckLength * .38, -deckWidth * .42); ctx.lineTo(-deckLength * .54, 0); ctx.lineTo(-deckLength * .36, deckWidth * .44); ctx.lineTo(deckLength * .34, deckWidth * .48); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "rgba(137,242,255,.28)"; ctx.fillRect(-deckLength * .34, -4, deckLength * .68, 8);
+      }
+      ctx.save(); ctx.rotate(this.time * .5); ctx.strokeStyle = "rgba(116,235,255,.55)"; ctx.beginPath(); ctx.arc(0, 0, deckLength * .54, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    } else if (tier === 3 && imageReady(this.assets.towerUltimate)) {
       const width = 188;
       const height = 250;
       ctx.shadowColor = overload ? "#f0b0ff" : "#b8edff";
@@ -1815,7 +1971,7 @@ export class Renderer {
       ctx.globalAlpha = .34; ctx.strokeStyle = "#ffffff"; ctx.beginPath(); ctx.moveTo(-6, -45 - tier * 10); ctx.lineTo(-12, 18); ctx.stroke(); ctx.globalAlpha = 1;
     }
     ctx.shadowBlur = 0;
-    if (tier < 3) this.drawElementModules(ctx, state, tier);
+    if (tier < 3 && !isChapterTwo(state)) this.drawElementModules(ctx, state, tier);
 
     if (hpRatio < 0.45) {
       ctx.strokeStyle = "rgba(255,100,120,.9)"; ctx.lineWidth = 2;

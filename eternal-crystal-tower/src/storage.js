@@ -31,10 +31,13 @@ export function defaultSave() {
     threatSeals: { unlocked: false, equipped: [] },
     campaign: {
       currentChapter: 1,
-      coreEnergy: { 1: false },
-      repairedNodes: { 1: false },
-      unlockedChapters: { 1: true, 2: false },
-      chapterRecords: { 1: { cleared: false, clears: 0, bestTime: 0, bestKills: 0, bestScore: 0 } }
+      coreEnergy: { 1: false, 2: false },
+      repairedNodes: { 1: false, 2: false },
+      unlockedChapters: { 1: true, 2: false, 3: false },
+      chapterRecords: {
+        1: { cleared: false, clears: 0, bestTime: 0, bestKills: 0, bestScore: 0 },
+        2: { cleared: false, clears: 0, bestTime: 0, bestKills: 0, bestScore: 0 }
+      }
     },
     settings: { muted: false, playerName: "PLAYER", updatesDismissed: false, introSeen: false, introDisabled: false },
     records: { highestThreat: 1, longestTime: 0, totalKills: 0, failures: 0 },
@@ -110,6 +113,9 @@ export function sanitizeSave(candidate) {
   safe.campaign.coreEnergy[1] = candidate.campaign?.coreEnergy?.[1] === true;
   safe.campaign.repairedNodes[1] = safe.campaign.coreEnergy[1] && candidate.campaign?.repairedNodes?.[1] === true;
   safe.campaign.unlockedChapters[2] = safe.campaign.repairedNodes[1] && candidate.campaign?.unlockedChapters?.[2] === true;
+  safe.campaign.coreEnergy[2] = safe.campaign.unlockedChapters[2] && candidate.campaign?.coreEnergy?.[2] === true;
+  safe.campaign.repairedNodes[2] = safe.campaign.coreEnergy[2] && candidate.campaign?.repairedNodes?.[2] === true;
+  safe.campaign.unlockedChapters[3] = safe.campaign.repairedNodes[2] && candidate.campaign?.unlockedChapters?.[3] === true;
   // Threat seals are earned from the first chapter's core energy.  Do not trust
   // a forged standalone `threatSeals.unlocked` flag in an old or edited save.
   safe.threatSeals.unlocked = safe.campaign.coreEnergy[1] === true;
@@ -124,6 +130,14 @@ export function sanitizeSave(candidate) {
     bestTime: Math.max(0, Number(chapterOne?.bestTime) || 0),
     bestKills: boundedInt(chapterOne?.bestKills, 0, 1_000_000_000),
     bestScore: boundedInt(chapterOne?.bestScore, 0, 2_000_000_000)
+  };
+  const chapterTwo = candidate.campaign?.chapterRecords?.[2];
+  safe.campaign.chapterRecords[2] = {
+    cleared: safe.campaign.coreEnergy[2] || chapterTwo?.cleared === true,
+    clears: boundedInt(chapterTwo?.clears, 0, 1_000_000),
+    bestTime: Math.max(0, Number(chapterTwo?.bestTime) || 0),
+    bestKills: boundedInt(chapterTwo?.bestKills, 0, 1_000_000_000),
+    bestScore: boundedInt(chapterTwo?.bestScore, 0, 2_000_000_000)
   };
   safe.settings.muted = Boolean(candidate.settings?.muted);
   safe.settings.playerName = sanitizePlayerName(candidate.settings?.playerName ?? "PLAYER");
@@ -185,14 +199,17 @@ export function grantPermanentResource(save, type, value = 1) {
 }
 
 export function grantChapterCoreEnergy(save, chapter = 1, record = {}) {
-  if (chapter !== 1) return false;
+  if (chapter !== 1 && chapter !== 2) return false;
   save.campaign ??= defaultSave().campaign;
-  const firstClear = save.campaign.coreEnergy[1] !== true;
-  save.campaign.coreEnergy[1] = true;
-  save.threatSeals ??= defaultSave().threatSeals;
-  save.threatSeals.unlocked = true;
-  const current = save.campaign.chapterRecords[1] ?? defaultSave().campaign.chapterRecords[1];
-  save.campaign.chapterRecords[1] = {
+  if (chapter === 2 && save.campaign.unlockedChapters?.[2] !== true) return false;
+  const firstClear = save.campaign.coreEnergy[chapter] !== true;
+  save.campaign.coreEnergy[chapter] = true;
+  if (chapter === 1) {
+    save.threatSeals ??= defaultSave().threatSeals;
+    save.threatSeals.unlocked = true;
+  }
+  const current = save.campaign.chapterRecords[chapter] ?? defaultSave().campaign.chapterRecords[chapter];
+  save.campaign.chapterRecords[chapter] = {
     cleared: true,
     clears: boundedInt((current.clears ?? 0) + (record.countClear === false ? 0 : 1), 0, 1_000_000),
     bestTime: Math.max(Number(current.bestTime) || 0, Number(record.time) || 0),
@@ -204,9 +221,9 @@ export function grantChapterCoreEnergy(save, chapter = 1, record = {}) {
 }
 
 export function repairChapterNode(save, chapter = 1) {
-  if (chapter !== 1 || save.campaign?.coreEnergy?.[1] !== true || save.campaign?.repairedNodes?.[1] === true) return false;
-  save.campaign.repairedNodes[1] = true;
-  save.campaign.unlockedChapters[2] = true;
+  if ((chapter !== 1 && chapter !== 2) || save.campaign?.coreEnergy?.[chapter] !== true || save.campaign?.repairedNodes?.[chapter] === true) return false;
+  save.campaign.repairedNodes[chapter] = true;
+  save.campaign.unlockedChapters[chapter + 1] = true;
   return true;
 }
 

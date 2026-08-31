@@ -1,11 +1,12 @@
-import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, UPGRADE_ORDER, getArenaEdgePosition } from "./config.js";
+import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, getArenaEdgePosition } from "./config.js";
 import { SeededRng } from "./rng.js";
 import { ENDLESS_SHOP_RULES, createEndlessShopState, hasEndlessRelic, refreshEndlessShop, releaseEndlessShopNotice } from "./endless-shop.js";
+import { CHAPTER_TWO_CONFIG, CHAPTER_TWO_ID, CHAPTER_TWO_TECH_ORDER, CHAPTER_TWO_TECH_TREE, CHAPTER_TWO_UPGRADE_META, chooseChapterTwoEnemyType, isChapterTwo } from './chapter-two.js';
 
 const ASCEND_NAMES = ["晶芽", "晶柱", "晶冠", "万象晶塔"];
 const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", cannonSiege: "破城炮膛", cannonCharge: "蓄能晶矢", cannonPierce: "贯星穿透", cannonWeakpoint: "弱点校准", cannonStarPiercer: "贯星炮", cannonSplit: "裂晶炮膛", cannonGrowth: "碎片增殖", cannonEcho: "晶爆回响", cannonCascade: "裂界连爆", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
 const SKILL_DAMAGE_SOURCES = new Set(["starfall", "overload", "shieldBurst"]);
-const BATCHED_HIT_FEEDBACK_SOURCES = new Set(["starfall", "cannonEcho", "cannonCascade"]);
+const BATCHED_HIT_FEEDBACK_SOURCES = new Set(["starfall", "cannonEcho", "cannonCascade", "droneSalvo"]);
 
 export function getThreatSealModifiers(equipped = []) {
   const ids = [...new Set((Array.isArray(equipped) ? equipped : []).filter((key) => Object.hasOwn(GAME_CONFIG.threatSeals, key)))];
@@ -89,7 +90,7 @@ export function getStarfallConeHalfAngle(state) {
   return GAME_CONFIG.skills.starfall.coneHalfAngle * (hasSkillResearchNode(state, "starfall", "wideReticle") ? GAME_CONFIG.activeSkillResearch.starfall.coneMultiplier : 1);
 }
 
-export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots, relicArchive = {}, equippedSeals = [], skillResearch = {}) {
+export function createGameState(seed = 1, research = { damage: 0, health: 0, income: 0 }, relicUnlocks = { ward: true }, relicSlots = GAME_CONFIG.relics.initialSlots, relicArchive = {}, equippedSeals = [], skillResearch = {}, chapter = 1) {
   const rng = new SeededRng(seed);
   const relicIds = [...Object.keys(GAME_CONFIG.relicResearch), ...Object.keys(GAME_CONFIG.relicCombos)];
   const hiddenRelicIds = Object.keys(GAME_CONFIG.relicCombos);
@@ -99,6 +100,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
   const relicAvailable = relicIds.filter((id) => !disabledRelics.includes(id));
   const threatSealModifiers = getThreatSealModifiers(equippedSeals);
   const state = {
+    chapter: chapter === CHAPTER_TWO_ID ? CHAPTER_TWO_ID : 1,
     seed: seed >>> 0 || 1,
     rng,
     nextId: 1,
@@ -132,6 +134,8 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       droneDetonateActive: false,
       droneGuardShield: 0,
       droneGuardCooldown: 0,
+      droneSalvoHits: 0,
+      droneRepairKills: 0,
       interceptCharge: 0,
       interceptRecharge: 0,
       targetProtocol: "guard",
@@ -145,7 +149,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       cannonCascadeCooldown: 0,
       damageImmunity: 0,
       sawAngle: 0,
-      upgrades: { damage: 0, rate: 0, ascend: 0, cannonSiege: 0, cannonCharge: 0, cannonPierce: 0, cannonWeakpoint: 0, cannonStarPiercer: 0, cannonSplit: 0, cannonGrowth: 0, cannonEcho: 0, cannonCascade: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, frost: 0, fire: 0, lightning: 0 }
+      upgrades: { damage: 0, rate: 0, ascend: 0, cannonSiege: 0, cannonCharge: 0, cannonPierce: 0, cannonWeakpoint: 0, cannonStarPiercer: 0, cannonSplit: 0, cannonGrowth: 0, cannonEcho: 0, cannonCascade: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, dronePayload: 0, droneAfterburner: 0, droneRelay: 0, droneSalvo: 0, droneRepair: 0, droneOverdrive: 0, frost: 0, fire: 0, lightning: 0 }
     },
     skills: {
       heal: { cooldown: 0, active: 0, burst: 0, shieldBurstArmed: false, damageReduction: 0 },
@@ -193,6 +197,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     events: [],
     stats: { kills: 0, bossKills: 0, highestThreat: 1, score: 0, echoShards: 0, coreFragments: 0 }
   };
+  if (isChapterTwo(state)) Object.assign(state.tower.upgrades, CHAPTER_TWO_CONFIG.starterUpgrades);
   state.tower.droneEnergy = getDroneEnergyMax(state);
   state.tower.hp = getTowerStats(state).maxHp;
   return state;
@@ -240,7 +245,9 @@ export function getTowerStats(state) {
   const pierceLevel = tower.upgrades.cannonPierce ?? 0;
   const phaseDamage = (state.relics?.phaseBuff ?? 0) > 0 ? cfg.relics.lunar.transitionDamageMultiplier : 1;
   const economyDamage = (state.skills?.coinVacuum?.damageBuff ?? 0) > 0 ? cfg.activeSkillResearch.coinVacuum.damageMultiplier : 1;
-  const damage = cfg.tower.damage * (cfg.upgrades.damage.multiplier ** tower.upgrades.damage) * cfg.upgrades.ascend.damage[level] * permanentDamage * relicDamage * shopDamage * phaseDamage * economyDamage;
+  const chapterDamage = isChapterTwo(state) ? CHAPTER_TWO_CONFIG.towerDamageMultiplier : 1;
+  const chapterHealth = isChapterTwo(state) ? CHAPTER_TWO_CONFIG.towerHealthMultiplier : 1;
+  const damage = cfg.tower.damage * chapterDamage * (cfg.upgrades.damage.multiplier ** tower.upgrades.damage) * cfg.upgrades.ascend.damage[level] * permanentDamage * relicDamage * shopDamage * phaseDamage * economyDamage;
   const rawRate = cfg.tower.fireRate * (cfg.upgrades.rate.multiplier ** tower.upgrades.rate) * cfg.upgrades.ascend.rate[level];
   const relicRate = (1 + (state.relics?.rateBonus ?? 0)) * ((state.relics?.phaseBuff ?? 0) > 0 ? cfg.relics.lunar.transitionRateMultiplier : 1);
   const shopRate = 1 + (state.endlessShop?.levels?.rateProtocol ?? 0) * 0.08;
@@ -250,7 +257,7 @@ export function getTowerStats(state) {
     damage,
     fireRate: Math.min(relicRateCap, Math.min(cfg.upgrades.rate.cap, rawRate) * relicRate * shopRate) * suppression,
     range: cfg.tower.range + cfg.upgrades.ascend.rangePerLevel * level,
-    maxHp: (cfg.tower.maxHp + cfg.upgrades.ascend.hpPerLevel * level) * permanentHealth,
+    maxHp: (cfg.tower.maxHp + cfg.upgrades.ascend.hpPerLevel * level) * permanentHealth * chapterHealth,
     projectileCount: level >= 3 ? 3 : level >= 2 ? 2 : 1,
     pierce: pierceLevel * cfg.cannon.siege.piercePerLevel,
     bossDamageMultiplier: 1 + pierceLevel * cfg.cannon.siege.bossDamagePerLevel,
@@ -258,9 +265,18 @@ export function getTowerStats(state) {
   };
 }
 
+export function getTechConfig(state, key) {
+  if (isChapterTwo(state)) return CHAPTER_TWO_TECH_ORDER.includes(key) ? CHAPTER_TWO_TECH_TREE[key] : null;
+  return GAME_CONFIG.techTree[key] ?? null;
+}
+
+function techName(state, key) {
+  return isChapterTwo(state) ? CHAPTER_TWO_UPGRADE_META[key]?.name ?? key : TECH_NAMES[key] ?? key;
+}
+
 export function getUpgradeCost(state, key) {
   const level = state.tower.upgrades[key];
-  const cfg = GAME_CONFIG.techTree[key];
+  const cfg = getTechConfig(state, key);
   if (!cfg) return Infinity;
   if (level >= cfg.maxLevel) return Infinity;
   if (cfg.costs) return cfg.costs[level] ?? Infinity;
@@ -268,13 +284,13 @@ export function getUpgradeCost(state, key) {
 }
 
 export function getTechStatus(state, key) {
-  const cfg = GAME_CONFIG.techTree[key];
+  const cfg = getTechConfig(state, key);
   const level = state.tower.upgrades[key];
   if (!cfg || level == null) return { unlocked: false, maxed: true, cost: Infinity, reason: "未知科技" };
   if (level >= cfg.maxLevel) return { unlocked: false, maxed: true, cost: Infinity, reason: "研究完成" };
   const limitBroken = state.endlessMode === true && state.endlessShop?.equippedRelics?.includes("breakthroughLimit");
   const excluded = limitBroken ? null : cfg.excludes?.find((excludedKey) => (state.tower.upgrades[excludedKey] ?? 0) > 0);
-  if (excluded) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), reason: `已选择${TECH_NAMES[excluded]}分支` };
+  if (excluded) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), reason: `已选择${techName(state, excluded)}分支` };
   const requiredThreat = cfg.threat[level] ?? cfg.threat.at(-1);
   if (state.threat < requiredThreat) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, reason: `威胁 ${requiredThreat} 解锁` };
   if (cfg.towerLevel && state.tower.upgrades.ascend + 1 < cfg.towerLevel) {
@@ -283,14 +299,14 @@ export function getTechStatus(state, key) {
   const requirements = cfg.requiresByLevel?.[level] ?? cfg.requires ?? {};
   for (const [requiredKey, requiredLevel] of Object.entries(requirements)) {
     if ((state.tower.upgrades[requiredKey] ?? 0) < requiredLevel) {
-      return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, reason: `需要${TECH_NAMES[requiredKey]} ${requiredLevel} 级` };
+      return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, reason: `需要${techName(state, requiredKey)} ${requiredLevel} 级` };
     }
   }
   return { unlocked: true, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, reason: "可以研究" };
 }
 
 export function purchaseUpgrade(state, key) {
-  if (!UPGRADE_ORDER.includes(key) || state.over) return false;
+  if (!getTechConfig(state, key) || state.over) return false;
   const status = getTechStatus(state, key);
   const cost = status.cost;
   if (!status.unlocked || !Number.isFinite(cost) || state.coins < cost) return false;
@@ -366,6 +382,7 @@ export function lockAnchorAt(state, x, y, padding = GAME_CONFIG.boss.anchorClick
 
 export function chooseEnemyType(state) {
   const roll = state.rng.next();
+  if (isChapterTwo(state)) return chooseChapterTwoEnemyType(state.threat, roll);
   if (state.threat < 2) return "wisp";
   if (state.threat < 3) return roll < 0.72 ? "wisp" : "runner";
   if (state.threat < 4) return roll < 0.52 ? "wisp" : roll < 0.8 ? "runner" : "brute";
@@ -533,6 +550,10 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
   }
   if (type === "sovereign") {
     const cfg = GAME_CONFIG.sovereign;
+    if (isChapterTwo(state)) {
+      enemy.maxHp *= CHAPTER_TWO_CONFIG.sovereignHealthMultiplier;
+      enemy.hp = enemy.maxHp;
+    }
     enemy.x = cfg.fixedX;
     enemy.y = cfg.fixedY;
     enemy.activeSkill = null;
@@ -1253,7 +1274,8 @@ export function collectPermanentResourceAt(state, x, y, clickRadius = GAME_CONFI
 export function getDroneEnergyMax(state) {
   const batteryLevel = state?.tower?.upgrades?.droneBattery ?? 0;
   const base = GAME_CONFIG.drones.energyMax + batteryLevel * GAME_CONFIG.drones.batteryCapacityPerLevel;
-  return base * (hasEndlessRelic(state, "droneDuplex") ? ENDLESS_SHOP_RULES.droneEnergyMultiplier : 1);
+  const chapterMultiplier = isChapterTwo(state) ? CHAPTER_TWO_CONFIG.droneEnergyMultiplier : 1;
+  return base * chapterMultiplier * (hasEndlessRelic(state, "droneDuplex") ? ENDLESS_SHOP_RULES.droneEnergyMultiplier : 1);
 }
 
 export function getDroneGuardShieldMax(state) {
@@ -1358,6 +1380,16 @@ function resolveDeaths(state) {
     }
     const defeatedUnits = enemy.unitCount ?? 1;
     state.stats.kills += defeatedUnits;
+    if (isChapterTwo(state) && state.tower.upgrades.droneRepair > 0 && ["drone", "droneDetonate", "droneSalvo"].includes(enemy.lastDamageSource)) {
+      state.tower.droneRepairKills += 1;
+      if (state.tower.droneRepairKills >= CHAPTER_TWO_CONFIG.droneTech.repairEveryKills) {
+        state.tower.droneRepairKills = 0;
+        const stats = getTowerStats(state);
+        const before = state.tower.hp;
+        state.tower.hp = Math.min(stats.maxHp, state.tower.hp + stats.maxHp * CHAPTER_TWO_CONFIG.droneTech.repairHealthFraction);
+        state.events.push({ type: "droneRepair", value: state.tower.hp - before });
+      }
+    }
     const baseScore = enemy.scoreValue ?? (GAME_CONFIG.score.enemy[enemy.type] ?? 100);
     const killScore = Math.round(baseScore * (enemy.elite ? GAME_CONFIG.score.eliteMultiplier : 1));
     state.stats.score += killScore;
@@ -1512,8 +1544,9 @@ function updateThreat(state) {
   state.phase = nextPhase;
   state.stats.highestThreat = Math.max(state.stats.highestThreat, nextThreat);
   state.events.push({ type: "threat", level: nextThreat });
-  if (nextThreat === (state.threatSeals?.modifiers?.colossusSpawnThreat ?? GAME_CONFIG.colossus.spawnThreat) && !state.colossusEncounter.spawned) spawnEnemy(state, "colossus");
-  if (nextThreat === GAME_CONFIG.sovereign.spawnThreat && !state.sovereignEncounter.spawned) {
+  const sovereignThreat = isChapterTwo(state) ? CHAPTER_TWO_CONFIG.finalThreat : GAME_CONFIG.sovereign.spawnThreat;
+  if (!isChapterTwo(state) && nextThreat === (state.threatSeals?.modifiers?.colossusSpawnThreat ?? GAME_CONFIG.colossus.spawnThreat) && !state.colossusEncounter.spawned) spawnEnemy(state, "colossus");
+  if (nextThreat === sovereignThreat && !state.sovereignEncounter.spawned) {
     state.enemies.length = 0;
     state.hostileProjectiles.length = 0;
     state.summonRifts.length = 0;
@@ -2443,7 +2476,9 @@ function detonateDrone(state, drone, droneIndex, target) {
   const cfg = GAME_CONFIG.drones.detonate;
   if (state.tower.droneEnergy < cfg.energyCost) return false;
   state.tower.droneEnergy -= cfg.energyCost;
-  const damage = getTowerStats(state).damage * cfg.damageMultiplier;
+  const chapterMultiplier = isChapterTwo(state) ? CHAPTER_TWO_CONFIG.droneDamageMultiplier : 1;
+  const payloadMultiplier = 1 + (state.tower.upgrades.dronePayload ?? 0) * CHAPTER_TWO_CONFIG.droneTech.payloadDamagePerLevel;
+  const damage = getTowerStats(state).damage * cfg.damageMultiplier * chapterMultiplier * payloadMultiplier;
   let hits = 0;
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || Math.hypot(enemy.x - drone.x, enemy.y - drone.y) > cfg.radius + enemy.radius) continue;
@@ -2454,6 +2489,17 @@ function detonateDrone(state, drone, droneIndex, target) {
   drone.recoveryTimer = getDroneDetonateRecovery(state);
   state.events.push({ type: "droneDetonate", x: drone.x, y: drone.y, droneIndex, targetId: target.id, hits, recovery: drone.recoveryTimer });
   return true;
+}
+
+function triggerDroneSalvo(state, target, baseDamage) {
+  const tech = CHAPTER_TWO_CONFIG.droneTech;
+  let hits = 0;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || Math.hypot(enemy.x - target.x, enemy.y - target.y) > tech.salvoRadius + enemy.radius) continue;
+    damageEnemy(state, enemy, baseDamage * tech.salvoDamageMultiplier, "droneSalvo");
+    hits += 1;
+  }
+  state.events.push({ type: "droneSalvo", x: target.x, y: target.y, hits });
 }
 
 function updateDroneGuard(state, dt) {
@@ -2494,6 +2540,9 @@ function updateDrones(state, dt) {
   }
   if (state.drones.length > count) state.drones.length = count;
   const cfg = GAME_CONFIG.drones;
+  const tech = CHAPTER_TWO_CONFIG.droneTech;
+  const afterburnerLevel = isChapterTwo(state) ? state.tower.upgrades.droneAfterburner ?? 0 : 0;
+  const movementMultiplier = 1 + afterburnerLevel * tech.afterburnerSpeedPerLevel;
   for (const drone of state.drones) {
     const wasRecovering = drone.recoveryTimer > 0;
     drone.recoveryTimer = Math.max(0, (drone.recoveryTimer ?? 0) - dt);
@@ -2520,7 +2569,8 @@ function updateDrones(state, dt) {
   } else if (guardMode && !guardCooldownWasActive) {
     updateDroneGuard(state, dt);
   } else if (!guardCooldownWasActive) {
-    state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + cfg.guardRegenPerSecond * dt);
+    const relayMultiplier = 1 + (state.tower.upgrades.droneRelay ?? 0) * tech.relayRegenPerLevel;
+    state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + cfg.guardRegenPerSecond * relayMultiplier * dt);
     if (state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge < 1) {
       state.tower.interceptRecharge = Math.max(0, state.tower.interceptRecharge - dt);
       if (state.tower.interceptRecharge <= 0) {
@@ -2546,7 +2596,12 @@ function updateDrones(state, dt) {
       }
     }
   }
-  const damage = getTowerStats(state).damage * cfg.damageMultiplier;
+  const chapterDamageMultiplier = isChapterTwo(state) ? CHAPTER_TWO_CONFIG.droneDamageMultiplier : 1;
+  const payloadMultiplier = 1 + (state.tower.upgrades.dronePayload ?? 0) * tech.payloadDamagePerLevel;
+  const lowEnergy = state.tower.droneEnergy <= getDroneEnergyMax(state) * tech.overdriveEnergyThreshold;
+  const overdriveMultiplier = isChapterTwo(state) && state.tower.upgrades.droneOverdrive > 0 && lowEnergy ? tech.overdriveDamageMultiplier : 1;
+  const damage = getTowerStats(state).damage * cfg.damageMultiplier * chapterDamageMultiplier * payloadMultiplier * overdriveMultiplier;
+  const hitInterval = cfg.hitInterval * Math.max(0.45, 1 - afterburnerLevel * tech.afterburnerIntervalReductionPerLevel);
   for (let index = 0; index < state.drones.length; index += 1) {
     const drone = state.drones[index];
     drone.hitCooldown = Math.max(0, drone.hitCooldown - dt);
@@ -2555,17 +2610,17 @@ function updateDrones(state, dt) {
       const target = findDroneDetonationTarget(state, drone);
       if (!target) {
         drone.targetId = null;
-        moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed, dt);
+        moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed * movementMultiplier, dt);
         continue;
       }
       drone.targetId = target.id;
-      const distance = moveDroneTowards(drone, target, cfg.attackSpeed, dt);
+      const distance = moveDroneTowards(drone, target, cfg.attackSpeed * movementMultiplier, dt);
       if (distance <= target.radius + cfg.detonate.triggerDistance) detonateDrone(state, drone, index, target);
       continue;
     }
     if (!attackMode) {
       drone.targetId = null;
-      moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed, dt);
+      moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed * movementMultiplier, dt);
       continue;
     }
     const living = state.enemies.filter((enemy) => enemy.hp > 0);
@@ -2574,19 +2629,25 @@ function updateDrones(state, dt) {
     const target = lockedAnchor ?? huntTarget ?? rankTargets(state, living, 1)[0];
     if (!target) {
       drone.targetId = null;
-      moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed, dt);
+      moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed * movementMultiplier, dt);
       continue;
     }
     drone.targetId = target.id;
-    const distance = moveDroneTowards(drone, target, cfg.attackSpeed, dt);
+    const distance = moveDroneTowards(drone, target, cfg.attackSpeed * movementMultiplier, dt);
     if (distance <= target.radius + cfg.contactRadius && drone.hitCooldown <= 0) {
       damageEnemy(state, target, damage, "drone");
-      state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - cfg.hitEnergyCost);
+      const energyCost = cfg.hitEnergyCost * (overdriveMultiplier > 1 ? tech.overdriveEnergyCostMultiplier : 1);
+      state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - energyCost);
       if (state.tower.upgrades.droneHunt > 0 && target.elite) {
         target.markTimer = Math.max(target.markTimer, cfg.huntMarkDuration);
         state.events.push({ type: "eliteMarked", x: target.x, y: target.y, enemyId: target.id });
       }
-      drone.hitCooldown = cfg.hitInterval;
+      state.tower.droneSalvoHits += 1;
+      if (state.tower.upgrades.droneSalvo > 0 && state.tower.droneSalvoHits >= tech.salvoEveryHits) {
+        state.tower.droneSalvoHits = 0;
+        triggerDroneSalvo(state, target, damage);
+      }
+      drone.hitCooldown = hitInterval;
       const recoilX = Math.cos(drone.angle) * 16;
       const recoilY = Math.sin(drone.angle) * 16;
       drone.x -= recoilX;
@@ -2671,7 +2732,10 @@ function updateCoinOrbs(state, dt) {
         state.events.push({ type: "relicGilded", value: bonus });
       }
       state.coins += value;
-      if (orb.collector === "drone" && state.tower.droneMode === "collect") state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + GAME_CONFIG.drones.coinEnergy);
+      if (orb.collector === "drone" && state.tower.droneMode === "collect") {
+        const relayMultiplier = 1 + (state.tower.upgrades.droneRelay ?? 0) * CHAPTER_TWO_CONFIG.droneTech.relayCoinEnergyPerLevel;
+        state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + GAME_CONFIG.drones.coinEnergy * relayMultiplier);
+      }
       state.events.push({ type: "coin", value });
     }
   }
@@ -3071,7 +3135,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 
 export function snapshotState(state) {
   return {
-    time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry }, skillResearch: { ...state.skillResearch }, endlessShop: { ...state.endlessShop, equippedRelics: [...state.endlessShop.equippedRelics], relicOffers: [...state.endlessShop.relicOffers], randomOffers: [...state.endlessShop.randomOffers], cyclePurchases: [...state.endlessShop.cyclePurchases], levels: { ...state.endlessShop.levels } },
+    chapter: state.chapter, time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry }, skillResearch: { ...state.skillResearch }, endlessShop: { ...state.endlessShop, equippedRelics: [...state.endlessShop.equippedRelics], relicOffers: [...state.endlessShop.relicOffers], randomOffers: [...state.endlessShop.randomOffers], cyclePurchases: [...state.endlessShop.cyclePurchases], levels: { ...state.endlessShop.levels } },
     towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), cannonCascadeCooldown: Number((state.tower.cannonCascadeCooldown ?? 0).toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3))]),
     launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),

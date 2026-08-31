@@ -4,6 +4,8 @@
 
 <h1 align="center">永耀晶塔 ETERNAL CRYSTAL TOWER</h1>
 
+> 第二章第一版“极夜航道”已可玩：修复第一章节点后指挥无人机航母出航，或用 `http://localhost:4173/?chapter=2&seed=71` 直接预览开发版本。
+
 <p align="center">
   <strong>守住光，直到最后一击。</strong><br />
   一款原生 Canvas 2D 塔防增量游戏，纯 HTML/CSS/JavaScript 打造，零后端依赖。

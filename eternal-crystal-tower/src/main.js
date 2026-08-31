@@ -1,5 +1,5 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
-import { calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
+import { calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechConfig, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
 import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverEndlessRelic, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
@@ -8,6 +8,7 @@ import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAcco
 import { AudioSynth } from "./audio.js";
 import { getCombatViewport, Renderer } from "./renderer.js";
 import { ENDLESS_PRODUCTS, ENDLESS_RELICS, ENDLESS_SHOP_RULES, bossPresent, getEndlessShopPurchaseStatus, hasEndlessRelic, purchaseEndlessShopItem, refreshEndlessShop, rerollEndlessShop, toggleAutoCoinVacuum } from "./endless-shop.js";
+import { CHAPTER_TWO_BRANCH_META, CHAPTER_TWO_CONFIG, CHAPTER_TWO_PROTOCOL_META, CHAPTER_TWO_TECH_LAYOUT, CHAPTER_TWO_TECH_ORDER, CHAPTER_TWO_UPGRADE_META, isChapterTwo } from "./chapter-two.js";
 
 const UPGRADE_META = {
   damage: { icon: "✦", name: "淬亮晶矢", description: "每级伤害 +25%", max: 10 },
@@ -178,6 +179,23 @@ const TARGET_PROTOCOL_META = {
   breach: { name: "破阵", hint: "优先预计最快接触晶塔的敌人。" },
   radar: { name: "雷达", hint: "优先锁定拥有远程攻击的单位。" }
 };
+function activeUpgradeMeta(key) {
+  const base = UPGRADE_META[key];
+  const override = isChapterTwo(state) ? CHAPTER_TWO_UPGRADE_META[key] : null;
+  return override ? { ...(base ?? {}), ...override } : base;
+}
+function activeBranchMeta() {
+  return isChapterTwo(state) ? CHAPTER_TWO_BRANCH_META : BRANCH_META;
+}
+function activeTechLayout() {
+  return isChapterTwo(state) ? CHAPTER_TWO_TECH_LAYOUT : TECH_LAYOUT;
+}
+function activeTechOrder() {
+  return isChapterTwo(state) ? CHAPTER_TWO_TECH_ORDER : TECH_ORDER;
+}
+function activeProtocolMeta(protocol) {
+  return isChapterTwo(state) ? CHAPTER_TWO_PROTOCOL_META[protocol] : TARGET_PROTOCOL_META[protocol];
+}
 const RESEARCH_META = {
   damage: { name: "炽亮晶核", description: "永久伤害" },
   health: { name: "不灭晶壳", description: "永久生命" },
@@ -256,8 +274,11 @@ const BASECAMP_MODULES = [
 let save = loadSave();
 let runIndex = 0;
 const baseSeed = seedFromUrl(location.search);
-let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped, save.skillResearch);
-const previewMode = new URLSearchParams(location.search).get("preview");
+const urlParams = new URLSearchParams(location.search);
+const requestedChapter = urlParams.get("chapter") === "2" ? 2 : save.campaign.currentChapter;
+let activeChapter = requestedChapter;
+let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped, save.skillResearch, activeChapter);
+const previewMode = urlParams.get("preview");
 const INTRO_SCENES = [
   { background: "./assets/story/intro-bg-city-dawn-v1.png", layers: [], chapter: "序章 · 晶核纪元", bubbles: [{ text: "昔日，晶核照亮世界。", kind: "narration", position: "top-left" }], motion: "motion-push", tone: "dawn", duration: 2600 },
   { background: "./assets/story/intro-bg-ruined-wasteland-v1.png", layers: [], chapter: "序章 · 破碎之日", bubbles: [{ text: "直到那天，晶核破碎。", kind: "narration", position: "top-left" }], motion: "motion-shake", tone: "rupture", duration: 2400 },
@@ -685,8 +706,8 @@ let uiRefreshElapsed = UI_REFRESH_INTERVAL;
 let toastTimer = 0;
 let announcementTimer = 0;
 let techTreeOpen = false;
-let activeTechBranch = "power";
-let selectedTechKey = "damage";
+let activeTechBranch = isChapterTwo(state) ? "economy" : "power";
+let selectedTechKey = isChapterTwo(state) ? "drone" : "damage";
 let resumeAfterTechTree = false;
 let leaderboardModalOpen = false;
 let updatesModalOpen = false;
@@ -1039,14 +1060,14 @@ function announce(message) {
 
 function switchTargetProtocol(protocol, shouldAnnounce = true) {
   if (!setTargetProtocol(state, protocol)) return false;
-  if (shouldAnnounce) announce(`目标协议 · ${TARGET_PROTOCOL_META[protocol].name}`);
+  if (shouldAnnounce) announce(`目标协议 · ${activeProtocolMeta(protocol).name}`);
   updateUi();
   return true;
 }
 
 function cycleProtocol() {
   if (!cycleTargetProtocol(state)) return;
-  announce(`目标协议 · ${TARGET_PROTOCOL_META[state.tower.targetProtocol].name}`);
+  announce(`目标协议 · ${activeProtocolMeta(state.tower.targetProtocol).name}`);
   updateUi();
 }
 
@@ -1089,10 +1110,14 @@ function showFirstRunTutorial(step, force = false) {
 
 function createUpgradeUi() {
   dom.upgradeList.replaceChildren();
+  const branches = activeBranchMeta();
+  document.getElementById("techTreeTitle").textContent = isChapterTwo(state) ? "舰载无人机科技树" : "防线科技树";
+  document.querySelector(".tech-tree-header p").textContent = isChapterTwo(state) ? "仅研究舰载无人机体系；扩编机库，并在能源、强袭火控和舰体保障之间安排投入。" : "沿四条分支强化晶塔；火力分支内再选择炮膛路线。高阶科技同时检查威胁、金币与晶塔等级。";
+  document.querySelector(".tech-tree-footer span").textContent = isChapterTwo(state) ? "方向键选择 · Enter 研究 · 第二章科技不继承第一章" : "1–4 切换分支 · 方向键选择 · Enter 研究";
   const tabs = document.createElement("nav");
   tabs.className = "tech-branch-tabs";
   tabs.setAttribute("aria-label", "科技分支");
-  for (const [branchKey, branch] of Object.entries(BRANCH_META)) {
+  for (const [branchKey, branch] of Object.entries(branches)) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "tech-branch-tab";
@@ -1142,10 +1167,11 @@ function applyTechIconArt(element, key) {
   }
   element.classList.remove("tech-icon-terminal");
   element.textContent = "";
-  const branchKey = Object.keys(BRANCH_META).find((branch) => BRANCH_META[branch].keys.includes(key));
+  const branches = activeBranchMeta();
+  const branchKey = Object.keys(branches).find((branch) => branches[branch].keys.includes(key));
   const art = TECH_ART[branchKey];
-  const artKeys = BRANCH_META[branchKey].keys.filter((candidate) => candidate !== "cannonStarPiercer" && candidate !== "cannonCascade");
-  const index = artKeys.indexOf(key);
+  const artKeys = branches[branchKey].keys.filter((candidate) => candidate !== "cannonStarPiercer" && candidate !== "cannonCascade");
+  const index = artKeys.indexOf(key) % (art.cols * art.rows);
   element.style.setProperty("--tech-icon-sheet", `url("${art.sheet}")`);
   element.style.setProperty("--tech-icon-cols", art.cols);
   element.style.setProperty("--tech-icon-rows", art.rows);
@@ -1158,9 +1184,10 @@ function applyTechIconArt(element, key) {
 }
 
 function selectTechBranch(branchKey, focusNode = true) {
-  if (!BRANCH_META[branchKey]) return;
+  const branches = activeBranchMeta();
+  if (!branches[branchKey]) return;
   activeTechBranch = branchKey;
-  const branch = BRANCH_META[branchKey];
+  const branch = branches[branchKey];
   if (!branch.keys.includes(selectedTechKey)) selectedTechKey = branch.keys[0];
   for (const tab of dom.upgradeList.querySelectorAll(".tech-branch-tab")) {
     const active = tab.dataset.branchTab === branchKey;
@@ -1171,7 +1198,7 @@ function selectTechBranch(branchKey, focusNode = true) {
   if (!stage) return;
   stage.replaceChildren();
   stage.dataset.branch = branchKey;
-  const layout = TECH_LAYOUT[branchKey];
+  const layout = activeTechLayout()[branchKey];
   stage.style.setProperty("--tech-rows", layout.rows);
   const heading = document.createElement("header");
   heading.className = "tech-stage-heading";
@@ -1188,7 +1215,7 @@ function selectTechBranch(branchKey, focusNode = true) {
   for (const [from, to] of layout.excludes) createTechEdge(svg, from, to, layout, true);
   graph.append(svg);
   for (const key of branch.keys) {
-    const meta = UPGRADE_META[key];
+    const meta = activeUpgradeMeta(key);
     const [col, row] = layout.nodes[key];
     const button = document.createElement("button");
     button.type = "button";
@@ -1208,7 +1235,7 @@ function selectTechBranch(branchKey, focusNode = true) {
 }
 
 function selectTechNode(key, tryPurchase = false) {
-  if (!UPGRADE_META[key]) return;
+  if (!activeUpgradeMeta(key)) return;
   selectedTechKey = key;
   updateTechTreeUi();
   const status = getTechStatus(state, key);
@@ -1226,19 +1253,19 @@ function techStateFor(key) {
 }
 
 function techRequirementsText(key) {
-  const cfg = GAME_CONFIG.techTree[key];
+  const cfg = getTechConfig(state, key);
   const level = state.tower.upgrades[key];
   const requirements = cfg.requiresByLevel?.[level] ?? cfg.requires ?? {};
-  const parts = Object.entries(requirements).map(([requiredKey, requiredLevel]) => `${UPGRADE_META[requiredKey].name} ${requiredLevel} 级`);
+  const parts = Object.entries(requirements).map(([requiredKey, requiredLevel]) => `${activeUpgradeMeta(requiredKey).name} ${requiredLevel} 级`);
   return parts.length ? parts.join("、") : "无";
 }
 
 function updateTechDetail() {
   const detail = dom.upgradeList.querySelector(".tech-detail");
-  if (!detail || !UPGRADE_META[selectedTechKey]) return;
+  if (!detail || !activeUpgradeMeta(selectedTechKey)) return;
   const key = selectedTechKey;
-  const meta = UPGRADE_META[key];
-  const cfg = GAME_CONFIG.techTree[key];
+  const meta = activeUpgradeMeta(key);
+  const cfg = getTechConfig(state, key);
   const level = state.tower.upgrades[key];
   const status = getTechStatus(state, key);
   const stateName = techStateFor(key).split(" ")[0];
@@ -1251,7 +1278,7 @@ function updateTechDetail() {
   detail.querySelector("h3").textContent = meta.name;
   detail.querySelector(".tech-detail-description").textContent = meta.description;
   const nextThreat = cfg.threat[level] ?? cfg.threat.at(-1);
-  const exclusionText = cfg.excludes?.length ? (hasEndlessRelic(state, "breakthroughLimit") ? "已解除 · 突破极限" : cfg.excludes.map((excluded) => UPGRADE_META[excluded].name).join("、")) : "无";
+  const exclusionText = cfg.excludes?.length ? (hasEndlessRelic(state, "breakthroughLimit") ? "已解除 · 突破极限" : cfg.excludes.map((excluded) => activeUpgradeMeta(excluded).name).join("、")) : "无";
   detail.querySelector(".tech-detail-facts").innerHTML = `<div><dt>研究进度</dt><dd>${level} / ${meta.max}</dd></div><div><dt>本级效果</dt><dd>${level > 0 ? `${meta.description} · 已生效 ${level} 级` : "尚未研究"}</dd></div><div><dt>下一等级</dt><dd>${status.maxed ? "全部等级已完成" : meta.description}</dd></div><div><dt>金币成本</dt><dd>${status.maxed ? "—" : `${formatNumber(status.cost)} 金币`}</dd></div><div><dt>威胁要求</dt><dd>${status.maxed ? "已满足" : `威胁 ${formatThreat(nextThreat)}`}</dd></div><div><dt>晶塔等级</dt><dd>${cfg.towerLevel ? `${cfg.towerLevel} 级` : "无"}</dd></div><div><dt>前置科技</dt><dd>${techRequirementsText(key)}</dd></div><div><dt>互斥科技</dt><dd>${exclusionText}</dd></div>`;
   const route = detail.querySelector(".tech-detail-route");
   route.classList.toggle("hidden", !status.reason || status.unlocked || status.maxed);
@@ -1262,7 +1289,7 @@ function updateTechDetail() {
 }
 
 function updateTechTreeUi() {
-  for (const [branchKey, branch] of Object.entries(BRANCH_META)) {
+  for (const [branchKey, branch] of Object.entries(activeBranchMeta())) {
     const tab = dom.upgradeList.querySelector(`[data-branch-tab="${branchKey}"]`);
     if (!tab) continue;
     const researched = branch.keys.filter((key) => state.tower.upgrades[key] > 0).length;
@@ -1276,17 +1303,19 @@ function updateTechTreeUi() {
     const status = getTechStatus(state, key);
     const classes = techStateFor(key).split(" ");
     button.className = `tech-node ${classes.join(" ")}${key === selectedTechKey ? " selected" : ""}`;
-    button.setAttribute("aria-label", `${UPGRADE_META[key].name}，${status.maxed ? "研究完成" : status.reason}${status.unlocked && state.coins < status.cost ? "，金币不足" : ""}`);
+    const meta = activeUpgradeMeta(key);
+    button.setAttribute("aria-label", `${meta.name}，${status.maxed ? "研究完成" : status.reason}${status.unlocked && state.coins < status.cost ? "，金币不足" : ""}`);
     button.setAttribute("aria-pressed", String(key === selectedTechKey));
-    button.style.setProperty("--tech-progress", `${level / UPGRADE_META[key].max * 360}deg`);
-    button.querySelector(".tech-node-level").textContent = status.maxed ? "✓" : `${level}/${UPGRADE_META[key].max}`;
+    button.style.setProperty("--tech-progress", `${level / meta.max * 360}deg`);
+    button.querySelector(".tech-node-level").textContent = status.maxed ? "✓" : `${level}/${meta.max}`;
     button.querySelector(".tech-node-mark").textContent = status.maxed ? "✓" : !status.unlocked ? "⌕" : "";
-    button.querySelector(".tech-node-tooltip small").textContent = status.maxed ? "研究完成" : status.unlocked ? `${formatNumber(status.cost)} 金币 · ${level}/${UPGRADE_META[key].max}` : status.reason;
+    button.querySelector(".tech-node-tooltip b").textContent = meta.name;
+    button.querySelector(".tech-node-tooltip small").textContent = status.maxed ? "研究完成" : status.unlocked ? `${formatNumber(status.cost)} 金币 · ${level}/${meta.max}` : status.reason;
   }
   for (const line of dom.upgradeList.querySelectorAll(".tech-edge")) {
     const fromLevel = state.tower.upgrades[line.dataset.from] ?? 0;
     const toLevel = state.tower.upgrades[line.dataset.to] ?? 0;
-    const targetCfg = GAME_CONFIG.techTree[line.dataset.to];
+    const targetCfg = getTechConfig(state, line.dataset.to);
     const targetLevel = state.tower.upgrades[line.dataset.to] ?? 0;
     const targetRequirements = targetCfg.requiresByLevel?.[targetLevel] ?? targetCfg.requires ?? {};
     const requiredSourceLevel = targetRequirements[line.dataset.from] ?? 1;
@@ -1571,20 +1600,23 @@ function renderThreatSeals() {
 function renderCampaign() {
   const repaired = save.campaign.repairedNodes[1] === true;
   const energy = save.campaign.coreEnergy[1] === true;
+  const chapterTwoRepaired = save.campaign.repairedNodes[2] === true;
+  const chapterTwoEnergy = save.campaign.coreEnergy[2] === true;
   const record = save.campaign.chapterRecords[1];
-  dom.campaignProgressText.textContent = `${repaired ? 1 : 0} / 4 节点修复`;
+  const chapterTwoRecord = save.campaign.chapterRecords[2];
+  dom.campaignProgressText.textContent = `${Number(repaired) + Number(chapterTwoRepaired)} / 4 节点修复`;
   dom.chapterNodeList.replaceChildren();
   const chapters = [
     { id: 1, name: "永恒晶塔", kicker: "第一章", status: repaired ? "已修复" : energy ? "能源待装配" : "远征进行中", description: record.cleared ? `通关 ${record.clears} 次 · 最高击杀 ${record.bestKills}` : "挑战威胁 XX 的四阶段终局首领。" },
-    { id: 2, name: "极夜航道", kicker: "第二章", status: repaired ? "开发中…" : "未激活", description: repaired ? "能源通路已建立，地图仍在开发中。" : "修复永恒晶塔节点后解锁。" },
+    { id: 2, name: "极夜航道", kicker: "第二章", status: chapterTwoRepaired ? "已修复" : chapterTwoEnergy ? "能源待装配" : repaired ? "可以远征" : "未激活", description: chapterTwoRecord.cleared ? `通关 ${chapterTwoRecord.clears} 次 · 最高击沉 ${chapterTwoRecord.bestKills}` : repaired ? "指挥永耀蜂巢舰，在威胁 XII 击沉渊潮王舰。" : "修复永恒晶塔节点后解锁。" },
     { id: 3, name: "腐蚀矿区", kicker: "第三章", status: "未激活", description: "等待前置能源节点。" },
     { id: 4, name: "破碎王座", kicker: "第四章", status: "未激活", description: "等待前置能源节点。" }
   ];
   for (const chapter of chapters) {
     const card = document.createElement("article");
     card.className = `chapter-node chapter-${chapter.id}`;
-    if (chapter.id === 1 && energy) card.classList.add("energized");
-    if (chapter.id === 1 && repaired) card.classList.add("repaired");
+    if ((chapter.id === 1 && energy) || (chapter.id === 2 && chapterTwoEnergy)) card.classList.add("energized");
+    if ((chapter.id === 1 && repaired) || (chapter.id === 2 && chapterTwoRepaired)) card.classList.add("repaired");
     card.innerHTML = `<div class="chapter-node-index">0${chapter.id}</div><div><small>${chapter.kicker}</small><strong>${chapter.name}</strong><p>${chapter.description}</p></div><span>${chapter.status}</span>`;
     const action = document.createElement("button");
     action.type = "button";
@@ -1600,9 +1632,19 @@ function renderCampaign() {
         renderCampaign();
         announce("永恒晶塔能源节点修复完成 · 极夜航道已解锁");
       });
+    } else if (chapter.id === 2 && chapterTwoEnergy && !chapterTwoRepaired) {
+      action.textContent = "修复能源节点";
+      action.addEventListener("click", () => {
+        if (!repairChapterNode(save, 2)) return;
+        persistSave(); audio.play("ascend"); renderer.trigger("ascend", 2.5); renderCampaign();
+        announce("极夜航道能源节点修复完成 · 腐蚀矿区已解锁");
+      });
     } else if (chapter.id === 1) {
       action.textContent = record.cleared ? "再次挑战" : "进入远征";
       action.addEventListener("click", startChapterOne);
+    } else if (chapter.id === 2 && repaired) {
+      action.textContent = chapterTwoRecord.cleared ? "再次出航" : "驶入航道";
+      action.addEventListener("click", startChapterTwo);
     } else {
       action.textContent = chapter.id === 2 && repaired ? "开发中…" : "尚未解锁";
       action.disabled = true;
@@ -1614,11 +1656,24 @@ function renderCampaign() {
 
 function startChapterOne() {
   const beginChallenge = () => {
+    activeChapter = 1;
+    save.campaign.currentChapter = 1;
+    persistSave();
     restart();
     setBaseCampOpen(false);
   };
   if (save.settings.introDisabled !== true) showStoryIntro(beginChallenge);
   else beginChallenge();
+}
+
+function startChapterTwo() {
+  if (save.campaign.unlockedChapters[2] !== true) return;
+  save.campaign.currentChapter = 2;
+  activeChapter = 2;
+  persistSave();
+  restart();
+  setBaseCampOpen(false);
+  announce("极夜航道 · 强袭编队待命");
 }
 
 function showBaseCampHub(restoreFocus = false) {
@@ -2046,7 +2101,7 @@ function buyUpgrade(key) {
   audio.ensureContext()?.resume();
   if (purchaseUpgrade(state, key)) {
     handleEvents(state.events);
-    showToast(key === "ascend" ? `晶塔化为${getTowerStats(state).name}` : `${UPGRADE_META[key].name}完成`);
+    showToast(key === "ascend" ? `${isChapterTwo(state) ? "航母扩建" : "晶塔化为"}${getTowerStats(state).name}` : `${activeUpgradeMeta(key).name}完成`);
   } else if (!getTechStatus(state, key).unlocked) {
     showToast(getTechStatus(state, key).reason);
   } else if (getUpgradeCost(state, key) > state.coins) {
@@ -2147,12 +2202,12 @@ function switchDroneMode() {
   }
   audio.ensureContext()?.resume();
   if (!toggleDroneMode(state)) {
-    showToast("先研究晶塔磁吸核心");
+    showToast(isChapterTwo(state) ? "航母指挥核心尚未启动" : "先研究晶塔磁吸核心");
     return;
   }
   audio.play("purchase");
   handleEvents(state.events);
-  showToast(state.tower.droneMode === "attack" ? "无人机切换为攻击模式" : "无人机返回护航模式");
+  showToast(state.tower.droneMode === "attack" ? (isChapterTwo(state) ? "强袭编队离舰" : "无人机切换为攻击模式") : (isChapterTwo(state) ? "编队返航 · 开始打捞充能" : "无人机返回护航模式"));
 }
 
 function switchDroneProtocol() {
@@ -2507,7 +2562,7 @@ function handleEvents(events) {
     else if (event.type === "purchase") { audio.play("purchase"); if (event.key === "damage" && tutorialStep === 2) { clearTutorialHighlights(); dom.tutorialGuide.classList.add("hidden"); } }
     else if (event.type === "ascend") { audio.play("ascend"); renderer.trigger("ascend"); announce(`塔阶苏醒 · ${getTowerStats(state).name}`); }
     else if (event.type === "towerHit") { audio.play("towerHit"); renderer.trigger("towerHit", event.heavy ? 1.7 : 1); }
-    else if (event.type === "bossSpawn") { audio.play("boss"); renderer.trigger("bossSpawn"); announce("腐化王冠踏入战场"); }
+    else if (event.type === "bossSpawn") { audio.play("boss"); renderer.trigger("bossSpawn"); announce(isChapterTwo(state) ? "极夜旗舰驶入航道" : "腐化王冠踏入战场"); }
     else if (event.type === "colossusSpawn") { audio.play("boss"); renderer.trigger("bossSpawn", 1.5); announce(`威胁 ${formatThreat(event.threat ?? state.threat)} · 虚环吞星兽 · ${COLOSSUS_AFFIX_NAMES[event.affix] ?? "未知异变"}`); }
     else if (event.type === "colossusIntent") {
       audio.play("waveWarning"); renderer.trigger("waveWarning");
@@ -2526,12 +2581,12 @@ function handleEvents(events) {
       sovereignSpeedLocked = true;
       doubleSpeedActive = false;
       accumulator = 0;
-      audio.play("boss"); renderer.trigger("bossSpawn", 2.6); announce("威胁 XX · 时流锁定 1× · 首领登场期间双方停火");
+      audio.play("boss"); renderer.trigger("bossSpawn", 2.6); announce(isChapterTwo(state) ? "威胁 XII · 渊潮王舰压境 · 登场期间双方停火" : "威胁 XX · 时流锁定 1× · 首领登场期间双方停火");
     }
-    else if (event.type === "sovereignIntent") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce(`灭世预兆 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知技能"}`); }
-    else if (event.type === "sovereignSkill") { audio.play(event.skill === "summon" ? "waveStart" : "boss"); announce(`裂界魔君 · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知技能"}${event.enraged ? " · 狂暴强化" : ""}`); }
-    else if (event.type === "sovereignRiftWave") { renderer.trigger("waveStart", 1.25); showToast(`多重裂隙同时开启 · ${event.count} 处${event.eliteCount ? ` · ${event.eliteCount} 只词缀精英` : ""}`); }
-    else if (event.type === "sovereignSuppress") { renderer.trigger("towerHit", 1.2); announce(`远程压制 · 晶矢攻击频率降低 ${Math.round((1 - event.multiplier) * 100)}%`); }
+    else if (event.type === "sovereignIntent") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce(`${isChapterTwo(state) ? "王舰预兆" : "灭世预兆"} · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知技能"}`); }
+    else if (event.type === "sovereignSkill") { audio.play(event.skill === "summon" ? "waveStart" : "boss"); announce(`${isChapterTwo(state) ? "渊潮王舰" : "裂界魔君"} · ${COLOSSUS_SKILL_NAMES[event.skill] ?? "未知技能"}${event.enraged ? " · 狂暴强化" : ""}`); }
+    else if (event.type === "sovereignRiftWave") { renderer.trigger("waveStart", 1.25); showToast(isChapterTwo(state) ? `增援舰队抵达 · ${event.count} 支${event.eliteCount ? ` · ${event.eliteCount} 支精英舰` : ""}` : `多重裂隙同时开启 · ${event.count} 处${event.eliteCount ? ` · ${event.eliteCount} 只词缀精英` : ""}`); }
+    else if (event.type === "sovereignSuppress") { renderer.trigger("towerHit", 1.2); announce(`远程压制 · ${isChapterTwo(state) ? "航母炮组" : "晶矢"}攻击频率降低 ${Math.round((1 - event.multiplier) * 100)}%`); }
     else if (event.type === "sovereignPhase") { audio.play("boss"); renderer.trigger("bossSpawn", 1.35); announce(`命核破碎 · 剩余 ${event.healthBar} 管生命`); }
     else if (event.type === "sovereignShieldBreak") { audio.play("waveStart"); renderer.trigger("waveStart", 1.7); announce("降临护盾破碎 · 裂界魔君被迫只施放召唤"); }
     else if (event.type === "sovereignSummonEmpowered") { audio.play("boss"); renderer.trigger("bossSpawn", 1.8); announce("双命核崩解 · 裂隙增殖 · 词缀精英加入召唤"); }
@@ -2543,14 +2598,18 @@ function handleEvents(events) {
       restoreDoubleSpeedAfterSovereign = false;
       accumulator = 0;
       const chapterScore = calculateRunScore(state).total;
-      chapterClearWasFirst = grantChapterCoreEnergy(save, 1, { time: state.time, kills: state.stats.kills, score: chapterScore });
+      chapterClearWasFirst = grantChapterCoreEnergy(save, state.chapter, { time: state.time, kills: state.stats.kills, score: chapterScore });
       persistSave();
       state.paused = true;
       chapterCompleteOpen = true;
-      dom.chapterCoreAwardStatus.textContent = chapterClearWasFirst ? "首次获得 · 威胁封印圣坛已解锁" : "已再次确认 · 主线进度保持安全";
+      const navalChapter = isChapterTwo(state);
+      dom.chapterCompleteModal.querySelector(".chapter-complete-eyebrow").textContent = navalChapter ? "CHAPTER II · ROUTE SECURED" : "CHAPTER I · TERMINAL CLEARED";
+      dom.chapterCompleteModal.querySelector(".core-energy-award strong").textContent = navalChapter ? "极夜航道核心能源" : "永恒晶塔核心能源";
+      dom.chapterCompleteModal.querySelector(".chapter-complete-card h2").textContent = navalChapter ? "极夜航道 · 制海完成" : "永恒晶塔 · 远征完成";
+      dom.chapterCoreAwardStatus.textContent = chapterClearWasFirst ? (navalChapter ? "首次获得 · 第二能源节点待装配" : "首次获得 · 威胁封印圣坛已解锁") : "已再次确认 · 主线进度保持安全";
       dom.chapterCompleteModal.classList.remove("hidden");
       dom.finishExpeditionButton.focus({ preventScroll: true });
-      audio.play("ascend"); renderer.trigger("ascend", 2); announce("裂界魔君陨落 · 永恒晶塔核心能源已永久入账");
+      audio.play("ascend"); renderer.trigger("ascend", 2); announce(navalChapter ? "渊潮王舰沉没 · 极夜航道核心能源已永久入账" : "裂界魔君陨落 · 永恒晶塔核心能源已永久入账");
     }
     else if (event.type === "bossDefeated") {
       audio.play("ascend");
@@ -2567,11 +2626,13 @@ function handleEvents(events) {
     }
     else if (event.type === "sealRelicDrop") showToast("威胁封印共鸣 · 发现额外特殊遗物");
     else if (event.type === "sealEmberCore") { renderer.trigger("ascend", 1.2); announce(`巨兽封印兑现 · 余烬核心 +${event.value}`); }
-    else if (event.type === "eliteSpawn") { audio.play("waveStart"); renderer.trigger("eliteSpawn"); announce(`精英怪 · ${ELITE_AFFIX_NAMES[event.affix] ?? "异变"}`); }
-    else if (event.type === "bossPhase") { audio.play("boss"); renderer.trigger("bossSpawn", 0.7); announce(`首领转化为${ELEMENT_NAMES[event.resistance]}抗性 · 锚点重生`); }
+    else if (event.type === "eliteSpawn") { audio.play("waveStart"); renderer.trigger("eliteSpawn"); announce(`${isChapterTwo(state) ? CHAPTER_TWO_CONFIG.enemyNames[event.enemyType] ?? "精英舰" : "精英怪"} · ${ELITE_AFFIX_NAMES[event.affix] ?? "异变"}`); }
+    else if (event.type === "bossPhase") { audio.play("boss"); renderer.trigger("bossSpawn", 0.7); announce(`${isChapterTwo(state) ? "旗舰" : "首领"}转化为${ELEMENT_NAMES[event.resistance]}抗性 · 锚点重生`); }
     else if (event.type === "towerCollectPulse" && event.count > 0) renderer.trigger("collectPulse");
     else if (event.type === "targetProtocol") renderer.trigger("targetProtocol");
     else if (event.type === "droneDepleted") { renderer.trigger("droneDepleted"); announce("无人机电量耗尽 · 强制返航"); }
+    else if (event.type === "droneSalvo") { audio.play("overload"); renderer.trigger("droneDetonate", 0.35); showToast(`协同齐射 · 命中 ${event.hits} 艘敌舰`); }
+    else if (event.type === "droneRepair" && event.value > 0) { renderer.trigger("shieldBurst", 0.35); showToast(`甲板维修群 · 舰体 +${Math.round(event.value)}`); }
     else if (event.type === "droneIntercept") { renderer.trigger("droneIntercept"); announce("拦截协议 · 重击无效"); }
     else if (event.type === "droneDetonateMode") announce(event.active ? "自爆协议已启动 · 优先猎杀 Boss / 精英" : "自爆协议已关闭 · 无人机返回护航");
     else if (event.type === "droneDetonate") { audio.play("overload"); renderer.trigger("droneDetonate"); announce(`自爆协议 · 命中 ${event.hits} 个目标 · 无人机恢复 ${event.recovery.toFixed(1)}s`); }
@@ -2584,10 +2645,10 @@ function handleEvents(events) {
     else if (event.type === "relicWard") showToast(`棱镜护佑 · 护盾 +${Math.round(event.value)}`);
     else if (event.type === "relicFrostbloom") renderer.trigger("targetProtocol");
     else if (event.type === "relicGilded") showToast(`拾金脉冲 · 额外金币 +${event.value}`);
-    else if (event.type === "threat") { announce(event.level === GAME_CONFIG.sovereign.spawnThreat ? `威胁 ${formatThreat(event.level)} · 超巨型灾厄来袭` : event.level === (state.threatSeals?.modifiers?.colossusSpawnThreat ?? GAME_CONFIG.colossus.spawnThreat) ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · 大首领来袭` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
-    else if (event.type === "phase") { audio.play("phase"); announce(event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场"); }
-    else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce("侦测到大规模怪潮"); }
-    else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(event.endless ? `无尽怪潮 ${event.index} 抵达 · 精英信号 ${event.eliteCount}` : `第 ${event.index} 次怪潮抵达`); }
+    else if (event.type === "threat") { announce(isChapterTwo(state) && event.level === CHAPTER_TWO_CONFIG.finalThreat ? `威胁 ${formatThreat(event.level)} · 渊潮王舰信号确认` : event.level === GAME_CONFIG.sovereign.spawnThreat ? `威胁 ${formatThreat(event.level)} · 超巨型灾厄来袭` : !isChapterTwo(state) && event.level === (state.threatSeals?.modifiers?.colossusSpawnThreat ?? GAME_CONFIG.colossus.spawnThreat) ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · ${isChapterTwo(state) ? "极夜旗舰来袭" : "大首领来袭"}` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
+    else if (event.type === "phase") { audio.play("phase"); announce(isChapterTwo(state) ? (event.phase === "day" ? "海况转稳 · 侦测距离恢复" : "极夜风暴压上海面") : (event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场")); }
+    else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce(isChapterTwo(state) ? "侦测到大规模舰队" : "侦测到大规模怪潮"); }
+    else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(event.endless ? `无尽${isChapterTwo(state) ? "舰队" : "怪潮"} ${event.index} 抵达 · 精英信号 ${event.eliteCount}` : `第 ${event.index} 次${isChapterTwo(state) ? "舰队" : "怪潮"}抵达`); }
     else if (event.type === "waveCleared" && event.endless) showToast(`无尽怪潮 ${String(event.index).padStart(2, "0")} 已肃清 · 获得增幅选择`);
     else if (event.type === "overloadRelease") { audio.play("overload"); renderer.trigger("overloadRelease", event.overheated ? 1.5 : 1); announce(event.damage > 0 ? `${event.overheated ? "过热" : "临界"}泄压 · 范围冲击 ${Math.round(event.damage)}` : event.overheated ? "热浪爆发 · 晶塔过热" : event.early ? "超载中断 · 提前释放冲击" : "超载冲击释放"); }
     else if (event.type === "shieldBurst") { audio.play("hit"); renderer.trigger("shieldBurst"); announce(`满盾反击 · 晶片命中 ${event.hits}${event.knockbackHits ? ` · 击退 ${event.knockbackHits}` : ""}`); }
@@ -2614,11 +2675,12 @@ function updateUi() {
   dom.coinsText.textContent = formatNumber(state.coins);
   updatePermanentResourceUi();
   dom.scoreText.textContent = formatScore(state.stats.score);
-  const threatPercent = Math.min(100, Math.round(state.threat / GAME_CONFIG.sovereign.spawnThreat * 100));
+  const chapterFinalThreat = isChapterTwo(state) ? CHAPTER_TWO_CONFIG.finalThreat : GAME_CONFIG.sovereign.spawnThreat;
+  const threatPercent = Math.min(100, Math.round(state.threat / chapterFinalThreat * 100));
   dom.threatText.textContent = `${threatPercent}%`;
   dom.threatFill.style.width = `${threatPercent}%`;
   dom.timeText.textContent = formatTime(state.time);
-  dom.phaseText.textContent = state.phase === "day" ? "白昼" : "长夜";
+  dom.phaseText.textContent = isChapterTwo(state) ? (state.phase === "day" ? "静海" : "风暴") : (state.phase === "day" ? "白昼" : "长夜");
   dom.phaseText.parentElement.classList.toggle("night", state.phase === "night");
   dom.waveText.textContent = state.wave.active ? "涌入中" : formatTime(Math.max(0, state.wave.nextAt - state.time));
   dom.waveMeta.textContent = `${state.endlessMode ? "无尽 · " : ""}第 ${String(state.wave.index + (state.wave.active ? 0 : 1)).padStart(2, "0")} 波`;
@@ -2631,12 +2693,13 @@ function updateUi() {
   dom.rangeStat.textContent = Math.round(stats.range);
   dom.droneEnergyStat.textContent = state.tower.upgrades.drone > 0 ? `${Math.round(state.tower.droneEnergy)} / ${Math.round(droneEnergyMax)}` : "--";
   dom.seedText.textContent = state.seed;
-  const researchedTechs = TECH_ORDER.filter((key) => state.tower.upgrades[key] > 0).length;
-  const availableTechs = TECH_ORDER.filter((key) => {
+  const techOrder = activeTechOrder();
+  const researchedTechs = techOrder.filter((key) => state.tower.upgrades[key] > 0).length;
+  const availableTechs = techOrder.filter((key) => {
     const status = getTechStatus(state, key);
     return status.unlocked && !status.maxed;
   }).length;
-  dom.techResearchedText.textContent = `${researchedTechs} / ${TECH_ORDER.length}`;
+  dom.techResearchedText.textContent = `${researchedTechs} / ${techOrder.length}`;
   dom.techAvailableText.textContent = availableTechs;
   dom.techThreatText.textContent = formatThreat(state.threat);
   dom.techCoinsText.textContent = formatNumber(state.coins);
@@ -2652,7 +2715,7 @@ function updateUi() {
   dom.droneModeButton.disabled = state.over || !droneModeUnlocked || energyTooLow || detonateActive;
   dom.droneModeButton.setAttribute("aria-pressed", String(droneAttacking));
   dom.droneModeButton.classList.toggle("attack", droneAttacking);
-  dom.droneModeText.textContent = detonateActive ? "战术节点 · 自爆模式" : droneModeUnlocked ? (droneAttacking ? "战术节点 · 攻击模式" : "战术节点 · 护航模式") : "战术节点 · 攻击模式未解锁";
+  dom.droneModeText.textContent = detonateActive ? (isChapterTwo(state) ? "飞行甲板 · 饱和突击" : "战术节点 · 自爆模式") : droneModeUnlocked ? (droneAttacking ? (isChapterTwo(state) ? "飞行甲板 · 强袭编队" : "战术节点 · 攻击模式") : (isChapterTwo(state) ? "飞行甲板 · 护航编队" : "战术节点 · 护航模式")) : "战术节点 · 攻击模式未解锁";
   dom.droneModeButton.setAttribute("aria-label", `${dom.droneModeText.textContent}，快捷键 G`);
   dom.droneModeButton.title = `${dom.droneModeText.textContent} · G`;
   const interceptText = state.tower.upgrades.droneIntercept > 0 ? ` · 拦截${state.tower.interceptCharge > 0 ? "就绪" : `${state.tower.interceptRecharge.toFixed(1)}s`}` : "";
@@ -2681,9 +2744,12 @@ function updateUi() {
     : readyDrones < state.drones.length ? `部分无人机恢复中 · ${getDroneDetonateRecovery(state).toFixed(1)}s` : `优先 Boss / 精英 · 每次消耗 ${GAME_CONFIG.drones.detonate.energyCost} 电量`;
   for (const button of dom.targetProtocolList.children) {
     const selected = button.dataset.protocol === state.tower.targetProtocol;
+    const protocolMeta = activeProtocolMeta(button.dataset.protocol);
+    button.querySelector("b").textContent = protocolMeta.name;
+    button.title = protocolMeta.name;
     button.setAttribute("aria-pressed", String(selected));
   }
-  dom.targetProtocolHint.textContent = TARGET_PROTOCOL_META[state.tower.targetProtocol].hint;
+  dom.targetProtocolHint.textContent = activeProtocolMeta(state.tower.targetProtocol).hint;
 
   updateTechTreeUi();
 
@@ -2712,10 +2778,12 @@ function updateUi() {
   const sovereign = state.enemies.find((enemy) => enemy.type === "sovereign" && enemy.hp > 0);
   const colossus = state.enemies.find((enemy) => enemy.type === "colossus" && enemy.hp > 0);
   if (sovereign) {
-    dom.objectiveTitle.textContent = sovereign.entryTimer > 0 ? "时流锁定 · 双方停火" : sovereign.enraged ? "终末狂暴 · 元素无效" : sovereign.healthBar <= 2 ? "裂隙增殖 · 精英召唤" : `裂界魔君 · 命核 ${sovereign.healthBar}/4`;
+    dom.objectiveTitle.textContent = isChapterTwo(state)
+      ? (sovereign.entryTimer > 0 ? "渊潮王舰 · 正在压境" : sovereign.enraged ? "王舰狂暴 · 全甲板交火" : `渊潮王舰 · 舰体 ${sovereign.healthBar}/4`)
+      : (sovereign.entryTimer > 0 ? "时流锁定 · 双方停火" : sovereign.enraged ? "终末狂暴 · 元素无效" : sovereign.healthBar <= 2 ? "裂隙增殖 · 精英召唤" : `裂界魔君 · 命核 ${sovereign.healthBar}/4`);
     dom.objectiveText.textContent = sovereign.entryTimer > 0
-      ? "战场已被清空并强制回归 1×，登场动画结束前双方无法攻击。"
-      : sovereign.intentSkill === "summon" || sovereign.activeSkill === "summon" ? "多处裂隙将同时召唤怪群，优先清理靠近晶塔的目标。"
+      ? (isChapterTwo(state) ? "海面已经清空。王舰进入射界前，护航编队正在最后充能。" : "战场已被清空并强制回归 1×，登场动画结束前双方无法攻击。")
+      : sovereign.intentSkill === "summon" || sovereign.activeSkill === "summon" ? (isChapterTwo(state) ? "敌方增援即将入海。切换强袭编队，优先击沉靠近航母的舰船。" : "多处裂隙将同时召唤怪群，优先清理靠近晶塔的目标。")
         : (state.tower.fireRateSuppression ?? 0) > 0 ? `远程压制生效中：晶矢攻击频率降低，剩余 ${state.tower.fireRateSuppression.toFixed(1)} 秒。`
           : sovereign.enraged ? "最后一管命核已进入狂暴：冰冻、灼烧与雷电连锁无法作用于首领。" : sovereign.healthBar <= 2 ? "召唤已强化：每波裂隙数量增加，并混入带词缀精英。" : sovereign.spawnShield > 0 ? "降临护盾存在；击破后首领下一招必定为召唤。" : "首领固定在战场上方，四条血量逐管击破。";
   } else if (colossus) {
@@ -2728,17 +2796,17 @@ function updateUi() {
         : colossus.activeSkill === "bulwark" ? "堡垒已展开 · 立即使用 W 超载强行击穿。"
         : colossus.activeSkill ? `正在施放${COLOSSUS_SKILL_NAMES[colossus.activeSkill]} · 常规怪群已暂停。` : "技能间隙 · 集中全部火力攻击外圈巨兽。";
   } else if (state.wave.warningStarted || state.wave.active) {
-    dom.objectiveTitle.textContent = state.wave.active ? "怪潮压境" : "怪潮预警";
-    dom.objectiveText.textContent = state.wave.active ? "敌群正在集中涌入，使用技能清开塔下空间。" : "地图红光标出了主攻方向，准备星落与超载。";
+    dom.objectiveTitle.textContent = isChapterTwo(state) ? (state.wave.active ? "舰队压境" : "海域预警") : (state.wave.active ? "怪潮压境" : "怪潮预警");
+    dom.objectiveText.textContent = isChapterTwo(state) ? (state.wave.active ? "敌舰沿主航道集中推进。安排强袭窗口，别让能源见底。" : "红色海域是主攻方向。保留甲板超载与定向空袭。") : (state.wave.active ? "敌群正在集中涌入，使用技能清开塔下空间。" : "地图红光标出了主攻方向，准备星落与超载。");
   } else if (state.threat < 2) {
-    dom.objectiveTitle.textContent = "怪潮已至";
-    dom.objectiveText.textContent = state.coins < 20 ? "鼠标滑过战场金币即可拾取，10 秒未收集就会消失。" : "第一笔金币到手。沿科技树选择路线。";
+    dom.objectiveTitle.textContent = isChapterTwo(state) ? "护航编队待命" : "怪潮已至";
+    dom.objectiveText.textContent = isChapterTwo(state) ? "按 G 放出强袭编队。返航护航会打捞残骸并恢复能源。" : (state.coins < 20 ? "鼠标滑过战场金币即可拾取，10 秒未收集就会消失。" : "第一笔金币到手。沿科技树选择路线。");
   } else if (state.threat < 5) {
-    dom.objectiveTitle.textContent = "外圈正在收紧";
-    dom.objectiveText.textContent = "疾行怪与重甲怪已加入，留一个技能救场。";
+    dom.objectiveTitle.textContent = isChapterTwo(state) ? "制海圈正在收紧" : "外圈正在收紧";
+    dom.objectiveText.textContent = isChapterTwo(state) ? "快艇与铁甲舰同时出现。强袭负责远海，护航守住近海。" : "疾行怪与重甲怪已加入，留一个技能救场。";
   } else {
-    dom.objectiveTitle.textContent = "守住晶光";
-    dom.objectiveText.textContent = "大首领每十级来袭。没有终点，只有更久。";
+    dom.objectiveTitle.textContent = isChapterTwo(state) ? "守住极夜航道" : "守住晶光";
+    dom.objectiveText.textContent = isChapterTwo(state) ? "威胁 XII，渊潮王舰抵达。别把全部能源浪费在小艇上。" : "大首领每十级来袭。没有终点，只有更久。";
   }
   dom.pauseButton.classList.toggle("is-paused", state.paused);
   dom.pauseButton.setAttribute("aria-label", state.paused ? "继续战斗" : "暂停战斗");
@@ -2752,7 +2820,7 @@ function updateUi() {
   dom.speedButton.setAttribute("aria-pressed", String(doubleSpeedActive && !speedForced));
   dom.speedButton.setAttribute("aria-disabled", String(!doubleSpeedUnlocked || speedForced));
   dom.speedButton.setAttribute("aria-label", speedForced ? "威胁20首领战期间强制1倍速" : doubleSpeedUnlocked ? `当前 ${doubleSpeedActive ? "2" : "1"} 倍速，点击切换` : "2倍速未解锁");
-  dom.speedButton.title = speedForced ? "威胁 XX 首领战期间时流锁定为 1×" : doubleSpeedUnlocked ? "切换 1× / 2× 倍速（X）" : "击败威胁 Ⅹ 首领后永久解锁 2× 倍速";
+  dom.speedButton.title = speedForced ? `${isChapterTwo(state) ? "威胁 XII 王舰战" : "威胁 XX 首领战"}期间时流锁定为 1×` : doubleSpeedUnlocked ? "切换 1× / 2× 倍速（X）" : "击败威胁 Ⅹ 首领后永久解锁 2× 倍速";
 }
 
 function renderLeaderboardPodium(container, highlightDate) {
@@ -3019,7 +3087,7 @@ function togglePause(force) {
 
 function toggleDoubleSpeed() {
   if (sovereignSpeedLocked || state.enemies.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0)) {
-    showToast("威胁 XX · 时流锁定 1×");
+    showToast(`${isChapterTwo(state) ? "威胁 XII" : "威胁 XX"} · 时流锁定 1×`);
     return;
   }
   if (!save.unlocks.doubleSpeed && previewMode !== "speed") {
@@ -3051,7 +3119,10 @@ function restart() {
   dom.relicChoiceModal.classList.add("hidden");
   dom.endlessShopModal.classList.add("hidden");
   runIndex += 1;
-  state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped, save.skillResearch);
+  state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped, save.skillResearch, activeChapter);
+  activeTechBranch = isChapterTwo(state) ? "economy" : "power";
+  selectedTechKey = isChapterTwo(state) ? "drone" : "damage";
+  createUpgradeUi();
   runSettled = false;
   scoreSubmitted = false;
   currentRunScore = null;
@@ -3065,7 +3136,8 @@ function restart() {
   setAccountOpen(false);
   dom.pauseOverlay.classList.add("hidden");
   setTechTreeOpen(false);
-  announce("晶芽重燃");
+  document.body.dataset.chapter = String(state.chapter);
+  announce(isChapterTwo(state) ? "永耀蜂巢舰下水 · 护航编队开始打捞" : "晶芽重燃");
   updateUi();
 }
 
@@ -3145,13 +3217,14 @@ window.addEventListener("resize", () => {
 dom.droneModeButton.addEventListener("click", switchDroneMode);
 dom.droneProtocolButton.addEventListener("click", switchDroneProtocol);
 for (const button of dom.targetProtocolList.children) button.addEventListener("click", () => switchTargetProtocol(button.dataset.protocol));
+document.body.dataset.chapter = String(state.chapter);
 updateUi();
 setTopbarCollapsed(window.innerWidth > 1180);
 if (previewMode === "tutorial-coin") showFirstRunTutorial(1, true);
 if (previewMode === "tutorial-upgrade") showFirstRunTutorial(2, true);
 if (previewMode === "tutorial-branches") showFirstRunTutorial(3, true);
 if (previewMode === "tech" || previewMode === "drones" || previewMode === "element-tech" || previewMode === "drone-energy" || previewMode === "drone-protocols") setTechTreeOpen(true);
-announce("守住中央晶塔");
+announce(isChapterTwo(state) ? "极夜航道 · 护航与强袭由你调度" : "守住中央晶塔");
 refreshLeaderboard();
 void restoreAccountSession();
 if (previewMode === "relics" || previewMode === "relic-lock") {
@@ -3230,10 +3303,10 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (techTreeOpen && event.key >= "1" && event.key <= "4") {
-    selectTechBranch(Object.keys(BRANCH_META)[Number(event.key) - 1]);
+    selectTechBranch(Object.keys(activeBranchMeta())[Number(event.key) - 1]);
   } else if (techTreeOpen && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
     event.preventDefault();
-    const keys = BRANCH_META[activeTechBranch].keys;
+    const keys = activeBranchMeta()[activeTechBranch].keys;
     const currentIndex = Math.max(0, keys.indexOf(selectedTechKey));
     const delta = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1;
     selectedTechKey = keys[(currentIndex + delta + keys.length) % keys.length];
@@ -3242,7 +3315,7 @@ document.addEventListener("keydown", (event) => {
   } else if (techTreeOpen && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
     buyUpgrade(selectedTechKey);
-  } else if (!techTreeOpen && event.key >= "1" && event.key <= "9") buyUpgrade(TECH_ORDER[Number(event.key) - 1]);
+  } else if (!techTreeOpen && event.key >= "1" && event.key <= "9") buyUpgrade(activeTechOrder()[Number(event.key) - 1]);
   else if (event.key.toLowerCase() === "q") activateSkill("heal");
   else if (event.key.toLowerCase() === "w") activateSkill("overload");
   else if (event.key.toLowerCase() === "e") activateSkill("starfall");
