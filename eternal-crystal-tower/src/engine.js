@@ -4,7 +4,7 @@ import { ENDLESS_SHOP_RULES, createEndlessShopState, hasEndlessRelic, refreshEnd
 import { CHAPTER_TWO_CONFIG, CHAPTER_TWO_ID, CHAPTER_TWO_TECH_ORDER, CHAPTER_TWO_TECH_TREE, CHAPTER_TWO_UPGRADE_META, chooseChapterTwoEnemyType, isChapterTwo } from './chapter-two.js';
 
 const ASCEND_NAMES = ["晶芽", "晶柱", "晶冠", "万象晶塔"];
-const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", cannonSiege: "破城炮膛", cannonCharge: "蓄能晶矢", cannonPierce: "贯星穿透", cannonWeakpoint: "弱点校准", cannonStarPiercer: "贯星炮", cannonSplit: "裂晶炮膛", cannonGrowth: "碎片增殖", cannonEcho: "晶爆回响", cannonCascade: "裂界连爆", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawGun: "晶刃炮膛", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
+const TECH_NAMES = { damage: "淬亮晶矢", rate: "加速咏唱", ascend: "塔阶", cannonSiege: "破城炮膛", cannonCharge: "蓄能晶矢", cannonPierce: "贯星穿透", cannonWeakpoint: "弱点校准", cannonStarPiercer: "贯星炮", cannonSplit: "裂晶炮膛", cannonGrowth: "碎片增殖", cannonEcho: "晶爆回响", cannonCascade: "裂界连爆", saw: "环绕晶刃", sawOverdrive: "疾旋锻刃", sawAccelerator: "星环超频", sawMagnitude: "巨刃铸型", sawBreathing: "潮汐刃域", sawGun: "晶刃炮膛", sawStorm: "环刃风暴", sawLaunch: "弹射飞刃", sawRicochet: "折跃棱面", sawRecovery: "快速重铸", sawHomecoming: "万刃归巢", drone: "拾荒无人机", autoCollect: "磁吸核心", droneScavenge: "拾荒协议", droneIntercept: "拦截协议", droneHunt: "猎杀协议", droneBattery: "协议电池扩容", droneDetonate: "自爆协议", droneDetonateRecovery: "快速重组", droneGuard: "棱镜护盾协议", droneGuardRecovery: "冷却优化", frost: "霜棱炮口", fire: "烬火炉心", lightning: "雷鸣天球" };
 const SKILL_DAMAGE_SOURCES = new Set(["starfall", "overload", "shieldBurst"]);
 const BATCHED_HIT_FEEDBACK_SOURCES = new Set(["starfall", "cannonEcho", "cannonCascade", "droneSalvo"]);
 
@@ -136,6 +136,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       fireRateSuppression: 0,
       sawFireCooldown: 0,
       sawLaunchCooldown: 0,
+      sawStormCharge: 0,
       sawRecoveries: [],
       droneCooldown: 0,
       autoCollectCooldown: GAME_CONFIG.coins.towerInterval,
@@ -159,7 +160,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
       cannonCascadeCooldown: 0,
       damageImmunity: 0,
       sawAngle: 0,
-      upgrades: { damage: 0, rate: 0, ascend: 0, cannonSiege: 0, cannonCharge: 0, cannonPierce: 0, cannonWeakpoint: 0, cannonStarPiercer: 0, cannonSplit: 0, cannonGrowth: 0, cannonEcho: 0, cannonCascade: 0, saw: 0, sawOverdrive: 0, sawGun: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, dronePayload: 0, droneAfterburner: 0, droneRelay: 0, droneSalvo: 0, droneRepair: 0, droneOverdrive: 0, frost: 0, fire: 0, lightning: 0 }
+      upgrades: { damage: 0, rate: 0, ascend: 0, cannonSiege: 0, cannonCharge: 0, cannonPierce: 0, cannonWeakpoint: 0, cannonStarPiercer: 0, cannonSplit: 0, cannonGrowth: 0, cannonEcho: 0, cannonCascade: 0, saw: 0, sawOverdrive: 0, sawAccelerator: 0, sawMagnitude: 0, sawBreathing: 0, sawGun: 0, sawStorm: 0, sawLaunch: 0, sawRicochet: 0, sawRecovery: 0, sawHomecoming: 0, drone: 0, autoCollect: 0, droneScavenge: 0, droneBattery: 0, droneDetonate: 0, droneDetonateRecovery: 0, droneGuard: 0, droneGuardRecovery: 0, droneIntercept: 0, droneHunt: 0, dronePayload: 0, droneAfterburner: 0, droneRelay: 0, droneSalvo: 0, droneRepair: 0, droneOverdrive: 0, frost: 0, fire: 0, lightning: 0 }
     },
     skills: {
       heal: { cooldown: 0, active: 0, burst: 0, shieldBurstArmed: false, damageReduction: 0 },
@@ -582,7 +583,7 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
     reward: Math.max(1, Math.round(base.reward * rewardScale * rewardMultiplier)),
     scoreValue: GAME_CONFIG.score.enemy[type] ?? 100,
     unitCount: 1, baseRadius: base.radius * radiusMultiplier,
-    radius: base.radius * radiusMultiplier, attackCooldown: 0, sawCooldown: 0, hitFlash: 0,
+    radius: base.radius * radiusMultiplier, attackCooldown: 0, sawCooldown: 0, sawHitCooldowns: [], sawScarStacks: 0, sawScarTimer: 0, hitFlash: 0,
     attackRange: base.attackRange ?? 0, rangedFlash: 0,
     freezeTimer: 0, burnTimer: 0, burnTickCooldown: 0, burnDamagePerTick: 0,
     markTimer: 0,
@@ -1020,7 +1021,7 @@ function fireTower(state) {
   return true;
 }
 
-function rollProjectileElement(state) {
+function rollProjectileElement(state, chanceMultiplier = 1) {
   const enabled = ["frost", "fire", "lightning"].filter((key) => state.tower.upgrades[key] > 0);
   if (!enabled.length) return null;
   const roll = state.rng.next();
@@ -1030,7 +1031,7 @@ function rollProjectileElement(state) {
   let cursor = 0;
   const calibration = (state.endlessShop?.levels?.elementCalibrator ?? 0) * 0.03;
   for (const key of enabled) {
-    cursor += GAME_CONFIG.elements[key].chance + calibration;
+    cursor += (GAME_CONFIG.elements[key].chance + calibration) * chanceMultiplier;
     if (roll < cursor) return key;
   }
   return null;
@@ -2210,6 +2211,12 @@ function updateEnemies(state, dt) {
     enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
     enemy.rangedFlash = Math.max(0, (enemy.rangedFlash ?? 0) - dt);
     enemy.sawCooldown = Math.max(0, enemy.sawCooldown - dt);
+    enemy.sawHitCooldowns ??= [];
+    for (let index = 0; index < enemy.sawHitCooldowns.length; index += 1) {
+      enemy.sawHitCooldowns[index] = Math.max(0, enemy.sawHitCooldowns[index] - dt);
+    }
+    enemy.sawScarTimer = Math.max(0, (enemy.sawScarTimer ?? 0) - dt);
+    if (enemy.sawScarTimer <= 0) enemy.sawScarStacks = 0;
     enemy.phaseBreakInvulnerability = Math.max(0, (enemy.phaseBreakInvulnerability ?? 0) - dt);
     enemy.freezeTimer = Math.max(0, (enemy.freezeTimer ?? 0) - dt);
     enemy.markTimer = Math.max(0, (enemy.markTimer ?? 0) - dt);
@@ -2281,6 +2288,59 @@ function updateEnemies(state, dt) {
   }
 }
 
+export function getSawOrbitRadius(state, bladeIndex = 0) {
+  const count = state.tower.upgrades.saw;
+  const cfg = GAME_CONFIG.upgrades.saw;
+  const trackOffset = count >= 4 ? (bladeIndex % 2 === 0 ? cfg.orbitSpread : -cfg.orbitSpread) : 0;
+  const breathing = state.tower.upgrades.sawBreathing > 0 ? GAME_CONFIG.upgrades.sawBreathing : null;
+  const rangeMultiplier = breathing ? breathing.radiusCenter + Math.sin(state.time * breathing.angularSpeed) * breathing.radiusAmplitude : 1;
+  return (cfg.radius + trackOffset) * rangeMultiplier * getTowerScale(state);
+}
+
+export function getSawBladeRadius(state) {
+  const magnitude = state.tower.upgrades.sawMagnitude ?? 0;
+  const sizeMultiplier = magnitude > 0 ? GAME_CONFIG.upgrades.sawMagnitude.radiusMultiplier : 1;
+  return GAME_CONFIG.upgrades.saw.bladeRadius * sizeMultiplier * getTowerScale(state);
+}
+
+export function getSawContactDamage(state) {
+  const count = state.tower.upgrades.saw;
+  if (!count) return 0;
+  const cfg = GAME_CONFIG.upgrades.saw;
+  const overdrive = state.tower.upgrades.sawOverdrive;
+  const baseDamage = cfg.damage * (1 + (count - 1) * cfg.growthDamage);
+  const towerDamage = getTowerStats(state).damage * cfg.towerDamageMultiplier;
+  return (baseDamage + towerDamage) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.damagePerLevel);
+}
+
+function getSawScarMultiplier(enemy) {
+  const cfg = GAME_CONFIG.upgrades.sawOverdrive;
+  return 1 + (enemy.sawScarStacks ?? 0) * cfg.scarDamagePerStack;
+}
+
+function applySawScar(state, enemy) {
+  if (state.tower.upgrades.sawOverdrive <= 0 || enemy.hp <= 0) return;
+  const cfg = GAME_CONFIG.upgrades.sawOverdrive;
+  enemy.sawScarStacks = Math.min(cfg.scarMaxStacks, (enemy.sawScarStacks ?? 0) + 1);
+  enemy.sawScarTimer = cfg.scarDuration;
+}
+
+function releaseSawStorm(state, pulses = 1) {
+  if (state.tower.upgrades.sawStorm <= 0 || pulses <= 0) return;
+  const cfg = GAME_CONFIG.upgrades.sawStorm;
+  const { x, y } = getTowerPosition(state);
+  const radius = cfg.radius * getTowerScale(state);
+  const baseDamage = getSawContactDamage(state) * cfg.damageMultiplier * pulses;
+  let hits = 0;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0 || Math.hypot(enemy.x - x, enemy.y - y) > radius + enemy.radius) continue;
+    damageEnemy(state, enemy, baseDamage * getSawScarMultiplier(enemy), "sawStorm");
+    hits += 1;
+  }
+  state.elementFx.push({ element: "sawStorm", x, y, radius, life: cfg.duration, maxLife: cfg.duration });
+  state.events.push({ type: "sawStorm", x, y, radius, hits, pulses });
+}
+
 function updateSaws(state, dt, enemySpatialIndex = null) {
   const count = state.tower.upgrades.saw;
   if (!count) return;
@@ -2288,45 +2348,128 @@ function updateSaws(state, dt, enemySpatialIndex = null) {
   for (let index = 0; index < count; index += 1) state.tower.sawRecoveries[index] = Math.max(0, state.tower.sawRecoveries[index] - dt);
   const launchedIndexes = new Set(state.launchedSaws.map((saw) => saw.bladeIndex));
   const overdrive = state.tower.upgrades.sawOverdrive;
-  state.tower.sawAngle += dt * (1.8 + count * 0.06) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.speedPerLevel);
+  const acceleratorMultiplier = state.tower.upgrades.sawAccelerator > 0 ? GAME_CONFIG.upgrades.sawAccelerator.speedMultiplier : 1;
+  const angleDelta = dt * (1.8 + count * 0.06) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.speedPerLevel) * acceleratorMultiplier;
+  state.tower.sawAngle += angleDelta;
+  if (state.tower.upgrades.sawStorm > 0) {
+    state.tower.sawStormCharge = (state.tower.sawStormCharge ?? 0) + angleDelta;
+    const pulses = Math.floor(state.tower.sawStormCharge / (Math.PI * 2));
+    if (pulses > 0) {
+      state.tower.sawStormCharge -= pulses * Math.PI * 2;
+      releaseSawStorm(state, pulses);
+    }
+  }
   const { x: centerX, y: centerY } = getTowerPosition(state);
   const cfg = GAME_CONFIG.upgrades.saw;
-  const damage = cfg.damage * (1 + (count - 1) * cfg.growthDamage) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.damagePerLevel);
+  const bladeRadius = getSawBladeRadius(state);
+  const damage = getSawContactDamage(state);
   for (let index = 0; index < count; index += 1) {
     if (launchedIndexes.has(index) || state.tower.sawRecoveries[index] > 0) continue;
     const angle = state.tower.sawAngle + index * Math.PI * 2 / count;
-    const radius = cfg.radius * getTowerScale(state);
+    const radius = getSawOrbitRadius(state, index);
     const x = centerX + Math.cos(angle) * radius;
     const y = centerY + Math.sin(angle) * radius;
-    const nearby = enemySpatialIndex ? queryEnemySpatialIndex(enemySpatialIndex, x, y, 17) : null;
+    const nearby = enemySpatialIndex ? queryEnemySpatialIndex(enemySpatialIndex, x, y, bladeRadius) : null;
     const candidateCount = nearby ? nearby.length : state.enemies.length;
     for (let candidateIndex = 0; candidateIndex < candidateCount; candidateIndex += 1) {
       const enemy = state.enemies[nearby ? nearby[candidateIndex] : candidateIndex];
-      if (enemy.sawCooldown > 0 || enemy.hp <= 0) continue;
+      if ((enemy.sawHitCooldowns?.[index] ?? 0) > 0 || enemy.hp <= 0) continue;
       const dx = enemy.x - x;
       const dy = enemy.y - y;
-      const reach = enemy.radius + 17;
+      const reach = enemy.radius + bladeRadius;
       if (dx * dx + dy * dy <= reach * reach) {
-        damageEnemy(state, enemy, damage, "saw");
-        enemy.sawCooldown = cfg.hitInterval;
+        damageEnemy(state, enemy, damage * getSawScarMultiplier(enemy), "saw");
+        enemy.sawHitCooldowns ??= [];
+        enemy.sawHitCooldowns[index] = cfg.hitInterval;
+        applySawScar(state, enemy);
       }
     }
   }
 }
 
-function finishLaunchedSaw(state, saw) {
+function finishLaunchedSaw(state, saw, returned = false) {
   const cfg = GAME_CONFIG.upgrades.sawLaunch;
   const recoveryLevel = state.tower.upgrades.sawRecovery;
-  state.tower.sawRecoveries[saw.bladeIndex] = cfg.baseRecovery * (cfg.recoveryMultiplier ** recoveryLevel);
+  const homecoming = GAME_CONFIG.upgrades.sawHomecoming;
+  const recoveryReduction = returned && state.tower.upgrades.sawHomecoming > 0
+    ? Math.min(homecoming.maxRecoveryReduction, (saw.returnHits ?? 0) * homecoming.recoveryReductionPerHit)
+    : 0;
+  state.tower.sawRecoveries[saw.bladeIndex] = cfg.baseRecovery * (cfg.recoveryMultiplier ** recoveryLevel) * (1 - recoveryReduction);
   saw.done = true;
+  if (returned && state.tower.upgrades.sawHomecoming > 0) {
+    const { x, y } = getTowerPosition(state);
+    const radius = homecoming.burstRadius * getTowerScale(state);
+    let hits = 0;
+    for (const enemy of state.enemies) {
+      if (enemy.hp <= 0 || Math.hypot(enemy.x - x, enemy.y - y) > radius + enemy.radius) continue;
+      damageEnemy(state, enemy, saw.damage * homecoming.burstDamageMultiplier * getSawScarMultiplier(enemy), "sawHomecoming");
+      hits += 1;
+    }
+    state.elementFx.push({ element: "sawHomecoming", x, y, radius, life: homecoming.duration, maxLife: homecoming.duration });
+    state.events.push({ type: "sawHomecoming", bladeIndex: saw.bladeIndex, hits, returnHits: saw.returnHits ?? 0, recoveryReduction });
+  }
   state.events.push({ type: "sawRecover", bladeIndex: saw.bladeIndex, recovery: state.tower.sawRecoveries[saw.bladeIndex] });
+}
+
+function beginLaunchedSawReturn(state, saw) {
+  if (saw.done || saw.returning) return;
+  if (state.tower.upgrades.sawHomecoming <= 0) {
+    finishLaunchedSaw(state, saw);
+    return;
+  }
+  saw.returning = true;
+  saw.returnHitIds = [];
+  saw.returnHits = 0;
+  saw.rehitDelay = 0;
+  saw.rehitTargetId = null;
+  saw.life = Math.max(saw.life, 2.5);
+  state.events.push({ type: "sawReturn", bladeIndex: saw.bladeIndex });
 }
 
 function updateLaunchedSaws(state, dt, enemySpatialIndex = null) {
   if (!state.tower.upgrades.sawLaunch) return;
   const cfg = GAME_CONFIG.upgrades.sawLaunch;
-  const { width, height, centerX, centerY } = GAME_CONFIG.arena;
+  const { width, height } = GAME_CONFIG.arena;
   for (const saw of state.launchedSaws) {
+    if (saw.returning) {
+      const tower = getTowerPosition(state);
+      const angle = Math.atan2(tower.y - saw.y, tower.x - saw.x);
+      saw.vx = Math.cos(angle) * cfg.returnSpeed;
+      saw.vy = Math.sin(angle) * cfg.returnSpeed;
+      saw.x += saw.vx * dt;
+      saw.y += saw.vy * dt;
+      saw.life -= dt;
+      const nearby = enemySpatialIndex ? queryEnemySpatialIndex(enemySpatialIndex, saw.x, saw.y, cfg.radius) : null;
+      const candidateCount = nearby ? nearby.length : state.enemies.length;
+      for (let candidateIndex = 0; candidateIndex < candidateCount; candidateIndex += 1) {
+        const enemy = state.enemies[nearby ? nearby[candidateIndex] : candidateIndex];
+        if (enemy.hp <= 0 || saw.returnHitIds.includes(enemy.id)) continue;
+        const reach = cfg.radius + enemy.radius;
+        if ((saw.x - enemy.x) ** 2 + (saw.y - enemy.y) ** 2 > reach * reach) continue;
+        saw.returnHitIds.push(enemy.id);
+        saw.returnHits += 1;
+        damageEnemy(state, enemy, saw.damage * GAME_CONFIG.upgrades.sawHomecoming.returnDamageMultiplier * getSawScarMultiplier(enemy), "sawHomecoming");
+      }
+      if (Math.hypot(saw.x - tower.x, saw.y - tower.y) <= getTowerRadius(state) + cfg.radius || saw.life <= 0) finishLaunchedSaw(state, saw, true);
+      continue;
+    }
+
+    if ((saw.rehitDelay ?? 0) > 0) {
+      saw.rehitDelay = Math.max(0, saw.rehitDelay - dt);
+      saw.life -= dt;
+      if (saw.rehitDelay <= 0) {
+        const target = state.enemies.find((enemy) => enemy.id === saw.rehitTargetId && enemy.hp > 0);
+        if (target) {
+          saw.hitIds = saw.hitIds.filter((id) => id !== target.id);
+          const angle = Math.atan2(target.y - saw.y, target.x - saw.x);
+          saw.vx = Math.cos(angle) * cfg.projectileSpeed;
+          saw.vy = Math.sin(angle) * cfg.projectileSpeed;
+        } else beginLaunchedSawReturn(state, saw);
+      }
+      if (!saw.done && saw.life <= 0) beginLaunchedSawReturn(state, saw);
+      continue;
+    }
+
     saw.x += saw.vx * dt;
     saw.y += saw.vy * dt;
     saw.life -= dt;
@@ -2340,7 +2483,7 @@ function updateLaunchedSaws(state, dt, enemySpatialIndex = null) {
       const reach = cfg.radius + enemy.radius;
       if (dx * dx + dy * dy > reach * reach) continue;
       saw.hitIds.push(enemy.id);
-      damageEnemy(state, enemy, saw.damage, "launchedSaw");
+      damageEnemy(state, enemy, saw.damage * (1 + (saw.bounceIndex ?? 0) * cfg.bounceDamagePerHop) * getSawScarMultiplier(enemy), "launchedSaw");
       const nextTarget = saw.bouncesRemaining > 0
         ? rankTargets(state, state.enemies.filter((candidate) => candidate.hp > 0 && !saw.hitIds.includes(candidate.id) && Math.hypot(candidate.x - saw.x, candidate.y - saw.y) <= cfg.bounceRange), 1)[0]
         : null;
@@ -2349,11 +2492,25 @@ function updateLaunchedSaws(state, dt, enemySpatialIndex = null) {
         saw.vx = Math.cos(angle) * cfg.projectileSpeed;
         saw.vy = Math.sin(angle) * cfg.projectileSpeed;
         saw.bouncesRemaining -= 1;
+        saw.bounceIndex = (saw.bounceIndex ?? 0) + 1;
         state.events.push({ type: "sawBounce", bladeIndex: saw.bladeIndex, targetId: nextTarget.id, remaining: saw.bouncesRemaining });
-      } else finishLaunchedSaw(state, saw);
+      } else {
+        const repeatTarget = saw.bouncesRemaining > 0
+          ? rankTargets(state, state.enemies.filter((candidate) => candidate.hp > 0 && (candidate.elite || isBossEnemy(candidate)) && saw.hitIds.includes(candidate.id) && Math.hypot(candidate.x - saw.x, candidate.y - saw.y) <= cfg.bounceRange), 1)[0]
+          : null;
+        if (repeatTarget) {
+          saw.bouncesRemaining -= 1;
+          saw.bounceIndex = (saw.bounceIndex ?? 0) + 1;
+          saw.rehitTargetId = repeatTarget.id;
+          saw.rehitDelay = cfg.bossRehitDelay;
+          saw.vx = 0;
+          saw.vy = 0;
+          state.events.push({ type: "sawBounce", bladeIndex: saw.bladeIndex, targetId: repeatTarget.id, remaining: saw.bouncesRemaining, repeat: true });
+        } else beginLaunchedSawReturn(state, saw);
+      }
       break;
     }
-    if (!saw.done && (saw.life <= 0 || saw.x < -40 || saw.x > width + 40 || saw.y < -40 || saw.y > height + 40)) finishLaunchedSaw(state, saw);
+    if (!saw.done && !saw.returning && (saw.life <= 0 || saw.x < -40 || saw.x > width + 40 || saw.y < -40 || saw.y > height + 40)) beginLaunchedSawReturn(state, saw);
   }
   state.launchedSaws = state.launchedSaws.filter((saw) => !saw.done);
 
@@ -2365,21 +2522,21 @@ function updateLaunchedSaws(state, dt, enemySpatialIndex = null) {
     .find((index) => !launchedIndexes.has(index) && state.tower.sawRecoveries[index] <= 0);
   if (bladeIndex == null) return;
   const angle = state.tower.sawAngle + bladeIndex * Math.PI * 2 / count;
-  const radius = GAME_CONFIG.upgrades.saw.radius * getTowerScale(state);
+  const radius = getSawOrbitRadius(state, bladeIndex);
+  const { x: centerX, y: centerY } = getTowerPosition(state);
   const x = centerX + Math.cos(angle) * radius;
   const y = centerY + Math.sin(angle) * radius;
   const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range), 1)[0];
   if (!target) return;
   const launchAngle = Math.atan2(target.y - y, target.x - x);
-  const sawCfg = GAME_CONFIG.upgrades.saw;
-  const damage = sawCfg.damage * (1 + (count - 1) * sawCfg.growthDamage) * cfg.damageMultiplier;
+  const damage = getSawContactDamage(state) * cfg.damageMultiplier + getTowerStats(state).damage * cfg.towerDamageMultiplier;
   state.launchedSaws.push({
     id: state.nextId++, bladeIndex, x, y,
     vx: Math.cos(launchAngle) * cfg.projectileSpeed,
     vy: Math.sin(launchAngle) * cfg.projectileSpeed,
     damage, life: cfg.flightLife,
     bouncesRemaining: cfg.baseBounces + state.tower.upgrades.sawRicochet,
-    hitIds: [], done: false
+    bounceIndex: 0, hitIds: [], returning: false, returnHitIds: [], returnHits: 0, done: false
   });
   state.tower.sawLaunchCooldown = cfg.launchInterval;
   state.events.push({ type: "sawLaunch", bladeIndex, targetId: target.id });
@@ -2397,7 +2554,7 @@ function updateSawGuns(state, dt) {
   let fired = false;
   for (let index = 0; index < count; index += 1) {
     const sawAngle = state.tower.sawAngle + index * Math.PI * 2 / count;
-    const radius = GAME_CONFIG.upgrades.saw.radius * getTowerScale(state);
+    const radius = getSawOrbitRadius(state, index);
     const x = centerX + Math.cos(sawAngle) * radius;
     const y = centerY + Math.sin(sawAngle) * radius;
     const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range), 1)[0];
@@ -2408,13 +2565,16 @@ function updateSawGuns(state, dt) {
       vx: Math.cos(angle) * cfg.projectileSpeed,
       vy: Math.sin(angle) * cfg.projectileSpeed,
       damage: stats.damage * (cfg.damage + level * cfg.damagePerLevel), radius: 7,
-      pierce: 0, life: 1, tier: state.tower.upgrades.ascend, source: "sawGun"
+      pierce: level >= cfg.pierceLevel ? 1 : 0, pierceEnabled: level >= cfg.pierceLevel,
+      life: 1, tier: state.tower.upgrades.ascend, source: "sawGun",
+      element: level >= cfg.elementLevel ? rollProjectileElement(state, cfg.elementChanceMultiplier) : null
     });
     fired = true;
   }
   if (fired) {
     state.events.push({ type: "sawShoot", level });
-    state.tower.sawFireCooldown = 1 / (cfg.fireRate + level * cfg.fireRatePerLevel);
+    const overdriveRate = 1 + state.tower.upgrades.sawOverdrive * GAME_CONFIG.upgrades.sawOverdrive.gunRatePerLevel;
+    state.tower.sawFireCooldown = 1 / ((cfg.fireRate + level * cfg.fireRatePerLevel) * overdriveRate);
   }
 }
 
@@ -2436,11 +2596,12 @@ function updateProjectiles(state, dt, enemySpatialIndex = null) {
         projectile.hitIds ??= new Set();
         projectile.hitIds.add(enemy.id);
         const markedMultiplier = enemy.markTimer > 0 ? GAME_CONFIG.drones.huntDamageMultiplier : 1;
-        const starMarkMultiplier = (enemy.starMarkTimer ?? 0) > 0 && projectile.source !== "sawGun"
+        const starMarkMultiplier = (enemy.starMarkTimer ?? 0) > 0
           ? GAME_CONFIG.activeSkillResearch.starfall.markDamageMultiplier
           : 1;
         const bossMultiplier = isBossEnemy(enemy) ? (projectile.bossDamageMultiplier ?? 1) : 1;
-        const damage = projectile.damage * markedMultiplier * starMarkMultiplier * bossMultiplier;
+        const sawScarMultiplier = projectile.source === "sawGun" ? getSawScarMultiplier(enemy) : 1;
+        const damage = projectile.damage * markedMultiplier * starMarkMultiplier * bossMultiplier * sawScarMultiplier;
         const projectileSource = projectile.element ?? (projectile.source?.startsWith("drone") ? projectile.source : "shot");
         damageEnemy(state, enemy, damage, projectileSource);
         if (projectile.element) applyElementalHit(state, enemy, projectile.element, damage);
@@ -3572,10 +3733,10 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 export function snapshotState(state) {
   return {
     chapter: state.chapter, time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry }, skillResearch: { ...state.skillResearch }, endlessShop: { ...state.endlessShop, equippedRelics: [...state.endlessShop.equippedRelics], relicOffers: [...state.endlessShop.relicOffers], randomOffers: [...state.endlessShop.randomOffers], cyclePurchases: [...state.endlessShop.cyclePurchases], levels: { ...state.endlessShop.levels } },
-    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), cannonCascadeCooldown: Number((state.tower.cannonCascadeCooldown ?? 0).toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
+    towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), cannonCascadeCooldown: Number((state.tower.cannonCascadeCooldown ?? 0).toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawStormCharge: Number((state.tower.sawStormCharge ?? 0).toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3)), drone.droneClass ?? null, drone.phase ?? null, drone.ammo ?? 0, Number((drone.refitTimer ?? 0).toFixed(3))]),
-    launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds]]),
-    enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1, Number((enemy.starMarkTimer ?? 0).toFixed(3))]),
+    launchedSaws: state.launchedSaws.map((saw) => [saw.bladeIndex, Number(saw.x.toFixed(2)), Number(saw.y.toFixed(2)), saw.bouncesRemaining, [...saw.hitIds], Boolean(saw.returning), saw.bounceIndex ?? 0, saw.returnHits ?? 0]),
+    enemies: state.enemies.map((enemy) => [enemy.type, Number(enemy.x.toFixed(2)), Number(enemy.y.toFixed(2)), Number(enemy.hp.toFixed(2)), enemy.elite, enemy.affix ?? null, enemy.bossPhase ?? null, enemy.resistance ?? null, enemy.anchorRole ?? null, enemy.activeSkill ?? null, enemy.unitCount ?? 1, Number((enemy.starMarkTimer ?? 0).toFixed(3)), enemy.sawScarStacks ?? 0, Number((enemy.sawScarTimer ?? 0).toFixed(3))]),
     hostileProjectiles: state.hostileProjectiles.map((projectile) => [projectile.kind, Number(projectile.x.toFixed(2)), Number(projectile.y.toFixed(2)), Number(projectile.life.toFixed(2))]),
     summonRifts: state.summonRifts.map((rift) => [rift.enemyType, Number(rift.x.toFixed(2)), Number(rift.y.toFixed(2)), Number(rift.life.toFixed(2)), rift.attackable, rift.targetId, Boolean(rift.elite)]),
     resourceDrops: state.resourceDrops.map((drop) => [drop.resourceType, drop.value, Number(drop.x.toFixed(2)), Number(drop.y.toFixed(2)), drop.source, drop.threatLevel]),

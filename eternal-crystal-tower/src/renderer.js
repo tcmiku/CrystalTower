@@ -1,5 +1,5 @@
 import { GAME_CONFIG, getArenaEdgePosition, getCrowdVisualScale } from "./config.js";
-import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
+import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getSawBladeRadius, getSawOrbitRadius, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 import { isChapterTwo } from "./chapter-two.js";
 
 const ENEMY_COLORS = {
@@ -305,6 +305,8 @@ export class Renderer {
       this.shake = Math.max(this.shake, 1.2);
       // Keep the impact localized to the world effect; no full-screen white flash.
     }
+    if (type === "sawStorm") { this.shake = Math.max(this.shake, 2.1 * strength); this.flash = Math.max(this.flash, .08); this.flashColor = "#ffe39a"; }
+    if (type === "sawHomecoming") { this.shake = Math.max(this.shake, 3.2 * strength); this.flash = Math.max(this.flash, .13); this.flashColor = "#9af5ff"; }
     if (type === "waveWarning") { this.shake = 3; this.flash = 0.12; this.flashColor = "#ff796f"; }
     if (type === "waveStart") { this.shake = 10; this.flash = 0.34; this.flashColor = "#ff4f70"; }
     if (type === "gameOver") { this.shake = 12; this.flash = 0.55; this.flashColor = "#8a143d"; }
@@ -1393,6 +1395,33 @@ export class Renderer {
 
   drawElementFx(ctx, state) {
     for (const effect of state.elementFx) {
+      if (effect.element === "sawStorm") {
+        const alpha = Math.max(0, effect.life / effect.maxLife);
+        const progress = 1 - alpha;
+        const radius = effect.radius * (.28 + progress * .72);
+        ctx.save(); ctx.translate(effect.x, effect.y); ctx.rotate(this.time * 2.4); ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = alpha * .78; ctx.strokeStyle = "#ffe69a"; ctx.shadowColor = "#ff9d3d"; ctx.shadowBlur = 24; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = "#fff6cf"; ctx.lineWidth = 2;
+        for (let blade = 0; blade < 12; blade += 1) {
+          const angle = blade * Math.PI / 6;
+          ctx.beginPath(); ctx.moveTo(Math.cos(angle) * radius * .64, Math.sin(angle) * radius * .64); ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius); ctx.stroke();
+        }
+        ctx.restore();
+        continue;
+      }
+      if (effect.element === "sawHomecoming") {
+        const alpha = Math.max(0, effect.life / effect.maxLife);
+        const progress = 1 - alpha;
+        const radius = effect.radius * (.18 + progress * .82);
+        ctx.save(); ctx.translate(effect.x, effect.y); ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = alpha * .75; ctx.strokeStyle = "#8ff5ff"; ctx.shadowColor = "#7b80ff"; ctx.shadowBlur = 26; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = alpha * .5; ctx.strokeStyle = "#ffe18b"; ctx.lineWidth = 2; ctx.setLineDash([8, 7]);
+        ctx.beginPath(); ctx.arc(0, 0, radius * .68, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.restore();
+        continue;
+      }
       if (effect.element === "droneBomb") {
         const alpha = Math.max(0, effect.life / effect.maxLife);
         const progress = 1 - alpha;
@@ -1867,6 +1896,20 @@ export class Renderer {
         }
         ctx.closePath(); ctx.stroke(); ctx.restore();
       }
+      if ((enemy.sawScarStacks ?? 0) > 0) {
+        const stacks = enemy.sawScarStacks;
+        const radius = crowdVisualRadius + 14 + stacks * 1.5;
+        ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(-this.time * (1.1 + stacks * .08));
+        ctx.strokeStyle = stacks >= GAME_CONFIG.upgrades.sawOverdrive.scarMaxStacks ? "#fff3ad" : "#ffbc61";
+        ctx.shadowColor = "#ff6c35"; ctx.shadowBlur = 8 + stacks * 2; ctx.lineWidth = 1.4 + stacks * .18;
+        for (let arc = 0; arc < stacks; arc += 1) {
+          const start = arc * Math.PI * 2 / stacks;
+          ctx.beginPath(); ctx.arc(0, 0, radius, start, start + Math.min(.72, Math.PI * 1.35 / stacks)); ctx.stroke();
+        }
+        ctx.rotate(this.time * (1.1 + stacks * .08));
+        ctx.fillStyle = "#ffe4a1"; ctx.font = "900 9px 'Microsoft YaHei UI',sans-serif"; ctx.textAlign = "center";
+        ctx.fillText(`晶痕 ×${stacks}`, 0, -radius - 7); ctx.restore();
+      }
       if (enemy.markTimer > 0) {
         const pulse = 1 + Math.sin(this.time * 7 + enemy.id) * .08;
         ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.scale(pulse, pulse); ctx.strokeStyle = "#ff71d0"; ctx.shadowColor = "#ff3aae"; ctx.shadowBlur = 13; ctx.lineWidth = 2;
@@ -1927,10 +1970,10 @@ export class Renderer {
     const count = state.tower.upgrades.saw;
     if (!count) return;
     const { x: centerX, y: centerY } = getTowerPosition(state);
-    const towerScale = state.enemies.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1;
-    const radius = GAME_CONFIG.upgrades.saw.radius * towerScale;
     const launchedIndexes = new Set(state.launchedSaws.map((saw) => saw.bladeIndex));
     const overdrive = state.tower.upgrades.sawOverdrive;
+    const accelerator = state.tower.upgrades.sawAccelerator ?? 0;
+    const bladeScale = getSawBladeRadius(state) / GAME_CONFIG.upgrades.saw.bladeRadius;
     const drawSaw = (x, y, rotation, scale = 1) => {
       ctx.save(); ctx.translate(x, y); ctx.rotate(rotation); ctx.scale(scale, scale);
       ctx.shadowColor = "#ffd47c"; ctx.shadowBlur = 11;
@@ -1953,16 +1996,21 @@ export class Renderer {
     for (let index = 0; index < count; index += 1) {
       if (launchedIndexes.has(index) || (state.tower.sawRecoveries[index] ?? 0) > 0) continue;
       const angle = state.tower.sawAngle + index * Math.PI * 2 / count;
+      const radius = getSawOrbitRadius(state, index);
       const x = centerX + Math.cos(angle) * radius;
       const y = centerY + Math.sin(angle) * radius;
-      drawSaw(x, y, -this.time * (8 + overdrive * 2), towerScale);
+      drawSaw(x, y, -this.time * (8 + overdrive * 2) * (accelerator > 0 ? 1.55 : 1), bladeScale);
     }
     for (const saw of state.launchedSaws) {
       ctx.save();
-      ctx.strokeStyle = "rgba(255,211,108,.38)"; ctx.lineWidth = 2;
+      ctx.strokeStyle = saw.returning ? "rgba(116,242,255,.78)" : "rgba(255,211,108,.38)";
+      ctx.shadowColor = saw.returning ? "#7d7cff" : "#ffc96b"; ctx.shadowBlur = saw.returning ? 14 : 5; ctx.lineWidth = saw.returning ? 3.5 : 2;
       ctx.beginPath(); ctx.moveTo(saw.x - saw.vx * .045, saw.y - saw.vy * .045); ctx.lineTo(saw.x, saw.y); ctx.stroke();
+      if (saw.returning) {
+        ctx.globalAlpha = .32; ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.moveTo(saw.x, saw.y); ctx.lineTo(centerX, centerY); ctx.stroke(); ctx.setLineDash([]);
+      }
       ctx.restore();
-      drawSaw(saw.x, saw.y, this.time * 18, 1.08);
+      drawSaw(saw.x, saw.y, this.time * (saw.returning ? -23 : 18), saw.returning ? 1.2 : 1.08);
     }
   }
 

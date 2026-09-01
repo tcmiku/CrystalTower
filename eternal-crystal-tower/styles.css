@@ -829,7 +829,7 @@ body[data-chapter="2"] .tech-graph { min-height: calc(var(--tech-rows) * 76px); 
 .tech-edge.active { stroke: rgba(124,238,255,.62); filter: drop-shadow(0 0 4px rgba(124,238,255,.55)); }
 .tech-edge.exclusive { stroke: rgba(255,111,117,.42); stroke-width: 2; stroke-dasharray: 5 5; }
 .tech-edge.exclusive.broken { stroke: rgba(255,111,117,.82); stroke-dasharray: 2 7; }
-.tech-tree-stage[data-branch="blade"] .tech-edge[data-to="sawOverdrive"],.tech-tree-stage[data-branch="blade"] .tech-edge[data-to="sawGun"] { stroke: rgba(255,201,107,.58); }
+.tech-tree-stage[data-branch="blade"] .tech-edge[data-to="sawOverdrive"],.tech-tree-stage[data-branch="blade"] .tech-edge[data-from="sawOverdrive"],.tech-tree-stage[data-branch="blade"] .tech-edge[data-to="sawGun"] { stroke: rgba(255,201,107,.58); }
 .tech-tree-stage[data-branch="blade"] .tech-edge[data-to="sawLaunch"],.tech-tree-stage[data-branch="blade"] .tech-edge[data-from="sawLaunch"] { stroke: rgba(124,238,255,.58); }
 .tech-tree-stage[data-branch="economy"] .tech-edge[data-to="droneDetonate"],.tech-tree-stage[data-branch="economy"] .tech-edge[data-from="droneDetonate"] { stroke: rgba(255,111,117,.58); }
 .tech-tree-stage[data-branch="economy"] .tech-edge[data-to="droneGuard"],.tech-tree-stage[data-branch="economy"] .tech-edge[data-from="droneGuard"] { stroke: rgba(124,238,255,.58); }

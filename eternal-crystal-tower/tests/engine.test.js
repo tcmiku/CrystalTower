@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyAdminSettings, applyElementalHit, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, enableAdminCheats, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getSkillCooldownDuration, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, getStarfallConeHalfAngle, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { applyAdminSettings, applyElementalHit, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, enableAdminCheats, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getSawBladeRadius, getSawContactDamage, getSawOrbitRadius, getSkillCooldownDuration, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, getStarfallConeHalfAngle, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG, getCrowdVisualScale } from "../src/config.js";
 import { ENDLESS_SHOP_RULES, getEndlessShopPrice, purchaseEndlessShopItem, refreshEndlessShop, rerollEndlessShop } from "../src/endless-shop.js";
 
@@ -410,12 +410,12 @@ test("裂晶回响短时间连续击杀会触发醒目的大型连锁爆炸", ()
   assert.equal(state.tower.cannonEchoChain, 0);
 });
 
-test("环绕晶刃最多五枚", () => {
+test("环绕晶刃最多八枚", () => {
   const state = createGameState(6);
-  state.threat = 8;
+  state.threat = 11;
   state.coins = 100_000;
   purchaseUpgrade(state, "damage");
-  for (let level = 1; level <= 5; level += 1) {
+  for (let level = 1; level <= 8; level += 1) {
     assert.equal(purchaseUpgrade(state, "saw"), true);
     assert.equal(state.tower.upgrades.saw, level);
   }
@@ -1297,12 +1297,13 @@ test("晶刃炮膛解锁后由每枚晶刃发射弹丸", () => {
   purchaseUpgrade(state, "damage");
   purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw");
   assert.equal(purchaseUpgrade(state, "sawOverdrive"), true);
+  purchaseUpgrade(state, "sawAccelerator"); purchaseUpgrade(state, "sawMagnitude"); purchaseUpgrade(state, "sawBreathing");
   assert.equal(purchaseUpgrade(state, "sawGun"), true);
   spawnEnemy(state, "brute", { x: 650, y: 360 });
   updateGame(state, 1 / 60);
   const sawShots = state.projectiles.filter((projectile) => projectile.source === "sawGun");
   assert.equal(sawShots.length, 3);
-  assert.equal(Math.round(Math.hypot(sawShots[0].vx, sawShots[0].vy)), 430);
+  assert.equal(Math.round(Math.hypot(sawShots[0].vx, sawShots[0].vy)), GAME_CONFIG.upgrades.sawGun.projectileSpeed);
   assert.equal(sawShots[0].radius, 7);
 });
 
@@ -1312,6 +1313,7 @@ test("晶刃疾旋与弹射专精互斥且疾旋分支保留炮膛", () => {
   purchaseUpgrade(orbit, "damage");
   purchaseUpgrade(orbit, "saw"); purchaseUpgrade(orbit, "saw"); purchaseUpgrade(orbit, "saw");
   assert.equal(purchaseUpgrade(orbit, "sawOverdrive"), true);
+  purchaseUpgrade(orbit, "sawAccelerator"); purchaseUpgrade(orbit, "sawMagnitude"); purchaseUpgrade(orbit, "sawBreathing");
   assert.equal(purchaseUpgrade(orbit, "sawGun"), true);
   assert.equal(purchaseUpgrade(orbit, "sawLaunch"), false);
   assert.match(getTechStatus(orbit, "sawLaunch").reason, /已选择/);
@@ -1342,6 +1344,36 @@ test("疾旋锻刃提高环绕速度和伤害", () => {
   assert.ok(boostedEnemy.maxHp - boostedEnemy.hp > (baseEnemy.maxHp - baseEnemy.hp) * 1.6);
 });
 
+test("疾旋路线新增超频、巨刃与潮汐刃域科技", () => {
+  const state = createGameState(8131);
+  state.threat = 10; state.coins = 100_000;
+  purchaseUpgrade(state, "damage");
+  purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw");
+  purchaseUpgrade(state, "sawOverdrive");
+  assert.equal(getTechStatus(state, "sawGun").unlocked, false);
+  assert.equal(purchaseUpgrade(state, "sawAccelerator"), true);
+  assert.equal(purchaseUpgrade(state, "sawMagnitude"), true);
+  assert.equal(purchaseUpgrade(state, "sawBreathing"), true);
+  assert.equal(getTechStatus(state, "sawGun").unlocked, true);
+
+  const base = createGameState(8132);
+  base.tower.upgrades.saw = 3;
+  state.spawnTimer = base.spawnTimer = 999;
+  state.wave.nextAt = base.wave.nextAt = 999;
+  state.tower.fireCooldown = base.tower.fireCooldown = 999;
+  const baseBladeRadius = getSawBladeRadius(base);
+  updateGame(base, 0.1); updateGame(state, 0.1);
+  assert.ok(state.tower.sawAngle > base.tower.sawAngle * 1.5);
+  assert.equal(getSawBladeRadius(state), baseBladeRadius * GAME_CONFIG.upgrades.sawMagnitude.radiusMultiplier);
+
+  const breathing = GAME_CONFIG.upgrades.sawBreathing;
+  state.time = Math.PI / (2 * breathing.angularSpeed);
+  const expanded = getSawOrbitRadius(state, 0);
+  state.time = Math.PI * 3 / (2 * breathing.angularSpeed);
+  const contracted = getSawOrbitRadius(state, 0);
+  assert.ok(expanded > contracted * 1.7);
+});
+
 test("弹射飞刃连续命中其他目标并按科技缩短恢复", () => {
   const state = createGameState(814);
   state.threat = 10; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
@@ -1358,7 +1390,7 @@ test("弹射飞刃连续命中其他目标并按科技缩短恢复", () => {
   assert.equal(state.launchedSaws.length, 1);
   assert.equal(state.launchedSaws[0].bouncesRemaining, GAME_CONFIG.upgrades.sawLaunch.baseBounces + 2);
   state.tower.sawLaunchCooldown = 999;
-  for (let index = 0; index < 120; index += 1) updateGame(state, 1 / 60);
+  for (let index = 0; index < 60; index += 1) updateGame(state, 1 / 60);
   assert.ok(first.hp < firstHp);
   assert.ok(second.hp < secondHp);
   assert.ok(state.tower.sawRecoveries[0] > 0);
@@ -1375,6 +1407,118 @@ test("弹射飞刃分支禁用晶刃炮膛弹幕", () => {
   updateGame(state, 1 / 60);
   assert.equal(state.projectiles.filter((projectile) => projectile.source === "sawGun").length, 0);
   assert.equal(state.launchedSaws.length, 1);
+});
+
+test("环刃接触伤害继承最终防御塔攻击力", () => {
+  const state = createGameState(816);
+  state.tower.upgrades.saw = 3;
+  const baseDamage = getSawContactDamage(state);
+  state.tower.upgrades.damage = 5;
+  assert.ok(getSawContactDamage(state) > baseDamage * 1.2);
+});
+
+test("四枚以上环刃交替运行于内外双轨", () => {
+  const state = createGameState(817);
+  state.tower.upgrades.saw = 5;
+  const radii = Array.from({ length: 5 }, (_, index) => getSawOrbitRadius(state, index));
+  assert.equal(radii[0], radii[2]);
+  assert.equal(radii[1], radii[3]);
+  assert.ok(radii[0] > radii[1]);
+  assert.equal(radii[0] - radii[1], GAME_CONFIG.upgrades.saw.orbitSpread * 2);
+});
+
+test("每枚环刃拥有独立命中冷却并可在同帧切割大型目标", () => {
+  const state = createGameState(818);
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  state.tower.upgrades.saw = 2;
+  const center = getTowerPosition(state);
+  const enemy = spawnEnemy(state, "brute", center);
+  enemy.hp = enemy.maxHp = 10_000; enemy.radius = 145; enemy.speed = 0;
+  const before = enemy.hp;
+  const damage = getSawContactDamage(state);
+  updateGame(state, .01);
+  assert.ok(Math.abs((before - enemy.hp) - damage * 2) < .001);
+  assert.ok(enemy.sawHitCooldowns[0] > 0 && enemy.sawHitCooldowns[1] > 0);
+});
+
+test("满级晶刃炮膛获得穿透并继承元素附魔", () => {
+  const state = createGameState(819);
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  Object.assign(state.tower.upgrades, { saw: 3, sawOverdrive: 3, sawGun: 3, frost: 1, fire: 1, lightning: 1 });
+  state.rng.next = () => 0;
+  spawnEnemy(state, "brute", { x: 650, y: 360 }).speed = 0;
+  updateGame(state, .01);
+  const shots = state.projectiles.filter((projectile) => projectile.source === "sawGun");
+  assert.equal(shots.length, 3);
+  assert.ok(shots.every((shot) => shot.pierce === 1 && shot.pierceEnabled));
+  assert.ok(shots.every((shot) => shot.element === "frost"));
+});
+
+test("环刃两条终极科技在威胁十二按各自满级前置解锁", () => {
+  const orbit = createGameState(820);
+  orbit.threat = 12; orbit.coins = 100_000;
+  Object.assign(orbit.tower.upgrades, { saw: 3, sawOverdrive: 3, sawGun: 3 });
+  assert.equal(getTechStatus(orbit, "sawStorm").unlocked, true);
+  assert.equal(getTechStatus(orbit, "sawHomecoming").unlocked, false);
+
+  const launch = createGameState(821);
+  launch.threat = 12; launch.coins = 100_000;
+  Object.assign(launch.tower.upgrades, { saw: 3, sawLaunch: 1, sawRicochet: 3, sawRecovery: 3 });
+  assert.equal(getTechStatus(launch, "sawHomecoming").unlocked, true);
+  assert.equal(getTechStatus(launch, "sawStorm").unlocked, false);
+});
+
+test("环刃风暴每完成一圈释放范围斩击", () => {
+  const state = createGameState(822);
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  Object.assign(state.tower.upgrades, { saw: 3, sawOverdrive: 3, sawGun: 3, sawStorm: 1 });
+  state.tower.sawStormCharge = Math.PI * 2 - .01;
+  const center = getTowerPosition(state);
+  const enemy = spawnEnemy(state, "brute", { x: center.x + 175, y: center.y });
+  enemy.hp = enemy.maxHp = 10_000; enemy.speed = 0;
+  const before = enemy.hp;
+  updateGame(state, .01);
+  const event = state.events.find((item) => item.type === "sawStorm");
+  assert.ok(event);
+  assert.equal(event.hits, 1);
+  assert.ok(enemy.hp < before);
+});
+
+test("折跃飞刃没有新目标时可延迟复击精英或首领", () => {
+  const state = createGameState(823);
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  Object.assign(state.tower.upgrades, { saw: 3, sawLaunch: 1, sawRicochet: 3 });
+  const enemy = spawnEnemy(state, "brute", { x: 680, y: 360 }, { elite: true, affix: "sprint" });
+  enemy.hp = enemy.maxHp = 100_000; enemy.speed = 0;
+  updateGame(state, 1 / 60);
+  const singleHit = state.launchedSaws[0].damage;
+  state.tower.sawLaunchCooldown = 999;
+  for (let index = 0; index < 150; index += 1) updateGame(state, 1 / 60);
+  assert.ok(100_000 - enemy.hp > singleHit * 2);
+});
+
+test("万刃归巢在回程切割后缩短重铸并触发归塔爆发", () => {
+  const state = createGameState(824);
+  state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
+  Object.assign(state.tower.upgrades, { saw: 3, sawLaunch: 1, sawRecovery: 3, sawHomecoming: 1 });
+  const center = getTowerPosition(state);
+  const enemy = spawnEnemy(state, "brute", { x: center.x + 145, y: center.y });
+  enemy.hp = enemy.maxHp = 100_000; enemy.speed = 0;
+  state.launchedSaws.push({
+    id: state.nextId++, bladeIndex: 0, x: center.x + 230, y: center.y,
+    vx: 0, vy: 0, damage: 100, life: 2, bouncesRemaining: 0, bounceIndex: 0,
+    hitIds: [enemy.id], returning: true, returnHitIds: [], returnHits: 0, done: false
+  });
+  state.tower.sawLaunchCooldown = 999;
+  let homecomingEvent = null;
+  for (let index = 0; index < 240 && !homecomingEvent; index += 1) {
+    updateGame(state, 1 / 60);
+    homecomingEvent = state.events.find((item) => item.type === "sawHomecoming");
+  }
+  assert.ok(homecomingEvent);
+  assert.ok(homecomingEvent.returnHits >= 1);
+  const fullRecovery = GAME_CONFIG.upgrades.sawLaunch.baseRecovery * (GAME_CONFIG.upgrades.sawLaunch.recoveryMultiplier ** 3);
+  assert.ok(state.tower.sawRecoveries[0] <= fullRecovery * .85 + .001);
 });
 
 test("威胁等级持续提高怪物生命", () => {

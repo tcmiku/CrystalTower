@@ -98,10 +98,15 @@ export const GAME_CONFIG = Object.freeze({
     damage: { baseCost: 20, growth: 1.55, multiplier: 1.25 },
     rate: { baseCost: 25, growth: 1.65, multiplier: 1.15, cap: 5 },
     ascend: { costs: [180, 900, 2400], damage: [1, 1.5, 2.25, 3.35], rate: [1, 1.15, 1.3, 1.55], rangePerLevel: 40, hpPerLevel: 200, maxLevel: 3 },
-    saw: { baseCost: 70, growth: 1.75, maxLevel: 5, damage: 16, growthDamage: 0.1, radius: 104, hitInterval: 0.24 },
-    sawOverdrive: { speedPerLevel: 0.28, damagePerLevel: 0.22 },
-    sawGun: { damage: 0.28, damagePerLevel: 0.12, fireRate: 0.5, fireRatePerLevel: 0.22, range: 330, projectileSpeed: 430 },
-    sawLaunch: { projectileSpeed: 420, range: 410, damageMultiplier: 1.6, baseBounces: 1, bounceRange: 270, flightLife: 3, radius: 18, launchInterval: 0.35, baseRecovery: 3.4, recoveryMultiplier: 0.76 }
+    saw: { baseCost: 65, growth: 1.68, maxLevel: 8, damage: 18, growthDamage: 0.15, towerDamageMultiplier: 0.4, radius: 118, orbitSpread: 14, bladeRadius: 17, hitInterval: 0.24 },
+    sawOverdrive: { speedPerLevel: 0.28, damagePerLevel: 0.3, gunRatePerLevel: 0.1, scarDamagePerStack: 0.05, scarMaxStacks: 6, scarDuration: 2 },
+    sawAccelerator: { speedMultiplier: 1.55 },
+    sawMagnitude: { radiusMultiplier: 1.45 },
+    sawBreathing: { radiusCenter: 1.08, radiusAmplitude: 0.3, angularSpeed: 1.75 },
+    sawGun: { damage: 0.35, damagePerLevel: 0.2, fireRate: 0.5, fireRatePerLevel: 0.22, range: 350, projectileSpeed: 450, pierceLevel: 2, elementLevel: 3, elementChanceMultiplier: 0.6 },
+    sawLaunch: { projectileSpeed: 440, returnSpeed: 520, range: 430, damageMultiplier: 2.2, towerDamageMultiplier: 1, bounceDamagePerHop: 0.25, bossRehitDelay: 0.2, baseBounces: 1, bounceRange: 290, flightLife: 3.4, radius: 18, launchInterval: 0.35, baseRecovery: 2.8, recoveryMultiplier: 0.7 },
+    sawStorm: { radius: 205, damageMultiplier: 1.8, duration: 0.5 },
+    sawHomecoming: { returnDamageMultiplier: 2, recoveryReductionPerHit: 0.15, maxRecoveryReduction: 0.75, burstRadius: 145, burstDamageMultiplier: 1.25, duration: 0.55 }
   },
   elements: {
     frost: { chance: 0.18, freezeDuration: 1.2, bossEffectMultiplier: 0.25 },
@@ -112,12 +117,17 @@ export const GAME_CONFIG = Object.freeze({
     damage: { branch: "power", baseCost: 20, growth: 1.55, maxLevel: 10, threat: [1, 1, 2, 2, 3, 4, 5, 6, 8, 10] },
     rate: { branch: "power", baseCost: 25, growth: 1.65, maxLevel: 8, threat: [1, 2, 2, 3, 4, 5, 7, 9], requires: { damage: 1 } },
     ascend: { branch: "power", costs: [180, 900, 2400], maxLevel: 3, threat: [3, 7, 8], requiresByLevel: [{ damage: 2, rate: 1 }, { damage: 5, rate: 3 }, { frost: 1, fire: 1, lightning: 1 }] },
-    saw: { branch: "blade", baseCost: 70, growth: 1.75, maxLevel: 5, threat: [2, 3, 4, 6, 8], requires: { damage: 1 } },
-    sawOverdrive: { branch: "blade", baseCost: 190, growth: 1.9, maxLevel: 3, threat: [5, 7, 9], requires: { saw: 3 }, excludes: ["sawLaunch"] },
-    sawGun: { branch: "blade", baseCost: 220, growth: 2, maxLevel: 3, threat: [6, 8, 10], requires: { sawOverdrive: 1 }, excludes: ["sawLaunch"] },
-    sawLaunch: { branch: "blade", costs: [210], maxLevel: 1, threat: [5], requires: { saw: 3 }, excludes: ["sawOverdrive", "sawGun"] },
-    sawRicochet: { branch: "blade", baseCost: 230, growth: 1.8, maxLevel: 3, threat: [6, 8, 10], requires: { sawLaunch: 1 } },
-    sawRecovery: { branch: "blade", baseCost: 180, growth: 1.75, maxLevel: 3, threat: [6, 7, 9], requires: { sawLaunch: 1 } },
+    saw: { branch: "blade", baseCost: 65, growth: 1.68, maxLevel: 8, threat: [2, 3, 4, 6, 8, 9, 10, 11], requires: { damage: 1 } },
+    sawOverdrive: { branch: "blade", baseCost: 175, growth: 1.8, maxLevel: 3, threat: [5, 7, 9], requires: { saw: 3 }, excludes: ["sawLaunch", "sawHomecoming"] },
+    sawAccelerator: { branch: "blade", costs: [180], maxLevel: 1, threat: [5], requires: { sawOverdrive: 1 }, excludes: ["sawLaunch", "sawHomecoming"] },
+    sawMagnitude: { branch: "blade", costs: [190], maxLevel: 1, threat: [5], requires: { sawOverdrive: 1 }, excludes: ["sawLaunch", "sawHomecoming"] },
+    sawBreathing: { branch: "blade", costs: [220], maxLevel: 1, threat: [6], requires: { sawOverdrive: 1 }, excludes: ["sawLaunch", "sawHomecoming"] },
+    sawGun: { branch: "blade", baseCost: 200, growth: 1.9, maxLevel: 3, threat: [6, 8, 10], requires: { sawOverdrive: 1, sawAccelerator: 1, sawMagnitude: 1, sawBreathing: 1 }, excludes: ["sawLaunch", "sawHomecoming"] },
+    sawStorm: { branch: "blade", costs: [1200], maxLevel: 1, threat: [12], requires: { sawOverdrive: 3, sawGun: 3 }, excludes: ["sawLaunch", "sawHomecoming"] },
+    sawLaunch: { branch: "blade", costs: [190], maxLevel: 1, threat: [5], requires: { saw: 3 }, excludes: ["sawOverdrive", "sawGun", "sawStorm"] },
+    sawRicochet: { branch: "blade", baseCost: 210, growth: 1.7, maxLevel: 3, threat: [6, 8, 10], requires: { sawLaunch: 1 } },
+    sawRecovery: { branch: "blade", baseCost: 165, growth: 1.65, maxLevel: 3, threat: [6, 7, 9], requires: { sawLaunch: 1 } },
+    sawHomecoming: { branch: "blade", costs: [1200], maxLevel: 1, threat: [12], requires: { sawLaunch: 1, sawRicochet: 3, sawRecovery: 3 }, excludes: ["sawOverdrive", "sawGun", "sawStorm"] },
     drone: { branch: "economy", baseCost: 55, growth: 1.8, maxLevel: 5, threat: [2, 3, 4, 5, 6], requires: { damage: 1 } },
     autoCollect: { branch: "economy", costs: [520], maxLevel: 1, threat: [6], requires: { drone: 3 } },
     droneScavenge: { branch: "economy", costs: [300], maxLevel: 1, threat: [5], requires: { drone: 2 } },
@@ -297,7 +307,7 @@ export function getArenaEdgePosition(angle, outward = 0) {
   };
 }
 
-export const TECH_ORDER = ["damage", "rate", "ascend", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonStarPiercer", "cannonSplit", "cannonGrowth", "cannonEcho", "cannonCascade", "saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "drone", "droneScavenge", "autoCollect", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
+export const TECH_ORDER = ["damage", "rate", "ascend", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonStarPiercer", "cannonSplit", "cannonGrowth", "cannonEcho", "cannonCascade", "saw", "sawOverdrive", "sawAccelerator", "sawMagnitude", "sawBreathing", "sawGun", "sawStorm", "sawLaunch", "sawRicochet", "sawRecovery", "sawHomecoming", "drone", "droneScavenge", "autoCollect", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery", "droneIntercept", "droneHunt", "frost", "fire", "lightning"];
 export const UPGRADE_ORDER = TECH_ORDER;
 export const SKILL_ORDER = ["heal", "overload", "starfall", "coinVacuum"];
 export const TARGET_PROTOCOL_ORDER = ["guard", "hunter", "breach", "radar"];

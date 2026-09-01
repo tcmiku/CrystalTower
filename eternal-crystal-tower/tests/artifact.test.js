@@ -112,6 +112,14 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /无人机 · 经济自动化/);
   assert.match(main, /路线 A · 疾旋炮刃/);
   assert.match(main, /路线 B · 弹射飞刃/);
+  assert.match(main, /星环超频/);
+  assert.match(main, /巨刃铸型/);
+  assert.match(main, /潮汐刃域/);
+  assert.match(main, /环刃风暴/);
+  assert.match(main, /万刃归巢/);
+  assert.match(renderer, /晶痕 ×/);
+  assert.match(renderer, /effect\.element === "sawStorm"/);
+  assert.match(renderer, /effect\.element === "sawHomecoming"/);
   assert.match(main, /协议电池扩容/);
   assert.match(main, /路线 A · 自爆猎杀/);
   assert.match(main, /路线 B · 防御护盾/);

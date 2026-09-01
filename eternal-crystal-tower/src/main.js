@@ -23,12 +23,17 @@ const UPGRADE_META = {
   cannonGrowth: { icon: "✧", name: "碎片增殖", description: "分裂晶矢命中后继续寻找附近目标，逐级增加追击次数", max: 3 },
   cannonEcho: { icon: "✹", name: "晶爆回响", description: "击杀敌人时产生小范围晶爆，对周围敌人造成伤害", max: 3 },
   cannonCascade: { icon: "✺", name: "裂界连爆", description: "晶爆在短时间内连续击杀 3 个敌人后，触发大型连锁爆炸", max: 1 },
-  saw: { icon: "✺", name: "环绕晶刃", description: "增加一枚近身晶刃", max: 5 },
-  sawOverdrive: { icon: "◌", name: "疾旋锻刃", description: "专精：提高环速与接触伤害", max: 3 },
-  sawGun: { icon: "➶", name: "晶刃炮膛", description: "疾旋分支：保留并强化金色弹幕", max: 3 },
+  saw: { icon: "✺", name: "环绕晶刃", description: "最多八枚近身晶刃，并强化双轨覆盖与塔攻成长", max: 8 },
+  sawOverdrive: { icon: "◌", name: "疾旋锻刃", description: "专精：提高环速、接触伤害并叠加晶痕", max: 3 },
+  sawAccelerator: { icon: "↯", name: "星环超频", description: "环刃公转与刃体自转速度提高 55%", max: 1 },
+  sawMagnitude: { icon: "◆", name: "巨刃铸型", description: "晶刃尺寸与实际接触半径提高 45%", max: 1 },
+  sawBreathing: { icon: "◎", name: "潮汐刃域", description: "环刃攻击半径在 78%–138% 之间周期伸缩", max: 1 },
+  sawGun: { icon: "➶", name: "晶刃炮膛", description: "疾旋分支：强化弹幕，获得穿透并继承元素", max: 3 },
+  sawStorm: { icon: "✹", name: "环刃风暴", description: "终点：每转一圈释放大范围环形斩击", max: 1 },
   sawLaunch: { icon: "➤", name: "弹射飞刃", description: "专精：发射晶刃并禁用晶刃弹幕", max: 1 },
-  sawRicochet: { icon: "⌁", name: "折跃棱面", description: "飞刃命中后增加一次弹射", max: 3 },
+  sawRicochet: { icon: "⌁", name: "折跃棱面", description: "增加弹射；每次折跃都会提高伤害", max: 3 },
   sawRecovery: { icon: "↻", name: "快速重铸", description: "缩短飞刃返回前的恢复时间", max: 3 },
+  sawHomecoming: { icon: "⟲", name: "万刃归巢", description: "终点：飞刃回程再次切割并在归塔时爆发", max: 1 },
   drone: { icon: "⌁", name: "拾荒无人机", description: "最多五架，逐级增加自动拾币无人机", max: 5 },
   autoCollect: { icon: "◎", name: "晶塔磁吸核心", description: "每5秒吸收场上全部遗响碎片与核心残片", max: 1 },
   droneScavenge: { icon: "¤", name: "拾荒协议", description: "快速拾币并使无人机金币 +25%", max: 1 },
@@ -45,7 +50,7 @@ const UPGRADE_META = {
 };
 const BRANCH_META = {
   power: { icon: "✦", artKey: "damage", name: "晶塔火力", subtitle: "基础强化 · 炮膛专精", routes: ["路线 A · 破城炮膛", "路线 B · 裂晶炮膛"], keys: ["damage", "rate", "cannonSiege", "cannonCharge", "cannonPierce", "cannonWeakpoint", "cannonStarPiercer", "cannonSplit", "cannonGrowth", "cannonEcho", "cannonCascade", "ascend"] },
-  blade: { icon: "✺", artKey: "saw", name: "环刃工事", subtitle: "疾旋或弹射路线", routes: ["路线 A · 疾旋炮刃", "路线 B · 弹射飞刃"], keys: ["saw", "sawOverdrive", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery"] },
+  blade: { icon: "✺", artKey: "saw", name: "环刃工事", subtitle: "疾旋或弹射路线", routes: ["路线 A · 疾旋炮刃", "路线 B · 弹射飞刃"], keys: ["saw", "sawOverdrive", "sawAccelerator", "sawMagnitude", "sawBreathing", "sawGun", "sawLaunch", "sawRicochet", "sawRecovery", "sawStorm", "sawHomecoming"] },
   economy: { icon: "⌁", artKey: "drone", name: "无人机协议", subtitle: "拾荒 · 战术 · 防御", routes: ["路线 A · 自爆猎杀", "路线 B · 防御护盾"], keys: ["drone", "droneScavenge", "autoCollect", "droneIntercept", "droneHunt", "droneBattery", "droneDetonate", "droneDetonateRecovery", "droneGuard", "droneGuardRecovery"] },
   element: { icon: "◇", artKey: "frost", name: "元素共鸣", subtitle: "三元素可同时研究", keys: ["frost", "fire", "lightning"] }
 };
@@ -57,9 +62,9 @@ const TECH_LAYOUT = {
     excludes: [["cannonSiege", "cannonSplit"]]
   },
   blade: {
-    rows: 3,
-    nodes: { saw: [3, 1], sawOverdrive: [2, 2], sawLaunch: [4, 2], sawGun: [2, 3], sawRicochet: [4, 3], sawRecovery: [5, 3] },
-    edges: [["saw", "sawOverdrive"], ["saw", "sawLaunch"], ["sawOverdrive", "sawGun"], ["sawLaunch", "sawRicochet"], ["sawLaunch", "sawRecovery"]],
+    rows: 5,
+    nodes: { saw: [3, 1], sawOverdrive: [2, 2], sawLaunch: [4, 2], sawAccelerator: [1, 3], sawMagnitude: [2, 3], sawBreathing: [3, 3], sawRicochet: [4, 3], sawRecovery: [5, 3], sawGun: [2, 4], sawStorm: [2, 5], sawHomecoming: [4, 5] },
+    edges: [["saw", "sawOverdrive"], ["saw", "sawLaunch"], ["sawOverdrive", "sawAccelerator"], ["sawOverdrive", "sawMagnitude"], ["sawOverdrive", "sawBreathing"], ["sawAccelerator", "sawGun"], ["sawMagnitude", "sawGun"], ["sawBreathing", "sawGun"], ["sawGun", "sawStorm"], ["sawLaunch", "sawRicochet"], ["sawLaunch", "sawRecovery"], ["sawRicochet", "sawHomecoming"], ["sawRecovery", "sawHomecoming"]],
     excludes: [["sawOverdrive", "sawLaunch"]]
   },
   economy: {
@@ -80,6 +85,7 @@ const TECH_NODE_ART = {
   cannonStarPiercer: "./assets/generated/tech-cannon-star-piercer-ai-v1.png",
   cannonCascade: "./assets/generated/tech-cannon-cascade-ai-v1.png"
 };
+const TECH_NODE_GLYPHS = { sawAccelerator: "↯", sawMagnitude: "◆", sawBreathing: "◎", sawStorm: "✹", sawHomecoming: "⟲" };
 const SKILL_META = {
   heal: { key: "Q", name: "晶愈", description: "满盾后受击引爆晶片", tooltip: "恢复晶塔生命；生命已满时转化为护盾，满盾受击会引爆晶片。", art: "./assets/generated/skill-heal-ai-v1.png" },
   overload: { key: "W", name: "超载", description: "再按 W 提前释放冲击", tooltip: "短时间提升攻速并持续积热；再次按 W 可提前释放冲击。", art: "./assets/generated/skill-overload-ai-v1.png" },
@@ -355,6 +361,7 @@ if (previewMode === "tech") {
   purchaseUpgrade(state, "ascend"); purchaseUpgrade(state, "ascend");
   purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw"); purchaseUpgrade(state, "saw");
   purchaseUpgrade(state, "sawOverdrive");
+  purchaseUpgrade(state, "sawAccelerator"); purchaseUpgrade(state, "sawMagnitude"); purchaseUpgrade(state, "sawBreathing");
   purchaseUpgrade(state, "sawGun");
   purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
 }
@@ -1172,6 +1179,11 @@ function createTechEdge(svg, from, to, layout, exclusive = false) {
 function applyTechIconArt(element, key) {
   element.classList.remove("tech-icon-terminal", "tech-icon-generated");
   element.style.removeProperty("background-image");
+  if (TECH_NODE_GLYPHS[key]) {
+    element.classList.add("tech-icon-terminal");
+    element.textContent = TECH_NODE_GLYPHS[key];
+    return;
+  }
   if (key === "cannonStarPiercer" || key === "cannonCascade") {
     element.classList.add("tech-icon-generated");
     element.style.backgroundImage = `url("${TECH_NODE_ART[key]}")`;
@@ -2570,6 +2582,9 @@ function handleEvents(events) {
     else if (event.type === "shoot") audio.play("shoot");
     else if (event.type === "sawShoot") audio.play("sawShoot");
     else if (event.type === "sawLaunch" || event.type === "sawBounce") audio.play("sawShoot");
+    else if (event.type === "sawStorm") { audio.play("sawShoot"); renderer.trigger("sawStorm", Math.min(1.5, event.pulses)); }
+    else if (event.type === "sawReturn") audio.play("sawShoot");
+    else if (event.type === "sawHomecoming") { audio.play("ascend"); renderer.trigger("sawHomecoming"); }
     else if (event.type === "hit") audio.play("hit");
     else if (event.type === "kill") { audio.play("kill"); showFirstRunTutorial(1); }
     else if (event.type === "coin") { audio.play("coin"); showFirstRunTutorial(2); }
