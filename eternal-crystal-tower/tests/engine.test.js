@@ -921,6 +921,18 @@ test("金潮归塔立即吸收全场金币并应用永久金币倍率", () => {
   assert.equal(useSkill(state, "coinVacuum"), false);
 });
 
+test("金潮归塔大量金币只采样有限轨迹但完整结算", () => {
+  const state = createGameState(64001);
+  state.coinOrbs.push(...Array.from({ length: 120 }, (_, index) => ({
+    x: 40 + index * 3, y: 80 + index, renderX: 40 + index * 3, renderY: 80 + index,
+    value: 1, age: index / 10, collectAge: 0, collector: null, droneIndex: 0
+  })));
+  assert.equal(useSkill(state, "coinVacuum"), true);
+  assert.equal(state.coinOrbs.length, 0);
+  assert.equal(state.skills.coinVacuum.trails.length, 24);
+  assert.ok(state.events.some((event) => event.type === "coinVacuum" && event.count === 120 && event.value === 120));
+});
+
 test("主动技能研究只在创建下一局时装载", () => {
   const savedResearch = { heal: { branch: null, nodes: [] }, overload: { branch: null, nodes: [] }, starfall: { branch: null, nodes: [] }, coinVacuum: { branch: null, nodes: [] } };
   const currentRun = createGameState(6401, undefined, undefined, undefined, undefined, undefined, savedResearch);

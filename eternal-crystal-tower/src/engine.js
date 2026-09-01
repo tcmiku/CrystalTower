@@ -3396,13 +3396,15 @@ function angleDistance(first, second) {
 function knockbackEnemies(state, radius, distance, bossMultiplier = 1) {
   const { x: centerX, y: centerY } = getTowerPosition(state);
   const { width, height } = GAME_CONFIG.arena;
+  const radiusSquared = radius * radius;
   let hits = 0;
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0) continue;
     let dx = enemy.x - centerX;
     let dy = enemy.y - centerY;
-    let currentDistance = Math.hypot(dx, dy);
-    if (currentDistance > radius) continue;
+    const distanceSquared = dx * dx + dy * dy;
+    if (distanceSquared > radiusSquared) continue;
+    let currentDistance = Math.sqrt(distanceSquared);
     if (currentDistance < 0.001) {
       const angle = (enemy.id * 2.399963) % (Math.PI * 2);
       dx = Math.cos(angle); dy = Math.sin(angle); currentDistance = 1;
@@ -3426,10 +3428,14 @@ function releaseShieldBurst(state) {
   const burstRadius = config.burstRadius * (hasSkillResearchNode(state, "heal", "shardBurst") ? research.burstRadiusMultiplier : 1);
   const damage = getTowerStats(state).damage * config.burstDamageMultiplier * (hasSkillResearchNode(state, "heal", "shardBurst") ? research.burstDamageMultiplier : 1);
   let hits = 0;
+  const burstRadiusSquared = burstRadius * burstRadius;
   skill.shieldBurstArmed = false;
   skill.burst = config.burstDuration;
   for (const enemy of state.enemies) {
-    if (enemy.hp <= 0 || Math.hypot(enemy.x - centerX, enemy.y - centerY) > burstRadius + enemy.radius) continue;
+    const reach = burstRadius + enemy.radius;
+    const dx = enemy.x - centerX;
+    const dy = enemy.y - centerY;
+    if (enemy.hp <= 0 || dx * dx + dy * dy > reach * reach) continue;
     damageEnemy(state, enemy, damage, "shieldBurst");
     hits += 1;
   }
@@ -3451,8 +3457,13 @@ function releaseOverloadPulse(state, early = false) {
   if (hasSkillResearchNode(state, "overload", "thermalNova")) {
     damage = getTowerStats(state).damage * research.damageMultiplier * (skill.overheated ? research.overheatDamageMultiplier : 1);
     const { x: centerX, y: centerY } = getTowerPosition(state);
+    const radius = config.knockbackRadius;
+    const radiusSquared = radius * radius;
     for (const enemy of state.enemies) {
-      if (enemy.hp <= 0 || Math.hypot(enemy.x - centerX, enemy.y - centerY) > config.knockbackRadius + enemy.radius) continue;
+      const reach = radius + enemy.radius;
+      const dx = enemy.x - centerX;
+      const dy = enemy.y - centerY;
+      if (enemy.hp <= 0 || dx * dx + dy * dy > reach * reach) continue;
       damageEnemy(state, enemy, damage, "overload");
     }
     resolveDeaths(state);
@@ -3573,7 +3584,12 @@ export function useSkill(state, key, options = {}) {
     let value = targets.reduce((sum, orb) => sum + Math.max(1, Math.round(orb.value * incomeMultiplier * valueMultiplier)), 0);
     const singularity = applyGoldenSingularity(state, value, targets.length);
     value = singularity.value;
-    skill.trails = targets.map((orb) => ({ x: orb.renderX ?? orb.x, y: orb.renderY ?? orb.y }));
+    // 金币仍然全部结算，但只保留一组均匀采样的轨迹用于绘制，避免大量金币同时回收时拖慢每帧渲染。
+    const trailLimit = 24;
+    const trailTargets = targets.length <= trailLimit
+      ? targets
+      : Array.from({ length: trailLimit }, (_, index) => targets[Math.floor(index * targets.length / trailLimit)]);
+    skill.trails = trailTargets.map((orb) => ({ x: orb.renderX ?? orb.x, y: orb.renderY ?? orb.y }));
     skill.collected = targets.reduce((sum, orb) => sum + (orb.pileCount ?? 1), 0);
     skill.value = value;
     skill.active = config.activeDuration;

@@ -32,7 +32,7 @@ const UPGRADE_META = {
   sawStorm: { icon: "✹", name: "环刃风暴", description: "终点：每转一圈释放大范围环形斩击", max: 1 },
   sawLaunch: { icon: "➤", name: "弹射飞刃", description: "专精：发射晶刃并禁用晶刃弹幕", max: 1 },
   sawRicochet: { icon: "⌁", name: "折跃棱面", description: "增加弹射；每次折跃都会提高伤害", max: 3 },
-  sawRecovery: { icon: "↻", name: "快速重铸", description: "缩短飞刃返回前的恢复时间", max: 3 },
+  sawRecovery: { icon: "↻", name: "快速重铸", description: "缩短飞刃归塔后的恢复时间", max: 3 },
   sawHomecoming: { icon: "⟲", name: "万刃归巢", description: "终点：飞刃回程再次切割并在归塔时爆发", max: 1 },
   drone: { icon: "⌁", name: "拾荒无人机", description: "最多五架，逐级增加自动拾币无人机", max: 5 },
   autoCollect: { icon: "◎", name: "晶塔磁吸核心", description: "每5秒吸收场上全部遗响碎片与核心残片", max: 1 },

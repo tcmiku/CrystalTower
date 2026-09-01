@@ -530,7 +530,7 @@ export class Renderer {
       ctx.globalCompositeOperation = "lighter";
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      for (const [index, trail] of state.skills.coinVacuum.trails.entries()) {
+      const trailSegments = state.skills.coinVacuum.trails.map((trail, index) => {
         const x = trail.x + (towerX - trail.x) * ease;
         const y = trail.y + (towerY - trail.y) * ease;
         const dx = towerX - x;
@@ -539,37 +539,44 @@ export class Renderer {
         const sway = Math.sin(this.time * 4.5 + index * 1.67) * (8 + distance * .025) * gatherWave;
         const controlX = (x + towerX) * .5 - (dy / distance) * sway;
         const controlY = (y + towerY) * .5 + (dx / distance) * sway;
+        return { x, y, controlX, controlY, index };
+      });
 
-        ctx.globalAlpha = .16 + remaining * .32;
-        ctx.strokeStyle = "#ffbd43";
-        ctx.shadowColor = "#ff9f2f";
-        ctx.shadowBlur = 13;
-        ctx.lineWidth = 4.6 * remaining + 1.1;
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(controlX, controlY, towerX, towerY); ctx.stroke();
-        ctx.globalAlpha = .45 + remaining * .4;
-        ctx.strokeStyle = "#fff2a8";
-        ctx.shadowBlur = 4;
-        ctx.lineWidth = 1.2 + remaining * 1.2;
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(controlX, controlY, towerX, towerY); ctx.stroke();
-
-        const coinPulse = 1 + Math.sin(this.time * 13 + index) * .16;
-        ctx.globalAlpha = remaining * .9;
-        ctx.fillStyle = "#fff2a8";
-        ctx.shadowColor = "#ffbd43";
-        ctx.shadowBlur = 15;
-        ctx.beginPath(); ctx.arc(x, y, (4.5 * remaining + 1.2) * coinPulse, 0, Math.PI * 2); ctx.fill();
-
-        for (let spark = 0; spark < 2; spark += 1) {
-          const sparkProgress = (progress * 1.35 + index * .17 + spark * .5) % 1;
-          const inverse = 1 - sparkProgress;
-          const sparkX = inverse * inverse * x + 2 * inverse * sparkProgress * controlX + sparkProgress * sparkProgress * towerX;
-          const sparkY = inverse * inverse * y + 2 * inverse * sparkProgress * controlY + sparkProgress * sparkProgress * towerY;
-          ctx.globalAlpha = remaining * (.16 + (1 - sparkProgress) * .5);
-          ctx.fillStyle = spark % 2 ? "#fff7ca" : "#ffc85a";
-          ctx.shadowBlur = 7;
-          ctx.beginPath(); ctx.arc(sparkX, sparkY, 1.1 + remaining * 1.1, 0, Math.PI * 2); ctx.fill();
-        }
+      // 将所有轨迹合并为两条路径，减少大量 beginPath/stroke 与阴影状态切换。
+      ctx.globalAlpha = .16 + remaining * .32;
+      ctx.strokeStyle = "#ffbd43";
+      ctx.shadowColor = "#ff9f2f";
+      ctx.shadowBlur = 8;
+      ctx.lineWidth = 4.6 * remaining + 1.1;
+      ctx.beginPath();
+      for (const segment of trailSegments) {
+        ctx.moveTo(segment.x, segment.y);
+        ctx.quadraticCurveTo(segment.controlX, segment.controlY, towerX, towerY);
       }
+      ctx.stroke();
+
+      ctx.globalAlpha = .45 + remaining * .4;
+      ctx.strokeStyle = "#fff2a8";
+      ctx.shadowBlur = 3;
+      ctx.lineWidth = 1.2 + remaining * 1.2;
+      ctx.beginPath();
+      for (const segment of trailSegments) {
+        ctx.moveTo(segment.x, segment.y);
+        ctx.quadraticCurveTo(segment.controlX, segment.controlY, towerX, towerY);
+      }
+      ctx.stroke();
+
+      ctx.globalAlpha = remaining * .9;
+      ctx.fillStyle = "#fff2a8";
+      ctx.shadowColor = "#ffbd43";
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      for (const segment of trailSegments) {
+        const coinPulse = 1 + Math.sin(this.time * 13 + segment.index) * .16;
+        ctx.moveTo(segment.x + (4.5 * remaining + 1.2) * coinPulse, segment.y);
+        ctx.arc(segment.x, segment.y, (4.5 * remaining + 1.2) * coinPulse, 0, Math.PI * 2);
+      }
+      ctx.fill();
       const coreRadius = 30 + pulse * 6;
       const coreGlow = ctx.createRadialGradient(towerX, towerY, 0, towerX, towerY, coreRadius * 3.2);
       coreGlow.addColorStop(0, `rgba(255,248,188,${.3 * remaining})`);
@@ -611,7 +618,7 @@ export class Renderer {
     }
     if (state.skills.heal.damageReduction > 0) {
       const pulse = .5 + Math.sin(this.time * 7) * .5;
-      ctx.save(); ctx.globalAlpha = .34 + pulse * .16; ctx.strokeStyle = "#91f5ff"; ctx.fillStyle = "rgba(76,213,255,.05)"; ctx.shadowColor = "#5adfff"; ctx.shadowBlur = 18; ctx.lineWidth = 3;
+      ctx.save(); ctx.globalAlpha = .34 + pulse * .16; ctx.strokeStyle = "#91f5ff"; ctx.fillStyle = "rgba(76,213,255,.05)"; ctx.shadowColor = "#5adfff"; ctx.shadowBlur = 7; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(towerX, towerY, 74 + pulse * 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
     }
 
@@ -622,12 +629,30 @@ export class Renderer {
       ctx.save(); ctx.translate(towerX, towerY); ctx.globalAlpha = 1 - progress;
       ctx.strokeStyle = "#bafaff"; ctx.fillStyle = "#eaffff"; ctx.shadowColor = "#72eaff"; ctx.shadowBlur = 16; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(0, 0, 45 + progress * config.burstRadius, 0, Math.PI * 2); ctx.stroke();
-      for (let shard = 0; shard < 14; shard += 1) {
-        const angle = shard * Math.PI * 2 / 14 + progress * .35;
-        const distance = 55 + progress * (config.burstRadius - 25);
-        ctx.save(); ctx.rotate(angle); ctx.translate(distance, 0); ctx.rotate(progress * 3 + angle);
-        ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-5, -4); ctx.lineTo(-2, 5); ctx.closePath(); ctx.fill(); ctx.restore();
+      // 批量绘制晶片，避免每个晶片都进行一组 save/restore 与变换。
+      const shardCount = 8;
+      const distance = 55 + progress * (config.burstRadius - 25);
+      ctx.beginPath();
+      for (let shard = 0; shard < shardCount; shard += 1) {
+        const angle = shard * Math.PI * 2 / shardCount + progress * .35;
+        const rotation = progress * 3 + angle;
+        const radialX = Math.cos(angle);
+        const radialY = Math.sin(angle);
+        const tangentX = -radialY;
+        const tangentY = radialX;
+        const cos = Math.cos(rotation);
+        const sin = Math.sin(rotation);
+        const addPoint = (localX, localY, move = false) => {
+          const rotatedX = localX * cos - localY * sin;
+          const rotatedY = localX * sin + localY * cos;
+          const pointX = radialX * distance + radialX * rotatedX + tangentX * rotatedY;
+          const pointY = radialY * distance + radialY * rotatedX + tangentY * rotatedY;
+          if (move) ctx.moveTo(pointX, pointY);
+          else ctx.lineTo(pointX, pointY);
+        };
+        addPoint(9, 0, true); addPoint(-5, -4); addPoint(-2, 5); ctx.closePath();
       }
+      ctx.fill();
       ctx.restore();
     }
     if (state.skills.overload.pulse > 0) {
@@ -641,34 +666,48 @@ export class Renderer {
       const waveRadius = 45 + progress * config.knockbackRadius;
       ctx.save(); ctx.translate(towerX, towerY); ctx.globalCompositeOperation = "lighter";
 
-      const overloadWaveGlow = ctx.createRadialGradient(0, 0, waveRadius * .18, 0, 0, waveRadius);
-      overloadWaveGlow.addColorStop(0, overheated ? `rgba(255,92,55,${.07 * remaining})` : `rgba(186,128,255,${.07 * remaining})`);
-      overloadWaveGlow.addColorStop(.72, overheated ? `rgba(255,105,57,${.1 * crest})` : `rgba(180,126,255,${.1 * crest})`);
-      overloadWaveGlow.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = overloadWaveGlow;
+      // 脉冲持续时间很短，使用半透明圆面替代每帧创建径向渐变。
+      ctx.globalAlpha = remaining * (.07 + crest * .06);
+      ctx.fillStyle = overheated ? "#ff683d" : "#b880ff";
       ctx.beginPath(); ctx.arc(0, 0, waveRadius, 0, Math.PI * 2); ctx.fill();
 
       ctx.globalAlpha = remaining;
-      ctx.strokeStyle = overloadEnergyColor; ctx.shadowColor = overloadEnergyColor; ctx.shadowBlur = 20; ctx.lineWidth = 7 - progress * 4;
+      ctx.strokeStyle = overloadEnergyColor; ctx.shadowColor = overloadEnergyColor; ctx.shadowBlur = 8; ctx.lineWidth = 7 - progress * 4;
       ctx.beginPath(); ctx.arc(0, 0, waveRadius, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = remaining * .72;
-      ctx.strokeStyle = overloadHighlight; ctx.shadowBlur = 11; ctx.lineWidth = 2.2;
+      ctx.strokeStyle = overloadHighlight; ctx.shadowBlur = 4; ctx.lineWidth = 2.2;
       ctx.beginPath(); ctx.arc(0, 0, 31 + progress * config.knockbackRadius * .78, 0, Math.PI * 2); ctx.stroke();
 
       ctx.lineCap = "round";
-      for (let ray = 0; ray < 16; ray += 1) {
-        const angle = ray * Math.PI / 8 + this.time * (overheated ? .22 : -.14);
+      const rayCount = 8;
+      ctx.globalAlpha = remaining * .37;
+      ctx.strokeStyle = overloadEnergyColor;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let ray = 0; ray < rayCount; ray += 1) {
+        if (ray % 3 === 0) continue;
+        const angle = ray * Math.PI / 4 + this.time * (overheated ? .22 : -.14);
         const jitter = Math.sin(ray * 2.37 + progress * 15) * 8;
         const inner = Math.max(35, waveRadius - 30 - jitter);
         const outer = waveRadius + 8 + jitter * .35;
-        ctx.globalAlpha = remaining * (.25 + (ray % 3 === 0 ? .34 : .12));
-        ctx.strokeStyle = ray % 3 === 0 ? overloadHighlight : overloadEnergyColor;
-        ctx.lineWidth = ray % 3 === 0 ? 2.4 : 1.2;
-        ctx.beginPath();
         ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
         ctx.lineTo(Math.cos(angle + .018) * outer, Math.sin(angle + .018) * outer);
-        ctx.stroke();
       }
+      ctx.stroke();
+      ctx.globalAlpha = remaining * .59;
+      ctx.strokeStyle = overloadHighlight;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      for (let ray = 0; ray < rayCount; ray += 1) {
+        if (ray % 3 !== 0) continue;
+        const angle = ray * Math.PI / 4 + this.time * (overheated ? .22 : -.14);
+        const jitter = Math.sin(ray * 2.37 + progress * 15) * 8;
+        const inner = Math.max(35, waveRadius - 30 - jitter);
+        const outer = waveRadius + 8 + jitter * .35;
+        ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+        ctx.lineTo(Math.cos(angle + .018) * outer, Math.sin(angle + .018) * outer);
+      }
+      ctx.stroke();
       ctx.restore();
     }
   }
@@ -2010,7 +2049,8 @@ export class Renderer {
         ctx.globalAlpha = .32; ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.moveTo(saw.x, saw.y); ctx.lineTo(centerX, centerY); ctx.stroke(); ctx.setLineDash([]);
       }
       ctx.restore();
-      drawSaw(saw.x, saw.y, this.time * (saw.returning ? -23 : 18), saw.returning ? 1.2 : 1.08);
+      // 弹射与环绕共用巨刃铸型的尺寸倍率，避免升级后碰撞半径与画面尺寸不一致。
+      drawSaw(saw.x, saw.y, this.time * (saw.returning ? -23 : 18), bladeScale * (saw.returning ? 1.2 : 1.08));
     }
   }
 
@@ -2141,27 +2181,42 @@ export class Renderer {
       ctx.save(); ctx.globalCompositeOperation = "lighter";
       ctx.rotate(this.time * (1.05 + heatRatio * .65));
       ctx.globalAlpha = .34 + heatRatio * .25;
-      ctx.strokeStyle = overloadEnergyColor; ctx.shadowColor = overloadEnergyColor; ctx.shadowBlur = 15 + heatRatio * 9; ctx.lineWidth = 2.2 + heatRatio;
+      ctx.strokeStyle = overloadEnergyColor; ctx.shadowColor = overloadEnergyColor; ctx.shadowBlur = 6 + heatRatio * 3; ctx.lineWidth = 2.2 + heatRatio;
       ctx.setLineDash([10, 7, 3, 8]);
       ctx.beginPath(); ctx.arc(0, 0, orbitRadius, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
 
-      for (let shard = 0; shard < 8; shard += 1) {
-        const angle = shard * Math.PI / 4;
-        const radius = orbitRadius + Math.sin(this.time * 5 + shard * 1.7) * 5;
-        const shardLength = 5 + heatRatio * 5 + (shard % 2) * 3;
-        ctx.save(); ctx.rotate(angle); ctx.translate(radius, 0);
+      // 环绕碎片按颜色合并路径，保留动态轨道但减少上下文切换。
+      const drawOrbitShards = (highlight) => {
         ctx.globalAlpha = .35 + overloadPulse * .35;
-        ctx.strokeStyle = shard % 2 ? overloadEnergyColor : overloadHighlight;
-        ctx.lineWidth = shard % 2 ? 1.4 : 2.2;
-        ctx.beginPath(); ctx.moveTo(-shardLength, -3); ctx.lineTo(0, 1); ctx.lineTo(shardLength, -2); ctx.stroke();
-        ctx.restore();
-      }
+        ctx.strokeStyle = highlight ? overloadHighlight : overloadEnergyColor;
+        ctx.lineWidth = highlight ? 2.2 : 1.4;
+        ctx.beginPath();
+        for (let shard = highlight ? 0 : 1; shard < 8; shard += 2) {
+          const angle = shard * Math.PI / 4;
+          const radius = orbitRadius + Math.sin(this.time * 5 + shard * 1.7) * 5;
+          const shardLength = 5 + heatRatio * 5 + (shard % 2) * 3;
+          const radialX = Math.cos(angle);
+          const radialY = Math.sin(angle);
+          const tangentX = -radialY;
+          const tangentY = radialX;
+          const movePoint = (localX, localY, move = false) => {
+            const pointX = radialX * (radius + localX) + tangentX * localY;
+            const pointY = radialY * (radius + localX) + tangentY * localY;
+            if (move) ctx.moveTo(pointX, pointY);
+            else ctx.lineTo(pointX, pointY);
+          };
+          movePoint(-shardLength, -3, true); movePoint(0, 1); movePoint(shardLength, -2);
+        }
+        ctx.stroke();
+      };
+      drawOrbitShards(true);
+      drawOrbitShards(false);
       ctx.restore();
 
       ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.rotate(-this.time * .28);
       ctx.globalAlpha = .48 + overloadPulse * .2;
-      ctx.strokeStyle = overloadHighlight; ctx.shadowColor = overloadEnergyColor; ctx.shadowBlur = 11; ctx.lineWidth = 3.2;
+      ctx.strokeStyle = overloadHighlight; ctx.shadowColor = overloadEnergyColor; ctx.shadowBlur = 0; ctx.lineWidth = 3.2;
       ctx.setLineDash([5, 4]);
       ctx.beginPath(); ctx.arc(0, 0, orbitRadius + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * overloadHeatArc); ctx.stroke();
       ctx.restore();
@@ -2237,6 +2292,41 @@ export class Renderer {
   }
 
   drawTowerCrystalShield(ctx, tier, ratio, armed, foreground) {
+    const frame = Math.floor(this.time * 24);
+    const ratioBucket = Math.round(ratio * 12) / 12;
+    const cacheKey = `${tier}:${ratioBucket}:${armed ? 1 : 0}`;
+    if (!this.crystalShieldCache || this.crystalShieldCache.key !== cacheKey) {
+      this.crystalShieldCache = { key: cacheKey, background: null, foreground: null, backgroundFrame: -1, foregroundFrame: -1 };
+    }
+    const cacheSlot = foreground ? "foreground" : "background";
+    const frameSlot = `${cacheSlot}Frame`;
+    let sprite = this.crystalShieldCache[cacheSlot];
+    if (!sprite) {
+      const size = 280;
+      sprite = createEffectCanvas(size, size);
+      if (sprite) {
+        this.crystalShieldCache[cacheSlot] = sprite;
+      }
+    }
+    if (sprite) {
+      if (this.crystalShieldCache[frameSlot] !== frame) {
+        const spriteCtx = sprite.getContext("2d");
+        spriteCtx.setTransform(1, 0, 0, 1, 0, 0);
+        spriteCtx.clearRect(0, 0, sprite.width, sprite.height);
+        spriteCtx.translate(sprite.width / 2, sprite.height / 2);
+        this.drawTowerCrystalShieldDirect(spriteCtx, tier, ratioBucket, armed, foreground);
+        this.crystalShieldCache[frameSlot] = frame;
+      }
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.drawImage(sprite, -140, -140);
+      ctx.restore();
+      return;
+    }
+    this.drawTowerCrystalShieldDirect(ctx, tier, ratio, armed, foreground);
+  }
+
+  drawTowerCrystalShieldDirect(ctx, tier, ratio, armed, foreground) {
     const radius = 69 + tier * 10;
     const breath = Math.sin(this.time * 2.2) * 1.5;
     const shellRadius = radius + breath;
@@ -2247,32 +2337,64 @@ export class Renderer {
     ctx.globalCompositeOperation = "screen";
 
     if (!foreground) {
-      const field = ctx.createRadialGradient(-shellRadius * .3, -shellRadius * .38, 5, 0, 0, shellRadius * 1.08);
-      field.addColorStop(0, `rgba(225,253,255,${.12 + ratio * .08})`);
-      field.addColorStop(.55, `rgba(65,220,255,${.08 + ratio * .08})`);
-      field.addColorStop(.86, `rgba(30,164,224,${.05 + ratio * .06})`);
-      field.addColorStop(1, "rgba(38,185,235,0)");
-      ctx.fillStyle = field;
+      // 背景层只需要提供范围感，避免每帧创建径向渐变。
+      ctx.globalAlpha = .06 + ratio * .08;
+      ctx.fillStyle = armed ? "#dfffff" : "#35d7ff";
       ctx.beginPath(); ctx.arc(0, 0, shellRadius + 7, 0, Math.PI * 2); ctx.fill();
-
-      ctx.rotate(-this.time * .16);
-      ctx.strokeStyle = `rgba(112,232,255,${.2 + ratio * .16})`;
+      ctx.globalAlpha = .18 + ratio * .13;
+      ctx.strokeStyle = "#70e8ff";
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 10]);
-      ctx.beginPath(); ctx.ellipse(0, 0, shellRadius + 2, shellRadius * .53, .22, 0, Math.PI * 2); ctx.stroke();
-      ctx.rotate(this.time * .32);
-      ctx.beginPath(); ctx.ellipse(0, 0, shellRadius + 2, shellRadius * .53, -1.05, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(0, 0, shellRadius + 2, shellRadius * .53, .22, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, shellRadius + 2, shellRadius * .53, -1.05, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
       ctx.restore();
       return;
     }
 
-    ctx.shadowColor = armed ? "#d8ffff" : "#64e7ff";
-    ctx.shadowBlur = armed ? 24 + Math.sin(this.time * 5) * 5 : 13 + ratio * 7;
-    ctx.lineCap = "round";
     const pulse = .5 + Math.sin(this.time * 3.6) * .5;
+    const liveColor = armed ? "#eaffff" : "#8cefff";
+    const liveStroke = armed ? "#f1ffff" : "#75edff";
+    const dimColor = "#3d8eac";
+    const dimStroke = "#4c91aa";
+    const drawDiamondPath = (predicate, fill, stroke, alpha, lineWidth) => {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      for (let plate = 0; plate < 6; plate += 1) {
+        if (!predicate(plate)) continue;
+        const angle = -Math.PI / 2 + plate * Math.PI / 3;
+        const plateRadius = shellRadius + 1 + Math.sin(this.time * 2.8 + plate) * 1.2;
+        const radialX = Math.cos(angle);
+        const radialY = Math.sin(angle);
+        const tangentX = -radialY;
+        const tangentY = radialX;
+        const px = radialX * plateRadius;
+        const py = radialY * plateRadius;
+        const add = (radial, tangent, move = false) => {
+          const pointX = px + radialX * radial + tangentX * tangent;
+          const pointY = py + radialY * radial + tangentY * tangent;
+          if (move) ctx.moveTo(pointX, pointY);
+          else ctx.lineTo(pointX, pointY);
+        };
+        add(8 + pulse * 2, 0, true); add(0, -4); add(-8 - pulse * 2, 0); add(0, 4); ctx.closePath();
+      }
+      ctx.fill(); ctx.stroke();
+    };
 
-    // A faceted shell gives the effect a crystal silhouette instead of reading
-    // as a generic circular range indicator at the game's zoomed-out scale.
+    // 只给外壳保留一次弱阴影，内部结构线全部关闭阴影。
+    ctx.globalAlpha = .22 + ratio * .16;
+    ctx.strokeStyle = liveStroke;
+    ctx.shadowColor = armed ? "#d8ffff" : "#64e7ff";
+    ctx.shadowBlur = armed ? 12 : 8;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(0, 0, shellRadius, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowBlur = 0;
+
     ctx.globalAlpha = .08 + ratio * .08 + pulse * .025;
     ctx.fillStyle = armed ? "#dcffff" : "#72eaff";
     ctx.beginPath();
@@ -2284,32 +2406,24 @@ export class Renderer {
     }
     ctx.closePath(); ctx.fill();
 
-    // Six live crystal plates and their energy ribs make shield strength
-    // legible as a structure: depleted plates remain as a dim blue scaffold.
-    for (let plate = 0; plate < 6; plate += 1) {
-      const angle = -Math.PI / 2 + plate * Math.PI / 3;
-      const live = plate * 2 < activeSegments;
-      const plateRadius = shellRadius + 1 + Math.sin(this.time * 2.8 + plate) * 1.2;
-      const px = Math.cos(angle) * plateRadius;
-      const py = Math.sin(angle) * plateRadius;
-      ctx.save(); ctx.translate(px, py); ctx.rotate(angle + Math.PI / 2);
-      ctx.globalAlpha = live ? .58 + ratio * .3 + pulse * .08 : .17;
-      ctx.fillStyle = live ? (armed ? "#f0ffff" : "#8cefff") : "#3d8eac";
-      ctx.strokeStyle = live ? "#e5ffff" : "#4c91aa";
-      ctx.lineWidth = live ? 1.5 : .75;
-      ctx.beginPath(); ctx.moveTo(0, -8 - pulse * 2); ctx.lineTo(4, 0); ctx.lineTo(0, 8 + pulse * 2); ctx.lineTo(-4, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.restore();
+    // 晶片、能量肋骨和分段弧线分别合并成少量路径。
+    drawDiamondPath((plate) => plate * 2 < activeSegments, liveColor, liveStroke, .58 + ratio * .3 + pulse * .08, 1.5);
+    drawDiamondPath((plate) => plate * 2 >= activeSegments, dimColor, dimStroke, .17, .75);
 
-      if (live) {
-        ctx.globalAlpha = .22 + ratio * .2;
-        ctx.lineWidth = 1.15;
-        ctx.strokeStyle = armed ? "#f3ffff" : "#75edff";
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(angle) * (shellRadius - 8), Math.sin(angle) * (shellRadius - 8)); ctx.stroke();
-      }
+    ctx.globalAlpha = .22 + ratio * .2;
+    ctx.strokeStyle = liveStroke;
+    ctx.lineWidth = 1.15;
+    ctx.beginPath();
+    for (let plate = 0; plate < 6; plate += 1) {
+      if (plate * 2 >= activeSegments) continue;
+      const angle = -Math.PI / 2 + plate * Math.PI / 3;
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(angle) * (shellRadius - 8), Math.sin(angle) * (shellRadius - 8));
     }
+    ctx.stroke();
 
     ctx.globalAlpha = .3 + ratio * .28 + pulse * .08;
-    ctx.strokeStyle = armed ? "#f1ffff" : "#7eeeff";
+    ctx.strokeStyle = liveStroke;
     ctx.lineWidth = 1.1;
     ctx.setLineDash([3, 5]);
     ctx.lineDashOffset = -this.time * 12;
@@ -2323,23 +2437,21 @@ export class Renderer {
     ctx.closePath(); ctx.stroke();
     ctx.setLineDash([]);
 
-    for (let index = 0; index < segmentCount; index += 1) {
-      const start = -Math.PI / 2 + index * Math.PI * 2 / segmentCount + .035;
-      const end = start + Math.PI * 2 / segmentCount - .07;
-      const lit = index < activeSegments;
+    const drawSegments = (lit) => {
       ctx.globalAlpha = lit ? .58 + ratio * .34 : .13;
-      ctx.strokeStyle = lit ? (index % 3 === 0 ? "#efffff" : "#75ecff") : "#357b9d";
+      ctx.strokeStyle = lit ? liveStroke : dimStroke;
       ctx.lineWidth = lit ? 2.7 : .9;
-      ctx.beginPath(); ctx.arc(0, 0, shellRadius, start, end); ctx.stroke();
-
-      const middle = (start + end) / 2;
-      const inner = shellRadius - (lit ? 8 : 4);
-      ctx.lineWidth = lit ? 1.25 : .6;
       ctx.beginPath();
-      ctx.moveTo(Math.cos(middle) * inner, Math.sin(middle) * inner);
-      ctx.lineTo(Math.cos(middle) * (shellRadius + 2), Math.sin(middle) * (shellRadius + 2));
+      for (let index = 0; index < segmentCount; index += 1) {
+        if ((index < activeSegments) !== lit) continue;
+        const start = -Math.PI / 2 + index * Math.PI * 2 / segmentCount + .035;
+        const end = start + Math.PI * 2 / segmentCount - .07;
+        ctx.arc(0, 0, shellRadius, start, end);
+      }
       ctx.stroke();
-    }
+    };
+    drawSegments(true);
+    drawSegments(false);
 
     ctx.globalAlpha = .48 + ratio * .25;
     ctx.strokeStyle = "#d9fdff";
@@ -2347,7 +2459,6 @@ export class Renderer {
     ctx.setLineDash([18, 48]);
     ctx.lineDashOffset = -this.time * 18;
     ctx.beginPath(); ctx.arc(0, 0, shellRadius + 4, 0, Math.PI * 2); ctx.stroke();
-
     ctx.setLineDash([]);
     ctx.globalAlpha = .46 + ratio * .34;
     ctx.strokeStyle = "#f1ffff";
@@ -2358,18 +2469,27 @@ export class Renderer {
 
     if (armed) {
       const armedPulse = .76 + Math.sin(this.time * 5.2) * .2;
+      ctx.globalAlpha = armedPulse;
       ctx.fillStyle = "#eaffff";
       ctx.strokeStyle = "#7feeff";
       ctx.lineWidth = 1.25;
-      ctx.shadowBlur = 22;
+      ctx.beginPath();
       for (let index = 0; index < 4; index += 1) {
         const angle = this.time * .28 + index * Math.PI / 2;
         const shardRadius = shellRadius + 10;
-        const sx = Math.cos(angle) * shardRadius;
-        const sy = Math.sin(angle) * shardRadius;
-        ctx.save(); ctx.translate(sx, sy); ctx.rotate(angle + Math.PI / 2); ctx.globalAlpha = armedPulse;
-        ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(3, 0); ctx.lineTo(0, 5); ctx.lineTo(-3, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+        const radialX = Math.cos(angle);
+        const radialY = Math.sin(angle);
+        const tangentX = -radialY;
+        const tangentY = radialX;
+        const px = radialX * shardRadius;
+        const py = radialY * shardRadius;
+        ctx.moveTo(px + radialX * 5, py + radialY * 5);
+        ctx.lineTo(px + tangentX * 3, py + tangentY * 3);
+        ctx.lineTo(px - radialX * 5, py - radialY * 5);
+        ctx.lineTo(px - tangentX * 3, py - tangentY * 3);
+        ctx.closePath();
       }
+      ctx.fill(); ctx.stroke();
     }
     ctx.restore();
   }

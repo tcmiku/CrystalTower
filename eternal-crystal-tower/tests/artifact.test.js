@@ -117,9 +117,11 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /潮汐刃域/);
   assert.match(main, /环刃风暴/);
   assert.match(main, /万刃归巢/);
+  assert.match(main, /缩短飞刃归塔后的恢复时间/);
   assert.match(renderer, /晶痕 ×/);
   assert.match(renderer, /effect\.element === "sawStorm"/);
   assert.match(renderer, /effect\.element === "sawHomecoming"/);
+  assert.match(renderer, /bladeScale \* \(saw\.returning \? 1\.2 : 1\.08\)/);
   assert.match(main, /协议电池扩容/);
   assert.match(main, /路线 A · 自爆猎杀/);
   assert.match(main, /路线 B · 防御护盾/);
@@ -194,7 +196,10 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(renderer, /resource-echo-shard-ai\.png/);
   assert.match(renderer, /enemy-astral-atlas-ai\.png/);
   assert.match(renderer, /const overload = state\.skills\.overload\.active > 0 \|\| state\.skills\.overload\.permanentEngaged/);
-  assert.match(renderer, /overloadWaveGlow\.addColorStop/);
+  assert.match(renderer, /crystalShieldCache/);
+  assert.doesNotMatch(renderer, /overloadWaveGlow\.addColorStop/);
+  assert.match(renderer, /const shardCount = 8/);
+  assert.match(renderer, /const rayCount = 8/);
   assert.match(renderer, /const overloadHeatArc = Math\.min\(1, heatRatio\)/);
   assert.match(main, /COLOSSUS_COUNTER_HINTS/);
   assert.match(main, /炮击锚点出现/);
