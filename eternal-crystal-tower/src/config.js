@@ -154,7 +154,7 @@ export const GAME_CONFIG = Object.freeze({
     stormglass: { extraChains: 2, rangeMultiplier: 1.2, chainMultiplier: 0.72 },
     gilded: { chance: 0.24, bonusMultiplier: 0.75 },
     execution: { hpThreshold: 0.35, damageMultiplier: 1.4 },
-    hourglass: { cooldownRateMultiplier: 1.22 },
+    hourglass: { cooldownRateMultiplier: 1.75 },
     prismArc: { chainCount: 3, chainRange: 190, chainMultiplier: 0.52 },
     frostfire: { freezeDuration: 0.55, damageMultiplier: 0.72 },
     decoyWard: { shieldFraction: 0.18 },
@@ -266,8 +266,24 @@ export const GAME_CONFIG = Object.freeze({
     anchor: { hp: 115, speed: 0, damage: 0, reward: 0, radius: 17 }
   },
   research: { bonusPerLevel: 0.05, maxLevel: 30, costBase: 2, costGrowth: 1.3 },
-  combat: { enemyAttackInterval: 0.7, maxEnemies: 420, normalEnemyBudget: 240, crowdRadiusPerDoubling: 0.14, crowdMaxRadiusMultiplier: 1.55 }
+  combat: {
+    enemyAttackInterval: 0.7,
+    maxEnemies: 420,
+    normalEnemyBudget: 240,
+    crowdRadiusPerDoubling: 0.14,
+    crowdMaxRadiusMultiplier: 1.55,
+    crowdVisualScalePerDoubling: 0.12,
+    crowdMaxVisualScale: 1.8
+  }
 });
+
+export function getCrowdVisualScale(unitCount = 1) {
+  const count = Number.isFinite(Number(unitCount)) ? Math.max(1, Number(unitCount)) : 1;
+  return Math.min(
+    GAME_CONFIG.combat.crowdMaxVisualScale,
+    1 + Math.log2(count) * GAME_CONFIG.combat.crowdVisualScalePerDoubling
+  );
+}
 
 export function getArenaEdgePosition(angle, outward = 0) {
   const ring = GAME_CONFIG.arena.spawnRing;

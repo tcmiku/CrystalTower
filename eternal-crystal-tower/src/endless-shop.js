@@ -32,6 +32,27 @@ export const ENDLESS_RELICS = Object.freeze({
     description: "致命伤时保留 1 点生命，恢复生命并获得护盾；每次商店刷新充能。",
     effect: "恢复 20% · 护盾 30% · 免疫 1s"
   },
+  goldenSingularity: {
+    name: "鎏金奇点", icon: "¤", basePrice: 76000, type: "经济奇物",
+    description: "所有金币最终结算翻倍；每回收一个金币光团，全部主动技能额外恢复冷却。",
+    effect: "金币 ×2 · 每光团冷却 -0.5s · 金潮单次最多 -4s"
+  },
+  chronostasisArray: {
+    name: "时停回响阵列", icon: "⌛", basePrice: 88000, type: "技能协议",
+    description: "主动释放任意技能后，将其余所有主动技能的剩余冷却直接减半。",
+    effect: "仅手动释放触发 · 不影响本次技能自身冷却"
+  },
+  apexHunter: {
+    name: "终末猎杀冠冕", icon: "☄", basePrice: 94000, type: "猎杀协议",
+    description: "锁定高威胁生命信号，对精英、裂变首领、巨像与永恒君王造成巨额额外伤害。",
+    effect: "对精英与首领伤害 +75%"
+  },
+  prismaticSovereign: {
+    name: "棱镜主宰矩阵", icon: "◈", basePrice: 102000, type: "元素奇物",
+    description: "主炮每发必定随机附着冰、火、雷之一，并强化冻结、燃烧与闪电连锁。",
+    effect: "必定元素附魔 · 元素附加效果 +50% · 需要冰火雷",
+    eligible: (state) => state.tower.upgrades.frost > 0 && state.tower.upgrades.fire > 0 && state.tower.upgrades.lightning > 0
+  },
   breakthroughLimit: {
     name: "突破极限", icon: "✧", iconCell: [2, 1], basePrice: 90000, type: "禁制协议",
     description: "解除科技树互斥限制，让原本互斥的研究路线可以同时接入。",
@@ -52,7 +73,7 @@ export const ENDLESS_SHOP_RULES = Object.freeze({
   firstThreat: 25,
   refreshThreatStep: 5,
   stageGrowth: 1.35,
-  maxRelics: 2,
+  maxRelics: 4,
   rerollPrices: [6000, 12000, 24000],
   overloadUnstableDuration: 1.2,
   overloadUnstableRateMultiplier: 1.25,
@@ -64,12 +85,18 @@ export const ENDLESS_SHOP_RULES = Object.freeze({
   droneEnergyMultiplier: 1.3,
   droneAttackCollectEfficiency: 0.5,
   droneSupportInterval: 1,
-  frostCascadeChainLimit: 8
+  frostCascadeChainLimit: 8,
+  goldenCoinMultiplier: 2,
+  goldenCooldownPerOrb: 0.5,
+  goldenCooldownCap: 4,
+  chronostasisCooldownMultiplier: 0.5,
+  apexDamageMultiplier: 1.75,
+  prismaticEffectMultiplier: 1.5
 });
 
 export const ENDLESS_MERCHANT = Object.freeze({ x: 88, y: 566, width: 116, height: 174, clickRadius: 74 });
 
-const GENERIC_RELICS = ["globalStarfall", "finalInsurance", "perpetualOverload"];
+const GENERIC_RELICS = ["globalStarfall", "finalInsurance", "perpetualOverload", "goldenSingularity", "chronostasisArray", "apexHunter"];
 
 function shuffled(state, values) {
   const result = [...values];
@@ -126,7 +153,8 @@ function buildRandomOffers(state) {
 }
 
 export function refreshEndlessShop(state, threat = state.threat) {
-  if (!state.endlessMode || threat < ENDLESS_SHOP_RULES.firstThreat || (threat - ENDLESS_SHOP_RULES.firstThreat) % ENDLESS_SHOP_RULES.refreshThreatStep !== 0) return false;
+  const adminShopEnabled = state.admin?.shopEnabled === true;
+  if ((!state.endlessMode && !adminShopEnabled) || threat < ENDLESS_SHOP_RULES.firstThreat || (threat - ENDLESS_SHOP_RULES.firstThreat) % ENDLESS_SHOP_RULES.refreshThreatStep !== 0) return false;
   const refreshIndex = Math.floor((threat - ENDLESS_SHOP_RULES.firstThreat) / ENDLESS_SHOP_RULES.refreshThreatStep);
   if (refreshIndex <= state.endlessShop.refreshIndex) return false;
   const shop = state.endlessShop;

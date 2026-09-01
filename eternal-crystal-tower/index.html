@@ -81,6 +81,7 @@
           <div class="permanent-resource-hud" aria-label="永久资源"><span class="echo-resource"><i></i><small>遗响</small><b id="battleEchoShardText">0</b></span><span class="core-resource"><i></i><small>核心</small><b id="battleCoreFragmentText">0</b></span></div>
           <div id="threatSealHud" class="threat-seal-hud hidden" aria-label="本局威胁封印"></div>
           <div id="relicRunHud" class="relic-run-hud" aria-label="本局临时遗物"></div>
+          <div id="adminCheatBadge" class="admin-cheat-badge hidden" role="status">管理员模式 · 资源禁用 · 本局禁榜</div>
           <div id="endlessShopHud" class="endless-shop-hud hidden" aria-label="裂隙行商">
             <button id="openEndlessShopButton" class="endless-shop-icon-button" type="button" aria-label="裂隙行商·弥罗，打开商店" aria-haspopup="dialog" aria-controls="endlessShopModal" title="裂隙行商·弥罗 · 打开商店（M）">
               <img src="./assets/generated/npc-rift-merchant-miro-icon-ai-v1.png" alt="" aria-hidden="true">
@@ -104,6 +105,10 @@
           <button id="openTechTreeButton" class="tech-tree-launch" type="button" aria-haspopup="dialog" aria-controls="techTreePanel" title="打开科技树">
             <i class="art-icon system-art icon-tech-tree" aria-hidden="true"></i>
             <span><b>打开科技树</b><small>打开后自动暂停战斗</small></span><kbd>T</kbd>
+          </button>
+          <button id="adminConsoleLaunchButton" class="tech-tree-launch admin-console-launch hidden" type="button" aria-haspopup="dialog" aria-controls="adminConsoleModal" title="打开管理员控制台">
+            <i class="art-icon system-art icon-settings" aria-hidden="true"></i>
+            <span><b>管理员控制台</b><small>本局测试配置</small></span><kbd>⚙</kbd>
           </button>
           <div class="tech-overview" aria-label="科技树概况">
             <div><span>已研究</span><strong id="techResearchedText">0 / 10</strong></div>
@@ -395,6 +400,44 @@
           </div>
         </section>
       </div>
+    </section>
+    <section id="adminConsoleModal" class="modal admin-console-modal hidden" role="dialog" aria-modal="true" aria-labelledby="adminConsoleTitle">
+      <form id="adminConsoleForm" class="admin-console-card">
+        <header class="admin-console-header">
+          <div><span>ADMIN TEST CONSOLE</span><h2 id="adminConsoleTitle">管理员测试控制台</h2></div>
+          <button id="closeAdminConsoleButton" type="button" aria-label="关闭管理员控制台">关闭</button>
+        </header>
+        <p class="admin-console-warning">作弊已开启：本次记录永久无法进入排行榜；遗响碎片、核心残片与星尘不会获得，重开后恢复正常。</p>
+        <div class="admin-console-grid">
+          <label>晶塔当前生命<input id="adminTowerHpInput" name="towerHp" type="number" min="0" step="1"></label>
+          <label>金币数量<input id="adminCoinsInput" name="coins" type="number" min="0" step="1"></label>
+          <label>威胁等级<input id="adminThreatInput" name="threat" type="number" min="1" max="999" step="1"></label>
+          <label>已完成波次<input id="adminWaveInput" name="waveIndex" type="number" min="0" step="1"></label>
+          <label>下一波倒计时（秒）<input id="adminNextWaveInput" name="nextWaveIn" type="number" min="0" step="0.1"></label>
+          <label>晶塔攻击力<input id="adminDamageInput" name="damage" type="number" min="0" step="0.1"></label>
+          <label>晶塔攻速（次/秒）<input id="adminFireRateInput" name="fireRate" type="number" min="0.01" step="0.01"></label>
+        </div>
+        <label class="admin-invincible-toggle"><input id="adminInvincibleInput" type="checkbox"><span><b>防御塔无敌模式</b><small>完全免疫敌人、首领技能与敌方炮击伤害</small></span></label>
+        <div class="admin-feature-toggle-grid">
+          <label class="admin-feature-toggle"><input id="adminShopInput" type="checkbox"><span><b>启动裂隙商店</b><small>本局可用 M 键或右上角入口打开商店</small></span></label>
+          <label class="admin-feature-toggle"><input id="adminDoubleSpeedInput" type="checkbox"><span><b>启用 2X 倍速</b><small>立即解锁并启用时流加速，可再用 X 键切换</small></span></label>
+        </div>
+        <fieldset class="admin-skill-fieldset">
+          <legend>主动技能冷却 CD（秒）</legend>
+          <label><kbd>Q</kbd> 晶愈<input id="adminHealCdInput" type="number" min="0" step="0.1"></label>
+          <label><kbd>W</kbd> 超载<input id="adminOverloadCdInput" type="number" min="0" step="0.1"></label>
+          <label><kbd>E</kbd> 星落<input id="adminStarfallCdInput" type="number" min="0" step="0.1"></label>
+          <label><kbd>F</kbd> 金潮<input id="adminCoinVacuumCdInput" type="number" min="0" step="0.1"></label>
+        </fieldset>
+        <fieldset class="admin-relic-fieldset">
+          <legend>本局遗物 · 任意装配</legend>
+          <div id="adminRelicList" class="admin-relic-list"></div>
+        </fieldset>
+        <footer class="admin-console-actions">
+          <span id="adminConsoleStatus" aria-live="polite">修改仅作用于当前战局</span>
+          <button id="applyAdminConsoleButton" type="submit">应用配置</button>
+        </footer>
+      </form>
     </section>
     <section id="chapterCompleteModal" class="modal chapter-complete-modal hidden" role="dialog" aria-modal="true" aria-labelledby="chapterCompleteTitle">
       <div class="chapter-complete-card">

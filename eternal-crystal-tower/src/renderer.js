@@ -1,4 +1,4 @@
-import { GAME_CONFIG, getArenaEdgePosition } from "./config.js";
+import { GAME_CONFIG, getArenaEdgePosition, getCrowdVisualScale } from "./config.js";
 import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 import { isChapterTwo } from "./chapter-two.js";
 
@@ -521,15 +521,85 @@ export class Renderer {
       const config = GAME_CONFIG.skills.coinVacuum;
       const progress = 1 - state.skills.coinVacuum.active / config.activeDuration;
       const ease = 1 - (1 - progress) ** 3;
-      ctx.save(); ctx.globalAlpha = Math.max(0, 1 - progress * .72); ctx.strokeStyle = "#ffe37a"; ctx.fillStyle = "#fff2a8"; ctx.shadowColor = "#ffbd43"; ctx.shadowBlur = 14; ctx.lineWidth = 2.2;
-      for (const trail of state.skills.coinVacuum.trails) {
+      const remaining = 1 - progress;
+      const pulse = .5 + Math.sin(this.time * 11) * .5;
+      const gatherWave = Math.sin(progress * Math.PI);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (const [index, trail] of state.skills.coinVacuum.trails.entries()) {
         const x = trail.x + (towerX - trail.x) * ease;
         const y = trail.y + (towerY - trail.y) * ease;
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(towerX, towerY); ctx.stroke();
-        ctx.beginPath(); ctx.arc(x, y, 5 * (1 - progress) + 1, 0, Math.PI * 2); ctx.fill();
+        const dx = towerX - x;
+        const dy = towerY - y;
+        const distance = Math.hypot(dx, dy) || 1;
+        const sway = Math.sin(this.time * 4.5 + index * 1.67) * (8 + distance * .025) * gatherWave;
+        const controlX = (x + towerX) * .5 - (dy / distance) * sway;
+        const controlY = (y + towerY) * .5 + (dx / distance) * sway;
+
+        ctx.globalAlpha = .16 + remaining * .32;
+        ctx.strokeStyle = "#ffbd43";
+        ctx.shadowColor = "#ff9f2f";
+        ctx.shadowBlur = 13;
+        ctx.lineWidth = 4.6 * remaining + 1.1;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(controlX, controlY, towerX, towerY); ctx.stroke();
+        ctx.globalAlpha = .45 + remaining * .4;
+        ctx.strokeStyle = "#fff2a8";
+        ctx.shadowBlur = 4;
+        ctx.lineWidth = 1.2 + remaining * 1.2;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(controlX, controlY, towerX, towerY); ctx.stroke();
+
+        const coinPulse = 1 + Math.sin(this.time * 13 + index) * .16;
+        ctx.globalAlpha = remaining * .9;
+        ctx.fillStyle = "#fff2a8";
+        ctx.shadowColor = "#ffbd43";
+        ctx.shadowBlur = 15;
+        ctx.beginPath(); ctx.arc(x, y, (4.5 * remaining + 1.2) * coinPulse, 0, Math.PI * 2); ctx.fill();
+
+        for (let spark = 0; spark < 2; spark += 1) {
+          const sparkProgress = (progress * 1.35 + index * .17 + spark * .5) % 1;
+          const inverse = 1 - sparkProgress;
+          const sparkX = inverse * inverse * x + 2 * inverse * sparkProgress * controlX + sparkProgress * sparkProgress * towerX;
+          const sparkY = inverse * inverse * y + 2 * inverse * sparkProgress * controlY + sparkProgress * sparkProgress * towerY;
+          ctx.globalAlpha = remaining * (.16 + (1 - sparkProgress) * .5);
+          ctx.fillStyle = spark % 2 ? "#fff7ca" : "#ffc85a";
+          ctx.shadowBlur = 7;
+          ctx.beginPath(); ctx.arc(sparkX, sparkY, 1.1 + remaining * 1.1, 0, Math.PI * 2); ctx.fill();
+        }
       }
-      ctx.globalAlpha = 1 - progress; ctx.lineWidth = 5 - progress * 3;
-      ctx.beginPath(); ctx.arc(towerX, towerY, 55 + progress * 95, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      const coreRadius = 30 + pulse * 6;
+      const coreGlow = ctx.createRadialGradient(towerX, towerY, 0, towerX, towerY, coreRadius * 3.2);
+      coreGlow.addColorStop(0, `rgba(255,248,188,${.3 * remaining})`);
+      coreGlow.addColorStop(.35, `rgba(255,191,67,${.16 * remaining})`);
+      coreGlow.addColorStop(1, "rgba(255,155,42,0)");
+      ctx.globalAlpha = .9;
+      ctx.fillStyle = coreGlow;
+      ctx.beginPath(); ctx.arc(towerX, towerY, coreRadius * 3.2, 0, Math.PI * 2); ctx.fill();
+
+      ctx.globalAlpha = remaining * (.42 + pulse * .22);
+      ctx.strokeStyle = "#fff1aa";
+      ctx.shadowColor = "#ffb52f";
+      ctx.shadowBlur = 16;
+      ctx.lineWidth = 3.5 - progress * 1.5;
+      ctx.beginPath(); ctx.arc(towerX, towerY, 46 + progress * 112, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = remaining * (.22 + pulse * .12);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(towerX, towerY, 66 + progress * 88, 0, Math.PI * 2); ctx.stroke();
+
+      ctx.save();
+      ctx.translate(towerX, towerY);
+      ctx.rotate(this.time * 1.8);
+      ctx.globalAlpha = remaining * (.25 + pulse * .18);
+      ctx.strokeStyle = "#ffd76f";
+      ctx.shadowBlur = 8;
+      ctx.lineWidth = 2;
+      for (let segment = 0; segment < 8; segment += 1) {
+        const angle = segment * Math.PI / 4;
+        ctx.beginPath(); ctx.arc(0, 0, 34 + pulse * 3, angle, angle + .22); ctx.stroke();
+      }
+      ctx.restore();
+      ctx.restore();
     }
     if (state.skills.coinVacuum.fireRateBuff > 0) {
       const pulse = .5 + Math.sin(this.time * 9) * .5;
@@ -561,11 +631,42 @@ export class Renderer {
     if (state.skills.overload.pulse > 0) {
       const config = GAME_CONFIG.skills.overload;
       const progress = 1 - state.skills.overload.pulse / config.pulseDuration;
-      ctx.save(); ctx.translate(towerX, towerY);
-      ctx.globalAlpha = 1 - progress;
-      ctx.strokeStyle = state.skills.overload.overheated ? "#ff7650" : "#c9a6ff";
-      ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 18; ctx.lineWidth = 7 - progress * 4;
-      ctx.beginPath(); ctx.arc(0, 0, 45 + progress * config.knockbackRadius, 0, Math.PI * 2); ctx.stroke();
+      const remaining = 1 - progress;
+      const crest = Math.sin(progress * Math.PI);
+      const overheated = state.skills.overload.overheated;
+      const overloadEnergyColor = overheated ? "#ff7650" : "#c9a6ff";
+      const overloadHighlight = overheated ? "#ffd39b" : "#f5e8ff";
+      const waveRadius = 45 + progress * config.knockbackRadius;
+      ctx.save(); ctx.translate(towerX, towerY); ctx.globalCompositeOperation = "lighter";
+
+      const overloadWaveGlow = ctx.createRadialGradient(0, 0, waveRadius * .18, 0, 0, waveRadius);
+      overloadWaveGlow.addColorStop(0, overheated ? `rgba(255,92,55,${.07 * remaining})` : `rgba(186,128,255,${.07 * remaining})`);
+      overloadWaveGlow.addColorStop(.72, overheated ? `rgba(255,105,57,${.1 * crest})` : `rgba(180,126,255,${.1 * crest})`);
+      overloadWaveGlow.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = overloadWaveGlow;
+      ctx.beginPath(); ctx.arc(0, 0, waveRadius, 0, Math.PI * 2); ctx.fill();
+
+      ctx.globalAlpha = remaining;
+      ctx.strokeStyle = overloadEnergyColor; ctx.shadowColor = overloadEnergyColor; ctx.shadowBlur = 20; ctx.lineWidth = 7 - progress * 4;
+      ctx.beginPath(); ctx.arc(0, 0, waveRadius, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = remaining * .72;
+      ctx.strokeStyle = overloadHighlight; ctx.shadowBlur = 11; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(0, 0, 31 + progress * config.knockbackRadius * .78, 0, Math.PI * 2); ctx.stroke();
+
+      ctx.lineCap = "round";
+      for (let ray = 0; ray < 16; ray += 1) {
+        const angle = ray * Math.PI / 8 + this.time * (overheated ? .22 : -.14);
+        const jitter = Math.sin(ray * 2.37 + progress * 15) * 8;
+        const inner = Math.max(35, waveRadius - 30 - jitter);
+        const outer = waveRadius + 8 + jitter * .35;
+        ctx.globalAlpha = remaining * (.25 + (ray % 3 === 0 ? .34 : .12));
+        ctx.strokeStyle = ray % 3 === 0 ? overloadHighlight : overloadEnergyColor;
+        ctx.lineWidth = ray % 3 === 0 ? 2.4 : 1.2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+        ctx.lineTo(Math.cos(angle + .018) * outer, Math.sin(angle + .018) * outer);
+        ctx.stroke();
+      }
       ctx.restore();
     }
   }
@@ -1436,6 +1537,8 @@ export class Renderer {
     }
     for (const enemy of state.enemies) {
       if (enemy.riftAnchor) continue;
+      const crowdVisualScale = getCrowdVisualScale(enemy.unitCount);
+      const crowdVisualRadius = enemy.radius * crowdVisualScale;
       const [bright, dark] = ENEMY_COLORS[enemy.type];
       if (enemy.rangedFlash > 0) {
         ctx.save();
@@ -1454,6 +1557,7 @@ export class Renderer {
       ctx.translate(enemy.x, renderY);
       const angle = enemy.type === "sovereign" ? 0 : enemy.type === "colossus" ? (enemy.orbitAngle ?? 0) + Math.PI / 2 : Math.atan2(GAME_CONFIG.arena.centerY - enemy.y, GAME_CONFIG.arena.centerX - enemy.x);
       ctx.rotate(angle);
+      ctx.scale(crowdVisualScale, crowdVisualScale);
       const resistanceColor = { frost: "#7de8ff", fire: "#ff754d", lightning: "#c6a2ff" }[enemy.resistance];
       ctx.shadowColor = enemy.type === "boss" ? resistanceColor ?? bright : bright;
       ctx.shadowBlur = enemy.type === "sovereign" ? 34 : enemy.type === "colossus" ? 24 : enemy.type === "boss" ? 18 : crowdMode ? 0 : 7;
@@ -1683,12 +1787,25 @@ export class Renderer {
       }
       if ((enemy.unitCount ?? 1) > 1) {
         ctx.save();
+        const countText = `怪群 ×${enemy.unitCount}`;
+        const fontSize = Math.min(15, 10 + Math.log2(enemy.unitCount));
+        const labelY = enemy.y - crowdVisualRadius - 25;
         ctx.textAlign = "center";
-        ctx.font = "900 10px ui-monospace, monospace";
+        ctx.font = `900 ${fontSize}px ui-monospace, monospace`;
+        const badgeWidth = ctx.measureText(countText).width + 18;
+        ctx.fillStyle = "rgba(39,10,29,.88)";
+        ctx.strokeStyle = "rgba(255,216,111,.86)";
+        ctx.lineWidth = 1.4;
+        ctx.shadowColor = "#ff7b38";
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.roundRect(enemy.x - badgeWidth / 2, labelY - fontSize - 2, badgeWidth, fontSize + 9, 7);
+        ctx.fill();
+        ctx.stroke();
         ctx.fillStyle = "#ffe49a";
         ctx.shadowColor = "#8c3d18";
-        ctx.shadowBlur = 7;
-        ctx.fillText(`怪群 ×${enemy.unitCount}`, enemy.x, enemy.y - enemy.radius - 17);
+        ctx.shadowBlur = 6;
+        ctx.fillText(countText, enemy.x, labelY + 1);
         ctx.restore();
       }
       if (enemy.elite) {
@@ -1798,8 +1915,8 @@ export class Renderer {
 
       const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
       if (hpRatio < 0.999 || isBoss || isColossus || isSovereign || enemy.elite) {
-        const width = isSovereign ? 260 : isColossus ? 150 : isBoss ? 92 : enemy.elite ? Math.max(48, enemy.radius * 2.5) : enemy.radius * 2;
-        const barY = isSovereign ? enemy.y + 108 : enemy.y - enemy.radius - 12;
+        const width = isSovereign ? 260 : isColossus ? 150 : isBoss ? 92 : enemy.elite ? Math.max(48, enemy.radius * 2.5) : crowdVisualRadius * 2;
+        const barY = isSovereign ? enemy.y + 108 : enemy.y - crowdVisualRadius - 12;
         ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(enemy.x - width / 2, barY, width, 4);
         ctx.fillStyle = isSovereign ? "#ff3f70" : isColossus ? "#ff5477" : isBoss ? "#ffc66d" : enemy.elite ? "#ffd35f" : "#ff7076"; ctx.fillRect(enemy.x - width / 2, barY, width * hpRatio, 4);
       }
@@ -1939,8 +2056,8 @@ export class Renderer {
     const tier = state.tower.upgrades.ascend;
     const stats = getTowerStats(state);
     const hpRatio = Math.max(0, state.tower.hp / stats.maxHp);
-    const overload = state.skills.overload.active > 0;
-    const heatRatio = state.skills.overload.heat / GAME_CONFIG.skills.overload.overheatThreshold;
+    const overload = state.skills.overload.active > 0 || state.skills.overload.permanentEngaged;
+    const heatRatio = Math.max(0, Math.min(1.25, state.skills.overload.heat / GAME_CONFIG.skills.overload.overheatThreshold));
 
     ctx.save(); ctx.translate(x, y); ctx.scale(towerScale * towerArtScale, towerScale * towerArtScale);
     ctx.globalAlpha = 0.18 + hpRatio * 0.12;
@@ -1965,6 +2082,41 @@ export class Renderer {
       ctx.beginPath();
       for (let point = 0; point < 6; point += 1) { const a = point * Math.PI / 3; const r = 75 + tier * 10; point ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
       ctx.closePath(); ctx.stroke(); ctx.restore();
+    }
+
+    if (overload) {
+      const overloadHeatArc = Math.min(1, heatRatio);
+      const overloadPulse = .5 + Math.sin(this.time * (7 + heatRatio * 4)) * .5;
+      const overloadEnergyColor = heatRatio >= 1 ? "#ff704d" : heatRatio >= .72 ? "#ff9a67" : "#c99cff";
+      const overloadHighlight = heatRatio >= 1 ? "#ffe0a8" : "#f2dcff";
+      const orbitRadius = 64 + tier * 11 + overloadPulse * 3;
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      ctx.rotate(this.time * (1.05 + heatRatio * .65));
+      ctx.globalAlpha = .34 + heatRatio * .25;
+      ctx.strokeStyle = overloadEnergyColor; ctx.shadowColor = overloadEnergyColor; ctx.shadowBlur = 15 + heatRatio * 9; ctx.lineWidth = 2.2 + heatRatio;
+      ctx.setLineDash([10, 7, 3, 8]);
+      ctx.beginPath(); ctx.arc(0, 0, orbitRadius, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+
+      for (let shard = 0; shard < 8; shard += 1) {
+        const angle = shard * Math.PI / 4;
+        const radius = orbitRadius + Math.sin(this.time * 5 + shard * 1.7) * 5;
+        const shardLength = 5 + heatRatio * 5 + (shard % 2) * 3;
+        ctx.save(); ctx.rotate(angle); ctx.translate(radius, 0);
+        ctx.globalAlpha = .35 + overloadPulse * .35;
+        ctx.strokeStyle = shard % 2 ? overloadEnergyColor : overloadHighlight;
+        ctx.lineWidth = shard % 2 ? 1.4 : 2.2;
+        ctx.beginPath(); ctx.moveTo(-shardLength, -3); ctx.lineTo(0, 1); ctx.lineTo(shardLength, -2); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.rotate(-this.time * .28);
+      ctx.globalAlpha = .48 + overloadPulse * .2;
+      ctx.strokeStyle = overloadHighlight; ctx.shadowColor = overloadEnergyColor; ctx.shadowBlur = 11; ctx.lineWidth = 3.2;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.arc(0, 0, orbitRadius + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * overloadHeatArc); ctx.stroke();
+      ctx.restore();
     }
 
     for (let ring = 0; ring <= tier; ring += 1) {

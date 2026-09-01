@@ -9,12 +9,13 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const requiredIds = [
     "gameCanvas", "healthText", "coinsText", "threatText", "timeText", "upgradeList", "skillBar", "skillBarToggle", "skillList",
-    "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText", "globalLeaderboardPodium",
+    "techTreePanel", "openTechTreeButton", "adminConsoleLaunchButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText", "globalLeaderboardPodium",
     "droneModeButton", "droneModeText", "droneModeHint", "droneProtocolButton", "droneProtocolText", "droneProtocolHint", "droneEnergyFill",
     "pauseButton", "muteButton", "speedButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate",
     "accountButton", "accountModal", "closeAccountButton", "loginForm", "showRegisterButton", "registerForm", "showLoginButton", "accountUserPanel", "saveChoicePanel", "useCloudSaveButton", "useLocalSaveButton", "logoutButton", "deleteAccountButton", "deleteLocalSaveButton",
     "scoreText", "openLeaderboardButton", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "gameOverModal", "resultScore", "scoreEntryForm", "playerNameInput", "playerMessageInput",
     "submitScoreButton", "leaderboardList", "leaderboardCount", "researchList", "restartButton", "clearSaveButton",
+    "adminCheatBadge", "adminConsoleModal", "adminConsoleForm", "closeAdminConsoleButton", "adminTowerHpInput", "adminCoinsInput", "adminThreatInput", "adminWaveInput", "adminNextWaveInput", "adminDamageInput", "adminFireRateInput", "adminInvincibleInput", "adminShopInput", "adminDoubleSpeedInput", "adminHealCdInput", "adminOverloadCdInput", "adminStarfallCdInput", "adminCoinVacuumCdInput", "adminRelicList", "adminConsoleStatus",
     "loadingScreen", "loadingProgress", "loadingStatus", "loadingPercent",
     "storyIntro", "storyIntroStage", "storyIntroBackdrop", "storyIntroLayers", "storyIntroBubbles", "storyIntroChapter", "storyIntroProgress", "storyIntroTimeline", "storyIntroDisable", "storyIntroSkip", "storyIntroNext",
     "tutorialGuide", "tutorialTitle", "tutorialText", "tutorialChoices", "tutorialDismiss",
@@ -26,6 +27,12 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(html, /打开后自动暂停战斗/);
   assert.match(html, /SCORE · RANKING/);
   assert.match(html, /游戏更新公告/);
+  assert.match(html, /管理员测试控制台/);
+  assert.match(html, /id="adminConsoleLaunchButton"[^>]*admin-console-launch/);
+  assert.match(html, /启动裂隙商店/);
+  assert.match(html, /启用 2X 倍速/);
+  assert.match(html, /遗响碎片、核心残片与星尘不会获得/);
+  assert.match(html, /本次记录永久无法进入排行榜/);
   assert.match(html, /id="openUpdatesButton"[^>]*>[\s\S]*?icon-updates/);
   assert.match(html, /<main class="game-shell topbar-collapsed">/);
   assert.match(html, /id="topbar" class="topbar is-collapsed"/);
@@ -41,6 +48,10 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(html, /updatesDismissButton/);
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   const accountStyles = await readFile(new URL("../auth.css", import.meta.url), "utf8");
+  assert.match(styles, /admin-console-card/);
+  assert.match(styles, /admin-cheat-badge/);
+  assert.match(styles, /\.admin-console-launch/);
+  assert.match(styles, /\.admin-feature-toggle/);
   assert.match(accountStyles, /\.account-modal/);
   assert.match(accountStyles, /\.guest-local-save-actions/);
   assert.match(styles, /@media \(max-width: 1024px\)/);
@@ -82,6 +93,8 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /deleteLocalSaveButton/);
   assert.match(main, /setSkillBarCollapsed/);
   assert.match(main, /setSidePanelCollapsed/);
+  assert.match(main, /doubleSpeedEnabled/);
+  assert.match(main, /awardedStardust/);
   assert.doesNotMatch(main, /SKILL_BAR_COLLAPSE_DELAY/);
   assert.doesNotMatch(main, /SIDE_PANEL_COLLAPSE_DELAY/);
   assert.match(main, /event\.key\.toLowerCase\(\) === "g"\) switchDroneMode\(\)/);
@@ -119,8 +132,11 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /鼠标滑过/);
   assert.doesNotMatch(main, /addEventListener\("blur",/);
   assert.match(renderer, /怪群 ×/);
+  assert.match(renderer, /ctx\.scale\(crowdVisualScale, crowdVisualScale\)/);
   assert.match(renderer, /pileCount/);
   assert.match(renderer, /drawTowerHealthBar/);
+  assert.match(renderer, /coinVacuum\.trails[\s\S]*quadraticCurveTo/);
+  assert.match(renderer, /coreGlow\.addColorStop/);
   assert.match(renderer, /cannonEcho[\s\S]*Math\.max\(this\.shake, 0\.65\)/);
   assert.match(renderer, /cannonCascade[\s\S]*Math\.max\(this\.shake, 2\.5\)/);
   const cannonEchoTrigger = renderer.match(/if \(type === "cannonEcho"\) \{[^}]+\}/)?.[0] ?? "";
@@ -148,6 +164,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(main, /RELIC_UPGRADE_TEXT/);
   assert.match(main, /relicDescription\(key, level\)/);
   assert.match(main, /relicEffect\(id, level\)/);
+  assert.match(main, /Q \/ W \/ E \/ F 冷却恢复 \+75%/);
   assert.match(main, /relic-research-silhouette/);
   assert.match(main, /获得一次后才会显示卡图与效果/);
   assert.match(main, /在战斗中发现后解锁/);
@@ -168,6 +185,9 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.doesNotMatch(await readFile(new URL("../src/engine.js", import.meta.url), "utf8"), /source: "(?:wave|protocol)"/);
   assert.match(renderer, /resource-echo-shard-ai\.png/);
   assert.match(renderer, /enemy-astral-atlas-ai\.png/);
+  assert.match(renderer, /const overload = state\.skills\.overload\.active > 0 \|\| state\.skills\.overload\.permanentEngaged/);
+  assert.match(renderer, /overloadWaveGlow\.addColorStop/);
+  assert.match(renderer, /const overloadHeatArc = Math\.min\(1, heatRatio\)/);
   assert.match(main, /COLOSSUS_COUNTER_HINTS/);
   assert.match(main, /炮击锚点出现/);
   assert.match(main, /previewMode === "sovereign-entry"/);

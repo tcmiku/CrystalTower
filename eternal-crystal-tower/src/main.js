@@ -1,5 +1,5 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
-import { calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, getDroneDetonateRecovery, getDroneEnergyMax, getTechConfig, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
+import { applyAdminSettings, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, enableAdminCheats, getDroneDetonateRecovery, getDroneEnergyMax, getSkillCooldownDuration, getTechConfig, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
 import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverEndlessRelic, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
@@ -102,7 +102,7 @@ const RELIC_META = {
   stormglass: { icon: "ϟ", art: "./assets/generated/relic-lunar-ai.png", name: "雷脉导体", type: "雷链回路", description: "雷电晶矢的连锁范围扩大，并额外寻找两个目标。", effect: "雷链距离 +20% · 额外 2 跳" },
   gilded: { icon: "¤", art: "./assets/generated/relic-boost-ai.png", name: "拾金脉冲", type: "经济回路", description: "金币回到晶塔时有概率触发共振，额外复制部分价值。", effect: "24% 概率额外获得 75% 金币" },
   execution: { icon: "✥", art: "./assets/generated/relic-ember-ai.png", name: "断罪刻印", type: "猎杀回路", description: "对生命低于 35% 的敌人造成更高伤害，包括首领。", effect: "残血目标伤害 +40%" },
-  hourglass: { icon: "⌛", art: "./assets/generated/relic-lunar-ai.png", name: "逆时沙漏", type: "时序回路", description: "战术技能的冷却时间以更快速度恢复。", effect: "Q / W / E / F 冷却恢复 +22%" },
+  hourglass: { icon: "⌛", art: "./assets/generated/relic-lunar-ai.png", name: "逆时沙漏", type: "时序回路", description: "战术技能的冷却时间以更快速度恢复。", effect: "Q / W / E / F 冷却恢复 +75%" },
   prismArc: { icon: "ϟ◇", art: "./assets/generated/relic-mirror-ai.png", name: "折光雷晶", type: "隐藏 · 折射回路", description: "镜面折射命中后，从第二目标继续释放折线闪电。", effect: "折射后额外连锁 3 个目标" },
   frostfire: { icon: "❉♨", art: "./assets/generated/relic-ember-ai.png", name: "霜烬共生核", type: "隐藏 · 冰火回路", description: "霜葬爆发会在原地留下同时冻结与灼烧的冰火区域。", effect: "霜爆生成持续冰火区域" },
   decoyWard: { icon: "◈⬡", art: "./assets/generated/relic-decoy-ai.png", name: "棱光替身", type: "隐藏 · 防御回路", description: "诱饵被摧毁后将爆炸余波转化为晶塔护盾。", effect: "诱饵爆炸后获得 18% 最大生命护盾" },
@@ -213,7 +213,7 @@ for (const [id, label, value, icon] of [["phaseText", "天象", "白昼", "icon-
 const dom = Object.fromEntries([
   "gameCanvas", "healthText", "healthFill", "coinsText", "threatText", "threatFill", "timeText", "phaseText", "waveText", "waveMeta", "upgradeList", "damageStat", "rateStat", "rangeStat", "droneEnergyStat", "topbar", "topbarToggle", "upgradePanel", "upgradePanelToggle",
   "skillBar", "skillBarToggle", "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolTitle", "targetProtocolList", "targetProtocolHint",
-  "techTreePanel", "openTechTreeButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
+  "techTreePanel", "openTechTreeButton", "adminConsoleLaunchButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
   "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "deleteLocalSaveButton", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "gameOverTitle", "gameOverLine", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore", "resultScoreMultiplier", "resultSealAchievement", "endEndlessButton",
   "scoreEntryForm", "playerNameInput", "playerMessageInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
@@ -221,6 +221,7 @@ const dom = Object.fromEntries([
   "openBaseCampButton", "battleEchoShardText", "battleCoreFragmentText", "baseRecoveryModal", "recoveryEventTitle", "recoveryEventText", "recoveryContinueButton",
   "baseCampModal", "baseCampShell", "closeBaseCampButton", "baseCampEchoShardText", "baseCampCoreFragmentText", "baseCampStardustText", "baseCampModuleList", "baseCampModulePage", "closeBaseCampModuleButton", "baseCampModulePageIcon", "baseCampModulePageKicker", "baseCampModulePageTitle", "baseCampModulePageSummary", "baseCampModulePageStatus", "campaignPanel", "campaignProgressText", "chapterNodeList", "nexusPanel", "relicResearchPanel", "relicArchivePanel", "relicArchiveProgress", "relicArchiveDisabledList", "relicArchiveCodexList", "relicArchiveSetList", "threatSealPanel", "threatSealUnlockStatus", "threatSealList", "sealScoreMultiplier", "sealResourceMultiplier", "sealRelicChance", "sealAchievementMultiplier", "sealEquippedSummary", "sealAchievementProgress", "relicResearchList", "relicResearchEchoText", "relicResearchCoreText", "relicSlotResearch", "relicResearchTab", "skillResearchTab", "relicResearchView", "skillResearchView", "activeSkillResearchList", "openBaseCampFromGameOver", "resultEchoShards", "resultCoreFragments", "chapterCompleteModal", "chapterCoreAwardStatus", "finishExpeditionButton", "startEndlessButton",
   "relicRunHud", "threatSealHud", "relicChoiceModal", "relicChoiceTitle", "relicChoiceSource", "relicChoiceSlots", "relicChoiceList", "relicChoiceKeys",
+  "adminCheatBadge", "adminConsoleModal", "adminConsoleForm", "closeAdminConsoleButton", "adminTowerHpInput", "adminCoinsInput", "adminThreatInput", "adminWaveInput", "adminNextWaveInput", "adminDamageInput", "adminFireRateInput", "adminInvincibleInput", "adminShopInput", "adminDoubleSpeedInput", "adminHealCdInput", "adminOverloadCdInput", "adminStarfallCdInput", "adminCoinVacuumCdInput", "adminRelicList", "adminConsoleStatus", "applyAdminConsoleButton",
   "endlessShopHud", "openEndlessShopButton", "toggleAutoCoinButton", "endlessShopModal", "closeEndlessShopButton", "endlessShopCoins", "endlessShopStage", "endlessShopLock", "endlessRelicSlots", "endlessRelicOffers", "endlessFixedOffers", "endlessRandomOffers", "endlessShopSpent", "rerollEndlessShopButton", "endlessShopRerollPrice", "endlessShopBanter"
 ].map((id) => [id, document.getElementById(id)]));
 
@@ -707,6 +708,10 @@ let currentEntryDate = null;
 let leaderboardEntries = [];
 let leaderboardLoading = true;
 let leaderboardError = "";
+const ADMIN_CHEAT_SEQUENCE = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a", "b", "a"];
+let adminCheatSequenceIndex = 0;
+let adminConsoleOpen = false;
+let resumeAfterAdminConsole = false;
 let lastFrame = performance.now();
 let accumulator = 0;
 const UI_REFRESH_INTERVAL = 1 / 12;
@@ -1780,7 +1785,7 @@ function advanceBaseRecoveryEvent() {
 }
 
 function commitPermanentDrop(drop) {
-  if (!drop) return;
+  if (!drop || state.admin?.enabled) return;
   grantPermanentResource(save, drop.resourceType, drop.value);
   persistSave();
   updatePermanentResourceUi();
@@ -2288,7 +2293,7 @@ function createEndlessShopCard(id, item, relic = false) {
 }
 
 function renderEndlessShopHud() {
-  const unlocked = state.endlessMode && state.endlessShop?.unlocked;
+  const unlocked = (state.endlessMode || state.admin?.shopEnabled) && state.endlessShop?.unlocked;
   dom.endlessShopHud.classList.toggle("hidden", !unlocked);
   if (!unlocked) return;
   const locked = bossPresent(state);
@@ -2304,7 +2309,7 @@ function renderEndlessShopHud() {
 }
 
 function renderEndlessShop() {
-  if (!state.endlessShop?.unlocked) return;
+  if (!(state.endlessMode || state.admin?.shopEnabled) || !state.endlessShop?.unlocked) return;
   const shop = state.endlessShop;
   dom.endlessShopCoins.textContent = formatNumber(state.coins);
   dom.endlessShopStage.textContent = `威胁 ${formatThreat(shop.refreshThreat)} · 价格 ×${(ENDLESS_SHOP_RULES.stageGrowth ** shop.refreshIndex).toFixed(2)}`;
@@ -2326,7 +2331,7 @@ function renderEndlessShop() {
 }
 
 function setEndlessShopOpen(open, restoreFocus = false) {
-  if (open && (!state.endlessMode || !state.endlessShop?.unlocked || state.over)) return false;
+  if (open && (!(state.endlessMode || state.admin?.shopEnabled) || !state.endlessShop?.unlocked || state.over)) return false;
   if (open === endlessShopOpen) return true;
   endlessShopOpen = open;
   dom.endlessShopModal.classList.toggle("hidden", !open);
@@ -2548,6 +2553,7 @@ function handleEvents(events) {
     }
     else if (event.type === "endlessShopReroll") showToast(`商品重置完成 · 消耗 ${formatNumber(event.price)} 金币`);
     else if (event.type === "endlessInsurance") { audio.play("ascend"); renderer.trigger("shieldBurst", 1.6); announce("终焉保险触发 · 晶塔拒绝熄灭"); }
+    else if (event.type === "endlessChronostasis") { renderer.trigger("ascend", 0.5); showToast(`时停回响 · 其余 ${event.affected} 项技能冷却减半`); }
     else if (event.type === "relicDecoyExplode") { audio.play("overload"); renderer.trigger("overloadRelease", 0.7); announce("诡光诱饵崩解 · 爆炸清场"); }
     else if (event.type === "relicDecoySurvived") { audio.play("coin"); showToast(`诡光诱饵存活 · 转化金币 ${event.value}`); }
     else if (event.type === "relicPhaseBuff") { renderer.trigger("ascend", 0.45); showToast("月相调律 · 短暂火力强化"); }
@@ -2602,7 +2608,7 @@ function handleEvents(events) {
     else if (event.type === "sovereignElementImmune") showToast("终末狂暴 · 元素效果无效");
     else if (event.type === "sovereignDefeated") {
       sovereignSpeedLocked = false;
-      doubleSpeedActive = restoreDoubleSpeedAfterSovereign && save.unlocks.doubleSpeed;
+      doubleSpeedActive = restoreDoubleSpeedAfterSovereign && (save.unlocks.doubleSpeed || state.admin?.doubleSpeedEnabled === true);
       restoreDoubleSpeedAfterSovereign = false;
       accumulator = 0;
       const chapterScore = calculateRunScore(state).total;
@@ -2673,6 +2679,9 @@ function handleEvents(events) {
 
 function updateUi() {
   const stats = getTowerStats(state);
+  dom.adminCheatBadge.classList.toggle("hidden", !state.admin.enabled);
+  dom.adminConsoleLaunchButton.classList.toggle("hidden", !state.admin.enabled);
+  dom.adminCheatBadge.textContent = state.admin.invincible ? "管理员模式 · 无敌 · 资源禁用 · 本局禁榜" : "管理员模式 · 资源禁用 · 本局禁榜";
   const hpRatio = Math.max(0, state.tower.hp / stats.maxHp);
   const totalShield = state.tower.shield + state.tower.droneGuardShield;
   const droneEnergyMax = getDroneEnergyMax(state);
@@ -2773,7 +2782,7 @@ function updateUi() {
     const activeRoute = activeResearch?.branches?.[researchEntry.branch];
     const activeResearchLevel = activeRoute ? activeRoute.nodes.filter((node) => researchedNodes.includes(node.id)).length : 0;
     const cooldown = state.skills[key].cooldown;
-    const total = GAME_CONFIG.skills[key].cooldown * (key === "heal" ? state.threatSeals?.modifiers?.healCooldownMultiplier ?? 1 : 1);
+    const total = getSkillCooldownDuration(state, key);
     const shieldFull = state.tower.shield >= stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction - 0.01;
     const overloadCanEnd = key === "overload" && (state.skills.overload.active > 0 || (state.skills.overload.permanentEngaged && cooldown <= 0));
     button.disabled = state.over || (cooldown > 0 && !overloadCanEnd) || (key === "heal" && hpRatio >= 0.999 && shieldFull) || (key === "starfall" && !starfallAiming && !state.enemies.some((enemy) => enemy.hp > 0)) || (key === "coinVacuum" && !state.coinOrbs.some((orb) => !orb.expired && !orb.collected));
@@ -2781,7 +2790,7 @@ function updateUi() {
       button.classList.toggle("aiming", starfallAiming);
       button.setAttribute("aria-pressed", String(starfallAiming));
     }
-    button.querySelector(".cooldown-mask").style.height = `${Math.min(100, cooldown / total * 100)}%`;
+    button.querySelector(".cooldown-mask").style.height = `${total > 0 ? Math.min(100, cooldown / total * 100) : 0}%`;
     button.querySelector(".cooldown-text").textContent = cooldown > 0 ? `${cooldown.toFixed(1)}s` : "";
     const tooltip = button.querySelector(".skill-tooltip span");
     if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${key === "starfall" && hasEndlessRelic(state, "globalStarfall") ? " · 全目标火力协议：按 E 立即全屏轰击" : ""}${key === "overload" && hasEndlessRelic(state, "perpetualOverload") ? " · 永续超载核心：首次开启后永久运转" : ""}${researchedNodes.length > 0 ? ` · ${ACTIVE_SKILL_RESEARCH_META[key].protocol} · ${activeRoute?.name ?? "未启用路线"} ${activeResearchLevel}/2 · 已研究 ${researchedNodes.length}/4` : ""}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
@@ -2824,7 +2833,7 @@ function updateUi() {
   dom.pauseButton.setAttribute("aria-label", state.paused ? "继续战斗" : "暂停战斗");
   dom.muteButton.classList.toggle("is-muted", save.settings.muted);
   dom.muteButton.setAttribute("aria-label", save.settings.muted ? "解除静音" : "静音");
-  const doubleSpeedUnlocked = save.unlocks.doubleSpeed || previewMode === "speed";
+  const doubleSpeedUnlocked = save.unlocks.doubleSpeed || previewMode === "speed" || state.admin?.doubleSpeedEnabled === true;
   const speedForced = sovereignSpeedLocked || Boolean(sovereign);
   dom.speedButton.textContent = speedForced ? "1×" : doubleSpeedActive ? "2×" : "1×";
   dom.speedButton.classList.toggle("active", doubleSpeedActive && !speedForced);
@@ -2940,6 +2949,10 @@ async function refreshLeaderboard() {
 
 async function submitCurrentScore(event) {
   event.preventDefault();
+  if (state.admin?.leaderboardEligible === false) {
+    dom.scoreEntryStatus.textContent = "管理员测试局不可登记排行榜成绩";
+    return;
+  }
   if (!currentRunScore || scoreSubmitted || scoreSubmitting) return;
   scoreSubmitting = true;
   const date = Date.now();
@@ -3016,8 +3029,9 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
   const sealAchievement = calculateAchievementProgress(state);
   scoreSubmitted = false;
   currentEntryDate = null;
-  save.stardust += stardust;
-  const firstFailure = outcome === "defeat" && !previewMode ? registerFailure(save) : false;
+  const awardedStardust = state.admin?.enabled ? 0 : Math.max(0, Number(stardust) || 0);
+  save.stardust += awardedStardust;
+  const firstFailure = outcome === "defeat" && !previewMode && !state.admin?.enabled ? registerFailure(save) : false;
   const firstFailureCoreGift = firstFailure ? 1 : 0;
   if (firstFailureCoreGift) grantPermanentResource(save, "core", firstFailureCoreGift);
   save.records.highestThreat = Math.max(save.records.highestThreat, state.stats.highestThreat);
@@ -3028,7 +3042,7 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
   dom.resultTime.textContent = formatTime(state.time);
   dom.resultKills.textContent = formatNumber(state.stats.kills);
   dom.resultThreat.textContent = formatThreat(state.stats.highestThreat);
-  dom.resultStardust.textContent = `+${stardust}`;
+  dom.resultStardust.textContent = `+${awardedStardust}`;
   dom.resultEchoShards.textContent = `+${state.stats.echoShards ?? 0}`;
   dom.resultCoreFragments.textContent = `+${(state.stats.coreFragments ?? 0) + firstFailureCoreGift}`;
   dom.resultSealAchievement.textContent = `+${sealAchievement}`;
@@ -3039,8 +3053,10 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
   dom.resultScoreMultiplier.textContent = `封印 ×${(state.threatSeals?.modifiers?.scoreMultiplier ?? 1).toFixed(2)}`;
   dom.gameOverTitle.textContent = outcome === "victory" ? "远征凯旋" : outcome === "endless" ? "无尽挑战结束" : "晶光熄灭";
   dom.gameOverLine.textContent = outcome === "victory" ? "核心能源已带回大本营，等待装配。" : outcome === "endless" ? "排行榜数据已锁定，主线核心能源完好无损。" : "裂隙吞没了最后一道光。";
-  dom.scoreEntryForm.classList.remove("hidden");
-  dom.scoreEntryStatus.textContent = "";
+  const leaderboardEligible = state.admin?.leaderboardEligible !== false;
+  if (leaderboardEligible) dom.scoreEntryForm.classList.remove("hidden");
+  else dom.scoreEntryForm.classList.add("hidden");
+  dom.scoreEntryStatus.textContent = leaderboardEligible ? "" : "管理员测试模式已启用 · 本次记录不进入排行榜";
   dom.playerNameInput.value = save.settings.playerName ?? "PLAYER";
   dom.playerMessageInput.value = "";
   dom.playerNameInput.disabled = false;
@@ -3053,7 +3069,7 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
     else if (outcome === "victory") setBaseCampOpen(true);
     else {
       dom.gameOverModal.classList.remove("hidden");
-      dom.playerNameInput.focus({ preventScroll: true });
+      (leaderboardEligible ? dom.playerNameInput : dom.restartButton).focus({ preventScroll: true });
     }
   }, 650);
 }
@@ -3102,7 +3118,7 @@ function toggleDoubleSpeed() {
     showToast(`${isChapterTwo(state) ? "威胁 XII" : "威胁 XX"} · 时流锁定 1×`);
     return;
   }
-  if (!save.unlocks.doubleSpeed && previewMode !== "speed") {
+  if (!save.unlocks.doubleSpeed && previewMode !== "speed" && state.admin?.doubleSpeedEnabled !== true) {
     showToast("击败威胁 Ⅹ 首领后永久解锁 2× 倍速");
     return;
   }
@@ -3130,6 +3146,10 @@ function restart() {
   dom.endEndlessButton.classList.add("hidden");
   dom.relicChoiceModal.classList.add("hidden");
   dom.endlessShopModal.classList.add("hidden");
+  dom.adminConsoleModal.classList.add("hidden");
+  adminConsoleOpen = false;
+  resumeAfterAdminConsole = false;
+  adminCheatSequenceIndex = 0;
   runIndex += 1;
   state = createGameState((baseSeed + runIndex) >>> 0 || 1, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped, save.skillResearch, activeChapter);
   activeTechBranch = isChapterTwo(state) ? "economy" : "power";
@@ -3264,11 +3284,127 @@ if (previewMode === "leaderboard") {
   handleEvents(state.events);
 }
 
+function renderAdminConsole() {
+  const stats = getTowerStats(state);
+  dom.adminTowerHpInput.max = String(Math.round(stats.maxHp));
+  dom.adminTowerHpInput.value = String(Math.round(state.tower.hp));
+  dom.adminCoinsInput.value = String(Math.floor(state.coins));
+  dom.adminThreatInput.value = String(state.threat);
+  dom.adminWaveInput.value = String(state.wave.index);
+  dom.adminNextWaveInput.value = String(Math.max(0, state.wave.nextAt - state.time).toFixed(1));
+  dom.adminDamageInput.value = String(Number(stats.damage.toFixed(2)));
+  dom.adminFireRateInput.value = String(Number(stats.fireRate.toFixed(2)));
+  dom.adminInvincibleInput.checked = state.admin.invincible === true;
+  dom.adminShopInput.checked = state.admin.shopEnabled === true;
+  dom.adminDoubleSpeedInput.checked = state.admin.doubleSpeedEnabled === true;
+  dom.adminHealCdInput.value = String(Number(getSkillCooldownDuration(state, "heal").toFixed(2)));
+  dom.adminOverloadCdInput.value = String(Number(getSkillCooldownDuration(state, "overload").toFixed(2)));
+  dom.adminStarfallCdInput.value = String(Number(getSkillCooldownDuration(state, "starfall").toFixed(2)));
+  dom.adminCoinVacuumCdInput.value = String(Number(getSkillCooldownDuration(state, "coinVacuum").toFixed(2)));
+
+  dom.adminRelicList.replaceChildren();
+  for (const [id, meta] of Object.entries(RELIC_META)) {
+    if (!Object.hasOwn(state.relics.owned, id)) continue;
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = id;
+    checkbox.checked = state.relics.owned[id] === true;
+    const name = document.createElement("span");
+    name.textContent = meta.name;
+    label.append(checkbox, name);
+    dom.adminRelicList.append(label);
+  }
+}
+
+function setAdminConsoleOpen(open, restoreFocus = false) {
+  if (open && state.over) return;
+  if (open && !adminConsoleOpen) {
+    resumeAfterAdminConsole = !state.paused;
+    state.paused = true;
+  }
+  adminConsoleOpen = Boolean(open);
+  dom.adminConsoleModal.classList.toggle("hidden", !adminConsoleOpen);
+  dom.pauseOverlay.classList.add("hidden");
+  if (adminConsoleOpen) {
+    renderAdminConsole();
+    dom.adminTowerHpInput.focus({ preventScroll: true });
+  } else {
+    if (resumeAfterAdminConsole && !state.over && !techTreeOpen && !leaderboardModalOpen && !baseCampOpen && !endlessShopOpen) state.paused = false;
+    resumeAfterAdminConsole = false;
+    if (restoreFocus) dom.gameCanvas.focus({ preventScroll: true });
+  }
+}
+
+function unlockAdminConsole() {
+  if (state.over || !enableAdminCheats(state)) return;
+  setAdminConsoleOpen(true);
+  audio.play("ascend");
+  announce("管理员测试模式已开启 · 本局成绩禁止上榜");
+  updateUi();
+}
+
+function trackAdminCheatKey(key) {
+  const normalized = key.length === 1 ? key.toLowerCase() : key;
+  if (normalized === ADMIN_CHEAT_SEQUENCE[adminCheatSequenceIndex]) adminCheatSequenceIndex += 1;
+  else adminCheatSequenceIndex = normalized === ADMIN_CHEAT_SEQUENCE[0] ? 1 : 0;
+  if (adminCheatSequenceIndex < ADMIN_CHEAT_SEQUENCE.length) return false;
+  adminCheatSequenceIndex = 0;
+  unlockAdminConsole();
+  return true;
+}
+
+function submitAdminConsole(event) {
+  event.preventDefault();
+  const relics = [...dom.adminRelicList.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
+  const applied = applyAdminSettings(state, {
+    invincible: dom.adminInvincibleInput.checked,
+    shopEnabled: dom.adminShopInput.checked,
+    doubleSpeedEnabled: dom.adminDoubleSpeedInput.checked,
+    towerHp: dom.adminTowerHpInput.value,
+    coins: dom.adminCoinsInput.value,
+    threat: dom.adminThreatInput.value,
+    waveIndex: dom.adminWaveInput.value,
+    nextWaveIn: dom.adminNextWaveInput.value,
+    damage: dom.adminDamageInput.value,
+    fireRate: dom.adminFireRateInput.value,
+    skillCooldowns: {
+      heal: dom.adminHealCdInput.value,
+      overload: dom.adminOverloadCdInput.value,
+      starfall: dom.adminStarfallCdInput.value,
+      coinVacuum: dom.adminCoinVacuumCdInput.value
+    },
+    relics
+  });
+  if (!applied) return;
+  if (state.admin.doubleSpeedEnabled) {
+    const speedForced = sovereignSpeedLocked || state.enemies.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0);
+    if (!speedForced) doubleSpeedActive = true;
+  } else if (!save.unlocks.doubleSpeed) {
+    doubleSpeedActive = false;
+  }
+  if (!state.admin.shopEnabled && endlessShopOpen) setEndlessShopOpen(false, true);
+  dom.adminConsoleStatus.textContent = "配置已应用 · 本局仍保持禁榜";
+  renderRelicHud();
+  updateUi();
+}
+
 document.addEventListener("keydown", (event) => {
   if (event.repeat) return;
   audio.unlock();
   const tag = event.target?.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA") return;
+  if (tag === "INPUT" || tag === "TEXTAREA") {
+    if (adminConsoleOpen && event.key === "Escape") setAdminConsoleOpen(false, true);
+    return;
+  }
+  if (trackAdminCheatKey(event.key)) {
+    event.preventDefault();
+    return;
+  }
+  if (adminConsoleOpen) {
+    if (event.key === "Escape") setAdminConsoleOpen(false, true);
+    return;
+  }
   if (introOpen) {
     if (event.key === "ArrowLeft") rewindStoryIntro();
     else if (event.key === "Enter" || event.key === " " || event.key === "ArrowRight") {
@@ -3306,7 +3442,7 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") setAccountOpen(false, true);
     return;
   }
-  if (event.key.toLowerCase() === "m" && state.endlessShop?.unlocked) {
+  if (event.key.toLowerCase() === "m" && (state.endlessMode || state.admin?.shopEnabled) && state.endlessShop?.unlocked) {
     setEndlessShopOpen(true);
     return;
   }
@@ -3459,6 +3595,7 @@ dom.leaderboardModal.addEventListener("pointerdown", (event) => {
   if (event.target === dom.leaderboardModal) setLeaderboardOpen(false, true);
 });
 dom.openTechTreeButton.addEventListener("click", () => setTechTreeOpen(true));
+dom.adminConsoleLaunchButton.addEventListener("click", () => setAdminConsoleOpen(true));
 dom.closeTechTreeButton.addEventListener("click", () => setTechTreeOpen(false, true));
 dom.techTreePanel.addEventListener("pointerdown", (event) => {
   if (event.target === dom.techTreePanel) setTechTreeOpen(false, true);
@@ -3511,6 +3648,9 @@ dom.muteButton.addEventListener("click", () => {
   updateUi();
 });
 dom.scoreEntryForm.addEventListener("submit", submitCurrentScore);
+dom.adminConsoleForm.addEventListener("submit", submitAdminConsole);
+dom.closeAdminConsoleButton.addEventListener("click", () => setAdminConsoleOpen(false, true));
+dom.adminConsoleModal.addEventListener("pointerdown", (event) => { if (event.target === dom.adminConsoleModal) setAdminConsoleOpen(false, true); });
 dom.storyIntroNext.addEventListener("click", advanceStoryIntro);
 dom.storyIntroSkip.addEventListener("click", finishStoryIntro);
 dom.storyIntroDisable.addEventListener("click", disableStoryIntro);
@@ -3576,5 +3716,6 @@ globalThis.__ETERNAL_CRYSTAL_TOWER__ = {
   useSkill: activateSkill,
   setTargetProtocol: switchTargetProtocol,
   restart,
+  openAdminConsole: unlockAdminConsole,
   forceGameOver: () => { state.tower.hp = 0; updateGame(state, GAME_CONFIG.fixedStep); handleEvents(state.events); }
 };

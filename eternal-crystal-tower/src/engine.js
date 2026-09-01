@@ -118,6 +118,16 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     endlessShop: createEndlessShopState(),
     threatSeals: { equipped: threatSealModifiers.ids, modifiers: threatSealModifiers, resourceCarry: { echo: 0, core: 0 } },
     skillResearch: Object.fromEntries(Object.keys(GAME_CONFIG.skills).map((key) => [key, normalizeSkillResearchEntry(key, skillResearch?.[key])])),
+    admin: {
+      enabled: false,
+      leaderboardEligible: true,
+      invincible: false,
+      shopEnabled: false,
+      doubleSpeedEnabled: false,
+      damageOverride: null,
+      fireRateOverride: null,
+      skillCooldowns: Object.fromEntries(Object.keys(GAME_CONFIG.skills).map((key) => [key, null]))
+    },
     tower: {
       hp: 0,
       shield: 0,
@@ -258,9 +268,10 @@ export function getTowerStats(state) {
   const shopRate = 1 + (state.endlessShop?.levels?.rateProtocol ?? 0) * 0.08;
   const suppression = (tower.fireRateSuppression ?? 0) > 0 ? cfg.sovereign.rangedSlowMultiplier : 1;
   const relicRateCap = state.endlessMode ? Infinity : cfg.upgrades.rate.cap * 1.5;
+  const fireRate = Math.min(relicRateCap, Math.min(cfg.upgrades.rate.cap, rawRate) * relicRate * shopRate) * suppression;
   return {
-    damage,
-    fireRate: Math.min(relicRateCap, Math.min(cfg.upgrades.rate.cap, rawRate) * relicRate * shopRate) * suppression,
+    damage: Number.isFinite(state.admin?.damageOverride) ? Math.max(0, state.admin.damageOverride) : damage,
+    fireRate: Number.isFinite(state.admin?.fireRateOverride) ? Math.max(0.01, state.admin.fireRateOverride) : fireRate,
     range: cfg.tower.range + cfg.upgrades.ascend.rangePerLevel * level,
     maxHp: (cfg.tower.maxHp + cfg.upgrades.ascend.hpPerLevel * level) * permanentHealth * chapterHealth,
     projectileCount: level >= 3 ? 3 : level >= 2 ? 2 : 1,
@@ -268,6 +279,74 @@ export function getTowerStats(state) {
     bossDamageMultiplier: 1 + pierceLevel * cfg.cannon.siege.bossDamagePerLevel,
     name: ASCEND_NAMES[level]
   };
+}
+
+export function getSkillCooldownDuration(state, key) {
+  const configured = GAME_CONFIG.skills[key]?.cooldown;
+  if (!Number.isFinite(configured)) return 0;
+  const override = state.admin?.skillCooldowns?.[key];
+  const base = Number.isFinite(override) ? Math.max(0, override) : configured;
+  return base * (key === "heal" ? state.threatSeals?.modifiers?.healCooldownMultiplier ?? 1 : 1);
+}
+
+export function enableAdminCheats(state) {
+  if (!state?.admin) return false;
+  state.admin.enabled = true;
+  state.admin.leaderboardEligible = false;
+  if (Array.isArray(state.resourceDrops)) state.resourceDrops.length = 0;
+  if (Array.isArray(state.events)) {
+    const retained = state.events.filter((event) => !["permanentResourceDrop", "permanentResourceCollected"].includes(event.type));
+    state.events.splice(0, state.events.length, ...retained);
+  }
+  return true;
+}
+
+export function applyAdminSettings(state, settings = {}) {
+  if (!state?.admin?.enabled || state.over) return false;
+
+  if (Object.hasOwn(settings, "invincible")) state.admin.invincible = settings.invincible === true;
+  if (Object.hasOwn(settings, "shopEnabled")) state.admin.shopEnabled = settings.shopEnabled === true;
+  if (Object.hasOwn(settings, "doubleSpeedEnabled")) state.admin.doubleSpeedEnabled = settings.doubleSpeedEnabled === true;
+  if (Number.isFinite(Number(settings.damage))) state.admin.damageOverride = Math.max(0, Number(settings.damage));
+  if (Number.isFinite(Number(settings.fireRate))) state.admin.fireRateOverride = Math.max(0.01, Number(settings.fireRate));
+
+  const stats = getTowerStats(state);
+  if (Number.isFinite(Number(settings.towerHp))) state.tower.hp = Math.min(stats.maxHp, Math.max(0, Number(settings.towerHp)));
+  if (Number.isFinite(Number(settings.coins))) state.coins = Math.max(0, Math.floor(Number(settings.coins)));
+
+  if (Number.isFinite(Number(settings.threat))) {
+    const threat = Math.max(1, Math.min(999, Math.floor(Number(settings.threat))));
+    state.threat = threat;
+    state.time = (threat - 1) * GAME_CONFIG.threat.duration;
+    state.phase = getStateDayPhase(state, threat);
+    state.stats.highestThreat = Math.max(state.stats.highestThreat, threat);
+  }
+
+  if (Number.isFinite(Number(settings.waveIndex))) state.wave.index = Math.max(0, Math.floor(Number(settings.waveIndex)));
+  if (Number.isFinite(Number(settings.nextWaveIn))) {
+    state.wave.nextAt = state.time + Math.max(0, Number(settings.nextWaveIn));
+    state.wave.warningStarted = false;
+    state.wave.active = false;
+    state.wave.remaining = 0;
+    state.wave.elitePending = false;
+    state.wave.eliteRemaining = 0;
+  }
+
+  if (settings.skillCooldowns && typeof settings.skillCooldowns === "object") {
+    for (const key of Object.keys(GAME_CONFIG.skills)) {
+      const value = Number(settings.skillCooldowns[key]);
+      if (!Number.isFinite(value)) continue;
+      state.admin.skillCooldowns[key] = Math.max(0, value);
+      state.skills[key].cooldown = Math.min(state.skills[key].cooldown, getSkillCooldownDuration(state, key));
+    }
+  }
+
+  if (Array.isArray(settings.relics)) {
+    const selected = new Set(settings.relics);
+    for (const id of Object.keys(state.relics.owned)) state.relics.owned[id] = selected.has(id);
+  }
+  if (state.admin.shopEnabled && !state.endlessShop.unlocked) refreshEndlessShop(state, ENDLESS_SHOP_RULES.firstThreat);
+  return true;
 }
 
 export function getTechConfig(state, key) {
@@ -945,6 +1024,9 @@ function rollProjectileElement(state) {
   const enabled = ["frost", "fire", "lightning"].filter((key) => state.tower.upgrades[key] > 0);
   if (!enabled.length) return null;
   const roll = state.rng.next();
+  if (hasEndlessRelic(state, "prismaticSovereign") && enabled.length === 3) {
+    return enabled[Math.min(enabled.length - 1, Math.floor(roll * enabled.length))];
+  }
   let cursor = 0;
   const calibration = (state.endlessShop?.levels?.elementCalibrator ?? 0) * 0.03;
   for (const key of enabled) {
@@ -957,6 +1039,7 @@ function rollProjectileElement(state) {
 export function damageEnemy(state, enemy, damage, source = "shot") {
   if (enemy.hp <= 0 || (enemy.phaseBreakInvulnerability ?? 0) > 0) return;
   let appliedDamage = damage * (SKILL_DAMAGE_SOURCES.has(source) ? state.threatSeals?.modifiers?.skillDamageMultiplier ?? 1 : 1);
+  if (hasEndlessRelic(state, "apexHunter") && (enemy.elite || isBossEnemy(enemy))) appliedDamage *= ENDLESS_SHOP_RULES.apexDamageMultiplier;
   const shieldPiercing = source === "starPiercer";
   const executionCfg = GAME_CONFIG.relics.execution;
   const executionLevel = relicUpgradeLevel(state, "execution");
@@ -1088,6 +1171,7 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
     return false;
   }
   const bossScale = isBossEnemy(enemy) ? cfg.bossEffectMultiplier : 1;
+  const prismaticScale = hasEndlessRelic(state, "prismaticSovereign") ? ENDLESS_SHOP_RULES.prismaticEffectMultiplier : 1;
   const lunarScale = (state.relics.owned.lunar && state.phase === "night" ? amplifyMultiplier(GAME_CONFIG.relics.lunar.nightElementMultiplier, relicPotency(state, "lunar")) : 1)
     * (state.phase === "night" ? state.threatSeals?.modifiers?.elementMultiplier ?? 1 : 1);
   if (element === "frost") {
@@ -1097,7 +1181,7 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
       state.events.push({ type: "colossusFreezeImmune", enemyId: enemy.id, x: enemy.x, y: enemy.y });
       return false;
     }
-    enemy.freezeTimer = Math.max(enemy.freezeTimer ?? 0, cfg.freezeDuration * bossScale * lunarScale);
+    enemy.freezeTimer = Math.max(enemy.freezeTimer ?? 0, cfg.freezeDuration * bossScale * lunarScale * prismaticScale);
     state.events.push({ type: "elementHit", element, x: enemy.x, y: enemy.y, bossReduced: isBossEnemy(enemy) });
     return true;
   }
@@ -1105,7 +1189,7 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
     const ticks = Math.max(1, Math.round(cfg.burnDuration / cfg.burnTick));
     enemy.burnTimer = Math.max(enemy.burnTimer ?? 0, cfg.burnDuration * (isBossEnemy(enemy) ? 0.7 : 1) * lunarScale);
     enemy.burnTickCooldown = Math.min(enemy.burnTickCooldown || cfg.burnTick, cfg.burnTick);
-    enemy.burnDamagePerTick = Math.max(enemy.burnDamagePerTick ?? 0, baseDamage * cfg.burnDamageMultiplier * bossScale * lunarScale / ticks);
+    enemy.burnDamagePerTick = Math.max(enemy.burnDamagePerTick ?? 0, baseDamage * cfg.burnDamageMultiplier * bossScale * lunarScale * prismaticScale / ticks);
     state.events.push({ type: "elementHit", element, x: enemy.x, y: enemy.y, bossReduced: isBossEnemy(enemy) });
     return true;
   }
@@ -1122,7 +1206,7 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
   const sourceScale = isBossEnemy(enemy) ? cfg.bossEffectMultiplier : 1;
   nearby.forEach((target, index) => {
     const targetScale = isBossEnemy(target) ? cfg.bossEffectMultiplier : 1;
-    const damage = baseDamage * (chainMultiplier ** (index + 1)) * sourceScale * targetScale * lunarScale;
+    const damage = baseDamage * (chainMultiplier ** (index + 1)) * sourceScale * targetScale * lunarScale * prismaticScale;
     damageEnemy(state, target, damage, "lightning");
     state.elementFx.push({ element: "lightning", x1: from.x, y1: from.y, x2: target.x, y2: target.y, life: 0.16, maxLife: 0.16 });
     from = target;
@@ -1239,6 +1323,7 @@ function updateEmberZones(state, dt) {
   state.emberZones = state.emberZones.filter((zone) => zone.life > 0);
 }
 export function spawnPermanentResourceDrop(state, resourceType, value = 1, x = GAME_CONFIG.arena.centerX, y = GAME_CONFIG.arena.centerY, metadata = {}) {
+  if (state.admin?.enabled) return null;
   if (resourceType !== "echo" && resourceType !== "core") return null;
   if (value <= 0) return null;
   const multiplier = state.threatSeals?.modifiers?.resourceMultiplier ?? 1;
@@ -1275,6 +1360,10 @@ export function spawnPermanentResourceDrop(state, resourceType, value = 1, x = G
 
 
 export function collectPermanentResourceAt(state, x, y, clickRadius = GAME_CONFIG.permanentResources.clickRadius) {
+  if (state.admin?.enabled) {
+    state.resourceDrops.length = 0;
+    return null;
+  }
   let bestIndex = -1;
   let bestDistance = clickRadius;
   for (let index = 0; index < state.resourceDrops.length; index += 1) {
@@ -1315,6 +1404,7 @@ export function getDroneGuardCooldown(state) {
 }
 
 function collectPermanentResource(state, drop) {
+  if (state.admin?.enabled) return null;
   if (drop.resourceType === "echo") state.stats.echoShards += drop.value;
   else state.stats.coreFragments += drop.value;
   const resourceName = drop.resourceType === "echo" ? "遗响碎片" : "核心残片";
@@ -1330,6 +1420,10 @@ function collectPermanentResource(state, drop) {
 }
 
 function updatePermanentResourceDrops(state, dt) {
+  if (state.admin?.enabled) {
+    state.resourceDrops.length = 0;
+    return;
+  }
   for (const drop of state.resourceDrops) {
     drop.age += dt;
     drop.renderX = drop.x + Math.sin(drop.age * 1.7 + drop.phase) * 2.2;
@@ -1509,10 +1603,10 @@ function resolveDeaths(state) {
         state.hostileProjectiles.length = 0;
         state.summonRifts = state.summonRifts.filter((rift) => rift.bossId !== enemy.id);
         state.events.push({ type: "colossusDefeated", x: enemy.x, y: enemy.y });
-        if (!state.endlessMode && (state.threatSeals?.modifiers?.emberCoreBonus ?? 0) > 0) {
+        if (!state.admin?.enabled && !state.endlessMode && (state.threatSeals?.modifiers?.emberCoreBonus ?? 0) > 0) {
           const bonus = state.threatSeals.modifiers.emberCoreBonus;
           const emberCore = spawnPermanentResourceDrop(state, "core", bonus, enemy.x + 22, enemy.y, { source: "emberCore" });
-          state.events.push({ type: "sealEmberCore", value: emberCore?.value ?? bonus, x: enemy.x, y: enemy.y });
+          if (emberCore) state.events.push({ type: "sealEmberCore", value: emberCore.value, x: enemy.x, y: enemy.y });
         }
         if (!state.endlessMode) offerRelicChoice(state, "colossusDefeat");
       }
@@ -1698,6 +1792,7 @@ function updateBossAnchor(state, anchor, dt) {
 }
 
 function damageTower(state, damage, heavy = false, source = "enemy") {
+  if (state.admin?.invincible) return false;
   if ((state.tower.damageImmunity ?? 0) > 0) return false;
   if (heavy && state.tower.droneMode === "collect" && state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge > 0) {
     state.tower.interceptCharge = 0;
@@ -2982,6 +3077,25 @@ function beginCoinCollection(orb, collector, droneIndex = 0) {
   return true;
 }
 
+function applyGoldenSingularity(state, value, orbCount = 1) {
+  if (!hasEndlessRelic(state, "goldenSingularity")) return { value, cooldownReduction: 0 };
+  const cooldownReduction = Math.min(ENDLESS_SHOP_RULES.goldenCooldownCap, Math.max(0, orbCount) * ENDLESS_SHOP_RULES.goldenCooldownPerOrb);
+  for (const skill of Object.values(state.skills)) skill.cooldown = Math.max(0, skill.cooldown - cooldownReduction);
+  return { value: Math.round(value * ENDLESS_SHOP_RULES.goldenCoinMultiplier), cooldownReduction };
+}
+
+function applyChronostasisArray(state, usedKey, automatic = false) {
+  if (automatic || !hasEndlessRelic(state, "chronostasisArray")) return 0;
+  let affected = 0;
+  for (const [key, skill] of Object.entries(state.skills)) {
+    if (key === usedKey || skill.cooldown <= 0) continue;
+    skill.cooldown *= ENDLESS_SHOP_RULES.chronostasisCooldownMultiplier;
+    affected += 1;
+  }
+  if (affected > 0) state.events.push({ type: "endlessChronostasis", key: usedKey, affected });
+  return affected;
+}
+
 export function collectCoinAt(state, x, y, clickRadius = GAME_CONFIG.coins.clickRadius) {
   if (state.over) return false;
   let best = null;
@@ -3046,12 +3160,14 @@ function updateCoinOrbs(state, dt) {
         value += bonus;
         state.events.push({ type: "relicGilded", value: bonus });
       }
+      const singularity = applyGoldenSingularity(state, value);
+      value = singularity.value;
       state.coins += value;
       if ((orb.collector === "drone" && state.tower.droneMode === "collect") || orb.collector === "carrier") {
         const relayMultiplier = 1 + (state.tower.upgrades.droneRelay ?? 0) * CHAPTER_TWO_CONFIG.droneTech.relayCoinEnergyPerLevel;
         state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + GAME_CONFIG.drones.coinEnergy * relayMultiplier);
       }
-      state.events.push({ type: "coin", value });
+      state.events.push({ type: "coin", value, cooldownReduction: singularity.cooldownReduction });
     }
   }
   state.coinOrbs = state.coinOrbs.filter((orb) => !orb.collected && !orb.expired);
@@ -3199,7 +3315,8 @@ export function useSkill(state, key, options = {}) {
     skill.heat = 30;
     skill.slow = 0;
     skill.unstable = ENDLESS_SHOP_RULES.overloadUnstableDuration;
-    skill.cooldown = config.cooldown;
+    skill.cooldown = getSkillCooldownDuration(state, key);
+    applyChronostasisArray(state, key, options.automatic === true);
     state.events.push({ type: "skill", key });
     return true;
   }
@@ -3292,7 +3409,9 @@ export function useSkill(state, key, options = {}) {
     const incomeMultiplier = 1 + state.research.income * GAME_CONFIG.research.bonusPerLevel;
     const absorbed = new Set(targets);
     const valueMultiplier = hasSkillResearchNode(state, "coinVacuum", "magnet") ? research.valueMultiplier : 1;
-    const value = targets.reduce((sum, orb) => sum + Math.max(1, Math.round(orb.value * incomeMultiplier * valueMultiplier)), 0);
+    let value = targets.reduce((sum, orb) => sum + Math.max(1, Math.round(orb.value * incomeMultiplier * valueMultiplier)), 0);
+    const singularity = applyGoldenSingularity(state, value, targets.length);
+    value = singularity.value;
     skill.trails = targets.map((orb) => ({ x: orb.renderX ?? orb.x, y: orb.renderY ?? orb.y }));
     skill.collected = targets.reduce((sum, orb) => sum + (orb.pileCount ?? 1), 0);
     skill.value = value;
@@ -3302,9 +3421,9 @@ export function useSkill(state, key, options = {}) {
     if (hasSkillResearchNode(state, "coinVacuum", "cooldownLoop") && skill.collected >= research.cooldownThreshold) skill.cooldownCredit = Math.max(skill.cooldownCredit, research.cooldownReduction);
     if (hasSkillResearchNode(state, "coinVacuum", "surge") && skill.collected >= research.buffThreshold) skill.fireRateBuff = Math.max(skill.fireRateBuff, research.buffDuration);
     if (hasSkillResearchNode(state, "coinVacuum", "overdrive") && skill.collected >= research.damageBuffThreshold) skill.damageBuff = Math.max(skill.damageBuff, research.buffDuration);
-    state.events.push({ type: "coinVacuum", count: skill.collected, value, bonusMultiplier: valueMultiplier, cooldownCredit: skill.cooldownCredit, fireRateBuff: skill.fireRateBuff });
+    state.events.push({ type: "coinVacuum", count: skill.collected, value, bonusMultiplier: valueMultiplier, cooldownCredit: skill.cooldownCredit, fireRateBuff: skill.fireRateBuff, endlessCooldownReduction: singularity.cooldownReduction });
   }
-  let cooldown = config.cooldown * (key === "heal" ? state.threatSeals?.modifiers?.healCooldownMultiplier ?? 1 : 1);
+  let cooldown = getSkillCooldownDuration(state, key);
   if (key !== "coinVacuum" && state.skills.coinVacuum.cooldownCredit > 0) {
     const reduction = state.skills.coinVacuum.cooldownCredit;
     cooldown *= 1 - reduction;
@@ -3312,11 +3431,13 @@ export function useSkill(state, key, options = {}) {
     state.events.push({ type: "skillCooldownCredit", key, reduction });
   }
   skill.cooldown = cooldown;
+  applyChronostasisArray(state, key, options.automatic === true);
   state.events.push({ type: "skill", key, angle: skill.angle });
   return true;
 }
 
 export function calculateStardust(state) {
+  if (state.admin?.enabled) return 0;
   const base = Math.max(1, Math.floor(state.stats.kills / 25) + state.stats.bossKills * 3);
   return Math.max(1, Math.round(base * (state.threatSeals?.modifiers?.resourceMultiplier ?? 1)));
 }

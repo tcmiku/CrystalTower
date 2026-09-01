@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyElementalHit, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, getStarfallConeHalfAngle, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
-import { GAME_CONFIG } from "../src/config.js";
+import { applyAdminSettings, applyElementalHit, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, enableAdminCheats, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getSkillCooldownDuration, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, getStarfallConeHalfAngle, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { GAME_CONFIG, getCrowdVisualScale } from "../src/config.js";
 import { ENDLESS_SHOP_RULES, getEndlessShopPrice, purchaseEndlessShopItem, refreshEndlessShop, rerollEndlessShop } from "../src/endless-shop.js";
 
 test("基础塔属性符合策划", () => {
@@ -11,6 +11,84 @@ test("基础塔属性符合策划", () => {
   assert.equal(stats.fireRate, 1.2);
   assert.equal(stats.range, 360);
   assert.equal(stats.maxHp, 600);
+});
+
+test("怪群贴图随叠加数量逐级放大并保持视觉上限", () => {
+  assert.equal(getCrowdVisualScale(1), 1);
+  assert.ok(getCrowdVisualScale(4) > getCrowdVisualScale(2));
+  assert.ok(getCrowdVisualScale(16) > getCrowdVisualScale(4));
+  assert.equal(getCrowdVisualScale(1024), GAME_CONFIG.combat.crowdMaxVisualScale);
+  assert.equal(getCrowdVisualScale(Number.NaN), 1);
+});
+
+test("管理员配置只修改本局并永久标记本局不可上榜", () => {
+  const state = createGameState(101);
+  assert.equal(applyAdminSettings(state, { coins: 999 }), false);
+  assert.equal(enableAdminCheats(state), true);
+  assert.equal(state.admin.leaderboardEligible, false);
+  assert.equal(applyAdminSettings(state, {
+    towerHp: 420,
+    coins: 98765,
+    threat: 5,
+    waveIndex: 7,
+    nextWaveIn: 12.5,
+    invincible: true,
+    damage: 321,
+    fireRate: 8.5,
+    skillCooldowns: { heal: 3, overload: 4, starfall: 5, coinVacuum: 6 },
+    shopEnabled: true,
+    doubleSpeedEnabled: true,
+    relics: ["ward", "hourglass"]
+  }), true);
+  assert.equal(state.tower.hp, 420);
+  assert.equal(state.coins, 98765);
+  assert.equal(state.threat, 5);
+  assert.equal(state.time, GAME_CONFIG.threat.duration * 4);
+  assert.equal(state.wave.index, 7);
+  assert.equal(state.wave.nextAt - state.time, 12.5);
+  assert.equal(state.admin.invincible, true);
+  assert.equal(state.admin.shopEnabled, true);
+  assert.equal(state.admin.doubleSpeedEnabled, true);
+  assert.equal(state.endlessShop.unlocked, true);
+  assert.equal(getTowerStats(state).damage, 321);
+  assert.equal(getTowerStats(state).fireRate, 8.5);
+  assert.equal(getSkillCooldownDuration(state, "heal"), 3);
+  assert.equal(getSkillCooldownDuration(state, "coinVacuum"), 6);
+  assert.equal(state.relics.owned.ward, true);
+  assert.equal(state.relics.owned.hourglass, true);
+  assert.equal(state.relics.owned.decoy, false);
+  assert.equal(useSkill(state, "heal"), true);
+  assert.equal(state.skills.heal.cooldown, 3);
+  const hpBeforeAttack = state.tower.hp;
+  const attacker = spawnEnemy(state, "brute", getTowerPosition(state));
+  attacker.damage = 10_000;
+  attacker.speed = 0;
+  updateGame(state, 0.02);
+  assert.equal(state.tower.hp, hpBeforeAttack);
+
+  const nextRun = createGameState(102);
+  assert.equal(nextRun.admin.enabled, false);
+  assert.equal(nextRun.admin.leaderboardEligible, true);
+  assert.equal(nextRun.admin.invincible, false);
+  assert.equal(nextRun.admin.shopEnabled, false);
+  assert.equal(nextRun.admin.doubleSpeedEnabled, false);
+  assert.equal(getTowerStats(nextRun).damage, 12);
+});
+
+test("管理员模式不会生成、拾取或结算遗响碎片、核心残片和星尘", () => {
+  const state = createGameState(103);
+  assert.ok(spawnPermanentResourceDrop(state, "echo", 2));
+  assert.ok(spawnPermanentResourceDrop(state, "core", 1));
+  assert.equal(enableAdminCheats(state), true);
+  assert.equal(state.resourceDrops.length, 0);
+  assert.equal(spawnPermanentResourceDrop(state, "echo", 2), null);
+  state.resourceDrops.push({ resourceType: "core", value: 99, x: 0, y: 0, renderX: 0, renderY: 0, source: "test" });
+  assert.equal(collectPermanentResourceAt(state, 0, 0), null);
+  assert.equal(state.resourceDrops.length, 0);
+  state.stats.kills = 100;
+  state.stats.bossKills = 4;
+  assert.equal(calculateStardust(state), 0);
+  assert.deepEqual([state.stats.echoShards, state.stats.coreFragments], [0, 0]);
 });
 
 test("塔优先选择射程内离中心最近的目标", () => {
@@ -1956,6 +2034,7 @@ test("雷脉导体、断罪刻印和逆时沙漏分别强化雷链、斩杀与�
 
   const time = createGameState(9505, undefined, { hourglass: true });
   time.relics.owned.hourglass = true; time.spawnTimer = 999; time.wave.nextAt = 999; time.tower.fireCooldown = 999;
+  assert.equal(GAME_CONFIG.relics.hourglass.cooldownRateMultiplier, 1.75);
   for (const skill of Object.values(time.skills)) skill.cooldown = 10;
   updateGame(time, 1);
   for (const skill of Object.values(time.skills)) assert.equal(Number(skill.cooldown.toFixed(2)), Number((10 - GAME_CONFIG.relics.hourglass.cooldownRateMultiplier).toFixed(2)));
@@ -2357,4 +2436,85 @@ test("永续超载、全屏星落与终焉保险按专属遗物规则工作", ()
   assert.ok(insurance.tower.hp > 1);
   assert.equal(insurance.endlessShop.insuranceCharges, 0);
   assert.ok(insurance.tower.damageImmunity > 0);
+});
+
+test("无尽专属遗物栏允许装备四件并在第五件时阻止购买", () => {
+  const state = createGameState(9806);
+  state.endlessMode = true;
+  state.coins = 1_000_000;
+  refreshEndlessShop(state, 25);
+  state.endlessShop.equippedRelics.push("perpetualOverload", "globalStarfall", "finalInsurance");
+  state.endlessShop.relicOffers = ["goldenSingularity"];
+  assert.equal(ENDLESS_SHOP_RULES.maxRelics, 4);
+  assert.equal(purchaseEndlessShopItem(state, "goldenSingularity", getTowerStats(state)).allowed, true);
+  assert.equal(state.endlessShop.equippedRelics.length, 4);
+  state.endlessShop.relicOffers = ["apexHunter"];
+  const blocked = purchaseEndlessShopItem(state, "apexHunter", getTowerStats(state));
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.reason, "专属遗物栏已满");
+});
+
+test("鎏金奇点翻倍金币结算并额外恢复技能冷却", () => {
+  const state = createGameState(9807);
+  state.endlessMode = true;
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.tower.fireCooldown = 999;
+  state.endlessShop.equippedRelics.push("goldenSingularity");
+  for (const skill of Object.values(state.skills)) skill.cooldown = 10;
+  state.coinOrbs.push({ x: 220, y: 190, renderX: 220, renderY: 190, value: 20, pileCount: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  assert.equal(collectCoinAt(state, 220, 190), true);
+  updateGame(state, GAME_CONFIG.coins.collectDuration + 0.01);
+  assert.equal(state.coins, 40);
+  assert.ok(state.skills.heal.cooldown <= 10 - GAME_CONFIG.coins.collectDuration - ENDLESS_SHOP_RULES.goldenCooldownPerOrb);
+});
+
+test("时停回响阵列让手动技能联动减半其余冷却", () => {
+  const state = createGameState(9808);
+  state.endlessMode = true;
+  state.endlessShop.equippedRelics.push("chronostasisArray");
+  state.tower.hp = 100;
+  state.skills.overload.cooldown = 20;
+  state.skills.starfall.cooldown = 12;
+  assert.equal(useSkill(state, "heal"), true);
+  assert.equal(state.skills.overload.cooldown, 10);
+  assert.equal(state.skills.starfall.cooldown, 6);
+  assert.ok(state.events.some((event) => event.type === "endlessChronostasis" && event.affected === 2));
+});
+
+test("终末猎杀冠冕强化精英与首领伤害但不影响普通敌人", () => {
+  const state = createGameState(9809);
+  state.endlessMode = true;
+  state.endlessShop.equippedRelics.push("apexHunter");
+  const normal = spawnEnemy(state, "brute", { x: 620, y: 300 });
+  const elite = spawnEnemy(state, "brute", { x: 660, y: 300 }, { elite: true });
+  const boss = spawnEnemy(state, "brute", { x: 700, y: 300 });
+  boss.type = "boss";
+  for (const enemy of [normal, elite, boss]) enemy.hp = enemy.maxHp = 1_000;
+  damageEnemy(state, normal, 100, "shot");
+  damageEnemy(state, elite, 100, "shot");
+  damageEnemy(state, boss, 100, "shot");
+  assert.equal(normal.hp, 900);
+  assert.equal(elite.hp, 825);
+  assert.equal(boss.hp, 825);
+});
+
+test("棱镜主宰矩阵保证三元素附魔并强化元素附加效果", () => {
+  const state = createGameState(9810);
+  state.endlessMode = true;
+  state.endlessShop.equippedRelics.push("prismaticSovereign");
+  state.tower.upgrades.frost = 1;
+  state.tower.upgrades.fire = 1;
+  state.tower.upgrades.lightning = 1;
+  state.rng.next = () => 0.99;
+  const target = spawnEnemy(state, "brute", { x: 650, y: 360 });
+  state.tower.fireCooldown = 0;
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  updateGame(state, 0.01);
+  assert.ok(["frost", "fire", "lightning"].includes(state.projectiles[0]?.element));
+
+  target.freezeTimer = 0;
+  assert.equal(applyElementalHit(state, target, "frost", 100), true);
+  assert.equal(target.freezeTimer, GAME_CONFIG.elements.frost.freezeDuration * ENDLESS_SHOP_RULES.prismaticEffectMultiplier);
 });
