@@ -5561,3 +5561,90 @@ kbd {
   .admin-relic-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-console-actions { align-items: stretch; flex-direction: column; }
 }
+
+/* Active-skill cooldown presentation: match the in-game reference card.
+   The art stays visible, while cooldown uses a bottom veil plus a compact
+   ring and status label so ready/active/cooling states are instantly distinct. */
+.skill-button::after {
+  left: 13px;
+  right: auto;
+  bottom: 29px;
+  font-size: 16px;
+  letter-spacing: .04em;
+}
+.skill-status {
+  position: absolute;
+  z-index: 6;
+  left: 13px;
+  bottom: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #91e5c2;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, .72);
+}
+.skill-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+.skill-button[data-skill-state="ready"] .skill-status { color: #91e5c2; }
+.skill-button[data-skill-state="active"] .skill-status { color: #52b9ff; }
+.skill-button[data-skill-state="aiming"] .skill-status { color: #ffd36d; }
+.skill-button[data-skill-state="disabled"] .skill-status { color: #7d879f; }
+.skill-button[data-skill-state="cooldown"] .skill-status {
+  color: #aeb8d0;
+  gap: 0;
+}
+.skill-button[data-skill-state="cooldown"] .skill-status::before { display: none; }
+.skill-button[data-skill-state="active"],
+.skill-button[data-skill-state="aiming"] {
+  border-color: color-mix(in srgb, var(--skill-accent) 72%, white 8%);
+  box-shadow: inset 3px 0 var(--skill-accent), 0 0 15px color-mix(in srgb, var(--skill-accent) 16%, transparent);
+}
+.skill-button[data-skill-state="cooldown"] .skill-icon {
+  filter: saturate(.58) brightness(.76) contrast(1.02) drop-shadow(0 0 7px color-mix(in srgb, var(--skill-accent) 18%, transparent));
+}
+.cooldown-ring {
+  position: absolute;
+  z-index: 6;
+  right: 10px;
+  bottom: 8px;
+  width: 23px;
+  height: 23px;
+  display: block;
+  border-radius: 50%;
+  background: conic-gradient(var(--skill-accent) var(--cooldown-progress, 0%), rgba(158, 173, 207, .22) 0);
+  opacity: 0;
+  transform: rotate(-90deg);
+  transition: opacity .16s ease;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--skill-accent) 46%, transparent));
+}
+.cooldown-ring::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: rgba(6, 12, 28, .9);
+}
+.skill-button[data-skill-state="cooldown"] .cooldown-ring { opacity: 1; }
+
+@media (max-width: 1024px) {
+  .skill-button::after { bottom: 25px; font-size: 12px; }
+  .skill-status { left: 9px; bottom: 7px; font-size: 9px; }
+  .cooldown-ring { right: 8px; bottom: 6px; width: 20px; height: 20px; }
+}
+
+@media (max-width: 520px) {
+  .skill-button::after { left: 8px; bottom: 22px; font-size: 11px; }
+  .skill-status { left: 8px; bottom: 6px; gap: 4px; font-size: 8px; }
+  .skill-status::before { width: 6px; height: 6px; flex-basis: 6px; }
+  .cooldown-ring { right: 6px; bottom: 5px; width: 18px; height: 18px; }
+}

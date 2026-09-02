@@ -356,3 +356,76 @@ Create a premium dark sci-fi fantasy game relic card illustration, portrait orie
 ͸��ͼ����ʾ��ժҪ��isolated foreground game-art asset���ֱ����� faceted cyan-violet crystal core��crystal shards/fracture lines��young dark-haired navy-cloaked guardian��simple crystal-corrupted monster horde��cyan-violet-orange elemental burst��last crystal tower��clean crisp cel-shaded anime fantasy��Ҫ�� genuine transparent alpha background����ֹ���̸񡢳�����ͼ�����֡�UI���߿򡢻ձ��ˮӡ��
 
 ��Ŀ�����ļ���assets/story/intro-bg-city-dawn-v1.png��intro-bg-ruined-wasteland-v1.png��intro-bg-last-bastion-v1.png��intro-bg-horde-night-v1.png���Լ���Ӧ intro-layer-* �ļ���
+
+## 晶塔视觉演化覆盖层（2026-09-02）
+
+生成方式：OpenAI 内置生图模型；沿用风格锚点——dark indigo wasteland，silver-gold hard-surface crystal architecture，cyan-white guardian light，restrained violet，clean readable silhouette，no text/UI/logo/watermark。
+
+- tower-style-anchor-v1.png：four-state visual development sheet for the same tower — crystal sprout, pillar, crowned war tower, fully awakened fusion tower；无 UI、文字、边框，仅用于统一风格和层级验收。
+- tower-route-siege-ai-v1.png：production-ready transparent 2D overlay；symmetrical pair of heavy siege crystal cannons，blue/cyan crystal，silver-gold braces，empty center，isolated alpha，no scenery/frame/text。
+- tower-route-split-ai-v1.png：production-ready transparent 2D overlay；six radial split-crystal crown petals，cyan-violet crystal，silver-gold connectors，empty center，isolated alpha，no scenery/frame/text。
+- tower-shell-panels-ai-v1.png：production-ready transparent 2D overlay；four hinged crystal armor panels with visible heat vents，cyan-violet energy，gold trim，open center，isolated alpha，no scenery/frame/text。
+
+文件来源：`C:\Users\0000\.codex\generated_images\01a0609c-51b3-7cd3-97a5-fa8b536fb6ef\` 下本轮对应 exec 输出；项目副本均保留在 `assets/generated/`。
+## 主炮瞄准美术资产（2026-09-02）
+
+生成方式：OpenAI 内置生图模型，透明背景。
+
+```text
+Use case: stylized-concept
+Asset type: transparent 2D game combat asset for Eternal Crystal Tower
+Primary request: a single main crystal cannon muzzle / barrel module used by the central tower turret, designed to rotate toward a target enemy; long angular prism barrel pointing to the RIGHT, faceted cyan-white muzzle core, silver-gold structural collar, dark indigo crystal body, restrained violet shadow, readable at small game scale
+Composition/framing: horizontal landscape asset, centered with generous transparent padding, muzzle clearly on the RIGHT for a stable runtime rotation axis
+Constraints: genuinely transparent alpha background; no scenery, ground, full tower, side cannons, enemy, UI, text, logo, watermark, border or checkerboard
+```
+
+项目文件：`assets/generated/tower-main-cannon-aim-ai-v1.png`。运行时通过 `renderer.js` 加载并旋转，不使用 Canvas 几何形状代替炮口。
+
+## 四级主炮图集（2026-09-02）
+
+生成方式：OpenAI 内置生图模型。由于 Windows sandbox helper 故障阻止模型读取本地参考图，最终按代码中现有塔体的靛蓝、青色、紫晶与终阶金色材质规范直接生成。
+
+```text
+Use case: stylized-concept
+Asset type: production-ready 2D game sprite atlas for the rotating main cannon of a crystal tower-defense game
+Primary request: create exactly four distinct upgrade tiers of the same crystal-energy main cannon, arranged in a clean 2 by 2 sprite atlas. Tier 0 is a compact single crystal emitter with a broad mechanical mounting root. Tier 1 is a longer reinforced barrel with one cyan energy rail. Tier 2 is a heavier armored cannon with twin rails and a brighter violet-blue crystal chamber. Tier 3 is a majestic ultimate cannon with a crown-like gold-white focusing crystal, layered armor, and clearly greater power. Every tier is an obvious, believable evolution of the previous tier.
+Subject: cannon assembly only, no tower body; each cannon points horizontally to the right; consistent top-down three-quarter game view; the rotation pivot and mounting socket are at exactly the same relative position near the left-center of every cell; use a broad integrated circular or hexagonal mounting base so the cannon appears rooted into a tower instead of floating
+Style/medium: polished painted 2D sci-fi fantasy game sprite, crystalline technology, crisp readable silhouette at 100-160 pixel display size, premium tower-defense art
+Composition/framing: square canvas divided conceptually into four equal cells in reading order tier 0, tier 1, tier 2, tier 3; one centered cannon per cell; consistent pivot alignment; controlled scale progression; every cannon fully inside its cell with generous transparent padding; no overlap
+Lighting/mood: internal cyan crystal glow, restrained bloom, clean highlights, deep blue-violet shadows
+Color palette: dark indigo alloy #171C46, cyan energy #79DFF5, violet crystal #9A63FF, pale ice highlights #DFFBFF, restrained warm gold #FFD27A only on tier 3
+Materials/textures: faceted translucent crystal, dark indigo alloy plates, luminous conduits, subtle gold final-tier focusing trim
+Constraints: genuinely transparent background with preserved alpha; exactly four cannons; no labels, no numbers, no text, no grid lines, no cell borders, no tower, no enemies, no projectiles, no scenery, no watermark; clean anti-aliased edges; no opaque background and no checkerboard pattern; every cannon faces right; pivot alignment is critical; avoid thin spear-like silhouettes and avoid detached floating parts
+```
+
+
+## 四级晶塔本体重绘（2026-09-02）
+
+生成方式：OpenAI 内置生图模型。输入参考为上一轮四级主炮的游戏内验收拼图。
+
+### 本体生成
+
+```text
+Use case: stylized-concept
+Asset type: production-ready 2D game sprite atlas for the BODY of a crystal defense tower
+Input images: Image 1 is a gameplay comparison showing the current four-tier crystal cannon mounted on the tower; use it as the binding reference for palette, top-down viewing angle, cannon socket scale, and in-game readability. Redesign only the tower body so it supports that cannon naturally.
+Primary request: create exactly four distinct upgrade tiers of the same central crystal defense tower BODY, arranged as a clean 2 by 2 sprite atlas. Tier 0: compact low crystal foundation with a stable hexagonal plinth and small cyan core. Tier 1: reinforced guardian pylon with taller indigo armor ribs and two restrained cyan side crystals. Tier 2: broad war-tower body with layered silver-indigo armor, four controlled violet-cyan fins, and a stronger luminous core. Tier 3: awakened endgame citadel body with a wider crown foundation, elegant white-gold trim, cyan-violet crystal buttresses, and a powerful central core, but still compact enough for top-down combat.
+Subject: tower body and foundation only; NO cannon barrel and NO rotating turret assembly. Every tier must have a clean circular/hexagonal EMPTY mounting socket centered at the same exact location, sized to receive the current cannon's round mounting base. The socket is structural, dark indigo with cyan inner light, and remains visually readable beneath a rotating cannon.
+Style/medium: premium hand-painted 2D sci-fi fantasy tower-defense sprite; faceted crystalline technology; crisp silhouette at 110-190 pixel game size; same material language as Image 1's cannon
+Composition/framing: square transparent canvas, four equal cells in reading order tier 0, tier 1, tier 2, tier 3; one tower centered in each cell; identical mild elevated top-down camera; exact shared ground center and socket center; controlled scale growth; full tower and base inside each cell; generous transparent padding; no overlap
+Lighting/mood: internal cyan guardian glow with restrained violet energy; deep indigo shadowed armor; only tier 3 gains restrained white-gold highlights
+Color palette: dark indigo alloy #171C46, cyan #79DFF5, violet crystal #9A63FF, pale ice #DFFBFF, restrained final-tier gold #FFD27A
+Constraints: genuinely transparent alpha background; exactly four tower bodies; no cannon, no gun barrel, no floating turret assembly, no projectile, no terrain, no text, no UI, no grid, no watermark; no giant spikes crossing the socket; shared pivot alignment is critical
+```
+
+### 真实 Alpha 提取
+
+```text
+Use case: background-extraction
+Asset type: production-ready transparent 2D game sprite atlas
+Primary request: remove ONLY the entire gray-and-white checkerboard background and replace it with genuine alpha transparency
+Constraints: preserve all four tower bodies exactly as drawn; preserve silhouettes, pixel positions, scale, colors, lighting, materials, central cannon sockets, spacing, and 2 by 2 arrangement; do not redraw, restyle, resize, rotate, crop, move, add, or remove any part of the towers; keep clean anti-aliased edges and translucent crystal glow; output true RGBA transparency
+Avoid: any white, gray, black, colored, or checkerboard background; halos; matte fringe; scenery; grid lines; text; cannon; watermark
+```
+
+最终采用 `tower-body-tiers-ai-v2.png`（Format32bppArgb，四角 Alpha `0,0,1,0`）。后续针对一级饰件的两次模型编辑均重新烘入棋盘 RGB，因此未采用；正式素材保持为已通过透明检查的 v2。

@@ -150,3 +150,31 @@
 - assets/story/intro-layer-last-tower-v1.png��͸����ҫ����ǰ���㣬1214��1295��
 
 ���ű�����Ϊ���������ֻ��棻����ǰ��ͼ��ͨ��͸�� Alpha ��顣ҳ��ͨ�� CSS �˾����볡�����������⸴����Щ�زģ��������ָ���������ʽ���ӣ�����δ�����ӽ�ɫ����֧��ϵͳ��ͷ��
+
+## 晶塔视觉演化覆盖层（2026-09-02）
+
+- `design/tower-style-anchor-v1.png`：同一晶塔四档演化风格锚点，统一深靛荒原、银金结构、青白守护光与克制紫色；仅作美术验收参考，不直接加载到战斗。
+- `tower-route-siege-ai-v1.png`：破城炮膛双侧重型晶体炮，透明 RGBA，作为单体路线覆盖层，中心留空供基础晶塔与程序化能量核心叠加。
+- `tower-route-split-ai-v1.png`：裂晶炮膛六瓣放射晶棱冠，透明 RGBA，作为群体路线覆盖层，中心留空。
+- `tower-shell-panels-ai-v1.png`：超载状态四片可展开晶体护壳与散热结构，透明 RGBA，随热量和持续时间缩放。
+
+以上资产由 OpenAI 内置生图模型生成，均使用版本化文件名；透明度抽检范围为 alpha 0–254。源文件位于 `C:\Users\0000\.codex\generated_images\01a0609c-51b3-7cd3-97a5-fa8b536fb6ef\` 对应 exec 输出目录，项目副本位于 `assets/generated/`。
+## 主炮瞄准美术资产（2026-09-02）
+
+- `tower-main-cannon-aim-ai-v1.png`：独立主炮炮口/炮管透明 RGBA 素材，炮口朝右，运行时由 Canvas 只负责旋转到目标、呼吸缩放和开火后坐力；不再绘制几何炮口。
+- 源文件：`C:\Users\0000\.codex\generated_images\01a0609c-51b3-7cd3-97a5-fa8b536fb6ef\exec-4d6bef93-1692-4ae4-bcc3-71d685b3e74b.png`；项目副本：`assets/generated/tower-main-cannon-aim-ai-v1.png`。
+
+## 四级主炮图集（2026-09-02）
+
+- `tower-main-cannon-tiers-ai-v2.png`：1254×1254、2×2 四级主炮透明 RGBA 图集，阅读顺序为基础短晶炮、强化导轨炮、双轨重炮、终阶冠状聚能炮。
+- 四级共用右向炮口和近左中部转轴；运行时按晶塔 `ascend` 等级裁切，不再缩放同一炮管伪装升级。
+- 源文件：`C:\Users\0000\.codex\generated_images\01a0609c-51b3-7cd3-97a5-fa8b536fb6ef\exec-45401717-d7e0-4ad2-b1d1-8433c69c6da9.png`；项目副本：`assets/generated/tower-main-cannon-tiers-ai-v2.png`。
+
+
+## 四级晶塔本体图集（2026-09-02）
+
+- `tower-body-tiers-ai-v2.png`：1254×1254、2×2 四级晶塔本体透明 RGBA 图集；依次为低矮晶体基座、强化守卫塔座、晶簇战争塔、金白终阶堡垒。
+- 四级统一地面中心和中央空炮座孔，与 `tower-main-cannon-tiers-ai-v2.png` 的环形主炮基座配套；塔身不包含炮管。
+- `renderer.js` 中关键资源键 `tower` 已直接切换到本图集，四级统一按 2×2 裁切；旧 `towerUltimate` 不再加载。
+- 一级格中 Alpha 行 552–626 为与主体分离的小饰件，主体位于 76–494；运行时源裁切高度限制为 520，不拉伸主体。
+- 生图源：`exec-fa0ec8ef-c7bc-4061-ad2a-463e02540062.png`；透明提取源：`exec-cf7457cc-ad61-4e40-9d88-74dd18bef39d.png`；项目正式素材：`assets/generated/tower-body-tiers-ai-v2.png`。

@@ -26,6 +26,11 @@ const CHAPTER_TWO_ENEMY_CELLS = {
   hexer: [0, 1], orbitMote: [0, 1],
   crawler: [1, 1]
 };
+const ENEMY_ATLAS_CELLS = {
+  wisp: [0, 0], runner: [1, 0], brute: [0, 1], boss: [1, 1],
+  crawler: [0, 0], sentinel: [1, 0], hexer: [0, 0], rammer: [0, 1],
+  inkHound: [0, 0], orbitMote: [1, 0], rustBeetle: [0, 1], porcelainWarden: [1, 1]
+};
 const TOWER_ART_SCALE = 1.08;
 const ANCHOR_VISUALS = {
   shield: { name: "护盾", color: "#78e9ff", dark: "#1f6688", symbol: "⬡" },
@@ -85,8 +90,11 @@ export function getCoverCrop(sourceWidth, sourceHeight, targetWidth, targetHeigh
 const GENERATED_ASSETS = {
   arena: "./assets/generated/arena-bg-safe-zone-v5.png",
   arenaDay: "./assets/generated/arena-bg-safe-zone-v5.png",
-  tower: "./assets/generated/tower-atlas.png",
-  towerUltimate: "./assets/generated/tower-ultimate-ai.png",
+  tower: "./assets/generated/tower-body-tiers-ai-v2.png",
+  towerRouteSiege: "./assets/generated/tower-route-siege-ai-v1.png",
+  towerRouteSplit: "./assets/generated/tower-route-split-ai-v1.png",
+  towerShellPanels: "./assets/generated/tower-shell-panels-ai-v1.png",
+  towerMainCannonTiers: "./assets/generated/tower-main-cannon-tiers-ai-v2.png",
   enemies: "./assets/generated/enemy-atlas.png",
   waveEnemies: "./assets/generated/enemy-wave-atlas.png",
   astralEnemies: "./assets/generated/enemy-astral-atlas-ai.png",
@@ -117,9 +125,60 @@ const GENERATED_ASSETS = {
 const CRITICAL_ASSET_KEYS = new Set(["arena", "tower", "enemies"]);
 
 const CUTOUT_ASSETS = new Set([
-  "projectileFrost", "projectileLightning", "moduleFrost", "towerUltimate",
+  "projectileFrost", "projectileLightning", "moduleFrost",
   "effectFrost", "effectFire", "effectLightning"
 ]);
+
+export function getTowerVisualState(state) {
+  const tower = state?.tower ?? {};
+  const upgrades = tower.upgrades ?? {};
+  const stats = state ? getTowerStats(state) : { maxHp: 1 };
+  const hpRatio = Math.max(0, Math.min(1, Number(tower.hp ?? 0) / Math.max(1, stats.maxHp)));
+  const heatThreshold = Math.max(1, GAME_CONFIG.skills.overload.overheatThreshold);
+  const heatRatio = Math.max(0, Math.min(1.25, Number(state?.skills?.overload?.heat ?? 0) / heatThreshold));
+  const shieldCap = Math.max(1, stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction);
+  const shieldRatio = Math.max(0, Math.min(1, Number(tower.shield ?? 0) / shieldCap));
+  const overloadActive = Number(state?.skills?.overload?.active ?? 0) > 0 || state?.skills?.overload?.permanentEngaged === true;
+  return {
+    tier: Math.max(0, Math.min(3, Number(upgrades.ascend ?? 0))),
+    hpRatio,
+    damageBand: hpRatio < 0.15 ? "collapse" : hpRatio < 0.40 ? "critical" : hpRatio < 0.70 ? "damaged" : "intact",
+    cannonRoute: upgrades.cannonSiege > 0 ? "siege" : upgrades.cannonSplit > 0 ? "split" : "none",
+    elements: { frost: upgrades.frost > 0, fire: upgrades.fire > 0, lightning: upgrades.lightning > 0 },
+    ultimate: Number(upgrades.ascend ?? 0) >= 3,
+    overloadBand: !overloadActive ? "off" : heatRatio >= 1 ? "overheated" : heatRatio >= 0.5 ? "hot" : "charged",
+    starfallBand: Number(state?.skills?.starfall?.active ?? 0) > 0 ? "release" : state?.skills?.starfall?.aiming ? "aiming" : "off",
+    shieldBand: state?.skills?.heal?.shieldBurstArmed ? "armed" : shieldRatio >= 0.999 ? "full" : shieldRatio > 0 ? "partial" : "none"
+  };
+}
+export function getTowerAimTarget(state) {
+  if (!state?.tower || !Array.isArray(state.enemies)) return null;
+  const priorityIds = state.tower.priorityTargetIds ?? [];
+  const position = getTowerPosition(state);
+  const rangeSquared = getTowerStats(state).range ** 2;
+  let priorityTarget = null;
+  let priorityIndex = Number.POSITIVE_INFINITY;
+  let lockedTarget = null;
+  let nearestTarget = null;
+  let nearestDistanceSquared = Number.POSITIVE_INFINITY;
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0) continue;
+    const index = priorityIds.indexOf(enemy.id);
+    if (index >= 0 && index < priorityIndex) {
+      priorityTarget = enemy;
+      priorityIndex = index;
+    }
+    if (enemy.id === state.tower.siegeTargetId) lockedTarget = enemy;
+    const dx = enemy.x - position.x;
+    const dy = enemy.y - position.y;
+    const distanceSquared = dx * dx + dy * dy;
+    if (distanceSquared <= rangeSquared && (!nearestTarget || distanceSquared < nearestDistanceSquared || (distanceSquared === nearestDistanceSquared && enemy.id < nearestTarget.id))) {
+      nearestTarget = enemy;
+      nearestDistanceSquared = distanceSquared;
+    }
+  }
+  return priorityTarget ?? lockedTarget ?? nearestTarget;
+}
 
 function removeConnectedLightBackground(image, clearCenter = false) {
   if (typeof document === "undefined") return image;
@@ -263,6 +322,10 @@ export class Renderer {
     this.dayMix = 1;
     this.starfallFx = createStarfallFxSprites();
     this.starfallCorridors = new Map();
+    this.towerFx = { ascend: 0, heal: 0, overload: 0, starfall: 0, coinVacuum: 0, hit: 0, shoot: 0 };
+    this.towerAimAngle = -Math.PI / 2;
+    this.towerAimTargetId = null;
+    this.towerAimTarget = null;
     const loading = loadGeneratedAssets(onAssetProgress);
     this.assets = loading.assets;
     this.assetsReady = loading.ready;
@@ -279,6 +342,13 @@ export class Renderer {
   }
 
   trigger(type, strength = 1) {
+    if (type === "ascend") this.towerFx.ascend = Math.max(this.towerFx.ascend, 1.35);
+    if (type === "heal" || type === "shieldBurst") this.towerFx.heal = Math.max(this.towerFx.heal, 1.1);
+    if (type === "overload") this.towerFx.overload = Math.max(this.towerFx.overload, 1.2);
+    if (type === "starfall") this.towerFx.starfall = Math.max(this.towerFx.starfall, 1.1);
+    if (type === "coinVacuum") this.towerFx.coinVacuum = Math.max(this.towerFx.coinVacuum, 1.1);
+    if (type === "towerHit") this.towerFx.hit = Math.max(this.towerFx.hit, 0.35);
+    if (type === "shoot") this.towerFx.shoot = Math.max(this.towerFx.shoot, 0.28);
     if (type === "towerHit") { this.shake = Math.max(this.shake, 3.5 * strength); this.flash = Math.max(this.flash, 0.09); this.flashColor = "#ff4f70"; }
     if (type === "ascend") { this.shake = 7; this.flash = 0.42; this.flashColor = "#9ff8ff"; }
     if (type === "starfall") { this.shake = 9; this.flash = 0.48; this.flashColor = "#fff2b8"; }
@@ -334,6 +404,19 @@ export class Renderer {
     const offsetX = viewport.x + (viewport.width - logical.width * scale) / 2;
     const offsetY = viewport.y + (viewport.height - logical.height * scale) / 2;
     this.time += delta;
+    for (const key of Object.keys(this.towerFx)) this.towerFx[key] = Math.max(0, this.towerFx[key] - delta);
+    const aimTarget = getTowerAimTarget(state);
+    const towerPosition = getTowerPosition(state);
+    if (aimTarget) {
+      const desiredAngle = Math.atan2(aimTarget.y - towerPosition.y, aimTarget.x - towerPosition.x);
+      const deltaAngle = Math.atan2(Math.sin(desiredAngle - this.towerAimAngle), Math.cos(desiredAngle - this.towerAimAngle));
+      this.towerAimAngle += deltaAngle * Math.min(1, delta * 12);
+      this.towerAimTargetId = aimTarget.id;
+      this.towerAimTarget = aimTarget;
+    } else {
+      this.towerAimTargetId = null;
+      this.towerAimTarget = null;
+    }
     const targetDayMix = state.phase === "day" ? 1 : 0;
     this.dayMix += (targetDayMix - this.dayMix) * Math.min(1, delta * 0.42);
     this.shake = Math.max(0, this.shake - delta * 16);
@@ -460,6 +543,7 @@ export class Renderer {
 
   drawWorld(ctx, state) {
     this.drawGround(ctx, state);
+    this.drawTowerGroundVeins(ctx, state);
     this.drawWaveWarning(ctx, state);
     this.drawRange(ctx, state);
     this.drawEmberZones(ctx, state);
@@ -478,6 +562,55 @@ export class Renderer {
     this.drawFloaters(ctx, state);
     this.drawBossBar(ctx, state);
     this.drawVignette(ctx, state);
+  }
+
+  drawTowerGroundVeins(ctx, state) {
+    if (isChapterTwo(state)) return;
+    const visual = getTowerVisualState(state);
+    const { x, y } = getTowerPosition(state);
+    const tier = visual.tier;
+    const routeColor = visual.cannonRoute === "siege" ? "#ffd27a" : visual.cannonRoute === "split" ? "#d9b4ff" : "#79dff5";
+    const damageAlpha = visual.damageBand === "collapse" ? 0.28 : visual.damageBand === "critical" ? 0.5 : 1;
+    const pulse = 0.78 + Math.sin(this.time * 2.1) * 0.12;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(this.time * 0.025);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    for (let ring = 0; ring <= tier; ring += 1) {
+      const radius = 86 + ring * 43;
+      ctx.globalAlpha = (0.12 + tier * 0.025) * damageAlpha * pulse;
+      ctx.strokeStyle = routeColor;
+      ctx.lineWidth = ring === tier ? 2.4 : 1.2;
+      ctx.setLineDash([5 + ring * 2, 13 - Math.min(5, ring)]);
+      ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    const branchCount = 6 + tier * 2;
+    for (let branch = 0; branch < branchCount; branch += 1) {
+      const angle = branch * Math.PI * 2 / branchCount + (visual.cannonRoute === "split" ? Math.PI / branchCount : 0);
+      const inner = 52 + tier * 10;
+      const outer = 138 + tier * 38;
+      const bend = Math.sin(this.time * 0.65 + branch) * 3;
+      ctx.globalAlpha = (0.18 + tier * 0.035) * damageAlpha;
+      ctx.strokeStyle = routeColor;
+      ctx.lineWidth = branch % 3 === 0 ? 2.2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+      ctx.quadraticCurveTo(Math.cos(angle + 0.08) * (inner + outer) * 0.5 + bend, Math.sin(angle + 0.08) * (inner + outer) * 0.5 + bend, Math.cos(angle) * outer, Math.sin(angle) * outer);
+      ctx.stroke();
+      ctx.globalAlpha = (0.3 + tier * 0.04) * damageAlpha;
+      ctx.fillStyle = routeColor;
+      ctx.beginPath(); ctx.arc(Math.cos(angle) * outer, Math.sin(angle) * outer, branch % 3 === 0 ? 3.2 : 2, 0, Math.PI * 2); ctx.fill();
+    }
+    if (this.towerFx.coinVacuum > 0) {
+      const progress = 1 - this.towerFx.coinVacuum / 1.1;
+      ctx.globalAlpha = (1 - progress) * 0.7;
+      ctx.strokeStyle = "#ffe68a";
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, 48 + progress * 170, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   drawGround(ctx, state) {
@@ -1608,6 +1741,16 @@ export class Renderer {
       const crowdVisualScale = getCrowdVisualScale(enemy.unitCount);
       const crowdVisualRadius = enemy.radius * crowdVisualScale;
       const [bright, dark] = ENEMY_COLORS[enemy.type];
+      const isBoss = enemy.type === "boss";
+      const isColossus = enemy.type === "colossus";
+      const isSovereign = enemy.type === "sovereign";
+      const isAnchor = enemy.type === "anchor";
+      const isWaveType = enemy.type === "crawler" || enemy.type === "sentinel";
+      const isAstralType = ASTRAL_ENEMY_TYPES.has(enemy.type);
+      const atlas = isAstralType ? this.assets.astralEnemies : isWaveType ? this.assets.waveEnemies : this.assets.enemies;
+      const sovereignEntry = isSovereign ? 1 - Math.max(0, enemy.entryTimer ?? 0) / GAME_CONFIG.sovereign.entryDuration : 1;
+      const renderY = isSovereign ? enemy.y - (1 - sovereignEntry) * 390 : enemy.y;
+      const fastCrowdSprite = crowdMode && !isChapterTwo(state) && !isBoss && !isColossus && !isSovereign && !isAnchor && !enemy.elite && enemy.type !== "hexer" && enemy.type !== "rammer" && imageReady(atlas);
       if (enemy.rangedFlash > 0) {
         ctx.save();
         ctx.globalAlpha = Math.min(1, enemy.rangedFlash * 6.25);
@@ -1619,9 +1762,15 @@ export class Renderer {
         ctx.beginPath(); ctx.moveTo(enemy.x, enemy.y); ctx.lineTo(towerPosition.x, towerPosition.y); ctx.stroke();
         ctx.restore();
       }
+      if (fastCrowdSprite) {
+        const cell = atlas.naturalWidth / 2;
+        const [column, row] = ENEMY_ATLAS_CELLS[enemy.type];
+        const size = enemy.radius * 3.05 * crowdVisualScale;
+        ctx.globalAlpha = enemy.hitFlash > 0 ? .68 : 1;
+        ctx.drawImage(atlas, column * cell, row * cell, cell, cell, enemy.x - size / 2, renderY - size / 2, size, size);
+        ctx.globalAlpha = 1;
+      } else {
       ctx.save();
-      const sovereignEntry = enemy.type === "sovereign" ? 1 - Math.max(0, enemy.entryTimer ?? 0) / GAME_CONFIG.sovereign.entryDuration : 1;
-      const renderY = enemy.type === "sovereign" ? enemy.y - (1 - sovereignEntry) * 390 : enemy.y;
       ctx.translate(enemy.x, renderY);
       const angle = enemy.type === "sovereign" ? 0 : enemy.type === "colossus" ? (enemy.orbitAngle ?? 0) + Math.PI / 2 : Math.atan2(GAME_CONFIG.arena.centerY - enemy.y, GAME_CONFIG.arena.centerX - enemy.x);
       ctx.rotate(angle);
@@ -1629,13 +1778,6 @@ export class Renderer {
       const resistanceColor = { frost: "#7de8ff", fire: "#ff754d", lightning: "#c6a2ff" }[enemy.resistance];
       ctx.shadowColor = enemy.type === "boss" ? resistanceColor ?? bright : bright;
       ctx.shadowBlur = enemy.type === "sovereign" ? 34 : enemy.type === "colossus" ? 24 : enemy.type === "boss" ? 18 : crowdMode ? 0 : 7;
-      const isBoss = enemy.type === "boss";
-      const isColossus = enemy.type === "colossus";
-      const isSovereign = enemy.type === "sovereign";
-      const isAnchor = enemy.type === "anchor";
-      const isWaveType = enemy.type === "crawler" || enemy.type === "sentinel";
-      const isAstralType = ASTRAL_ENEMY_TYPES.has(enemy.type);
-      const atlas = isAstralType ? this.assets.astralEnemies : isWaveType ? this.assets.waveEnemies : this.assets.enemies;
       if (isAnchor) {
         const visual = ANCHOR_VISUALS[enemy.anchorRole] ?? ANCHOR_VISUALS.shield;
         ctx.rotate(-angle + this.time * 1.7);
@@ -1711,8 +1853,7 @@ export class Renderer {
         }
       } else if (imageReady(atlas)) {
         const cell = isWaveType ? atlas.naturalWidth / 2 : atlas.naturalWidth / 2;
-        const positions = { wisp: [0, 0], runner: [1, 0], brute: [0, 1], boss: [1, 1], crawler: [0, 0], sentinel: [1, 0], hexer: [0, 0], rammer: [0, 1], inkHound: [0, 0], orbitMote: [1, 0], rustBeetle: [0, 1], porcelainWarden: [1, 1] };
-        const [column, row] = positions[enemy.type];
+        const [column, row] = ENEMY_ATLAS_CELLS[enemy.type];
         const size = enemy.radius * (isBoss ? 3.15 : 3.05);
         ctx.globalAlpha = enemy.hitFlash > 0 ? 0.68 : 1;
         ctx.drawImage(atlas, column * cell, row * cell, cell, cell, -size / 2, -size / 2, size, size);
@@ -1750,6 +1891,7 @@ export class Renderer {
         ctx.beginPath(); ctx.arc(enemy.radius * .18, 0, Math.max(2.5, enemy.radius * .18), 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
+      }
 
       if (isAnchor) {
         const visual = ANCHOR_VISUALS[enemy.anchorRole] ?? ANCHOR_VISUALS.shield;
@@ -2137,13 +2279,209 @@ export class Renderer {
     }
   }
 
+  drawTowerAim(ctx, state, visual, tier) {
+    if (isChapterTwo(state)) return;
+    const target = this.towerAimTarget;
+    if (!target) return;
+    const towerPosition = getTowerPosition(state);
+    const dx = target.x - towerPosition.x;
+    const dy = target.y - towerPosition.y;
+    const angle = this.towerAimAngle;
+    const routeColor = visual.cannonRoute === "siege" ? "#ffd27a" : visual.cannonRoute === "split" ? "#d9b4ff" : "#79dff5";
+    const pulse = this.towerFx.shoot > 0 ? this.towerFx.shoot / .28 : 0;
+    const recoil = pulse * 9;
+
+    const cannon = this.assets.towerMainCannonTiers;
+    if (imageReady(cannon)) {
+      const cellWidth = cannon.naturalWidth / 2;
+      const cellHeight = cannon.naturalHeight / 2;
+      const column = tier % 2;
+      const row = Math.floor(tier / 2);
+      const width = [118, 142, 158, 184][tier];
+      const height = width * (cellHeight / cellWidth);
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.translate(-recoil, 0);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = .94 + pulse * .06;
+      ctx.shadowColor = routeColor;
+      ctx.shadowBlur = 5 + pulse * 6;
+      ctx.drawImage(cannon, column * cellWidth, row * cellHeight, cellWidth, cellHeight, -width * .27, -height / 2, width, height);
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = .14 + pulse * .26;
+    ctx.strokeStyle = routeColor;
+    ctx.shadowColor = routeColor;
+    ctx.shadowBlur = 9 + pulse * 10;
+    ctx.lineWidth = 1.4 + pulse * 2.2;
+    ctx.setLineDash([8, 10]);
+    ctx.lineDashOffset = -this.time * 26;
+    const muzzleDistance = [44, 60, 72, 94][tier];
+    ctx.beginPath(); ctx.moveTo(Math.cos(angle) * muzzleDistance, Math.sin(angle) * muzzleDistance); ctx.lineTo(dx, dy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(dx, dy);
+    ctx.rotate(this.time * 1.8);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = .54 + pulse * .3;
+    ctx.strokeStyle = target.elite || target.type === "boss" || target.type === "sovereign" || target.type === "colossus" ? "#ffd27a" : routeColor;
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur = 10 + pulse * 10;
+    ctx.lineWidth = 1.8 + pulse * 1.8;
+    const reticleRadius = Math.max(12, target.radius + 8 + Math.sin(this.time * 7) * 2);
+    ctx.beginPath(); ctx.arc(0, 0, reticleRadius, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-reticleRadius - 7, 0); ctx.lineTo(-reticleRadius + 1, 0);
+    ctx.moveTo(reticleRadius - 1, 0); ctx.lineTo(reticleRadius + 7, 0);
+    ctx.moveTo(0, -reticleRadius - 7); ctx.lineTo(0, -reticleRadius + 1);
+    ctx.moveTo(0, reticleRadius - 1); ctx.lineTo(0, reticleRadius + 7);
+    ctx.stroke();
+    ctx.restore();
+  }
+  drawTowerRouteModules(ctx, state, visual, tier) {
+    const route = visual.cannonRoute;
+    const asset = route === "siege" ? this.assets.towerRouteSiege : route === "split" ? this.assets.towerRouteSplit : null;
+    if (route === "none") return;
+    if (imageReady(asset)) {
+      const width = route === "siege" ? 184 + tier * 14 : 170 + tier * 12;
+      const height = width * (asset.naturalHeight / Math.max(1, asset.naturalWidth));
+      ctx.save();
+      ctx.globalAlpha = visual.damageBand === "collapse" ? .45 : .92;
+      const modulePulse = 1 + Math.sin(this.time * 3.2 + tier) * .018 + (this.towerFx.shoot > 0 ? this.towerFx.shoot / .28 * .045 : 0);
+      ctx.translate(0, Math.sin(this.time * 2.1) * .8);
+      ctx.rotate(route === "split" ? this.time * .24 : Math.sin(this.time * 1.35) * .035);
+      ctx.scale(modulePulse, modulePulse);
+      ctx.shadowColor = route === "siege" ? "#ffd27a" : "#d2a7ff";
+      ctx.shadowBlur = 10 + tier * 3;
+      ctx.drawImage(asset.cutout ?? asset, -width / 2, -height / 2, width, height);
+      ctx.restore();
+      return;
+    }
+    ctx.save();
+    ctx.globalAlpha = .72;
+    ctx.strokeStyle = route === "siege" ? "#ffd27a" : "#d2a7ff";
+    ctx.fillStyle = route === "siege" ? "rgba(255,210,122,.22)" : "rgba(210,167,255,.22)";
+    ctx.lineWidth = 2.2;
+    if (route === "siege") {
+      for (const side of [-1, 1]) {
+        ctx.beginPath(); ctx.moveTo(side * 28, -8); ctx.lineTo(side * 98, -27); ctx.lineTo(side * 111, 0); ctx.lineTo(side * 72, 16); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    } else {
+      for (let petal = 0; petal < 6; petal += 1) {
+        const angle = petal * Math.PI / 3 - Math.PI / 2;
+        const inner = 54 + tier * 7; const outer = 96 + tier * 11;
+        ctx.beginPath(); ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner); ctx.lineTo(Math.cos(angle - .18) * outer, Math.sin(angle - .18) * outer); ctx.lineTo(Math.cos(angle + .18) * outer, Math.sin(angle + .18) * outer); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  drawTowerSkillMechanics(ctx, state, visual, tier) {
+    const heatRatio = Math.max(0, Math.min(1.25, Number(state.skills.overload.heat ?? 0) / Math.max(1, GAME_CONFIG.skills.overload.overheatThreshold)));
+    if (visual.overloadBand !== "off") {
+      const shell = this.assets.towerShellPanels;
+      const openness = Math.min(1, .24 + heatRatio * .78);
+      const pulse = .5 + Math.sin(this.time * (6 + heatRatio * 4)) * .5;
+      if (imageReady(shell)) {
+        const width = 145 + tier * 14 + openness * 20;
+        const height = width * (shell.naturalHeight / Math.max(1, shell.naturalWidth));
+        ctx.save();
+        ctx.globalAlpha = .36 + openness * .42 + pulse * .08;
+        ctx.translate(0, openness * 3);
+        ctx.scale(1 + openness * .13, 1 + openness * .08);
+        ctx.shadowColor = visual.overloadBand === "overheated" ? "#ff704d" : "#c99cff";
+        ctx.shadowBlur = 13 + heatRatio * 9;
+        ctx.drawImage(shell.cutout ?? shell, -width / 2, -height / 2, width, height);
+        ctx.restore();
+      }
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = .42 + heatRatio * .25;
+      ctx.strokeStyle = visual.overloadBand === "overheated" ? "#ff704d" : "#d7b5ff";
+      ctx.shadowColor = ctx.strokeStyle;
+      ctx.shadowBlur = 8 + heatRatio * 5;
+      ctx.lineWidth = 2 + heatRatio * 1.6;
+      ctx.setLineDash([7, 5]);
+      ctx.beginPath(); ctx.arc(0, 0, 58 + tier * 10 + openness * 16, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, heatRatio)); ctx.stroke();
+      ctx.restore();
+    }
+
+    if (visual.starfallBand !== "off") {
+      const angle = Number(state.skills.starfall.aimAngle ?? state.skills.starfall.angle ?? 0);
+      const active = visual.starfallBand === "release";
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = active ? .82 : .62;
+      ctx.strokeStyle = active ? "#fff2b8" : "#d8c7ff";
+      ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = active ? 18 : 9; ctx.lineWidth = active ? 4 : 2.5;
+      ctx.beginPath(); ctx.moveTo(0, -26 - tier * 8); ctx.lineTo(0, -104 - tier * 18); ctx.stroke();
+      ctx.lineWidth = 1.4;
+      for (const spread of [-.14, .14]) { ctx.beginPath(); ctx.moveTo(0, -36); ctx.lineTo(Math.sin(spread) * (84 + tier * 14), -Math.cos(spread) * (84 + tier * 14)); ctx.stroke(); }
+      ctx.restore();
+    }
+
+    if (visual.shieldBand === "armed") {
+      const armedPulse = .72 + Math.sin(this.time * 5.5) * .18;
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = armedPulse;
+      ctx.strokeStyle = "#c8fbff"; ctx.shadowColor = "#72e8ff"; ctx.shadowBlur = 12; ctx.lineWidth = 3;
+      for (let plate = 0; plate < 6; plate += 1) {
+        const angle = plate * Math.PI / 3 + this.time * .15; const radius = 62 + tier * 9;
+        ctx.save(); ctx.rotate(angle); ctx.beginPath(); ctx.moveTo(-12, -radius); ctx.lineTo(0, -radius - 10); ctx.lineTo(12, -radius); ctx.lineTo(8, -radius + 13); ctx.lineTo(-8, -radius + 13); ctx.closePath(); ctx.stroke(); ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    if (this.towerFx.heal > 0) {
+      const progress = 1 - this.towerFx.heal / 1.1;
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = (1 - progress) * .68; ctx.strokeStyle = "#9fffd0"; ctx.shadowColor = "#79ffad"; ctx.shadowBlur = 12; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, 42 + progress * 74, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress); ctx.stroke(); ctx.restore();
+    }
+  }
+
+  drawTowerDamage(ctx, state, visual, tier) {
+    if (visual.damageBand === "intact") return;
+    const intensity = visual.damageBand === "damaged" ? .48 : visual.damageBand === "critical" ? .78 : 1;
+    const crackColor = visual.damageBand === "collapse" ? "#ff6b78" : "#ff9aa5";
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = intensity * (.72 + Math.sin(this.time * 8) * .16);
+    ctx.strokeStyle = crackColor; ctx.shadowColor = crackColor; ctx.shadowBlur = 8 + intensity * 5; ctx.lineWidth = 1.8 + intensity;
+    const cracks = visual.damageBand === "damaged" ? [[-10, -28, 2, -9, -8, 9]] : [[-18, -40, -2, -16, -11, 4, 5, 26], [18, -31, 6, -9, 17, 8], [-30, 8, -8, 13, -18, 35]];
+    for (const points of cracks) { ctx.beginPath(); ctx.moveTo(points[0], points[1]); for (let i = 2; i < points.length; i += 2) ctx.lineTo(points[i], points[i + 1]); ctx.stroke(); }
+    if (visual.damageBand !== "damaged") {
+      ctx.globalAlpha = intensity * .62;
+      ctx.fillStyle = "#a9efff";
+      for (let shard = 0; shard < (visual.damageBand === "collapse" ? 5 : 2); shard += 1) {
+        const angle = -1.4 + shard * .72 + Math.sin(this.time * 2 + shard) * .04;
+        const radius = 54 + tier * 8 + shard * 7;
+        ctx.save(); ctx.translate(Math.cos(angle) * radius, Math.sin(angle) * radius); ctx.rotate(angle + Math.PI / 2 + this.time * .7); ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(4, 5); ctx.lineTo(-3, 8); ctx.closePath(); ctx.fill(); ctx.restore();
+      }
+    }
+    if (visual.damageBand === "collapse") {
+      ctx.globalAlpha = .42 + Math.sin(this.time * 10) * .12;
+      ctx.fillStyle = "#ff526f"; ctx.beginPath(); ctx.arc(0, -6, 12 + Math.sin(this.time * 7) * 2, 0, Math.PI * 2); ctx.fill();
+    }
+    if (this.towerFx.hit > 0) {
+      ctx.globalAlpha = Math.min(.55, this.towerFx.hit * 1.8);
+      ctx.strokeStyle = "#fff0f0"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, 48 + tier * 8, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   drawTower(ctx, state) {
     const { x, y } = getTowerPosition(state);
     const towerScale = state.enemies.some((enemy) => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1;
     const towerArtScale = TOWER_ART_SCALE;
-    const tier = state.tower.upgrades.ascend;
+    const visual = getTowerVisualState(state);
+    const tier = visual.tier;
     const stats = getTowerStats(state);
-    const hpRatio = Math.max(0, state.tower.hp / stats.maxHp);
+    const hpRatio = visual.hpRatio;
     const overload = state.skills.overload.active > 0 || state.skills.overload.permanentEngaged;
     const heatRatio = Math.max(0, Math.min(1.25, state.skills.overload.heat / GAME_CONFIG.skills.overload.overheatThreshold));
 
@@ -2248,19 +2586,18 @@ export class Renderer {
         ctx.fillStyle = "rgba(137,242,255,.28)"; ctx.fillRect(-deckLength * .34, -4, deckLength * .68, 8);
       }
       ctx.save(); ctx.rotate(this.time * .5); ctx.strokeStyle = "rgba(116,235,255,.55)"; ctx.beginPath(); ctx.arc(0, 0, deckLength * .54, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-    } else if (tier === 3 && imageReady(this.assets.towerUltimate)) {
-      const width = 188;
-      const height = 250;
-      ctx.shadowColor = overload ? "#f0b0ff" : "#b8edff";
-      ctx.shadowBlur = 38 + Math.sin(this.time * 3) * 4;
-      ctx.drawImage(this.assets.towerUltimate.cutout ?? this.assets.towerUltimate, -width / 2, -height * .52, width, height);
-    } else if (tier < 3 && imageReady(this.assets.tower)) {
+    } else if (imageReady(this.assets.tower)) {
       const atlas = this.assets.tower;
-      const cell = atlas.naturalWidth / 3;
-      const size = [112, 142, 174][tier];
+      const cellWidth = atlas.naturalWidth / 2;
+      const cellHeight = atlas.naturalHeight / 2;
+      const column = tier % 2;
+      const row = Math.floor(tier / 2);
+      const size = [142, 166, 192, 220][tier];
+      const sourceHeight = tier === 1 ? Math.min(cellHeight, 520) : cellHeight;
+      const drawHeight = size * (sourceHeight / cellHeight);
       ctx.shadowColor = overload ? "#d996ff" : "#71e8ff";
-      ctx.shadowBlur = 18 + tier * 7;
-      ctx.drawImage(atlas, tier * cell, 0, cell, atlas.naturalHeight, -size / 2, -size / 2, size, size);
+      ctx.shadowBlur = 12 + tier * 5;
+      ctx.drawImage(atlas, column * cellWidth, row * cellHeight, cellWidth, sourceHeight, -size / 2, -size / 2, size, drawHeight);
     } else {
       ctx.fillStyle = "#1e224a"; ctx.strokeStyle = "#6771b8"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(0, 24, 40 + tier * 8, 18 + tier * 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -2277,16 +2614,16 @@ export class Renderer {
       ctx.globalAlpha = .34; ctx.strokeStyle = "#ffffff"; ctx.beginPath(); ctx.moveTo(-6, -45 - tier * 10); ctx.lineTo(-12, 18); ctx.stroke(); ctx.globalAlpha = 1;
     }
     ctx.shadowBlur = 0;
+    this.drawTowerRouteModules(ctx, state, visual, tier);
+    this.drawTowerAim(ctx, state, visual, tier);
     if (tier < 3 && !isChapterTwo(state)) this.drawElementModules(ctx, state, tier);
+    this.drawTowerSkillMechanics(ctx, state, visual, tier);
+    this.drawTowerDamage(ctx, state, visual, tier);
 
     if (crystalShieldRatio > 0) {
       this.drawTowerCrystalShield(ctx, tier, crystalShieldRatio, state.skills.heal.shieldBurstArmed, true);
     }
 
-    if (hpRatio < 0.45) {
-      ctx.strokeStyle = "rgba(255,100,120,.9)"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(-4, -22); ctx.lineTo(8, -7); ctx.lineTo(-1, 10); ctx.lineTo(10, 24); ctx.stroke();
-    }
     ctx.restore();
     this.drawTowerHealthBar(ctx, state, x, y, towerScale * towerArtScale, tier, stats);
   }

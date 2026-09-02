@@ -649,6 +649,37 @@ if (previewMode === "tower-health") {
   state.tower.healthBarTimer = GAME_CONFIG.tower.healthBarDuration;
   state.paused = true;
 }
+if (previewMode === "tower-visual") {
+  state.threat = 8;
+  state.phase = "night";
+  state.time = 318;
+  state.spawnTimer = 999;
+  state.wave.nextAt = 999;
+  state.paused = true;
+  const tier = Math.max(0, Math.min(3, Number(urlParams.get("tier") ?? 2)));
+  const hp = Math.max(0, Math.min(1, Number(urlParams.get("hp") ?? 0.82)));
+  const route = urlParams.get("route");
+  const skill = urlParams.get("skill");
+  state.tower.upgrades.ascend = tier;
+  state.tower.upgrades.cannonSiege = route === "siege" ? 1 : 0;
+  state.tower.upgrades.cannonSplit = route === "split" ? 1 : 0;
+  state.tower.hp = getTowerStats(state).maxHp * hp;
+  const demoTarget = spawnEnemy(state, route === "split" ? "runner" : "brute", { x: 690, y: 300 });
+  demoTarget.speed = 0;
+  state.tower.priorityTargetIds = [demoTarget.id];
+  if (skill === "overload") {
+    state.skills.overload.active = 3.5;
+    state.skills.overload.heat = Math.max(0, Math.min(100, Number(urlParams.get("heat") ?? 72)));
+  }
+  if (skill === "starfall") {
+    state.skills.starfall.aiming = true;
+    state.skills.starfall.aimAngle = Number(urlParams.get("angle") ?? 0);
+  }
+  if (skill === "heal") {
+    state.skills.heal.shieldBurstArmed = true;
+    state.tower.shield = getTowerStats(state).maxHp * GAME_CONFIG.skills.heal.shieldCapFraction * 0.72;
+  }
+}
 if (previewMode === "skills") {
   state.threat = 6;
   state.phase = "night";
@@ -1811,7 +1842,7 @@ function createSkillUi() {
     button.className = "skill-button";
     button.dataset.skill = key;
     button.setAttribute('aria-label', `${meta.key} · ${meta.name}：${meta.tooltip}`);
-    button.innerHTML = `<span class="skill-key">${meta.key}</span><img class="skill-icon skill-art" src="${meta.art}" alt="" aria-hidden="true" loading="lazy"><i class="cooldown-mask"></i><span class="cooldown-text"></span><span class="skill-tooltip" role="tooltip"><b>${meta.key} · ${meta.name}</b><span>${meta.tooltip}</span></span>`;
+    button.innerHTML = `<span class="skill-key">${meta.key}</span><img class="skill-icon skill-art" src="${meta.art}" alt="" aria-hidden="true" loading="lazy"><i class="cooldown-mask"></i><i class="cooldown-ring" aria-hidden="true"></i><span class="cooldown-text"></span><span class="skill-status" aria-hidden="true"></span><span class="skill-tooltip" role="tooltip"><b>${meta.key} · ${meta.name}</b><span>${meta.tooltip}</span></span>`;
     button.addEventListener("click", () => activateSkill(key));
     dom.skillList.append(button);
   }
@@ -2579,7 +2610,7 @@ function handleEvents(events) {
     else if (event.type === "cannonStarPiercer") { audio.play("ascend"); renderer.trigger("cannonStarPiercer"); showToast("破城终点 · 贯星炮穿透护盾"); }
     else if (event.type === "cannonStarPiercerOverflow") renderer.trigger("cannonStarPiercer");
     else if (event.type === "cannonCascade") { audio.play("overload"); renderer.trigger("cannonCascade"); showToast(`裂晶终点 · 大型连锁爆炸 · 命中 ${event.hits}`); }
-    else if (event.type === "shoot") audio.play("shoot");
+    else if (event.type === "shoot") { audio.play("shoot"); renderer.trigger("shoot", event.tier ?? 1); }
     else if (event.type === "sawShoot") audio.play("sawShoot");
     else if (event.type === "sawLaunch" || event.type === "sawBounce") audio.play("sawShoot");
     else if (event.type === "sawStorm") { audio.play("sawShoot"); renderer.trigger("sawStorm", Math.min(1.5, event.pulses)); }
@@ -2787,7 +2818,7 @@ function updateUi() {
   dom.targetProtocolTitle.textContent = isChapterTwo(state) ? "无人机编队战术" : "目标协议";
   dom.targetProtocolHint.textContent = activeProtocolMeta(state.tower.targetProtocol).hint;
 
-  updateTechTreeUi();
+  if (techTreeOpen) updateTechTreeUi();
 
   for (const button of dom.skillList.children) {
     const key = button.dataset.skill;
@@ -2805,8 +2836,24 @@ function updateUi() {
       button.classList.toggle("aiming", starfallAiming);
       button.setAttribute("aria-pressed", String(starfallAiming));
     }
-    button.querySelector(".cooldown-mask").style.height = `${total > 0 ? Math.min(100, cooldown / total * 100) : 0}%`;
-    button.querySelector(".cooldown-text").textContent = cooldown > 0 ? `${cooldown.toFixed(1)}s` : "";
+    const active = state.skills[key].active > 0
+      || (key === "overload" && state.skills.overload.permanentEngaged)
+      || (key === "starfall" && starfallAiming);
+    const skillState = active
+      ? (key === "starfall" && starfallAiming ? "aiming" : "active")
+      : cooldown > 0 ? "cooldown" : button.disabled ? "disabled" : "ready";
+    const statusLabel = skillState === "cooldown"
+      ? `冷却中 ${cooldown.toFixed(1)}s`
+      : skillState === "active" ? "施法中"
+        : skillState === "aiming" ? "瞄准中"
+          : skillState === "disabled" ? "不可用" : "就绪";
+    const cooldownRatio = total > 0 ? Math.min(1, cooldown / total) : 0;
+    button.dataset.skillState = skillState;
+    button.setAttribute("aria-label", `${SKILL_META[key].key} · ${SKILL_META[key].name} · ${statusLabel}：${SKILL_META[key].tooltip}`);
+    button.querySelector(".cooldown-mask").style.height = `${!active ? cooldownRatio * 100 : 0}%`;
+    button.querySelector(".cooldown-ring").style.setProperty("--cooldown-progress", `${cooldownRatio * 100}%`);
+    button.querySelector(".cooldown-text").textContent = "";
+    button.querySelector(".skill-status").textContent = statusLabel;
     const tooltip = button.querySelector(".skill-tooltip span");
     if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${key === "starfall" && hasEndlessRelic(state, "globalStarfall") ? " · 全目标火力协议：按 E 立即全屏轰击" : ""}${key === "overload" && hasEndlessRelic(state, "perpetualOverload") ? " · 永续超载核心：首次开启后永久运转" : ""}${researchedNodes.length > 0 ? ` · ${ACTIVE_SKILL_RESEARCH_META[key].protocol} · ${activeRoute?.name ?? "未启用路线"} ${activeResearchLevel}/2 · 已研究 ${researchedNodes.length}/4` : ""}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
   }
