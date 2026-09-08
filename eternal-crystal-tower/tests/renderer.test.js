@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getCombatViewport, getCoverCrop, getTowerAimTarget, getTowerVisualState } from "../src/renderer.js";
+import { Renderer, getCombatViewport, getCoverCrop, getTowerAimTarget, getTowerCannonLayout, getTowerVisualState } from "../src/renderer.js";
 import { createGameState, getTowerStats } from "../src/engine.js";
 
 test("桌面 UI 收缩后战斗视口扩展到剩余场地中央", () => {
@@ -74,4 +74,40 @@ test("晶塔主炮优先锁定当前优先目标并在失效后回退最近目�
   assert.equal(getTowerAimTarget(state).id, 2);
   state.enemies[1].hp = 0;
   assert.equal(getTowerAimTarget(state), null);
+});
+
+test("主炮转向和后坐期间安装轴固定在炮座上，无目标时仍绘制", () => {
+  const state = createGameState(42);
+  for (const tier of [0, 1, 2, 3]) {
+    const layout = getTowerCannonLayout(tier);
+    for (const angle of [0, Math.PI / 2, Math.PI, -Math.PI / 2, 0.7]) {
+      for (const shoot of [0, 0.28]) {
+        let matrix = [1, 0, 0, 1, 0, 0];
+        const stack = [];
+        let draws = 0;
+        const ctx = {
+          save() { stack.push([...matrix]); },
+          restore() { matrix = stack.pop(); },
+          translate(x, y) { matrix[4] += matrix[0] * x + matrix[2] * y; matrix[5] += matrix[1] * x + matrix[3] * y; },
+          rotate(a) {
+            const [a0,b,c,d] = matrix, cos = Math.cos(a), sin = Math.sin(a);
+            matrix.splice(0, 4, a0*cos+c*sin, b*cos+d*sin, c*cos-a0*sin, d*cos-b*sin);
+          },
+          scale(x, y) { matrix[0] *= x; matrix[1] *= x; matrix[2] *= y; matrix[3] *= y; },
+          drawImage(...args) {
+            const x = args[5] + args[7] * layout.pivotX;
+            const y = args[6] + args[8] * layout.pivotY;
+            assert.ok(Math.abs(matrix[0]*x + matrix[2]*y + matrix[4] - layout.mountX) < 1e-8);
+            assert.ok(Math.abs(matrix[1]*x + matrix[3]*y + matrix[5] - layout.mountY) < 1e-8);
+            draws++;
+          }
+        };
+        Renderer.prototype.drawTowerAim.call({
+          towerAimTarget: null, towerAimAngle: angle, towerFx: { shoot },
+          assets: { towerMainCannonTiers: { complete: true, naturalWidth: 1254, naturalHeight: 1254 } }
+        }, ctx, state, getTowerVisualState(state), tier);
+        assert.equal(draws, 1);
+      }
+    }
+  }
 });

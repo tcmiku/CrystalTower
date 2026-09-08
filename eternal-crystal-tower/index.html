@@ -9,6 +9,7 @@
     <link rel="preload" as="image" href="./assets/generated/loading-splash.png" fetchpriority="high" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./auth.css" />
+    <link rel="stylesheet" href="./battle-ui.css" />
   </head>
   <body class="is-loading">
     <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite" aria-label="游戏素材加载中">
@@ -45,11 +46,12 @@
       </div>
     </section>
     <aside id="tutorialGuide" class="tutorial-guide hidden" aria-live="polite" aria-labelledby="tutorialTitle">
-      <span class="tutorial-step">首次守望引导</span>
+      <span class="tutorial-step">守望提示</span>
       <h2 id="tutorialTitle"></h2>
       <p id="tutorialText"></p>
       <div id="tutorialChoices" class="tutorial-choices"></div>
       <button id="tutorialDismiss" type="button">继续守望</button>
+      <button id="tutorialSkip" type="button" aria-label="跳过本局新手引导">跳过引导</button>
     </aside>
     <main class="game-shell topbar-collapsed">
       <header id="topbar" class="topbar is-collapsed">

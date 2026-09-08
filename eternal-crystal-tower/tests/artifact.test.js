@@ -107,7 +107,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   const renderer = await readFile(new URL("../src/renderer.js", import.meta.url), "utf8");
   assert.match(renderer, /TOWER_ART_SCALE = 1\.08/);
   assert.match(main, /战利品已经掉落/);
-  assert.match(main, /第一笔金币已到手/);
+  assert.match(main, /金币可以强化晶塔/);
   assert.match(main, /晶刃 · 近身防御/);
   assert.match(main, /无人机 · 经济自动化/);
   assert.match(main, /路线 A · 疾旋炮刃/);

@@ -32,6 +32,26 @@ const ENEMY_ATLAS_CELLS = {
   inkHound: [0, 0], orbitMote: [1, 0], rustBeetle: [0, 1], porcelainWarden: [1, 1]
 };
 const TOWER_ART_SCALE = 1.08;
+// 四级素材的透明留白并不完全一致，单独记录塔身和主炮的视觉锚点，
+// 让塔底安装环、炮管转轴和瞄准线的炮口端点落在同一条结构轴线上。
+const TOWER_BODY_OFFSETS = Object.freeze([
+  { x: -4, y: 0 },
+  { x: 0, y: 0 },
+  { x: -5, y: 0 },
+  { x: 1, y: 0 }
+]);
+const TOWER_CANNON_LAYOUT = Object.freeze([
+  { mountX: 0, mountY: -10, pivotX: 0.245, pivotY: 0.515, muzzleDistance: 58 },
+  { mountX: 0, mountY: -34, pivotX: 0.245, pivotY: 0.515, muzzleDistance: 102 },
+  { mountX: 0, mountY: -43, pivotX: 0.247, pivotY: 0.428, muzzleDistance: 115 },
+  { mountX: 0, mountY: -49, pivotX: 0.247, pivotY: 0.440, muzzleDistance: 136 }
+]);
+
+export function getTowerCannonLayout(tier) {
+  const safeTier = Math.max(0, Math.min(TOWER_CANNON_LAYOUT.length - 1, Math.floor(Number(tier) || 0)));
+  return TOWER_CANNON_LAYOUT[safeTier];
+}
+
 const ANCHOR_VISUALS = {
   shield: { name: "护盾", color: "#78e9ff", dark: "#1f6688", symbol: "⬡" },
   repair: { name: "修复", color: "#79ffad", dark: "#22684b", symbol: "+" },
@@ -408,7 +428,9 @@ export class Renderer {
     const aimTarget = getTowerAimTarget(state);
     const towerPosition = getTowerPosition(state);
     if (aimTarget) {
-      const desiredAngle = Math.atan2(aimTarget.y - towerPosition.y, aimTarget.x - towerPosition.x);
+      const mount = getTowerCannonLayout(state.tower.upgrades.ascend);
+      const artScale = TOWER_ART_SCALE * (state.enemies.some(enemy => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1);
+      const desiredAngle = Math.atan2(aimTarget.y - towerPosition.y - mount.mountY * artScale, aimTarget.x - towerPosition.x - mount.mountX * artScale);
       const deltaAngle = Math.atan2(Math.sin(desiredAngle - this.towerAimAngle), Math.cos(desiredAngle - this.towerAimAngle));
       this.towerAimAngle += deltaAngle * Math.min(1, delta * 12);
       this.towerAimTargetId = aimTarget.id;
@@ -2282,14 +2304,17 @@ export class Renderer {
   drawTowerAim(ctx, state, visual, tier) {
     if (isChapterTwo(state)) return;
     const target = this.towerAimTarget;
-    if (!target) return;
+    const cannonLayout = getTowerCannonLayout(tier);
     const towerPosition = getTowerPosition(state);
-    const dx = target.x - towerPosition.x;
-    const dy = target.y - towerPosition.y;
+    const artScale = TOWER_ART_SCALE * (state.enemies.some(enemy => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1);
+    const dx = target ? (target.x - towerPosition.x) / artScale : 0;
+    const dy = target ? (target.y - towerPosition.y) / artScale : 0;
     const angle = this.towerAimAngle;
     const routeColor = visual.cannonRoute === "siege" ? "#ffd27a" : visual.cannonRoute === "split" ? "#d9b4ff" : "#79dff5";
     const pulse = this.towerFx.shoot > 0 ? this.towerFx.shoot / .28 : 0;
     const recoil = pulse * 9;
+    // 压缩炮管表现后坐，安装环转轴始终固定在炮座孔上。
+    const barrelScale = 1 - recoil / cannonLayout.muzzleDistance;
 
     const cannon = this.assets.towerMainCannonTiers;
     if (imageReady(cannon)) {
@@ -2300,16 +2325,18 @@ export class Renderer {
       const width = [118, 142, 158, 184][tier];
       const height = width * (cellHeight / cellWidth);
       ctx.save();
+      ctx.translate(cannonLayout.mountX, cannonLayout.mountY);
       ctx.rotate(angle);
-      ctx.translate(-recoil, 0);
+      ctx.scale(barrelScale, 1);
       ctx.globalCompositeOperation = "source-over";
       ctx.globalAlpha = .94 + pulse * .06;
       ctx.shadowColor = routeColor;
       ctx.shadowBlur = 5 + pulse * 6;
-      ctx.drawImage(cannon, column * cellWidth, row * cellHeight, cellWidth, cellHeight, -width * .27, -height / 2, width, height);
+      ctx.drawImage(cannon, column * cellWidth, row * cellHeight, cellWidth, cellHeight, -width * cannonLayout.pivotX, -height * cannonLayout.pivotY, width, height);
       ctx.restore();
     }
 
+    if (!target) return;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = .14 + pulse * .26;
@@ -2319,8 +2346,10 @@ export class Renderer {
     ctx.lineWidth = 1.4 + pulse * 2.2;
     ctx.setLineDash([8, 10]);
     ctx.lineDashOffset = -this.time * 26;
-    const muzzleDistance = [44, 60, 72, 94][tier];
-    ctx.beginPath(); ctx.moveTo(Math.cos(angle) * muzzleDistance, Math.sin(angle) * muzzleDistance); ctx.lineTo(dx, dy); ctx.stroke();
+    const muzzleDistance = cannonLayout.muzzleDistance * barrelScale;
+    const muzzleX = cannonLayout.mountX + Math.cos(angle) * muzzleDistance;
+    const muzzleY = cannonLayout.mountY + Math.sin(angle) * muzzleDistance;
+    ctx.beginPath(); ctx.moveTo(muzzleX, muzzleY); ctx.lineTo(dx, dy); ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
 
@@ -2595,9 +2624,10 @@ export class Renderer {
       const size = [142, 166, 192, 220][tier];
       const sourceHeight = tier === 1 ? Math.min(cellHeight, 520) : cellHeight;
       const drawHeight = size * (sourceHeight / cellHeight);
+      const bodyOffset = TOWER_BODY_OFFSETS[tier];
       ctx.shadowColor = overload ? "#d996ff" : "#71e8ff";
       ctx.shadowBlur = 12 + tier * 5;
-      ctx.drawImage(atlas, column * cellWidth, row * cellHeight, cellWidth, sourceHeight, -size / 2, -size / 2, size, drawHeight);
+      ctx.drawImage(atlas, column * cellWidth, row * cellHeight, cellWidth, sourceHeight, -size / 2 + bodyOffset.x, -size / 2 + bodyOffset.y, size, drawHeight);
     } else {
       ctx.fillStyle = "#1e224a"; ctx.strokeStyle = "#6771b8"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(0, 24, 40 + tier * 8, 18 + tier * 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();

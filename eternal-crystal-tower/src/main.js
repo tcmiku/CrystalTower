@@ -798,6 +798,8 @@ let endlessShopBanterTimer = null;
 let resumeAfterEndlessShop = false;
 const firstRunTutorial = save.records.totalKills === 0 && !previewMode;
 let tutorialStep = 0;
+let tutorialSkipped = false;
+let tutorialHideTimer = null;
 const loadingStartedAt = performance.now();
 const renderer = new Renderer(dom.gameCanvas, updateLoadingProgress);
 const audio = new AudioSynth(save.settings.muted);
@@ -1127,7 +1129,8 @@ function clearTutorialHighlights() {
 }
 
 function showFirstRunTutorial(step, force = false) {
-  if ((!firstRunTutorial && !force) || step <= tutorialStep) return;
+  if ((!firstRunTutorial && !force) || (tutorialSkipped && !force) || step <= tutorialStep) return;
+  clearTimeout(tutorialHideTimer);
   tutorialStep = step;
   clearTutorialHighlights();
   dom.tutorialGuide.classList.remove("hidden", "compare");
@@ -1137,19 +1140,16 @@ function showFirstRunTutorial(step, force = false) {
     dom.tutorialText.textContent = "鼠标滑过战场上的发光金币，把它送回晶塔。未拾取的金币会在 10 秒后消失。";
     dom.tutorialDismiss.textContent = "我看见了";
   } else if (step === 2) {
-    setTechTreeOpen(true);
-    selectTechBranch("power", false);
-    dom.tutorialTitle.textContent = "第一笔金币已到手";
-    dom.tutorialText.textContent = "继续拾取并攒够 20 金币。“淬亮晶矢”是所有路线的起点：提高基础伤害，并解锁晶刃与无人机科技。";
-    dom.tutorialDismiss.textContent = "稍后研究";
+    dom.tutorialTitle.textContent = "金币可以强化晶塔";
+    dom.tutorialText.textContent = "攒够 20 金币，就能研究“淬亮晶矢”提升伤害。准备好后，按 T 查看科技。";
+    dom.tutorialDismiss.textContent = "查看科技 · T";
     dom.upgradeList.querySelector('[data-upgrade="damage"]')?.classList.add("tutorial-focus");
   } else if (step === 3) {
-    setTechTreeOpen(true);
     dom.tutorialGuide.classList.add("compare");
-    dom.tutorialTitle.textContent = "威胁 II · 选择第一条防线";
-    dom.tutorialText.textContent = "两条路线可以并行研究；先选哪条，取决于你现在更缺近身火力还是金币回收。";
+    dom.tutorialTitle.textContent = "新的防线已开放";
+    dom.tutorialText.textContent = "晶刃保护近身，无人机帮你拾币。两条路线可以一起研究，不必急着选。";
     dom.tutorialChoices.innerHTML = `<div class="tutorial-choice blade"><strong>✺ 晶刃 · 近身防御</strong><span>环绕晶塔切割靠近的敌人，后续可升级晶刃炮膛补充火力。</span></div><div class="tutorial-choice drone"><strong>⌁ 无人机 · 经济自动化</strong><span>护航时自动回收金币，后续可切换攻击模式并发展战术协议。</span></div>`;
-    dom.tutorialDismiss.textContent = "开始选择";
+    dom.tutorialDismiss.textContent = "查看路线 · T";
     dom.upgradeList.querySelector('[data-branch-tab="blade"]')?.classList.add("tutorial-focus");
     dom.upgradeList.querySelector('[data-branch-tab="economy"]')?.classList.add("tutorial-focus");
   } else if (step === 4) {
@@ -1157,6 +1157,12 @@ function showFirstRunTutorial(step, force = false) {
     dom.tutorialText.textContent = "你已击败威胁 Ⅹ 首领，永久解锁 2× 时流。点击右上角的 1× / 2× 按钮，或按 X 切换战斗速度。";
     dom.tutorialDismiss.textContent = "我知道了";
   }
+  document.getElementById("tutorialSkip").hidden = step === 4;
+  // 留出阅读时间后自动收起；提示本身不暂停战斗或打开面板。
+  tutorialHideTimer = setTimeout(() => {
+    dom.tutorialGuide.classList.add("hidden");
+    clearTutorialHighlights();
+  }, step === 3 ? 20000 : 14000);
 }
 
 function createUpgradeUi() {
@@ -3721,6 +3727,17 @@ dom.storyIntroStage.addEventListener("click", (event) => {
   advanceStoryIntro();
 });
 dom.tutorialDismiss.addEventListener("click", () => {
+  clearTimeout(tutorialHideTimer);
+  if (tutorialStep === 2 || tutorialStep === 3) {
+    setTechTreeOpen(true);
+    selectTechBranch(tutorialStep === 2 ? "power" : "blade", false);
+  }
+  dom.tutorialGuide.classList.add("hidden");
+  clearTutorialHighlights();
+});
+document.getElementById("tutorialSkip").addEventListener("click", () => {
+  tutorialSkipped = true;
+  clearTimeout(tutorialHideTimer);
   dom.tutorialGuide.classList.add("hidden");
   clearTutorialHighlights();
 });

@@ -1,0 +1,157 @@
+/* Battle HUD refinement. Layout changes are scoped to the expanded desktop
+   sidebar so the compact rail and mobile controls retain their geometry. */
+.tutorial-guide,
+.tutorial-guide.compare {
+  top: auto;
+  bottom: 132px;
+  left: 26px;
+  width: min(310px, calc(100vw - 52px));
+  transform: none;
+  padding: 13px 15px;
+  border: 1px solid rgba(140, 189, 208, .24);
+  border-left: 3px solid #72cedd;
+  border-radius: 10px;
+  background: rgba(9, 20, 35, .95);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .2);
+  animation: tutorial-soft-in .35s ease-out;
+}
+.tutorial-guide h2 { margin: 5px 0 0; font-size: 14px; }
+.tutorial-guide > p { font-size: 12px; line-height: 1.65; }
+.tutorial-guide .tutorial-step { font-size: 10px; letter-spacing: .1em; color: #9bb8c8; }
+.tutorial-guide.compare .tutorial-choices { display: none; }
+.tutorial-guide > button { min-height: 36px; font-size: 12px; }
+.tutorial-guide #tutorialSkip { margin-left: 8px; border-color: transparent; color: #a7b8c9; background: transparent; }
+.tutorial-guide button:focus-visible { outline: 2px solid #acefff; outline-offset: 2px; }
+@keyframes tutorial-soft-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 1180px) {
+  .tutorial-guide, .tutorial-guide.compare {
+    left: 12px;
+    bottom: max(96px, calc(env(safe-area-inset-bottom) + 80px));
+    width: min(290px, calc(100vw - 88px));
+    max-height: 35dvh;
+    overflow-y: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-guide { animation: none; }
+}
+.game-shell {
+  --hud-surface: linear-gradient(155deg, rgba(17, 29, 49, .96), rgba(7, 13, 27, .97));
+  --hud-border: rgba(151, 192, 220, .22);
+}
+.game-shell .topbar,
+.game-shell .upgrade-panel,
+.game-shell .skill-bar {
+  border-color: var(--hud-border);
+  background: var(--hud-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .24), inset 0 1px rgba(217, 238, 255, .05);
+}
+.game-shell .status strong,
+.game-shell .score-hud strong,
+.game-shell .build-summary b,
+.game-shell .cooldown-text { font-variant-numeric: tabular-nums; }
+.game-shell button:focus-visible {
+  outline: 2px solid #acefff;
+  outline-offset: 3px;
+}
+.game-shell .protocol-grid button[aria-pressed="true"] {
+  border-color: #72d9ec;
+  background: linear-gradient(130deg, rgba(55, 151, 175, .28), rgba(20, 51, 73, .7));
+  box-shadow: inset 3px 0 #82e5ef, inset 0 1px rgba(205, 248, 255, .12);
+}
+.game-shell .protocol-grid button:not([aria-pressed="true"]):hover {
+  border-color: rgba(158, 214, 233, .6);
+  background-color: rgba(95, 163, 195, .12);
+}
+.game-shell .skill-button {
+  border-radius: 9px;
+  border-color: rgba(160, 197, 227, .3);
+  isolation: isolate;
+}
+.game-shell .skill-button::before {
+  background: linear-gradient(90deg, rgba(4, 12, 24, .88), rgba(4, 12, 24, .1)),
+    linear-gradient(0deg, rgba(4, 12, 24, .94), transparent 85%);
+}
+.game-shell .skill-button::after {
+  color: #f1f8ff;
+  text-shadow: 0 2px 4px #030b18;
+}
+.game-shell .skill-key {
+  border-radius: 5px;
+  color: #ecf8ff;
+  background: rgba(5, 14, 28, .9);
+  border-color: rgba(181, 211, 230, .4);
+}
+.game-shell .score-hud {
+  border-radius: 9px;
+  border-color: rgba(224, 197, 137, .35);
+  background: linear-gradient(140deg, rgba(35, 31, 29, .94), rgba(10, 17, 30, .94));
+}
+@media (min-width: 1181px) {
+  .game-shell .topbar { border-radius: 10px; }
+  .game-shell .upgrade-panel { border-radius: 12px; }
+  .game-shell .upgrade-panel:not(.is-collapsed) { padding: 18px 14px; }
+  .upgrade-panel:not(.is-collapsed) .target-protocol header {
+    padding-right: 30px;
+    font-size: 14px;
+    letter-spacing: .05em;
+  }
+  .upgrade-panel:not(.is-collapsed) .target-protocol header span { font-size: 15px; }
+  .upgrade-panel:not(.is-collapsed) .protocol-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .upgrade-panel:not(.is-collapsed) .protocol-grid button {
+    min-width: 0;
+    min-height: 78px;
+    height: auto;
+    padding: 10px 7px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    border-radius: 8px;
+    text-align: left;
+  }
+  .upgrade-panel:not(.is-collapsed) .protocol-grid button > .battle-art {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+  }
+  .upgrade-panel:not(.is-collapsed) .protocol-grid b { font-size: 12px; }
+  .upgrade-panel:not(.is-collapsed) .protocol-grid small {
+    margin-top: 3px;
+    font-size: 10px;
+    color: #b4c5d6;
+  }
+  .upgrade-panel:not(.is-collapsed) #targetProtocolHint {
+    color: #b4c5d6;
+    font-size: 11px;
+    line-height: 1.65;
+    margin: 10px 0 0;
+  }
+  .upgrade-panel:not(.is-collapsed) .tech-tree-launch {
+    border-radius: 9px;
+    border-color: rgba(133, 218, 239, .45);
+    background: linear-gradient(120deg, rgba(35, 104, 130, .3), rgba(24, 35, 61, .8));
+  }
+  .upgrade-panel:not(.is-collapsed) .build-summary {
+    border-top: 1px solid var(--hud-border);
+    padding-top: 12px;
+  }
+  .game-shell .skill-bar { border-radius: 12px; }
+  .skill-bar:not(.is-collapsed) .skill-list { gap: 10px; }
+  .skill-bar.is-collapsed .skill-status,
+  .skill-bar.is-collapsed .cooldown-ring { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game-shell *, .game-shell *::before, .game-shell *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
