@@ -1,6 +1,9 @@
 import { GAME_CONFIG, getArenaEdgePosition, getCrowdVisualScale } from "./config.js";
 import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getSawBladeRadius, getSawOrbitRadius, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 import { isChapterTwo } from "./chapter-two.js";
+import { ArenaModelRenderer } from './arena-model.js';
+import { EnemyModelRenderer } from './enemy-model.js';
+import { TowerModelRenderer, getModelLayout, getCannonPose } from "./tower-model.js";
 
 const ENEMY_COLORS = {
   wisp: ["#ff706d", "#8e273e"],
@@ -32,24 +35,8 @@ const ENEMY_ATLAS_CELLS = {
   inkHound: [0, 0], orbitMote: [1, 0], rustBeetle: [0, 1], porcelainWarden: [1, 1]
 };
 const TOWER_ART_SCALE = 1.08;
-// 四级素材的透明留白并不完全一致，单独记录塔身和主炮的视觉锚点，
-// 让塔底安装环、炮管转轴和瞄准线的炮口端点落在同一条结构轴线上。
-const TOWER_BODY_OFFSETS = Object.freeze([
-  { x: -4, y: 0 },
-  { x: 0, y: 0 },
-  { x: -5, y: 0 },
-  { x: 1, y: 0 }
-]);
-const TOWER_CANNON_LAYOUT = Object.freeze([
-  { mountX: 0, mountY: -10, pivotX: 0.245, pivotY: 0.515, muzzleDistance: 58 },
-  { mountX: 0, mountY: -34, pivotX: 0.245, pivotY: 0.515, muzzleDistance: 102 },
-  { mountX: 0, mountY: -43, pivotX: 0.247, pivotY: 0.428, muzzleDistance: 115 },
-  { mountX: 0, mountY: -49, pivotX: 0.247, pivotY: 0.440, muzzleDistance: 136 }
-]);
-
 export function getTowerCannonLayout(tier) {
-  const safeTier = Math.max(0, Math.min(TOWER_CANNON_LAYOUT.length - 1, Math.floor(Number(tier) || 0)));
-  return TOWER_CANNON_LAYOUT[safeTier];
+  return getModelLayout(tier);
 }
 
 const ANCHOR_VISUALS = {
@@ -110,11 +97,7 @@ export function getCoverCrop(sourceWidth, sourceHeight, targetWidth, targetHeigh
 const GENERATED_ASSETS = {
   arena: "./assets/generated/arena-bg-safe-zone-v5.png",
   arenaDay: "./assets/generated/arena-bg-safe-zone-v5.png",
-  tower: "./assets/generated/tower-body-tiers-ai-v2.png",
-  towerRouteSiege: "./assets/generated/tower-route-siege-ai-v1.png",
-  towerRouteSplit: "./assets/generated/tower-route-split-ai-v1.png",
   towerShellPanels: "./assets/generated/tower-shell-panels-ai-v1.png",
-  towerMainCannonTiers: "./assets/generated/tower-main-cannon-tiers-ai-v2.png",
   enemies: "./assets/generated/enemy-atlas.png",
   waveEnemies: "./assets/generated/enemy-wave-atlas.png",
   astralEnemies: "./assets/generated/enemy-astral-atlas-ai.png",
@@ -126,9 +109,6 @@ const GENERATED_ASSETS = {
   projectileFrost: "./assets/generated/projectile-frost-ai-v2.png",
   projectileFire: "./assets/generated/projectile-fire-ai.png",
   projectileLightning: "./assets/generated/projectile-lightning-ai-v2.png",
-  moduleFrost: "./assets/generated/module-frost-cannon-ai.png",
-  moduleFire: "./assets/generated/module-fire-core-ai.png",
-  moduleLightning: "./assets/generated/module-lightning-orb-ai.png",
   effectFrost: "./assets/generated/effect-frost-hex-ai.png",
   effectFire: "./assets/generated/effect-fire-ember-ring-ai.png",
   effectLightning: "./assets/generated/effect-lightning-chain-ai.png",
@@ -142,10 +122,10 @@ const GENERATED_ASSETS = {
   chapterTwoSovereign: "./assets/generated/chapter2-abyss-sovereign-ai-v1.png"
 };
 
-const CRITICAL_ASSET_KEYS = new Set(["arena", "tower", "enemies"]);
+const CRITICAL_ASSET_KEYS = new Set(["arena", "enemies"]);
 
 const CUTOUT_ASSETS = new Set([
-  "projectileFrost", "projectileLightning", "moduleFrost",
+  "projectileFrost", "projectileLightning",
   "effectFrost", "effectFire", "effectLightning"
 ]);
 
@@ -343,6 +323,9 @@ export class Renderer {
     this.starfallFx = createStarfallFxSprites();
     this.starfallCorridors = new Map();
     this.towerFx = { ascend: 0, heal: 0, overload: 0, starfall: 0, coinVacuum: 0, hit: 0, shoot: 0 };
+    this.towerModel = new TowerModelRenderer();
+    this.arenaModel = new ArenaModelRenderer();
+    this.enemyModel = new EnemyModelRenderer();
     this.towerAimAngle = -Math.PI / 2;
     this.towerAimTargetId = null;
     this.towerAimTarget = null;
@@ -447,7 +430,9 @@ export class Renderer {
     const shakeY = this.shake ? Math.cos(this.time * 61) * this.shake * 0.7 : 0;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.drawBackdrop(ctx, state, cssWidth, cssHeight);
+    if (isChapterTwo(state) || !this.arenaModel.drawArena(ctx, {width:cssWidth,height:cssHeight,scale,offsetX:offsetX+shakeX,offsetY:offsetY+shakeY,dayMix:this.dayMix,time:this.time})) {
+      this.drawBackdrop(ctx, state, cssWidth, cssHeight);
+    }
     ctx.save();
     ctx.translate(offsetX + shakeX, offsetY + shakeY);
     ctx.scale(scale, scale);
@@ -1784,7 +1769,9 @@ export class Renderer {
         ctx.beginPath(); ctx.moveTo(enemy.x, enemy.y); ctx.lineTo(towerPosition.x, towerPosition.y); ctx.stroke();
         ctx.restore();
       }
-      if (fastCrowdSprite) {
+      if (enemy.type === 'wisp' && !isChapterTwo(state)) {
+        this.enemyModel.drawEnemy(ctx, enemy, this.time, Math.atan2(towerPosition.y-enemy.y,towerPosition.x-enemy.x), crowdVisualScale);
+      } else if (fastCrowdSprite) {
         const cell = atlas.naturalWidth / 2;
         const [column, row] = ENEMY_ATLAS_CELLS[enemy.type];
         const size = enemy.radius * 3.05 * crowdVisualScale;
@@ -2304,7 +2291,6 @@ export class Renderer {
   drawTowerAim(ctx, state, visual, tier) {
     if (isChapterTwo(state)) return;
     const target = this.towerAimTarget;
-    const cannonLayout = getTowerCannonLayout(tier);
     const towerPosition = getTowerPosition(state);
     const artScale = TOWER_ART_SCALE * (state.enemies.some(enemy => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1);
     const dx = target ? (target.x - towerPosition.x) / artScale : 0;
@@ -2312,29 +2298,7 @@ export class Renderer {
     const angle = this.towerAimAngle;
     const routeColor = visual.cannonRoute === "siege" ? "#ffd27a" : visual.cannonRoute === "split" ? "#d9b4ff" : "#79dff5";
     const pulse = this.towerFx.shoot > 0 ? this.towerFx.shoot / .28 : 0;
-    const recoil = pulse * 9;
-    // 压缩炮管表现后坐，安装环转轴始终固定在炮座孔上。
-    const barrelScale = 1 - recoil / cannonLayout.muzzleDistance;
 
-    const cannon = this.assets.towerMainCannonTiers;
-    if (imageReady(cannon)) {
-      const cellWidth = cannon.naturalWidth / 2;
-      const cellHeight = cannon.naturalHeight / 2;
-      const column = tier % 2;
-      const row = Math.floor(tier / 2);
-      const width = [118, 142, 158, 184][tier];
-      const height = width * (cellHeight / cellWidth);
-      ctx.save();
-      ctx.translate(cannonLayout.mountX, cannonLayout.mountY);
-      ctx.rotate(angle);
-      ctx.scale(barrelScale, 1);
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = .94 + pulse * .06;
-      ctx.shadowColor = routeColor;
-      ctx.shadowBlur = 5 + pulse * 6;
-      ctx.drawImage(cannon, column * cellWidth, row * cellHeight, cellWidth, cellHeight, -width * cannonLayout.pivotX, -height * cannonLayout.pivotY, width, height);
-      ctx.restore();
-    }
 
     if (!target) return;
     ctx.save();
@@ -2346,9 +2310,7 @@ export class Renderer {
     ctx.lineWidth = 1.4 + pulse * 2.2;
     ctx.setLineDash([8, 10]);
     ctx.lineDashOffset = -this.time * 26;
-    const muzzleDistance = cannonLayout.muzzleDistance * barrelScale;
-    const muzzleX = cannonLayout.mountX + Math.cos(angle) * muzzleDistance;
-    const muzzleY = cannonLayout.mountY + Math.sin(angle) * muzzleDistance;
+    const { muzzleX, muzzleY } = getCannonPose(tier, angle, this.towerFx.shoot, visual.cannonRoute);
     ctx.beginPath(); ctx.moveTo(muzzleX, muzzleY); ctx.lineTo(dx, dy); ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
@@ -2372,51 +2334,13 @@ export class Renderer {
     ctx.stroke();
     ctx.restore();
   }
-  drawTowerRouteModules(ctx, state, visual, tier) {
-    const route = visual.cannonRoute;
-    const asset = route === "siege" ? this.assets.towerRouteSiege : route === "split" ? this.assets.towerRouteSplit : null;
-    if (route === "none") return;
-    if (imageReady(asset)) {
-      const width = route === "siege" ? 184 + tier * 14 : 170 + tier * 12;
-      const height = width * (asset.naturalHeight / Math.max(1, asset.naturalWidth));
-      ctx.save();
-      ctx.globalAlpha = visual.damageBand === "collapse" ? .45 : .92;
-      const modulePulse = 1 + Math.sin(this.time * 3.2 + tier) * .018 + (this.towerFx.shoot > 0 ? this.towerFx.shoot / .28 * .045 : 0);
-      ctx.translate(0, Math.sin(this.time * 2.1) * .8);
-      ctx.rotate(route === "split" ? this.time * .24 : Math.sin(this.time * 1.35) * .035);
-      ctx.scale(modulePulse, modulePulse);
-      ctx.shadowColor = route === "siege" ? "#ffd27a" : "#d2a7ff";
-      ctx.shadowBlur = 10 + tier * 3;
-      ctx.drawImage(asset.cutout ?? asset, -width / 2, -height / 2, width, height);
-      ctx.restore();
-      return;
-    }
-    ctx.save();
-    ctx.globalAlpha = .72;
-    ctx.strokeStyle = route === "siege" ? "#ffd27a" : "#d2a7ff";
-    ctx.fillStyle = route === "siege" ? "rgba(255,210,122,.22)" : "rgba(210,167,255,.22)";
-    ctx.lineWidth = 2.2;
-    if (route === "siege") {
-      for (const side of [-1, 1]) {
-        ctx.beginPath(); ctx.moveTo(side * 28, -8); ctx.lineTo(side * 98, -27); ctx.lineTo(side * 111, 0); ctx.lineTo(side * 72, 16); ctx.closePath(); ctx.fill(); ctx.stroke();
-      }
-    } else {
-      for (let petal = 0; petal < 6; petal += 1) {
-        const angle = petal * Math.PI / 3 - Math.PI / 2;
-        const inner = 54 + tier * 7; const outer = 96 + tier * 11;
-        ctx.beginPath(); ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner); ctx.lineTo(Math.cos(angle - .18) * outer, Math.sin(angle - .18) * outer); ctx.lineTo(Math.cos(angle + .18) * outer, Math.sin(angle + .18) * outer); ctx.closePath(); ctx.fill(); ctx.stroke();
-      }
-    }
-    ctx.restore();
-  }
-
   drawTowerSkillMechanics(ctx, state, visual, tier) {
     const heatRatio = Math.max(0, Math.min(1.25, Number(state.skills.overload.heat ?? 0) / Math.max(1, GAME_CONFIG.skills.overload.overheatThreshold)));
     if (visual.overloadBand !== "off") {
       const shell = this.assets.towerShellPanels;
       const openness = Math.min(1, .24 + heatRatio * .78);
       const pulse = .5 + Math.sin(this.time * (6 + heatRatio * 4)) * .5;
-      if (imageReady(shell)) {
+      if (isChapterTwo(state) && imageReady(shell)) {
         const width = 145 + tier * 14 + openness * 20;
         const height = width * (shell.naturalHeight / Math.max(1, shell.naturalWidth));
         ctx.save();
@@ -2615,38 +2539,13 @@ export class Renderer {
         ctx.fillStyle = "rgba(137,242,255,.28)"; ctx.fillRect(-deckLength * .34, -4, deckLength * .68, 8);
       }
       ctx.save(); ctx.rotate(this.time * .5); ctx.strokeStyle = "rgba(116,235,255,.55)"; ctx.beginPath(); ctx.arc(0, 0, deckLength * .54, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-    } else if (imageReady(this.assets.tower)) {
-      const atlas = this.assets.tower;
-      const cellWidth = atlas.naturalWidth / 2;
-      const cellHeight = atlas.naturalHeight / 2;
-      const column = tier % 2;
-      const row = Math.floor(tier / 2);
-      const size = [142, 166, 192, 220][tier];
-      const sourceHeight = tier === 1 ? Math.min(cellHeight, 520) : cellHeight;
-      const drawHeight = size * (sourceHeight / cellHeight);
-      const bodyOffset = TOWER_BODY_OFFSETS[tier];
-      ctx.shadowColor = overload ? "#d996ff" : "#71e8ff";
-      ctx.shadowBlur = 12 + tier * 5;
-      ctx.drawImage(atlas, column * cellWidth, row * cellHeight, cellWidth, sourceHeight, -size / 2 + bodyOffset.x, -size / 2 + bodyOffset.y, size, drawHeight);
     } else {
-      ctx.fillStyle = "#1e224a"; ctx.strokeStyle = "#6771b8"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(0, 24, 40 + tier * 8, 18 + tier * 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      const gradient = ctx.createLinearGradient(-30, -65, 25, 48);
-      gradient.addColorStop(0, "#e4fdff"); gradient.addColorStop(.35, overload ? "#d8a8ff" : tier === 3 ? "#fff3c1" : "#7ceeff"); gradient.addColorStop(1, tier >= 2 ? "#9a63ff" : "#654bc2");
-      ctx.fillStyle = gradient; ctx.strokeStyle = tier >= 2 ? "#ffe6a0" : "#b9f9ff"; ctx.lineWidth = 2;
-      ctx.shadowColor = overload ? "#d996ff" : "#71e8ff"; ctx.shadowBlur = 22 + tier * 8;
-      ctx.beginPath();
-      if (tier === 0) ctx.moveTo(0, -49), ctx.lineTo(27, -5), ctx.lineTo(14, 39), ctx.lineTo(-14, 39), ctx.lineTo(-27, -5);
-      else if (tier === 1) ctx.moveTo(0, -68), ctx.lineTo(23, -30), ctx.lineTo(29, 35), ctx.lineTo(0, 51), ctx.lineTo(-29, 35), ctx.lineTo(-23, -30);
-      else ctx.moveTo(0, -79), ctx.lineTo(18, -47), ctx.lineTo(43, -58), ctx.lineTo(31, -19), ctx.lineTo(38, 38), ctx.lineTo(0, 58), ctx.lineTo(-38, 38), ctx.lineTo(-31, -19), ctx.lineTo(-43, -58), ctx.lineTo(-18, -47);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.globalAlpha = .34; ctx.strokeStyle = "#ffffff"; ctx.beginPath(); ctx.moveTo(-6, -45 - tier * 10); ctx.lineTo(-12, 18); ctx.stroke(); ctx.globalAlpha = 1;
+      this.towerModel.draw(ctx, visual, this.towerAimAngle, this.time, this.towerFx);
     }
     ctx.shadowBlur = 0;
-    this.drawTowerRouteModules(ctx, state, visual, tier);
+    // Route and elemental modules belong to the depth-tested model.
     this.drawTowerAim(ctx, state, visual, tier);
-    if (tier < 3 && !isChapterTwo(state)) this.drawElementModules(ctx, state, tier);
+
     this.drawTowerSkillMechanics(ctx, state, visual, tier);
     this.drawTowerDamage(ctx, state, visual, tier);
 
@@ -2896,51 +2795,6 @@ export class Renderer {
     ctx.fillStyle = low ? '#ff9eac' : '#d7efff';
     ctx.fillText(String(Math.ceil(hpRatio * 100)) + '%', left + width, barY - 8);
     ctx.restore();
-  }
-
-  drawElementModules(ctx, state, tier) {
-    const upgrades = state.tower.upgrades;
-    if (upgrades.frost > 0) {
-      const sprite = this.assets.moduleFrost;
-      ctx.save(); ctx.translate(-38 - tier * 4, -25 - tier * 5); ctx.rotate(-0.22);
-      ctx.shadowColor = "#79e6ff"; ctx.shadowBlur = 13;
-      if (imageReady(sprite)) {
-        const width = 68 + tier * 5; const height = width;
-        ctx.drawImage(sprite.cutout ?? sprite, -width * .43, -height * .52, width, height);
-      } else {
-        ctx.fillStyle = "#3e6fa5"; ctx.strokeStyle = "#c8f8ff"; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(-4, -7); ctx.lineTo(22, -5); ctx.lineTo(31, 0); ctx.lineTo(22, 5); ctx.lineTo(-4, 7); ctx.closePath(); ctx.fill(); ctx.stroke();
-      }
-      ctx.restore();
-    }
-    if (upgrades.fire > 0) {
-      const sprite = this.assets.moduleFire;
-      ctx.save(); ctx.translate(39 + tier * 4, -3 - tier * 3 + Math.sin(this.time * 3.2) * 1.2);
-      ctx.shadowColor = "#ff713d"; ctx.shadowBlur = 14;
-      if (imageReady(sprite)) {
-        const width = 66 + tier * 5; const height = width * 1.07;
-        ctx.drawImage(sprite, -width * .48, -height * .5, width, height);
-      } else {
-        ctx.fillStyle = "#5b2940"; ctx.strokeStyle = "#ffbd68"; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      }
-      ctx.restore();
-    }
-    if (upgrades.lightning > 0) {
-      const orbY = -73 - tier * 8;
-      const sprite = this.assets.moduleLightning;
-      ctx.save(); ctx.translate(0, orbY); ctx.rotate(Math.sin(this.time * 1.7) * .035);
-      ctx.shadowColor = "#9b7dff"; ctx.shadowBlur = 21;
-      if (imageReady(sprite)) {
-        const pulse = 1 + Math.sin(this.time * 4) * .035;
-        const width = (62 + tier * 5) * pulse; const height = width * .94;
-        ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
-      } else {
-        ctx.fillStyle = "rgba(129,102,255,.28)"; ctx.strokeStyle = "#d9cfff"; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(0, 0, 13 + Math.sin(this.time * 4) * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      }
-      ctx.restore();
-    }
   }
 
   drawParticles(ctx, state) {

@@ -1,0 +1,10 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>基础小怪 · 3D 模型</title>
+<style>body{margin:0;background:#0c1120;color:#e4dcf2;font:16px system-ui;text-align:center}h1{margin:32px 0 8px}p{color:#aba5bd}canvas{width:min(90vw,720px);height:auto;background:radial-gradient(ellipse,#262039,#101624);border:1px solid #463549;border-radius:20px}a{color:#ff946d}button{padding:10px 24px;background:#432b46;color:white;border:1px solid #85556c;border-radius:8px}</style>
+<h1>基础小怪 · 熔晶浮灵</h1><p>暗紫岩甲 / 熔火核心 / 红晶背刺 / 四瓣弯爪</p><canvas width="900" height="650"></canvas><p><button>暂停旋转</button>　<a href="/">返回战场</a></p>
+<script type="module">
+import {EnemyModelRenderer} from './src/enemy-model.js';
+const ctx=document.querySelector('canvas').getContext('2d'),renderer=new EnemyModelRenderer();
+renderer.prepare();if(renderer.canvas){renderer.canvas.width=1600;renderer.canvas.height=1600;}
+let spin=true,angle=0,last=0;document.querySelector('button').onclick=e=>{spin=!spin;e.target.textContent=spin?'暂停旋转':'继续旋转'};
+function frame(ms){const t=ms/1000;if(spin)angle+=(t-last)*.5;last=t;ctx.clearRect(0,0,900,650);renderer.drawEnemy(ctx,{x:450,y:330,radius:110,id:0,hitFlash:0},t,angle);requestAnimationFrame(frame)}requestAnimationFrame(frame);
+</script></html>
