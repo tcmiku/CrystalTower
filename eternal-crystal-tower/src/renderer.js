@@ -2,6 +2,7 @@ import { GAME_CONFIG, getArenaEdgePosition, getCrowdVisualScale } from "./config
 import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getSawBladeRadius, getSawOrbitRadius, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 import { isChapterTwo } from "./chapter-two.js";
 import { ArenaModelRenderer } from './arena-model.js';
+import { DroneModelRenderer } from './drone-model.js';
 import { EnemyModelRenderer } from './enemy-model.js';
 import { TowerModelRenderer, getModelLayout, getCannonPose } from "./tower-model.js";
 
@@ -325,6 +326,7 @@ export class Renderer {
     this.towerFx = { ascend: 0, heal: 0, overload: 0, starfall: 0, coinVacuum: 0, hit: 0, shoot: 0 };
     this.towerModel = new TowerModelRenderer();
     this.arenaModel = new ArenaModelRenderer();
+    this.droneModel = new DroneModelRenderer();
     this.enemyModel = new EnemyModelRenderer();
     this.towerAimAngle = -Math.PI / 2;
     this.towerAimTargetId = null;
@@ -2237,7 +2239,10 @@ export class Renderer {
       const classColor = droneClass === "bomber" ? "#ff8e70" : droneClass === "attacker" ? "#ffd066" : "#6feaff";
       const primaryColor = recovering ? "#6c718c" : detonate ? "#ff715f" : defending ? "#a88cff" : isChapterTwo(state) ? classColor : attacking ? "#ffad4d" : "#7ceeff";
       ctx.shadowColor = primaryColor; ctx.shadowBlur = recovering ? 5 : attacking || defending ? 15 : 10;
-      if (isChapterTwo(state) && imageReady(this.assets.chapterTwoDrones)) {
+      if (!isChapterTwo(state)) {
+        ctx.rotate(-travelAngle);
+        this.droneModel.drawDrone(ctx, recovering ? 'recovery' : detonate ? 'detonate' : defending ? 'guard' : attacking ? 'attack' : 'collect', travelAngle, this.time + index);
+      } else if (imageReady(this.assets.chapterTwoDrones)) {
         const atlas = this.assets.chapterTwoDrones;
         const cellWidth = atlas.naturalWidth / 2;
         const cellHeight = atlas.naturalHeight / 2;

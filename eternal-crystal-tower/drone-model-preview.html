@@ -1,0 +1,10 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>晶翼无人机 · 3D</title>
+<style>body{margin:0;background:#0b1120;color:#e5f3ff;font:16px system-ui;text-align:center}h1{margin:32px 0 8px}p{color:#97afc5}canvas{width:min(92vw,800px);height:auto;background:radial-gradient(ellipse,#233a51,#0c1525);border:1px solid #37546a;border-radius:20px}button,select{padding:10px;background:#223b51;color:#ddf8ff;border:1px solid #51758a;border-radius:8px}a{color:#81e8ff}</style>
+<h1>晶翼无人机</h1><p>菱形装甲 · 双悬浮引擎 · 晶体能源核心</p><canvas width="1000" height="650"></canvas><p><select aria-label="无人机状态"><option value="collect">采集 · 青蓝</option><option value="attack">攻击 · 琥珀</option><option value="guard">护卫 · 紫晶</option><option value="detonate">引爆 · 赤红</option><option value="recovery">重组 · 熄灯</option></select> <button>暂停旋转</button> <a href="/">返回战场</a></p>
+<script type="module">
+import {DroneModelRenderer} from './src/drone-model.js';
+const ctx=document.querySelector('canvas').getContext('2d'),renderer=new DroneModelRenderer();
+if(renderer.canvas){renderer.canvas.width=1600;renderer.canvas.height=1600;}
+let spin=true,angle=.5,last=0;document.querySelector('button').onclick=e=>{spin=!spin;e.target.textContent=spin?'暂停旋转':'继续旋转'};
+function frame(ms){const t=ms/1000;if(last&&spin)angle+=(t-last)*.45;last=t;ctx.clearRect(0,0,1000,650);ctx.save();ctx.translate(500,330);renderer.drawDrone(ctx,document.querySelector('select').value,angle,t,7);ctx.restore();requestAnimationFrame(frame)}requestAnimationFrame(frame);
+</script></html>
