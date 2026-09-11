@@ -104,10 +104,10 @@
             <span aria-hidden="true">›</span>
           </button>
           <div class="panel-heading"><div><span>防线中枢</span><h2>科技树</h2></div><span class="key-hint">T</span></div>
-          <p class="tech-summary-copy">展开独立面板，查看完整分支、前置科技与威胁门槛。</p>
-          <button id="openTechTreeButton" class="tech-tree-launch" type="button" aria-haspopup="dialog" aria-controls="techTreePanel" title="打开科技树">
+          <p class="tech-summary-copy">点击战场中央的晶塔，弹出极简模块悬浮框，快速安装或调整拼装板。</p>
+          <button id="openTechTreeButton" class="tech-tree-launch" type="button" aria-haspopup="dialog" aria-controls="techTreePanel" title="打开完整装配面板">
             <i class="art-icon system-art icon-tech-tree" aria-hidden="true"></i>
-            <span><b>打开科技树</b><small>打开后自动暂停战斗</small></span><kbd>T</kbd>
+            <span><b>完整装配面板</b><small>点击晶塔 · 快速模块</small></span><kbd>T</kbd>
           </button>
           <button id="adminConsoleLaunchButton" class="tech-tree-launch admin-console-launch hidden" type="button" aria-haspopup="dialog" aria-controls="adminConsoleModal" title="打开管理员控制台">
             <i class="art-icon system-art icon-settings" aria-hidden="true"></i>
@@ -260,17 +260,18 @@
           <div class="tech-tree-resources">
             <div><span>可用金币</span><strong id="techCoinsText">0</strong></div>
             <div><span>威胁等级</span><strong id="techPanelThreatText">Ⅰ</strong></div>
-            <button id="closeTechTreeButton" class="tech-tree-close" type="button" aria-label="关闭科技树">关闭 <kbd>T</kbd></button>
+            <button id="closeTechTreeButton" class="tech-tree-close" type="button" aria-label="关闭科技树">关闭 <kbd>Esc</kbd></button>
           </div>
         </header>
         <div id="upgradeList" class="upgrade-list" aria-live="polite"></div>
         <footer class="tech-tree-footer">
-          <span>1–4 切换分支 · 方向键选择 · Enter 研究</span>
+          <span>点击晶塔快速装配 · T 打开完整面板 · Esc 关闭</span>
           <span>锁定节点会在详情中显示首要缺口</span>
           <span class="live-combat"><i></i> 战斗已自动暂停</span>
         </footer>
       </div>
     </section>
+    <aside id="moduleFloatPanel" class="module-float-panel hidden" role="dialog" aria-label="模块悬浮框" aria-modal="false"></aside>
 
     <section id="relicChoiceModal" class="relic-choice-modal hidden" role="dialog" aria-modal="true" aria-labelledby="relicChoiceTitle">
       <div class="relic-choice-shell">

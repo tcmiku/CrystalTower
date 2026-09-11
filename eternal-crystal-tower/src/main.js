@@ -1,7 +1,7 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
-import { createModuleUi } from "./module-ui.js";
+import { createCompactModuleUi, createModuleUi } from "./module-ui.js";
 import { MODULES, occupiedSlots, modulePlacementStatus } from "./modules.js";
-import { applyAdminSettings, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, enableAdminCheats, getDroneDetonateRecovery, getDroneEnergyMax, getSkillCooldownDuration, getTechConfig, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
+import { applyAdminSettings, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, enableAdminCheats, getDroneDetonateRecovery, getDroneEnergyMax, getSkillCooldownDuration, getTechConfig, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
 import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverEndlessRelic, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
@@ -221,7 +221,7 @@ for (const [id, label, value, icon] of [["phaseText", "天象", "白昼", "icon-
 const dom = Object.fromEntries([
   "gameCanvas", "healthText", "healthFill", "coinsText", "threatText", "threatFill", "timeText", "phaseText", "waveText", "waveMeta", "upgradeList", "damageStat", "rateStat", "rangeStat", "droneEnergyStat", "topbar", "topbarToggle", "upgradePanel", "upgradePanelToggle",
   "skillBar", "skillBarToggle", "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolTitle", "targetProtocolList", "targetProtocolHint",
-  "techTreePanel", "openTechTreeButton", "adminConsoleLaunchButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText",
+  "techTreePanel", "openTechTreeButton", "adminConsoleLaunchButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText", "moduleFloatPanel",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
   "scoreText", "openLeaderboardButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate", "accountButton", "accountModal", "closeAccountButton", "accountGuestPanel", "deleteLocalSaveButton", "accountUserPanel", "saveChoicePanel", "loginForm", "loginUsername", "loginPassword", "showRegisterButton", "registerForm", "registerUsername", "registerPassword", "showLoginButton", "accountAvatar", "accountUsername", "accountSyncStatus", "syncSaveButton", "logoutButton", "deleteAccountButton", "useCloudSaveButton", "useLocalSaveButton", "cloudSaveSummary", "localSaveSummary", "accountStatus", "leaderboardModal", "closeLeaderboardButton", "globalLeaderboardList", "globalLeaderboardCount", "globalLeaderboardPodium", "gameOverModal", "gameOverTitle", "gameOverLine", "resultTime", "resultKills", "resultThreat", "resultStardust", "resultScore", "resultCombatScore", "resultCoinScore", "resultScoreMultiplier", "resultSealAchievement", "endEndlessButton",
   "scoreEntryForm", "playerNameInput", "playerMessageInput", "submitScoreButton", "scoreEntryStatus", "leaderboardList", "leaderboardCount", "stardustText", "researchList", "restartButton", "clearSaveButton",
@@ -760,6 +760,9 @@ let toastTimer = 0;
 let announcementTimer = 0;
 let techTreeOpen = false;
 let moduleUi = null;
+let compactModuleUi = null;
+let moduleFloatOpen = false;
+let resumeAfterModuleFloat = false;
 let activeTechBranch = isChapterTwo(state) ? "economy" : "power";
 let selectedTechKey = isChapterTwo(state) ? "drone" : "damage";
 let resumeAfterTechTree = false;
@@ -854,7 +857,7 @@ function setAccountOpen(open, restoreFocus = false) {
     accountModalOpen = false;
     dom.accountModal.classList.add("hidden");
     dom.accountButton.setAttribute("aria-expanded", "false");
-    if (resumeAfterAccount && !state.over && !techTreeOpen && !leaderboardModalOpen && !updatesModalOpen && !baseCampOpen && !relicChoiceOpen) state.paused = false;
+    if (resumeAfterAccount && !state.over && !techTreeOpen && !moduleFloatOpen && !leaderboardModalOpen && !updatesModalOpen && !baseCampOpen && !relicChoiceOpen) state.paused = false;
     resumeAfterAccount = false;
     if (restoreFocus) dom.accountButton.focus({ preventScroll: true });
   }
@@ -1054,7 +1057,7 @@ function finishStoryIntro() {
     save.settings.introSeen = true;
     persistSave();
   }
-  if (resumeAfterIntro && !state.over && !techTreeOpen && !leaderboardModalOpen && !updatesModalOpen && !baseCampOpen && !relicChoiceOpen) state.paused = false;
+  if (resumeAfterIntro && !state.over && !techTreeOpen && !moduleFloatOpen && !leaderboardModalOpen && !updatesModalOpen && !baseCampOpen && !relicChoiceOpen) state.paused = false;
   resumeAfterIntro = false;
   const nextFlow = pendingIntroFlow;
   pendingIntroFlow = null;
@@ -1169,21 +1172,23 @@ function showFirstRunTutorial(step, force = false) {
 }
 
 function createUpgradeUi() {
+  moduleUi?.destroy();
   dom.upgradeList.replaceChildren();
   dom.techTreePanel.classList.toggle("module-assembly", Boolean(state.tower.moduleBay));
   moduleUi = null;
   dom.upgradeList.classList.remove("module-workspace");
   if (state.tower.moduleBay) {
-    document.getElementById("techTreeTitle").textContent = "晶塔 · 六槽模块装配";
-    document.querySelector(".tech-tree-header p").textContent = "金币买得起，槽位装不下。大武器占两格，护盾守所在扇区，反应器强化相邻武器。";
-    document.querySelector(".tech-tree-footer span").textContent = "选择槽位 → 安装／移动／强化 · T 返回战斗 · G 无人机出击／整备";
+    document.getElementById("techTreeTitle").textContent = "晶塔 · 网格模块拼装";
+    document.querySelector(".tech-tree-header p").textContent = "亲手整理 3×2 拼装板。两格武器可旋转，反应器与武器上下左右接触时供能。";
+    document.querySelector(".tech-tree-footer span").textContent = "拖动或点击放置 · R 旋转 · Esc 取消 · T 返回战斗";
     document.querySelector(".tech-tree-footer span:nth-child(2)").textContent = "六槽上限 · 金币无法扩容";
     dom.closeTechTreeButton.setAttribute("aria-label", "关闭模块装配");
     document.querySelector(".tech-tree-eyebrow").textContent = "战中装配中枢";
-    dom.openTechTreeButton.title = "打开模块装配";
-    dom.openTechTreeButton.querySelector("b").textContent = "打开模块装配";
+    dom.openTechTreeButton.title = "打开完整模块装配面板";
+    dom.openTechTreeButton.querySelector("b").textContent = "完整装配面板";
+    dom.openTechTreeButton.querySelector("small").textContent = "点击晶塔 · 快速模块";
     dom.upgradePanel.querySelector(".panel-heading h2").textContent = "模块装配";
-    document.querySelector(".tech-summary-copy").textContent = "六个槽位决定防线。重炮、环刃、无人机与元素之间作取舍。";
+    document.querySelector(".tech-summary-copy").textContent = "点击晶塔弹出极简悬浮框，快速安装或调整拼装板。";
     dom.techResearchedText.previousElementSibling.textContent = "槽位占用";
     dom.techAvailableText.previousElementSibling.textContent = "可安装";
     moduleUi = createModuleUi(dom.upgradeList, state, { icon: applyTechIconArt, notify: showToast, refresh: updateUi, coreStatus: (key) => getTechStatus(state, key), buyCore: buyUpgrade });
@@ -1192,6 +1197,9 @@ function createUpgradeUi() {
   const branches = activeBranchMeta();
   document.getElementById("techTreeTitle").textContent = isChapterTwo(state) ? "航母舰载航空科技树" : "防线科技树";
   document.querySelector(".tech-tree-header p").textContent = isChapterTwo(state) ? "无人机按离舰、编队、开火、返航补给的循环作战，并逐步分化为截击战斗机、反舰攻击机与重型轰炸机。" : "沿四条分支强化晶塔；火力分支内再选择炮膛路线。高阶科技同时检查威胁、金币与晶塔等级。";
+  dom.openTechTreeButton.title = "打开完整科技树面板";
+  dom.openTechTreeButton.querySelector("b").textContent = "完整科技树";
+  dom.openTechTreeButton.querySelector("small").textContent = "点击晶塔 · 快速模块";
   document.querySelector(".tech-tree-footer span").textContent = isChapterTwo(state) ? "方向键选择 · Enter 研究 · 第二章科技不继承第一章" : "1–4 切换分支 · 方向键选择 · Enter 研究";
   const tabs = document.createElement("nav");
   tabs.className = "tech-branch-tabs";
@@ -1410,13 +1418,69 @@ function updateTechTreeUi() {
   updateTechDetail();
 }
 
+function positionTechPanelOrigin(worldPoint) {
+  const rect = dom.gameCanvas.getBoundingClientRect();
+  const viewport = getCombatViewport(rect.width, rect.height);
+  const scale = Math.min(viewport.width / GAME_CONFIG.arena.width, viewport.height / GAME_CONFIG.arena.height);
+  const offsetX = viewport.x + (viewport.width - GAME_CONFIG.arena.width * scale) / 2;
+  const offsetY = viewport.y + (viewport.height - GAME_CONFIG.arena.height * scale) / 2;
+  const clientX = rect.left + offsetX + worldPoint.x * scale;
+  const clientY = rect.top + offsetY + worldPoint.y * scale;
+  const originX = Math.max(8, Math.min(92, (clientX / Math.max(1, window.innerWidth)) * 100));
+  const originY = Math.max(8, Math.min(92, (clientY / Math.max(1, window.innerHeight)) * 100));
+  dom.techTreePanel.style.setProperty("--tech-origin-x", `${originX}%`);
+  dom.techTreePanel.style.setProperty("--tech-origin-y", `${originY}%`);
+}
+
+function worldToClientPoint(worldPoint) {
+  const rect = dom.gameCanvas.getBoundingClientRect();
+  const viewport = getCombatViewport(rect.width, rect.height);
+  const scale = Math.min(viewport.width / GAME_CONFIG.arena.width, viewport.height / GAME_CONFIG.arena.height);
+  const offsetX = viewport.x + (viewport.width - GAME_CONFIG.arena.width * scale) / 2;
+  const offsetY = viewport.y + (viewport.height - GAME_CONFIG.arena.height * scale) / 2;
+  return {
+    x: rect.left + offsetX + worldPoint.x * scale,
+    y: rect.top + offsetY + worldPoint.y * scale,
+    radius: getTowerRadius(state) * scale
+  };
+}
+
+function positionModuleFloatPanel() {
+  const tower = getTowerPosition(state);
+  const point = worldToClientPoint(tower);
+  const panel = dom.moduleFloatPanel;
+  const width = panel.offsetWidth || 320;
+  const height = panel.offsetHeight || 420;
+  const gap = 16;
+  const margin = 10;
+  let left = point.x + point.radius + gap;
+  if (left + width > window.innerWidth - margin) left = point.x - point.radius - gap - width;
+  if (left < margin) left = Math.max(margin, Math.min(window.innerWidth - width - margin, point.x - width / 2));
+  let top = point.y - height / 2;
+  top = Math.max(margin, Math.min(window.innerHeight - height - margin, top));
+  panel.style.left = `${Math.round(left)}px`;
+  panel.style.top = `${Math.round(top)}px`;
+}
+
+function towerClickRadius(touchScale = 1) {
+  return (getTowerRadius(state) + 48) * touchScale;
+}
+
+function isPointOnTower(x, y, touchScale = 1) {
+  const tower = getTowerPosition(state);
+  return Math.hypot(x - tower.x, y - tower.y) <= towerClickRadius(touchScale);
+}
+
 function setTechTreeOpen(open, restoreFocus = false) {
   const nextOpen = Boolean(open) && !state.over;
   if (nextOpen && starfallAiming) cancelStarfallAim(false);
+  if (nextOpen && moduleFloatOpen) setModuleFloatOpen(false);
   if (nextOpen && !techTreeOpen) {
     resumeAfterTechTree = !state.paused;
     state.paused = true;
+    positionTechPanelOrigin(getTowerPosition(state));
   } else if (!nextOpen && techTreeOpen) {
+    moduleUi?.cancel();
     if (state.tower.moduleBay?.pendingRefit) {
       state.tower.moduleBay.refitCooldown = 8;
       state.tower.moduleBay.pendingRefit = false;
@@ -1431,6 +1495,47 @@ function setTechTreeOpen(open, restoreFocus = false) {
   if (techTreeOpen) dom.closeTechTreeButton.focus({ preventScroll: true });
   else if (restoreFocus) dom.openTechTreeButton.focus({ preventScroll: true });
   updateUi();
+}
+
+function setModuleFloatOpen(open) {
+  const nextOpen = Boolean(open) && !state.over && Boolean(state.tower.moduleBay);
+  if (nextOpen && starfallAiming) cancelStarfallAim(false);
+  if (nextOpen && techTreeOpen) setTechTreeOpen(false);
+  if (nextOpen && !moduleFloatOpen) {
+    resumeAfterModuleFloat = !state.paused;
+    state.paused = true;
+    if (!compactModuleUi) {
+      compactModuleUi = createCompactModuleUi(dom.moduleFloatPanel, state, {
+        icon: applyTechIconArt,
+        notify: showToast,
+        refresh: updateUi
+      });
+    } else {
+      compactModuleUi.update();
+    }
+    positionModuleFloatPanel();
+  } else if (!nextOpen && moduleFloatOpen) {
+    compactModuleUi?.cancel();
+    if (state.tower.moduleBay?.pendingRefit) {
+      state.tower.moduleBay.refitCooldown = 8;
+      state.tower.moduleBay.pendingRefit = false;
+    }
+    if (resumeAfterModuleFloat && !state.over) state.paused = false;
+    resumeAfterModuleFloat = false;
+  }
+  moduleFloatOpen = nextOpen;
+  dom.moduleFloatPanel.classList.toggle("hidden", !moduleFloatOpen);
+  if (moduleFloatOpen) positionModuleFloatPanel();
+  dom.pauseOverlay.classList.toggle("hidden", moduleFloatOpen || !state.paused);
+  updateUi();
+}
+
+function openTowerFloatPanel() {
+  if (!state.tower.moduleBay) {
+    setTechTreeOpen(true);
+    return;
+  }
+  setModuleFloatOpen(true);
 }
 
 const FALLBACK_UPDATE_ENTRIES = [
@@ -1552,7 +1657,7 @@ function setUpdatesOpen(open, restoreFocus = false) {
     updatesModalOpen = false;
     dom.updatesModal.classList.add("hidden");
     dom.openUpdatesButton.setAttribute("aria-expanded", "false");
-    if (resumeAfterUpdates && !state.over && !techTreeOpen && !leaderboardModalOpen && !baseCampOpen && !relicChoiceOpen) state.paused = false;
+    if (resumeAfterUpdates && !state.over && !techTreeOpen && !moduleFloatOpen && !leaderboardModalOpen && !baseCampOpen && !relicChoiceOpen) state.paused = false;
     resumeAfterUpdates = false;
     const startupFlow = pendingStartupFlow;
     pendingStartupFlow = null;
@@ -1577,7 +1682,7 @@ function setLeaderboardOpen(open, restoreFocus = false) {
     leaderboardModalOpen = false;
     dom.leaderboardModal.classList.add("hidden");
     dom.openLeaderboardButton.setAttribute("aria-expanded", "false");
-    if (resumeAfterLeaderboard && !state.over && !techTreeOpen) state.paused = false;
+    if (resumeAfterLeaderboard && !state.over && !techTreeOpen && !moduleFloatOpen) state.paused = false;
     resumeAfterLeaderboard = false;
     dom.pauseOverlay.classList.toggle("hidden", !state.paused || techTreeOpen);
     if (restoreFocus) dom.openLeaderboardButton.focus({ preventScroll: true });
@@ -1824,7 +1929,7 @@ function setBaseCampOpen(open, restoreFocus = false) {
     baseCampOpen = false;
     showBaseCampHub();
     dom.baseCampModal.classList.add("hidden");
-    if (resumeAfterBaseCamp && !state.over && !techTreeOpen && !leaderboardModalOpen) state.paused = false;
+    if (resumeAfterBaseCamp && !state.over && !techTreeOpen && !moduleFloatOpen && !leaderboardModalOpen) state.paused = false;
     resumeAfterBaseCamp = false;
     if (state.over) dom.gameOverModal.classList.remove("hidden");
     if (restoreFocus) (state.over ? dom.openBaseCampFromGameOver : dom.openBaseCampButton).focus({ preventScroll: true });
@@ -2582,7 +2687,7 @@ function setRelicChoiceOpen(open) {
   dom.pauseOverlay.classList.add("hidden");
   if (nextOpen) renderRelicChoice();
   else {
-    if (resumeAfterRelicChoice && !state.over && !techTreeOpen && !leaderboardModalOpen && !baseCampOpen) state.paused = false;
+    if (resumeAfterRelicChoice && !state.over && !techTreeOpen && !moduleFloatOpen && !leaderboardModalOpen && !baseCampOpen) state.paused = false;
     resumeAfterRelicChoice = false;
   }
 }
@@ -2643,7 +2748,7 @@ function handleEvents(events) {
     else if (event.type === "cannonStarPiercer") { audio.play("ascend"); renderer.trigger("cannonStarPiercer"); showToast("破城终点 · 贯星炮穿透护盾"); }
     else if (event.type === "cannonStarPiercerOverflow") renderer.trigger("cannonStarPiercer");
     else if (event.type === "cannonCascade") { audio.play("overload"); renderer.trigger("cannonCascade"); showToast(`裂晶终点 · 大型连锁爆炸 · 命中 ${event.hits}`); }
-    else if (event.type === "shoot") { audio.play("shoot"); renderer.trigger("shoot", event.tier ?? 1); }
+    else if (event.type === "shoot") { audio.play("shoot"); renderer.trigger("shoot", event.tier ?? 1, event.weaponId); }
     else if (event.type === "sawShoot") audio.play("sawShoot");
     else if (event.type === "sawLaunch" || event.type === "sawBounce") audio.play("sawShoot");
     else if (event.type === "sawStorm") { audio.play("sawShoot"); renderer.trigger("sawStorm", Math.min(1.5, event.pulses)); }
@@ -2799,7 +2904,7 @@ function updateUi() {
   dom.techAvailableText.textContent = availableTechs;
   if (state.tower.moduleBay) {
     dom.techResearchedText.textContent = `${occupiedSlots(state)} / 6`;
-    dom.techAvailableText.textContent = Object.keys(MODULES).filter((id) => Array.from({ length: 6 }, (_, slot) => modulePlacementStatus(state, id, slot).ok).some(Boolean)).length;
+    dom.techAvailableText.textContent = Object.keys(MODULES).filter((id) => Array.from({ length: 6 }, (_, slot) => [0, 1].some((rotation) => modulePlacementStatus(state, id, slot, false, rotation).ok)).some(Boolean)).length;
   }
   dom.techThreatText.textContent = formatThreat(state.threat);
   dom.techCoinsText.textContent = formatNumber(state.coins);
@@ -2862,6 +2967,7 @@ function updateUi() {
   dom.targetProtocolHint.textContent = activeProtocolMeta(state.tower.targetProtocol).hint;
 
   if (techTreeOpen) updateTechTreeUi();
+  if (moduleFloatOpen) compactModuleUi?.update();
 
   for (const button of dom.skillList.children) {
     const key = button.dataset.skill;
@@ -3167,6 +3273,9 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
   dom.playerNameInput.disabled = false;
   dom.submitScoreButton.disabled = false;
   setTechTreeOpen(false);
+  setModuleFloatOpen(false);
+  compactModuleUi?.destroy();
+  compactModuleUi = null;
   renderBaseCamp();
   refreshLeaderboard();
   setTimeout(() => {
@@ -3273,6 +3382,9 @@ function restart() {
   setAccountOpen(false);
   dom.pauseOverlay.classList.add("hidden");
   setTechTreeOpen(false);
+  setModuleFloatOpen(false);
+  compactModuleUi?.destroy();
+  compactModuleUi = null;
   document.body.dataset.chapter = String(state.chapter);
   announce(isChapterTwo(state) ? "永耀蜂巢舰下水 · 护航编队开始打捞" : "晶芽重燃");
   updateUi();
@@ -3349,6 +3461,7 @@ window.addEventListener("resize", () => {
     setSidePanelCollapsed(false);
     setSkillBarCollapsed(false);
   }
+  if (moduleFloatOpen) positionModuleFloatPanel();
 });
 
 dom.droneModeButton.addEventListener("click", switchDroneMode);
@@ -3435,7 +3548,7 @@ function setAdminConsoleOpen(open, restoreFocus = false) {
     renderAdminConsole();
     dom.adminTowerHpInput.focus({ preventScroll: true });
   } else {
-    if (resumeAfterAdminConsole && !state.over && !techTreeOpen && !leaderboardModalOpen && !baseCampOpen && !endlessShopOpen) state.paused = false;
+    if (resumeAfterAdminConsole && !state.over && !techTreeOpen && !moduleFloatOpen && !leaderboardModalOpen && !baseCampOpen && !endlessShopOpen) state.paused = false;
     resumeAfterAdminConsole = false;
     if (restoreFocus) dom.gameCanvas.focus({ preventScroll: true });
   }
@@ -3555,7 +3668,17 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" || event.key.toLowerCase() === "e") cancelStarfallAim();
     return;
   }
+  if (moduleFloatOpen) {
+    if (compactModuleUi?.handleKey(event)) return;
+    if (event.key === "Escape" || event.key.toLowerCase() === "t") {
+      event.preventDefault();
+      if (event.key.toLowerCase() === "t") setTechTreeOpen(true);
+      else setModuleFloatOpen(false);
+    }
+    return;
+  }
   if (techTreeOpen && state.tower.moduleBay) {
+    if (moduleUi?.handleKey(event)) return;
     if (event.key === "Escape" || event.key.toLowerCase() === "t") { event.preventDefault(); setTechTreeOpen(false, true); }
     return;
   }
@@ -3572,13 +3695,13 @@ document.addEventListener("keydown", (event) => {
   } else if (techTreeOpen && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
     buyUpgrade(selectedTechKey);
-  } else if (!techTreeOpen && event.key >= "1" && event.key <= "9") buyUpgrade(activeTechOrder()[Number(event.key) - 1]);
+  } else if (!techTreeOpen && !moduleFloatOpen && event.key >= "1" && event.key <= "9") buyUpgrade(activeTechOrder()[Number(event.key) - 1]);
   else if (event.key.toLowerCase() === "q") activateSkill("heal");
   else if (event.key.toLowerCase() === "w") activateSkill("overload");
   else if (event.key.toLowerCase() === "e") activateSkill("starfall");
   else if (event.key.toLowerCase() === "f") activateSkill("coinVacuum");
   else if (event.key.toLowerCase() === "r") cycleProtocol();
-  else if (!techTreeOpen && event.key.toLowerCase() === "g") switchDroneMode();
+  else if (!techTreeOpen && !moduleFloatOpen && event.key.toLowerCase() === "g") switchDroneMode();
   else if (event.key.toLowerCase() === "x") toggleDoubleSpeed();
   else if (event.key.toLowerCase() === "t") setTechTreeOpen(!techTreeOpen, techTreeOpen);
   else if (event.key.toLowerCase() === "u") setUpdatesOpen(!updatesModalOpen, updatesModalOpen);
@@ -3709,6 +3832,7 @@ dom.closeTechTreeButton.addEventListener("click", () => setTechTreeOpen(false, t
 dom.techTreePanel.addEventListener("pointerdown", (event) => {
   if (event.target === dom.techTreePanel) setTechTreeOpen(false, true);
 });
+dom.moduleFloatPanel.addEventListener("module-float-close", () => setModuleFloatOpen(false));
 dom.pauseButton.addEventListener("click", () => togglePause());
 dom.speedButton.addEventListener("click", toggleDoubleSpeed);
 dom.gameCanvas.addEventListener("pointermove", (event) => {
@@ -3721,9 +3845,14 @@ dom.gameCanvas.addEventListener("pointermove", (event) => {
     state.skills.starfall.aimAngle = starfallAngleAt(x, y);
     return;
   }
-  if (event.pointerType === "mouse" && collectCoinAt(state, x, y, GAME_CONFIG.coins.clickRadius)) {
+  const overTower = isPointOnTower(x, y, event.pointerType === "touch" ? 1.8 : 1);
+  dom.gameCanvas.classList.toggle("tower-hover", overTower && !starfallAiming);
+  if (event.pointerType === "mouse" && !overTower && collectCoinAt(state, x, y, GAME_CONFIG.coins.clickRadius)) {
     audio.play("coinPick");
   }
+});
+dom.gameCanvas.addEventListener("pointerleave", () => {
+  dom.gameCanvas.classList.remove("tower-hover");
 });
 dom.gameCanvas.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "touch") event.preventDefault();
@@ -3734,6 +3863,15 @@ dom.gameCanvas.addEventListener("pointerdown", (event) => {
     return;
   }
   const touchScale = event.pointerType === "touch" ? 1.8 : 1;
+  if (isPointOnTower(x, y, touchScale)) {
+    if (moduleFloatOpen) setModuleFloatOpen(false);
+    else openTowerFloatPanel();
+    return;
+  }
+  if (moduleFloatOpen) {
+    setModuleFloatOpen(false);
+    return;
+  }
   const permanentDrop = collectPermanentResourceAt(state, x, y, GAME_CONFIG.permanentResources.clickRadius * touchScale);
   if (permanentDrop) {
     handleEvents(state.events);

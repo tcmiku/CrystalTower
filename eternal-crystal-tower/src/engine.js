@@ -1034,7 +1034,7 @@ function fireTower(state, weaponId = null) {
     const heatMultiplier = hasSkillResearchNode(state, "overload", "stabilizer") ? GAME_CONFIG.activeSkillResearch.overload.heatGainMultiplier : 1;
     state.skills.overload.heat = Math.min(config.heatCap, state.skills.overload.heat + config.heatPerVolley * heatMultiplier);
   }
-  state.events.push({ type: "shoot", tier: state.tower.upgrades.ascend });
+  state.events.push({ type: "shoot", tier: state.tower.upgrades.ascend, weaponId });
   return true;
 }
 

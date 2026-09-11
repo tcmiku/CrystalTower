@@ -41,8 +41,8 @@ test("even unlimited gold cannot exceed six slots or bypass them through the old
   const state = emptyBay();
   state.coins = 1e9;
   assert.equal(installModule(state, "cannon", 0), true);
-  assert.equal(installModule(state, "blade", 2), true);
-  assert.equal(installModule(state, "hangar", 4), true);
+  assert.equal(installModule(state, "blade", 3), true);
+  assert.equal(installModule(state, "hangar", 2, 1), true);
   assert.equal(occupiedSlots(state), 6);
   state.endlessMode = true;
   state.endlessShop.equippedRelics.push("breakthroughLimit");
@@ -56,20 +56,26 @@ test("even unlimited gold cannot exceed six slots or bypass them through the old
   assert.match(getTechStatus(state, "frost").reason, /装配/);
 });
 
-test("two-slot weapons require consecutive cells, support 6→1 wrapping, and reject malformed inputs atomically", () => {
+test("grid placement rejects row wrapping and supports vertical rotation atomically", () => {
   const state = emptyBay();
-  for (const [id, slot] of [["pulse", 0], ["shield", 2], ["frost", 4]]) assert.ok(installModule(state, id, slot));
-  assert.equal(occupiedSlots(state), 3);
-  for (let slot = 0; slot < 6; slot += 1) assert.equal(installModule(state, "cannon", slot), false);
-  assert.ok(removeModule(state, 0));
-  assert.ok(installModule(state, "cannon", 5));
-  assert.equal(moduleAt(state, 0), moduleAt(state, 5));
-  assert.equal(moduleAt(state, 5).slot, 5);
+  assert.equal(installModule(state, "cannon", 2), false);
+  assert.ok(installModule(state, "cannon", 2, 1));
+  assert.equal(moduleAt(state, 2), moduleAt(state, 5));
+  assert.ok(installModule(state, "fire", 1));
   const before = snapshotState(state);
-  for (const slot of [-1, 6, 1.5, NaN, "1"]) assert.equal(installModule(state, "fire", slot), false);
-  assert.equal(installModule(state, "__proto__", 1), false);
-  assert.equal(installModule(state, "cannon", 1), false);
+  for (const slot of [-1, 6, 1.5, NaN, "1"]) assert.equal(installModule(state, "frost", slot), false);
+  assert.equal(installModule(state, "__proto__", 0), false);
+  assert.equal(installModule(state, "blade", 3, 1), false);
+  assert.equal(installModule(state, "blade", 0, 2), false);
+  assert.equal(moveModule(state, 5, 1, 0), false);
   assert.deepEqual(snapshotState(state), before);
+  assert.ok(moveModule(state, 5, 3, 0));
+  assert.equal(moduleAt(state, 4).id, "cannon");
+  assert.equal(moduleAt(state, 5), undefined);
+  assert.ok(removeModule(state, 1));
+  assert.ok(moveModule(state, 3, 0, 1));
+  assert.ok(moveModule(state, 0, 0, 0));
+  assert.equal(moduleAt(state, 1).id, "cannon");
 });
 
 test("insufficient gold, illegal movement and a fourth level never debit money or mutate equipment", () => {
@@ -81,7 +87,7 @@ test("insufficient gold, illegal movement and a fourth level never debit money o
   assert.ok(installModule(state, "blade", 1));
   assert.ok(installModule(state, "shield", 4));
   assert.equal(moveModule(state, 2, 3), false);
-  assert.ok(moveModule(state, 2, 5));
+  assert.ok(moveModule(state, 2, 0, 1));
   assert.equal(moduleAt(state, 0).id, "blade");
   assert.ok(upgradeModule(state, 0));
   assert.ok(upgradeModule(state, 0));
@@ -114,15 +120,16 @@ test("removal refunds 80% of actual investment and removes all derived combat ef
   assert.equal(toggleDroneMode(state), false);
 });
 
-test("adjacency is local, includes both ends of a large weapon and wraps from slot 6 to 1", () => {
+test("adjacency uses shared grid edges, excludes diagonals and never wraps rows", () => {
   const state = emptyBay();
   assert.ok(installModule(state, "cannon", 0));
-  assert.ok(installModule(state, "frost", 5));
+  assert.ok(installModule(state, "frost", 3));
   assert.ok(installModule(state, "fire", 2));
-  assert.ok(installModule(state, "lightning", 3));
+  assert.ok(installModule(state, "lightning", 5));
   assert.deepEqual(adjacentReactors(state, "cannon").map((module) => module.id), ["frost", "fire"]);
   assert.equal(moduleDamageMultiplier(state, "cannon"), 1.3);
-  assert.ok(moveModule(state, 2, 4));
+  assert.ok(removeModule(state, 5));
+  assert.ok(moveModule(state, 2, 5));
   assert.deepEqual(adjacentReactors(state, "cannon").map((module) => module.id), ["frost"]);
   assert.equal(moduleDamageMultiplier(state, "cannon"), 1.15);
 });
@@ -198,7 +205,7 @@ test("heavy cannon reaches 620, has a real near blind spot and pierces; ring bla
 test("light and heavy cannons both fire with independent cadence, and removal stops their future fire", () => {
   const state = emptyBay();
   assert.ok(installModule(state, "pulse", 0));
-  assert.ok(installModule(state, "cannon", 2));
+  assert.ok(installModule(state, "cannon", 2, 1));
   target(state);
   const damages = new Set();
   advance(state, 5, (current) => current.projectiles.forEach((shot) => damages.add(shot.damage)));
@@ -227,7 +234,7 @@ test("moving a reactor away removes both the weapon damage bonus and elemental s
   assert.ok(frostShots > 0);
   assert.ok(Math.abs(maxDamage - 13.8) < 1e-9);
   state.paused = true;
-  assert.ok(moveModule(state, 1, 3));
+  assert.ok(moveModule(state, 1, 5));
   state.paused = false;
   advance(state, 2); // allow already-fired shots to finish
   advance(state, 10, (current) => {
@@ -259,7 +266,7 @@ test("reactions require different elements within three seconds and consume the 
 test("element build triggers reactions through real projectiles, not only direct effect calls", () => {
   const state = emptyBay(19);
   assert.ok(installModule(state, "pulse", 0));
-  assert.ok(installModule(state, "frost", 5));
+  assert.ok(installModule(state, "frost", 3));
   assert.ok(installModule(state, "fire", 1));
   target(state);
   let reactions = 0;
@@ -306,11 +313,11 @@ test("core tuning stays available without requiring a full elemental loadout", (
 });
 
 export const LOADOUTS = {
-  cannon: [["cannon", 0], ["shield", 3], ["fire", 5]],
-  blade: [["blade", 0], ["shield", 3], ["frost", 5]],
-  hive: [["hangar", 0], ["shield", 3], ["fire", 5]],
-  element: [["pulse", 0], ["fire", 1], ["frost", 5], ["lightning", 3]],
-  mixed: [["cannon", 0], ["blade", 2], ["shield", 4], ["fire", 5]]
+  cannon: [["cannon", 0], ["shield", 5], ["fire", 3]],
+  blade: [["blade", 0], ["shield", 5], ["frost", 3]],
+  hive: [["hangar", 0], ["shield", 5], ["fire", 3]],
+  element: [["pulse", 0], ["fire", 1], ["frost", 3], ["lightning", 5]],
+  mixed: [["cannon", 0], ["blade", 3], ["shield", 2], ["fire", 5]]
 };
 
 export function simulateLoadout(id, seed = 20260911) {

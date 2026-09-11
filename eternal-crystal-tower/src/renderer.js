@@ -4,8 +4,8 @@ import { isChapterTwo } from "./chapter-two.js";
 import { MODULES, moduleAt, adjacentReactors } from "./modules.js";
 import { ArenaModelRenderer } from './arena-model.js';
 import { DroneModelRenderer } from './drone-model.js';
-import { EnemyModelRenderer } from './enemy-model.js';
-import { TowerModelRenderer, getModelLayout, getCannonPose } from "./tower-model.js";
+import { EnemyModelRenderer, ENEMY_MODEL_TYPES } from './enemy-model.js';
+import { TowerModelRenderer, getModelLayout, getCannonPose, getMountedMuzzle } from "./tower-model.js";
 
 const ENEMY_COLORS = {
   wisp: ["#ff706d", "#8e273e"],
@@ -146,6 +146,7 @@ export function getTowerVisualState(state) {
     hpRatio,
     damageBand: hpRatio < 0.15 ? "collapse" : hpRatio < 0.40 ? "critical" : hpRatio < 0.70 ? "damaged" : "intact",
     cannonRoute: upgrades.cannonSiege > 0 ? "siege" : upgrades.cannonSplit > 0 ? "split" : "none",
+    modules: tower.moduleBay ? tower.moduleBay.installed.map(({id,slot,rotation=0,level}) => ({id,slot,rotation,level})) : null,
     cannonEnabled: !tower.moduleBay || tower.moduleBay.installed.some((module) => ["pulse", "cannon"].includes(module.id)),
     elements: { frost: upgrades.frost > 0, fire: upgrades.fire > 0, lightning: upgrades.lightning > 0 },
     ultimate: Number(upgrades.ascend ?? 0) >= 3,
@@ -325,7 +326,7 @@ export class Renderer {
     this.dayMix = 1;
     this.starfallFx = createStarfallFxSprites();
     this.starfallCorridors = new Map();
-    this.towerFx = { ascend: 0, heal: 0, overload: 0, starfall: 0, coinVacuum: 0, hit: 0, shoot: 0 };
+    this.towerFx = { ascend: 0, heal: 0, overload: 0, starfall: 0, coinVacuum: 0, hit: 0, shoot: 0, "shoot-pulse": 0, "shoot-cannon": 0 };
     this.towerModel = new TowerModelRenderer();
     this.arenaModel = new ArenaModelRenderer();
     this.droneModel = new DroneModelRenderer();
@@ -348,14 +349,16 @@ export class Renderer {
     return this.assetsReady;
   }
 
-  trigger(type, strength = 1) {
+  trigger(type, strength = 1, weaponId = null) {
     if (type === "ascend") this.towerFx.ascend = Math.max(this.towerFx.ascend, 1.35);
     if (type === "heal" || type === "shieldBurst") this.towerFx.heal = Math.max(this.towerFx.heal, 1.1);
     if (type === "overload") this.towerFx.overload = Math.max(this.towerFx.overload, 1.2);
     if (type === "starfall") this.towerFx.starfall = Math.max(this.towerFx.starfall, 1.1);
     if (type === "coinVacuum") this.towerFx.coinVacuum = Math.max(this.towerFx.coinVacuum, 1.1);
     if (type === "towerHit") this.towerFx.hit = Math.max(this.towerFx.hit, 0.35);
-    if (type === "shoot") this.towerFx.shoot = Math.max(this.towerFx.shoot, 0.28);
+    if (type === "shoot") { this.towerFx.shoot = Math.max(this.towerFx.shoot, 0.28);
+      if (["pulse", "cannon"].includes(weaponId)) this.towerFx[`shoot-${weaponId}`] = .28;
+    }
     if (type === "towerHit") { this.shake = Math.max(this.shake, 3.5 * strength); this.flash = Math.max(this.flash, 0.09); this.flashColor = "#ff4f70"; }
     if (type === "ascend") { this.shake = 7; this.flash = 0.42; this.flashColor = "#9ff8ff"; }
     if (type === "starfall") { this.shake = 9; this.flash = 0.48; this.flashColor = "#fff2b8"; }
@@ -1805,8 +1808,10 @@ export class Renderer {
         ctx.beginPath(); ctx.moveTo(enemy.x, enemy.y); ctx.lineTo(towerPosition.x, towerPosition.y); ctx.stroke();
         ctx.restore();
       }
-      if (enemy.type === 'wisp' && !isChapterTwo(state)) {
-        this.enemyModel.drawEnemy(ctx, enemy, this.time, Math.atan2(towerPosition.y-enemy.y,towerPosition.x-enemy.x), crowdVisualScale);
+      const faceTower = Math.atan2(towerPosition.y - enemy.y, towerPosition.x - enemy.x);
+      const use3dModel = !isChapterTwo(state) && ENEMY_MODEL_TYPES.includes(enemy.type) && (!crowdMode || enemy.type === 'wisp');
+      if (use3dModel) {
+        this.enemyModel.drawEnemy(ctx, enemy, this.time, faceTower, crowdVisualScale);
       } else if (fastCrowdSprite) {
         const cell = atlas.naturalWidth / 2;
         const [column, row] = ENEMY_ATLAS_CELLS[enemy.type];
@@ -2349,7 +2354,8 @@ export class Renderer {
     ctx.lineWidth = 1.4 + pulse * 2.2;
     ctx.setLineDash([8, 10]);
     ctx.lineDashOffset = -this.time * 26;
-    const { muzzleX, muzzleY } = getCannonPose(tier, angle, this.towerFx.shoot, visual.cannonRoute);
+    const mountedGun = visual.modules?.find(module => module.id === "cannon") ?? visual.modules?.find(module => module.id === "pulse");
+    const { muzzleX, muzzleY } = mountedGun ? getMountedMuzzle(mountedGun, tier, angle, this.towerFx.shoot) : getCannonPose(tier, angle, this.towerFx.shoot, visual.cannonRoute);
     ctx.beginPath(); ctx.moveTo(muzzleX, muzzleY); ctx.lineTo(dx, dy); ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();

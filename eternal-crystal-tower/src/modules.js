@@ -1,4 +1,6 @@
-// Clockwise from north; large modules occupy their start slot and the next slot.
+// A bounded 3 × 2 board. Slot numbers still identify the six battlefield sectors.
+export const BAY_COLUMNS = 3;
+export const BAY_ROWS = 2;
 export const SLOT_COUNT = 6;
 export const MODULES = Object.freeze({
   pulse: { name: "晶矢轻炮", size: 1, cost: 60, color: "#7fe9ff", icon: "damage", weapon: true, description: "全向射击，基础射程 360。每级伤害 +35%，适合给元素反应提供连续命中。" },
@@ -14,7 +16,15 @@ export const MODULES = Object.freeze({
 export function createModuleBay() {
   return { installed: [{ id: "pulse", slot: 0, level: 1, invested: 60 }], revision: 0, refitCooldown: 0 };
 }
-export const moduleCells = (module) => Array.from({ length: MODULES[module.id].size }, (_, i) => (module.slot + i) % SLOT_COUNT);
+export function moduleCells(module) {
+  const step = module.rotation === 1 ? BAY_COLUMNS : 1;
+  return Array.from({ length: MODULES[module.id].size }, (_, i) => module.slot + i * step);
+}
+export function moduleFits(id, slot, rotation = 0) {
+  if (!Object.hasOwn(MODULES, id) || !Number.isInteger(slot) || slot < 0 || slot >= SLOT_COUNT || ![0, 1].includes(rotation)) return false;
+  return rotation === 1 ? Math.floor(slot / BAY_COLUMNS) + MODULES[id].size <= BAY_ROWS : slot % BAY_COLUMNS + MODULES[id].size <= BAY_COLUMNS;
+}
+const touches = (a, b) => Math.abs(a % BAY_COLUMNS - b % BAY_COLUMNS) + Math.abs(Math.floor(a / BAY_COLUMNS) - Math.floor(b / BAY_COLUMNS)) === 1;
 export const moduleAt = (state, slot) => state.tower.moduleBay?.installed.find((module) => moduleCells(module).includes(slot));
 export const installedModule = (state, id) => state.tower.moduleBay?.installed.find((module) => module.id === id);
 export const occupiedSlots = (state) => state.tower.moduleBay?.installed.reduce((sum, module) => sum + MODULES[module.id].size, 0) ?? 0;
@@ -23,16 +33,18 @@ export function adjacentReactors(state, id) {
   const weapon = installedModule(state, id);
   if (!weapon) return [];
   const cells = moduleCells(weapon);
-  return state.tower.moduleBay.installed.filter((module) => MODULES[module.id].element && cells.some((slot) => (slot + 1) % 6 === module.slot || (slot + 5) % 6 === module.slot));
+  return state.tower.moduleBay.installed.filter((module) => MODULES[module.id].element && cells.some((slot) => moduleCells(module).some((cell) => touches(slot, cell))));
 }
 export const moduleDamageMultiplier = (state, id) => 1 + adjacentReactors(state, id).reduce((sum, reactor) => sum + reactor.level * 0.15, 0);
-export function modulePlacementStatus(state, id, slot, moving = false) {
+export function modulePlacementStatus(state, id, slot, moving = false, rotation = 0) {
   const bay = state.tower.moduleBay;
   if (!bay || !Object.hasOwn(MODULES, id) || !Number.isInteger(slot) || slot < 0 || slot >= SLOT_COUNT || state.over) return { ok: false, reason: "无法装配" };
   if (bay.refitCooldown > 0) return { ok: false, reason: `重整中 · ${Math.ceil(bay.refitCooldown)} 秒` };
   if (!moving && installedModule(state, id)) return { ok: false, reason: "已安装，选择槽位可移动或强化" };
+  if (moving && !installedModule(state, id)) return { ok: false, reason: "模块未安装" };
+  if (!moduleFits(id, slot, rotation)) return { ok: false, reason: "超出拼装板边界，请旋转或换个位置" };
   const occupied = new Set(bay.installed.filter((module) => !moving || module.id !== id).flatMap(moduleCells));
-  if (moduleCells({ id, slot }).some((cell) => occupied.has(cell))) return { ok: false, reason: MODULES[id].size === 2 ? "需要顺时针连续两格空槽" : "这个槽位已被占用" };
+  if (moduleCells({ id, slot, rotation }).some((cell) => occupied.has(cell))) return { ok: false, reason: "与已安装模块重叠" };
   if (!moving && state.coins < MODULES[id].cost) return { ok: false, reason: `还差 ${MODULES[id].cost - Math.floor(state.coins)} 金币` };
   return { ok: true, reason: moving ? "移动至此" : "可以安装" };
 }
@@ -63,17 +75,19 @@ function changed(state) {
   else state.tower.moduleBay.refitCooldown = state.time > 0 ? 8 : 0;
   state.events.push({ type: "purchase", key: "module" });
 }
-export function installModule(state, id, slot) {
-  if (!modulePlacementStatus(state, id, slot).ok) return false;
+export function installModule(state, id, slot, rotation = 0) {
+  if (!modulePlacementStatus(state, id, slot, false, rotation).ok) return false;
   state.coins -= MODULES[id].cost;
-  state.tower.moduleBay.installed.push({ id, slot, level: 1, invested: MODULES[id].cost });
+  state.tower.moduleBay.installed.push({ id, slot, rotation, level: 1, invested: MODULES[id].cost });
   changed(state);
   return true;
 }
-export function moveModule(state, from, to) {
+export function moveModule(state, from, to, rotation) {
   const module = moduleAt(state, from);
-  if (!module || module.slot === to || !modulePlacementStatus(state, module.id, to, true).ok) return false;
+  rotation ??= module?.rotation ?? 0;
+  if (!module || (module.slot === to && (module.rotation ?? 0) === rotation) || !modulePlacementStatus(state, module.id, to, true, rotation).ok) return false;
   module.slot = to;
+  module.rotation = rotation;
   changed(state);
   return true;
 }

@@ -1,10 +1,39 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>基础小怪 · 3D 模型</title>
-<style>body{margin:0;background:#0c1120;color:#e4dcf2;font:16px system-ui;text-align:center}h1{margin:32px 0 8px}p{color:#aba5bd}canvas{width:min(90vw,720px);height:auto;background:radial-gradient(ellipse,#262039,#101624);border:1px solid #463549;border-radius:20px}a{color:#ff946d}button{padding:10px 24px;background:#432b46;color:white;border:1px solid #85556c;border-radius:8px}</style>
-<h1>基础小怪 · 熔晶浮灵</h1><p>暗紫岩甲 / 熔火核心 / 红晶背刺 / 四瓣弯爪</p><canvas width="900" height="650"></canvas><p><button>暂停旋转</button>　<a href="/">返回战场</a></p>
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>常见小怪 · 3D 模型</title>
+<style>body{margin:0;background:#0c1120;color:#e4dcf2;font:16px system-ui;text-align:center}h1{margin:32px 0 8px}p{color:#aba5bd}canvas{width:min(90vw,720px);height:auto;background:radial-gradient(ellipse,#262039,#101624);border:1px solid #463549;border-radius:20px}a{color:#ff946d}button,select{padding:10px 20px;background:#432b46;color:white;border:1px solid #85556c;border-radius:8px;font:inherit}label{color:#cbb8d8;margin-right:8px}</style>
+<h1>常见小怪 · 熔蚀晶甲</h1><p>对照 <code>enemy-atlas.png</code>：暗紫岩甲 / 熔火裂隙 / 晶簇轮廓</p>
+<canvas width="900" height="650"></canvas>
+<p>
+  <label for="type">种类</label>
+  <select id="type">
+    <option value="wisp">熔晶浮灵 · 圆钝爪形</option>
+    <option value="runner">疾行兽 · 锐角箭形</option>
+    <option value="brute">重甲兽 · 宽重多边形</option>
+    <option value="crawler">爬行怪 · 六足蟹甲</option>
+    <option value="sentinel">晶甲守卫 · 盾晶重装</option>
+    <option value="hexer">咒晶怪 · 紫晶环绕</option>
+    <option value="rammer">冲撞兽 · 橙热撞角</option>
+  </select>
+  <button id="spin">暂停旋转</button>
+  <a href="/">返回战场</a>
+</p>
 <script type="module">
 import {EnemyModelRenderer} from './src/enemy-model.js';
-const ctx=document.querySelector('canvas').getContext('2d'),renderer=new EnemyModelRenderer();
-renderer.prepare();if(renderer.canvas){renderer.canvas.width=1600;renderer.canvas.height=1600;}
-let spin=true,angle=0,last=0;document.querySelector('button').onclick=e=>{spin=!spin;e.target.textContent=spin?'暂停旋转':'继续旋转'};
-function frame(ms){const t=ms/1000;if(spin)angle+=(t-last)*.5;last=t;ctx.clearRect(0,0,900,650);renderer.drawEnemy(ctx,{x:450,y:330,radius:110,id:0,hitFlash:0},t,angle);requestAnimationFrame(frame)}requestAnimationFrame(frame);
+const ctx=document.querySelector('canvas').getContext('2d');
+const renderer=new EnemyModelRenderer();
+if(renderer.canvas){renderer.canvas.width=1600;renderer.canvas.height=1600;}
+const typeSelect=document.getElementById('type');
+const spinBtn=document.getElementById('spin');
+const radii={wisp:14,runner:11,brute:23,crawler:13,sentinel:28,hexer:17,rammer:25};
+let spin=true,angle=0,last=0;
+spinBtn.onclick=()=>{spin=!spin;spinBtn.textContent=spin?'暂停旋转':'继续旋转'};
+function frame(ms){
+  const t=ms/1000;
+  if(spin)angle+=(t-last)*.5;
+  last=t;
+  const type=typeSelect.value;
+  ctx.clearRect(0,0,900,650);
+  renderer.drawEnemy(ctx,{x:450,y:330,radius:radii[type]??14,id:0,hitFlash:0,type},t,angle,1.35);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
 </script></html>

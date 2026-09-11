@@ -9,7 +9,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const requiredIds = [
     "gameCanvas", "healthText", "coinsText", "threatText", "timeText", "upgradeList", "skillBar", "skillBarToggle", "skillList",
-    "techTreePanel", "openTechTreeButton", "adminConsoleLaunchButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText", "globalLeaderboardPodium",
+    "techTreePanel", "openTechTreeButton", "adminConsoleLaunchButton", "closeTechTreeButton", "techCoinsText", "techPanelThreatText", "globalLeaderboardPodium", "moduleFloatPanel",
     "droneModeButton", "droneModeText", "droneModeHint", "droneProtocolButton", "droneProtocolText", "droneProtocolHint", "droneEnergyFill",
     "pauseButton", "muteButton", "speedButton", "openUpdatesButton", "updatesModal", "closeUpdatesButton", "updatesDismissButton", "updatesList", "updatesSyncStatus", "updatesCurrentVersion", "updatesCurrentDate",
     "accountButton", "accountModal", "closeAccountButton", "loginForm", "showRegisterButton", "registerForm", "showLoginButton", "accountUserPanel", "saveChoicePanel", "useCloudSaveButton", "useLocalSaveButton", "logoutButton", "deleteAccountButton", "deleteLocalSaveButton",
@@ -24,7 +24,8 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   for (const id of requiredIds) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.doesNotMatch(html, /(?:src|href)=["']https?:\/\//i);
   assert.match(html, /src=["']\.\/src\/main\.js["']/);
-  assert.match(html, /打开后自动暂停战斗/);
+  assert.match(html, /点击晶塔/);
+  assert.match(html, /moduleFloatPanel/);
   assert.match(html, /SCORE · RANKING/);
   assert.match(html, /游戏更新公告/);
   assert.match(html, /管理员测试控制台/);

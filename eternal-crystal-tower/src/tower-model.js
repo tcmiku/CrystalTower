@@ -1,3 +1,5 @@
+import { drawModuleEffects } from './module-effects.js';
+import { buildMountedModules, getModuleMount } from './module-model.js';
 // Local mesh assets: Y is up, the cannon's local +X is forward.
 // The orthographic camera matches the illustrated battlefield (no CDN/runtime dependency).
 const TAU = Math.PI * 2;
@@ -85,8 +87,35 @@ export function meshBuilder() {
   return { data, face, ring, box, crystal, barrel };
 }
 
-export function buildTowerModel({tier=0,cannonRoute='none',cannonEnabled=true,elements={}}={}) {
+// The original round crystal tower remains the primary silhouette.
+// Modules attach to radial wall brackets; the inventory grid is not a physical deck.
+function buildModularChassis(layout, modules) {
+  const tower=buildTowerModel({tier:layout.tier,cannonEnabled:false});
+  const crown=meshBuilder(), collar=meshBuilder();
+  const y=layout.mountHeight, r=layout.radius;
+  const trim=layout.tier===3?PALETTE.gold:PALETTE.silver;
+  collar.ring(0,y-5,0,r*.4,0,6,PALETTE.dark,16);
+  collar.ring(0,y+1,0,r*.37,r*.25,4,trim,16);
+  crown.crystal(0,y+9,0,12+layout.tier*2,31+layout.tier*5,0,[PALETTE.purple,PALETTE.cyan,PALETTE.ice]);
+  for(let i=0;i<3;i++) crown.ring(0,y+14,0,r*.42,r*.42-2,2,PALETTE.cyan,8,i*TAU/3,TAU/3-.25);
+  for(let i=9;i<crown.data.length;i+=10) crown.data[i]=Math.max(.4,crown.data[i]);
+  const body=tower.parts[0].vertices;
+  tower.parts[0].vertices=new Float32Array([...body,...collar.data]);
+  tower.parts.push(...buildMountedModules(meshBuilder,modules,layout),{name:'core-energy',pivot:[0,0,0],spin:.28,vertices:new Float32Array(crown.data)});
+  return tower;
+}
+
+export function getMountedMuzzle(module, tier=0, angle=0, shoot=0, viewYaw=0) {
+  const {x,y,z,scale}=getModuleMount(module,getModelLayout(tier));
+  const yaw=getCannonPose(tier,angle).yaw;
+  const length=(module.id==='cannon'?35:26)*scale-Math.min(1,Math.max(0,shoot/.28))*4;
+  const px=x+Math.cos(yaw)*length,pz=z+Math.sin(yaw)*length;
+  return {muzzleX:px*Math.cos(viewYaw)-pz*Math.sin(viewYaw),muzzleY:GROUND_Y-.8*(y+20*scale)+.6*(px*Math.sin(viewYaw)+pz*Math.cos(viewYaw))};
+}
+
+export function buildTowerModel({tier=0,cannonRoute='none',cannonEnabled=true,elements={},modules=null}={}) {
   const layout=getModelLayout(tier); tier=layout.tier;
+  if (modules !== null) return buildModularChassis(layout, modules);
   const r=layout.radius, top=layout.mountHeight-9;
   const trim=tier===3?PALETTE.gold:PALETTE.silver;
   const body=meshBuilder(), turret=meshBuilder(), barrel=meshBuilder(), vents=meshBuilder();
@@ -151,7 +180,7 @@ export function buildTowerModel({tier=0,cannonRoute='none',cannonEnabled=true,el
     body.crystal(Math.cos(a)*r*.92,top-9,Math.sin(a)*r*.92,5,20,0,[PALETTE.purple,PALETTE.violet,PALETTE.ice]);
   }
   for(const [key,side,color] of [['frost',-1,PALETTE.ice],['fire',1,PALETTE.fire],['lightning',0,PALETTE.violet]]) {
-    if(!elements[key] && tier!==3) continue;
+    if(modules || (!elements[key] && tier!==3)) continue;
     const x=side*r*.9,z=side?8:-r*.86,y=side?29:top-9;
     body.ring(x,y,z,9,0,6,trim,8);
     body.crystal(x,y+6,z,7,side?23:27,0,[color,PALETTE.purple,color]);
@@ -166,15 +195,15 @@ export function buildTowerModel({tier=0,cannonRoute='none',cannonEnabled=true,el
   if(cannonRoute==='split' || tier===2) {
     for(const side of [-1,1]) barrel.barrel(length,5.8+tier*.5,side*8,trim);
   } else barrel.barrel(length,8+tier*1.1,0,trim);
-  return {layout, parts: [body,turret,barrel,vents].map((m,i)=>({name:['body','turret','barrel','vents'][i],vertices:new Float32Array(!cannonEnabled && (i===1 || i===2) ? [] : m.data)}))};
+  return {layout, parts: [body,turret,barrel,vents].map((m,i)=>({name:['body','turret','barrel','vents'][i],vertices:new Float32Array(!cannonEnabled && (i===1 || i===2) ? [] : m.data)})).concat(modules ? buildMountedModules(meshBuilder, modules, layout) : [])};
 }
 
 const VERTEX = `attribute vec3 position; attribute vec3 normal; attribute vec3 color; attribute float glow;
-uniform float yaw; uniform vec3 offset; uniform float expansion; uniform float viewYaw;
+uniform float yaw; uniform vec3 offset; uniform vec3 pivot; uniform float expansion; uniform float viewYaw;
 uniform vec4 camera;
 varying vec3 vNormal; varying vec3 vColor; varying float vGlow;
 vec3 turn(vec3 p,float a){return vec3(p.x*cos(a)-p.z*sin(a),p.y,p.x*sin(a)+p.z*cos(a));}
-void main(){vec3 p=position;p.xz*=expansion;p=turn(p+offset,yaw);p=turn(p,viewYaw);
+void main(){vec3 p=position;p.xz*=expansion;p=turn(p+offset-pivot,yaw)+pivot;p=turn(p,viewYaw);
 gl_Position=vec4((p.x-camera.x)/camera.z,(.8*p.y-.6*p.z-camera.y)/camera.w,-(.6*p.y+.8*p.z)/4000.0,1.0);
 vNormal=turn(turn(normal,yaw),viewYaw);vColor=color;vGlow=glow;}`;
 const FRAGMENT = `precision mediump float;varying vec3 vNormal;varying vec3 vColor;varying float vGlow;
@@ -208,11 +237,11 @@ export class TowerModelRenderer {
     this.program=gl.createProgram();gl.attachShader(this.program,vs);gl.attachShader(this.program,fs);gl.linkProgram(this.program);
     gl.deleteShader(vs);gl.deleteShader(fs);
     if(!gl.getProgramParameter(this.program,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(this.program));
-    this.uniforms=Object.fromEntries(['yaw','offset','expansion','viewYaw','heat','hit','pulse','damage','camera'].map(k=>[k,gl.getUniformLocation(this.program,k)]));
+    this.uniforms=Object.fromEntries(['yaw','offset','pivot','expansion','viewYaw','heat','hit','pulse','damage','camera'].map(k=>[k,gl.getUniformLocation(this.program,k)]));
     this.attributes=['position','normal','color','glow'].map(k=>gl.getAttribLocation(this.program,k));this.buffers=[];
   }
   prepare(visual) {
-    const key=JSON.stringify([visual.tier,visual.cannonRoute,visual.cannonEnabled!==false,!!visual.elements?.frost,!!visual.elements?.fire,!!visual.elements?.lightning]);
+    const key=JSON.stringify([visual.tier,visual.cannonRoute,visual.cannonEnabled!==false,!!visual.elements?.frost,!!visual.elements?.fire,!!visual.elements?.lightning,visual.modules]);
     if(key===this.key) return;
     this.model=buildTowerModel(visual);this.key=key;
     if(!this.gl||this.lost) return;
@@ -226,6 +255,7 @@ export class TowerModelRenderer {
     const expansion=visual.overloadBand==='off'?1:visual.overloadBand==='overheated'?1.30:1.16;
     ctx.save();ctx.shadowBlur=0;
     ctx.fillStyle='rgba(2,8,23,.28)';ctx.beginPath();ctx.ellipse(0,GROUND_Y+4,this.model.layout.radius*1.12,this.model.layout.radius*.53,0,0,TAU);ctx.fill();
+    drawModuleEffects(ctx,visual.modules,this.model.layout,time,viewYaw,pose.yaw,true);
     if(this.gl&&!this.lost) {
       const gl=this.gl,u=this.uniforms;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.useProgram(this.program);
       gl.uniform4f(u.camera,0,38,200,200);
@@ -237,29 +267,47 @@ export class TowerModelRenderer {
         gl.bindBuffer(gl.ARRAY_BUFFER,this.buffers[i]);
         this.attributes.forEach((attr,j)=>{gl.enableVertexAttribArray(attr);gl.vertexAttribPointer(attr,j===3?1:3,gl.FLOAT,false,40,j*12);});
         const movable=i===1||i===2;
-        gl.uniform1f(u.yaw,movable?pose.yaw:0);gl.uniform1f(u.expansion,i===3?expansion:1);
-        gl.uniform3f(u.offset,i===2?-pose.recoil:0,movable?this.model.layout.mountHeight:0,0);
+        gl.uniform1f(u.yaw,movable?pose.yaw:part.aim?pose.yaw-part.baseYaw:(part.spin??0)*time);
+        gl.uniform3f(u.pivot,...(part.pivot??[0,0,0]));gl.uniform1f(u.expansion,i===3?expansion:1);
+        const recoil=part.aim?Math.min(1,Math.max(0,(fx[`shoot-${part.weapon}`]??fx.shoot??0)/.28))*4:0;
+        gl.uniform3f(u.offset,i===2?-pose.recoil:-Math.cos(part.baseYaw??0)*recoil,movable?this.model.layout.mountHeight:part.name==='core-energy'?Math.sin(time*1.7)*2.4:0,-Math.sin(part.baseYaw??0)*recoil);
         gl.drawArrays(gl.TRIANGLES,0,part.vertices.length/10);
       });
       ctx.drawImage(this.canvas,-MODEL_SIZE/2,-MODEL_SIZE/2,MODEL_SIZE,MODEL_SIZE);
-    } else this.drawSoftware(ctx,pose,viewYaw,expansion);
+    } else this.drawSoftware(ctx,pose,viewYaw,expansion,time,fx);
+    drawModuleEffects(ctx,visual.modules,this.model.layout,time,viewYaw,pose.yaw,false);
+    if(visual.modules && (fx.shoot??0)>0) {
+      ctx.save();ctx.globalCompositeOperation='lighter';
+      for(const module of visual.modules.filter(m=>['pulse','cannon'].includes(m.id))) {
+        const shot=fx[`shoot-${module.id}`]??fx.shoot;
+        if(!shot) continue;
+        const pulse=Math.min(1,shot/.28);
+        const p=getMountedMuzzle(module,visual.tier,angle,shot,viewYaw),r=(module.id==='cannon'?10:6)*pulse;
+        const glow=ctx.createRadialGradient(p.muzzleX,p.muzzleY,0,p.muzzleX,p.muzzleY,r*2);
+        glow.addColorStop(0,'#fffbe9');glow.addColorStop(.25,module.id==='cannon'?'#ffc580':'#9ff4ff');glow.addColorStop(1,'#73cfff00');
+        ctx.fillStyle=glow;ctx.beginPath();ctx.arc(p.muzzleX,p.muzzleY,r*2,0,TAU);ctx.fill();
+      }
+      ctx.restore();
+    }
     ctx.restore();return pose;
   }
-  drawSoftware(ctx,pose,viewYaw,expansion) {
+  drawSoftware(ctx,pose,viewYaw,expansion,time=0,fx={}) {
     // Same mesh on devices without WebGL. GPU depth testing is preferred.
     const triangles=[];
     const turn=(p,a)=>[p[0]*Math.cos(a)-p[2]*Math.sin(a),p[1],p[0]*Math.sin(a)+p[2]*Math.cos(a)];
     this.model.parts.forEach((part,index)=>{
       const movable=index===1||index===2, data=part.vertices;
+      const yaw=movable?pose.yaw:part.aim?pose.yaw-part.baseYaw:(part.spin??0)*time,pivot=part.pivot??[0,0,0];
+      const recoil=part.aim?Math.min(1,Math.max(0,(fx[`shoot-${part.weapon}`]??fx.shoot??0)/.28))*4:0;
       for(let i=0;i<data.length;i+=30) {
         const points=[];let depth=0;
         for(let j=0;j<3;j++) {
           const k=i+j*10, e=index===3?expansion:1;
-          let p=[data[k]*e-(index===2?pose.recoil:0),data[k+1]+(movable?this.model.layout.mountHeight:0),data[k+2]*e];
-          p=turn(turn(p,movable?pose.yaw:0),viewYaw);depth+=.6*p[1]+.8*p[2];
+          let p=[data[k]*e-(index===2?pose.recoil:Math.cos(part.baseYaw??0)*recoil),data[k+1]+(movable?this.model.layout.mountHeight:part.name==='core-energy'?Math.sin(time*1.7)*2.4:0),data[k+2]*e-Math.sin(part.baseYaw??0)*recoil];
+          p=turn(turn(p.map((v,k)=>v-pivot[k]),yaw).map((v,k)=>v+pivot[k]),viewYaw);depth+=.6*p[1]+.8*p[2];
           points.push([p[0],GROUND_Y-.8*p[1]+.6*p[2]]);
         }
-        const n=turn(turn(Array.from(data.slice(i+3,i+6)),movable?pose.yaw:0),viewYaw);
+        const n=turn(turn(Array.from(data.slice(i+3,i+6)),yaw),viewYaw);
         const lit=.57+Math.abs(-n[0]*.35+n[1]*.64+n[2]*.44)*.48+data[i+9]*.4;
         const rgb=Array.from(data.slice(i+6,i+9),v=>Math.round(Math.min(255,v*255*lit)));
         triangles.push({points,depth,color:`rgb(${rgb.join(',')})`});

@@ -177,6 +177,7 @@ h1, h2, p { margin: 0; }
 .arena-wrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid rgba(130,116,232,.2); border-radius: 22px; background: #08091c; box-shadow: 0 22px 55px rgba(0,0,0,.3); }
 #gameCanvas { width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
 #gameCanvas.starfall-aiming { cursor: cell; }
+#gameCanvas.tower-hover { cursor: pointer; }
 .announcement { position: absolute; top: 15%; left: 50%; transform: translate(-50%,-10px); opacity: 0; pointer-events: none; padding: 10px 24px; border: 1px solid rgba(255,143,117,.35); border-radius: 999px; background: rgba(38,12,31,.82); color: #ffd7c7; font-size: 13px; letter-spacing: .12em; transition: .25s; }
 .announcement.show { opacity: 1; transform: translate(-50%,0); }
 .toast { position: absolute; bottom: 24px; left: 50%; opacity: 0; transform: translate(-50%,10px); padding: 9px 16px; border-radius: 10px; background: rgba(8,9,28,.9); border: 1px solid var(--line); color: #e7e4ff; font-size: 12px; transition: .2s; pointer-events: none; }
@@ -249,9 +250,9 @@ kbd { min-width: 28px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.15)
 .tech-mode-node::before { content: ""; position: absolute; left: -21px; top: 31px; width: 20px; height: 1px; background: rgba(169,137,255,.4); }
 .tech-mode-node > em { position: absolute; right: 12px; top: 12px; color: var(--violet); font: 700 9px ui-monospace, monospace; font-style: normal; }
 
-.tech-tree-panel { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; padding: 34px; background: rgba(3,4,14,.72); backdrop-filter: blur(8px); }
-.tech-tree-shell { width: min(1180px, calc(100vw - 68px)); max-height: min(760px, calc(100vh - 68px)); display: grid; grid-template-rows: auto minmax(0,1fr) auto; overflow: hidden; border: 1px solid rgba(156,141,255,.34); border-radius: 24px; background: linear-gradient(145deg, rgba(20,22,54,.98), rgba(8,9,27,.98)); box-shadow: 0 38px 100px rgba(0,0,0,.62), inset 0 1px rgba(255,255,255,.06); animation: tech-panel-in .24s cubic-bezier(.16,1,.3,1); }
-@keyframes tech-panel-in { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+.tech-tree-panel { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; padding: 34px; background: rgba(3,4,14,.38); backdrop-filter: blur(4px); }
+.tech-tree-shell { width: min(1180px, calc(100vw - 68px)); max-height: min(760px, calc(100vh - 68px)); display: grid; grid-template-rows: auto minmax(0,1fr) auto; overflow: hidden; border: 1px solid rgba(156,141,255,.42); border-radius: 24px; background: linear-gradient(145deg, rgba(20,22,54,.97), rgba(8,9,27,.96)); box-shadow: 0 28px 90px rgba(0,0,0,.58), 0 0 0 1px rgba(124,238,255,.08), 0 0 48px rgba(124,238,255,.08), inset 0 1px rgba(255,255,255,.08); transform-origin: var(--tech-origin-x, 50%) var(--tech-origin-y, 50%); animation: tech-panel-in .28s cubic-bezier(.16,1,.3,1); }
+@keyframes tech-panel-in { from { opacity: 0; transform: translateY(18px) scale(.92); filter: blur(4px); } }
 .tech-tree-header { min-height: 112px; padding: 22px 26px 18px; display: flex; align-items: flex-start; justify-content: space-between; gap: 30px; border-bottom: 1px solid rgba(255,255,255,.08); }
 .tech-tree-eyebrow { color: var(--cyan); font-size: 10px; letter-spacing: .18em; }
 .tech-tree-header h2 { margin-top: 5px; font-size: 25px; letter-spacing: .04em; }
