@@ -108,8 +108,8 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(renderer, /TOWER_ART_SCALE = 1\.08/);
   assert.match(main, /战利品已经掉落/);
   assert.match(main, /金币可以强化晶塔/);
-  assert.match(main, /晶刃 · 近身防御/);
-  assert.match(main, /无人机 · 经济自动化/);
+  assert.match(main, /环刃 · 两格/);
+  assert.match(main, /机库 · 两格/);
   assert.match(main, /路线 A · 疾旋炮刃/);
   assert.match(main, /路线 B · 弹射飞刃/);
   assert.match(main, /星环超频/);

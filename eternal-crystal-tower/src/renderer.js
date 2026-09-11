@@ -1,6 +1,7 @@
 import { GAME_CONFIG, getArenaEdgePosition, getCrowdVisualScale } from "./config.js";
 import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getSawBladeRadius, getSawOrbitRadius, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 import { isChapterTwo } from "./chapter-two.js";
+import { MODULES, moduleAt, adjacentReactors } from "./modules.js";
 import { ArenaModelRenderer } from './arena-model.js';
 import { DroneModelRenderer } from './drone-model.js';
 import { EnemyModelRenderer } from './enemy-model.js';
@@ -145,6 +146,7 @@ export function getTowerVisualState(state) {
     hpRatio,
     damageBand: hpRatio < 0.15 ? "collapse" : hpRatio < 0.40 ? "critical" : hpRatio < 0.70 ? "damaged" : "intact",
     cannonRoute: upgrades.cannonSiege > 0 ? "siege" : upgrades.cannonSplit > 0 ? "split" : "none",
+    cannonEnabled: !tower.moduleBay || tower.moduleBay.installed.some((module) => ["pulse", "cannon"].includes(module.id)),
     elements: { frost: upgrades.frost > 0, fire: upgrades.fire > 0, lightning: upgrades.lightning > 0 },
     ultimate: Number(upgrades.ascend ?? 0) >= 3,
     overloadBand: !overloadActive ? "off" : heatRatio >= 1 ? "overheated" : heatRatio >= 0.5 ? "hot" : "charged",
@@ -567,10 +569,42 @@ export class Renderer {
     this.drawSaws(ctx, state);
     this.drawDrones(ctx, state);
     this.drawTower(ctx, state);
+    this.drawModuleSlots(ctx, state);
     this.drawParticles(ctx, state);
     this.drawFloaters(ctx, state);
     this.drawBossBar(ctx, state);
     this.drawVignette(ctx, state);
+  }
+
+  drawModuleSlots(ctx, state) {
+    if (!state.tower.moduleBay) return;
+    const { x, y } = getTowerPosition(state);
+    const radius = 82 * getTowerRadius(state) / (38 + state.tower.upgrades.ascend * 5);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (let slot = 0; slot < 6; slot += 1) {
+      const module = moduleAt(state, slot);
+      const angle = slot * Math.PI / 3 - Math.PI / 2;
+      const color = module ? MODULES[module.id].color : "#63798b";
+      ctx.strokeStyle = color; ctx.lineWidth = module ? 3 : 1;
+      ctx.beginPath(); ctx.arc(0, 0, radius, angle - 0.45, angle + 0.45); ctx.stroke();
+      if (module?.id === "shield") {
+        ctx.fillStyle = "#78dabb22"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius + 24, angle - Math.PI / 6, angle + Math.PI / 6); ctx.closePath(); ctx.fill();
+        ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, radius + 24, angle - Math.PI / 6, angle + Math.PI / 6); ctx.stroke();
+      }
+      const px = Math.cos(angle) * radius; const py = Math.sin(angle) * radius;
+      ctx.fillStyle = "#102538"; ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = color; ctx.fillText(String(slot + 1), px, py);
+      if (module?.slot === slot && MODULES[module.id].weapon) {
+        for (const reactor of adjacentReactors(state, module.id)) {
+          const targetAngle = reactor.slot * Math.PI / 3 - Math.PI / 2;
+          ctx.strokeStyle = MODULES[reactor.id].color; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(Math.cos(targetAngle) * radius, Math.sin(targetAngle) * radius); ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
   }
 
   drawTowerGroundVeins(ctx, state) {
@@ -2549,7 +2583,7 @@ export class Renderer {
     }
     ctx.shadowBlur = 0;
     // Route and elemental modules belong to the depth-tested model.
-    this.drawTowerAim(ctx, state, visual, tier);
+    if (visual.cannonEnabled) this.drawTowerAim(ctx, state, visual, tier);
 
     this.drawTowerSkillMechanics(ctx, state, visual, tier);
     this.drawTowerDamage(ctx, state, visual, tier);

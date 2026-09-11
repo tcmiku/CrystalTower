@@ -85,7 +85,7 @@ export function meshBuilder() {
   return { data, face, ring, box, crystal, barrel };
 }
 
-export function buildTowerModel({tier=0,cannonRoute='none',elements={}}={}) {
+export function buildTowerModel({tier=0,cannonRoute='none',cannonEnabled=true,elements={}}={}) {
   const layout=getModelLayout(tier); tier=layout.tier;
   const r=layout.radius, top=layout.mountHeight-9;
   const trim=tier===3?PALETTE.gold:PALETTE.silver;
@@ -166,7 +166,7 @@ export function buildTowerModel({tier=0,cannonRoute='none',elements={}}={}) {
   if(cannonRoute==='split' || tier===2) {
     for(const side of [-1,1]) barrel.barrel(length,5.8+tier*.5,side*8,trim);
   } else barrel.barrel(length,8+tier*1.1,0,trim);
-  return {layout, parts: [body,turret,barrel,vents].map((m,i)=>({name:['body','turret','barrel','vents'][i],vertices:new Float32Array(m.data)}))};
+  return {layout, parts: [body,turret,barrel,vents].map((m,i)=>({name:['body','turret','barrel','vents'][i],vertices:new Float32Array(!cannonEnabled && (i===1 || i===2) ? [] : m.data)}))};
 }
 
 const VERTEX = `attribute vec3 position; attribute vec3 normal; attribute vec3 color; attribute float glow;
@@ -212,7 +212,7 @@ export class TowerModelRenderer {
     this.attributes=['position','normal','color','glow'].map(k=>gl.getAttribLocation(this.program,k));this.buffers=[];
   }
   prepare(visual) {
-    const key=JSON.stringify([visual.tier,visual.cannonRoute,!!visual.elements?.frost,!!visual.elements?.fire,!!visual.elements?.lightning]);
+    const key=JSON.stringify([visual.tier,visual.cannonRoute,visual.cannonEnabled!==false,!!visual.elements?.frost,!!visual.elements?.fire,!!visual.elements?.lightning]);
     if(key===this.key) return;
     this.model=buildTowerModel(visual);this.key=key;
     if(!this.gl||this.lost) return;

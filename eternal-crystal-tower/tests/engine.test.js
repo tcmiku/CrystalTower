@@ -1,8 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyAdminSettings, applyElementalHit, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, damageEnemy, enableAdminCheats, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getSawBladeRadius, getSawContactDamage, getSawOrbitRadius, getSkillCooldownDuration, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, getStarfallConeHalfAngle, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
+import { applyAdminSettings, applyElementalHit, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseEnemyType, chooseRelic, collectCoinAt, collectPermanentResourceAt, createGameState as createProductionState, cycleTargetProtocol, damageEnemy, enableAdminCheats, findTargets, getDayPhase, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardCooldown, getDroneGuardShieldMax, getEndlessEliteChance, getEndlessWaveEliteCount, getSawBladeRadius, getSawContactDamage, getSawOrbitRadius, getSkillCooldownDuration, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, getStarfallConeHalfAngle, lockAnchorAt, lockRelicChoice, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "../src/engine.js";
 import { GAME_CONFIG, getCrowdVisualScale } from "../src/config.js";
 import { ENDLESS_SHOP_RULES, getEndlessShopPrice, purchaseEndlessShopItem, refreshEndlessShop, rerollEndlessShop } from "../src/endless-shop.js";
+
+// Low-level regression matrix for reused combat primitives and historical tech config.
+// Production six-slot loadouts, purchases and complete runs are covered in modules.test.js.
+function createGameState(...args) {
+  const state = createProductionState(...args);
+  delete state.tower.moduleBay;
+  state.coins = 0;
+  return state;
+}
 
 test("基础塔属性符合策划", () => {
   const state = createGameState(1);

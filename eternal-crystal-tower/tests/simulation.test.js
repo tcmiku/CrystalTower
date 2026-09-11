@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createGameState, purchaseUpgrade, snapshotState, updateGame } from "../src/engine.js";
+import { installModule, upgradeModule } from "../src/modules.js";
 
 function simulate(seed, seconds, prepare = () => {}) {
   const state = createGameState(seed);
@@ -10,7 +11,7 @@ function simulate(seed, seconds, prepare = () => {}) {
 }
 
 test("相同种子与输入产生相同结果", () => {
-  const prepare = (state) => { state.tower.hp = 1_000_000; state.coins = 500; purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "saw"); };
+  const prepare = (state) => { state.tower.hp = 1_000_000; state.coins = 500; purchaseUpgrade(state, "damage"); assert.ok(installModule(state, "blade", 1)); };
   const first = simulate(20260824, 120, prepare);
   const second = simulate(20260824, 120, prepare);
   assert.deepEqual(snapshotState(first), snapshotState(second));
@@ -39,7 +40,9 @@ test("十五分钟压力模拟保持有限且数值有效", { timeout: 60_000 },
     for (let index = 0; index < 9; index += 1) purchaseUpgrade(current, "damage");
     for (let index = 0; index < 7; index += 1) purchaseUpgrade(current, "rate");
     purchaseUpgrade(current, "ascend"); purchaseUpgrade(current, "ascend");
-    for (let index = 0; index < 5; index += 1) purchaseUpgrade(current, "saw");
+    assert.ok(installModule(current, "blade", 1));
+    assert.ok(upgradeModule(current, 1));
+    assert.ok(upgradeModule(current, 1));
     current.tower.hp = 1_000_000_000_000;
   });
   assert.equal(state.time >= 899.9, true);

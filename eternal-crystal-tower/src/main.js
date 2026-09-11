@@ -1,4 +1,6 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
+import { createModuleUi } from "./module-ui.js";
+import { MODULES, occupiedSlots, modulePlacementStatus } from "./modules.js";
 import { applyAdminSettings, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, enableAdminCheats, getDroneDetonateRecovery, getDroneEnergyMax, getSkillCooldownDuration, getTechConfig, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
 import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverEndlessRelic, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
@@ -757,6 +759,7 @@ let uiRefreshElapsed = UI_REFRESH_INTERVAL;
 let toastTimer = 0;
 let announcementTimer = 0;
 let techTreeOpen = false;
+let moduleUi = null;
 let activeTechBranch = isChapterTwo(state) ? "economy" : "power";
 let selectedTechKey = isChapterTwo(state) ? "drone" : "damage";
 let resumeAfterTechTree = false;
@@ -1141,15 +1144,15 @@ function showFirstRunTutorial(step, force = false) {
     dom.tutorialDismiss.textContent = "我看见了";
   } else if (step === 2) {
     dom.tutorialTitle.textContent = "金币可以强化晶塔";
-    dom.tutorialText.textContent = "攒够 20 金币，就能研究“淬亮晶矢”提升伤害。准备好后，按 T 查看科技。";
-    dom.tutorialDismiss.textContent = "查看科技 · T";
+    dom.tutorialText.textContent = "按 T 打开六槽装配。开局的 180 金币可以装上环刃或机库，也可以留给重炮和反应器。";
+    dom.tutorialDismiss.textContent = "模块装配 · T";
     dom.upgradeList.querySelector('[data-upgrade="damage"]')?.classList.add("tutorial-focus");
   } else if (step === 3) {
     dom.tutorialGuide.classList.add("compare");
     dom.tutorialTitle.textContent = "新的防线已开放";
-    dom.tutorialText.textContent = "晶刃保护近身，无人机帮你拾币。两条路线可以一起研究，不必急着选。";
-    dom.tutorialChoices.innerHTML = `<div class="tutorial-choice blade"><strong>✺ 晶刃 · 近身防御</strong><span>环绕晶塔切割靠近的敌人，后续可升级晶刃炮膛补充火力。</span></div><div class="tutorial-choice drone"><strong>⌁ 无人机 · 经济自动化</strong><span>护航时自动回收金币，后续可切换攻击模式并发展战术协议。</span></div>`;
-    dom.tutorialDismiss.textContent = "查看路线 · T";
+    dom.tutorialText.textContent = "大武器占两格，反应器强化相邻武器。护盾保护所在扇区；槽位不够时需要拆卸或换位。";
+    dom.tutorialChoices.innerHTML = `<div class="tutorial-choice blade"><strong>环刃 · 两格</strong><span>清理近身怪群，需要应对远程敌人。</span></div><div class="tutorial-choice drone"><strong>机库 · 两格</strong><span>G 切换出击与整备，攻击耗电并停止拾币。</span></div>`;
+    dom.tutorialDismiss.textContent = "模块装配 · T";
     dom.upgradeList.querySelector('[data-branch-tab="blade"]')?.classList.add("tutorial-focus");
     dom.upgradeList.querySelector('[data-branch-tab="economy"]')?.classList.add("tutorial-focus");
   } else if (step === 4) {
@@ -1167,6 +1170,25 @@ function showFirstRunTutorial(step, force = false) {
 
 function createUpgradeUi() {
   dom.upgradeList.replaceChildren();
+  dom.techTreePanel.classList.toggle("module-assembly", Boolean(state.tower.moduleBay));
+  moduleUi = null;
+  dom.upgradeList.classList.remove("module-workspace");
+  if (state.tower.moduleBay) {
+    document.getElementById("techTreeTitle").textContent = "晶塔 · 六槽模块装配";
+    document.querySelector(".tech-tree-header p").textContent = "金币买得起，槽位装不下。大武器占两格，护盾守所在扇区，反应器强化相邻武器。";
+    document.querySelector(".tech-tree-footer span").textContent = "选择槽位 → 安装／移动／强化 · T 返回战斗 · G 无人机出击／整备";
+    document.querySelector(".tech-tree-footer span:nth-child(2)").textContent = "六槽上限 · 金币无法扩容";
+    dom.closeTechTreeButton.setAttribute("aria-label", "关闭模块装配");
+    document.querySelector(".tech-tree-eyebrow").textContent = "战中装配中枢";
+    dom.openTechTreeButton.title = "打开模块装配";
+    dom.openTechTreeButton.querySelector("b").textContent = "打开模块装配";
+    dom.upgradePanel.querySelector(".panel-heading h2").textContent = "模块装配";
+    document.querySelector(".tech-summary-copy").textContent = "六个槽位决定防线。重炮、环刃、无人机与元素之间作取舍。";
+    dom.techResearchedText.previousElementSibling.textContent = "槽位占用";
+    dom.techAvailableText.previousElementSibling.textContent = "可安装";
+    moduleUi = createModuleUi(dom.upgradeList, state, { icon: applyTechIconArt, notify: showToast, refresh: updateUi, coreStatus: (key) => getTechStatus(state, key), buyCore: buyUpgrade });
+    return;
+  }
   const branches = activeBranchMeta();
   document.getElementById("techTreeTitle").textContent = isChapterTwo(state) ? "航母舰载航空科技树" : "防线科技树";
   document.querySelector(".tech-tree-header p").textContent = isChapterTwo(state) ? "无人机按离舰、编队、开火、返航补给的循环作战，并逐步分化为截击战斗机、反舰攻击机与重型轰炸机。" : "沿四条分支强化晶塔；火力分支内再选择炮膛路线。高阶科技同时检查威胁、金币与晶塔等级。";
@@ -1351,6 +1373,7 @@ function updateTechDetail() {
 }
 
 function updateTechTreeUi() {
+  if (moduleUi) { moduleUi.update(); return; }
   for (const [branchKey, branch] of Object.entries(activeBranchMeta())) {
     const tab = dom.upgradeList.querySelector(`[data-branch-tab="${branchKey}"]`);
     if (!tab) continue;
@@ -1394,6 +1417,10 @@ function setTechTreeOpen(open, restoreFocus = false) {
     resumeAfterTechTree = !state.paused;
     state.paused = true;
   } else if (!nextOpen && techTreeOpen) {
+    if (state.tower.moduleBay?.pendingRefit) {
+      state.tower.moduleBay.refitCooldown = 8;
+      state.tower.moduleBay.pendingRefit = false;
+    }
     if (resumeAfterTechTree && !state.over) state.paused = false;
     resumeAfterTechTree = false;
   }
@@ -2770,6 +2797,10 @@ function updateUi() {
   }).length;
   dom.techResearchedText.textContent = `${researchedTechs} / ${techOrder.length}`;
   dom.techAvailableText.textContent = availableTechs;
+  if (state.tower.moduleBay) {
+    dom.techResearchedText.textContent = `${occupiedSlots(state)} / 6`;
+    dom.techAvailableText.textContent = Object.keys(MODULES).filter((id) => Array.from({ length: 6 }, (_, slot) => modulePlacementStatus(state, id, slot).ok).some(Boolean)).length;
+  }
   dom.techThreatText.textContent = formatThreat(state.threat);
   dom.techCoinsText.textContent = formatNumber(state.coins);
   dom.techPanelThreatText.textContent = formatThreat(state.threat);
@@ -2799,6 +2830,12 @@ function updateUi() {
           ? (defenseCooldown > 0 ? `防御护盾冷却 ${defenseCooldown.toFixed(1)}s` : `防御护盾 ${Math.round(state.tower.droneGuardShield)} · 电力持续消耗`)
           : (isChapterTwo(state) ? `编队回防充能 · 航母回收金币不受影响${interceptText}` : `资源磁吸充能 · 金币手动/无人机可用 · ${Math.max(0, state.tower.autoCollectCooldown).toFixed(1)}s${interceptText}`))
     : "研究晶塔磁吸核心后开放";
+  if (state.tower.moduleBay) {
+    dom.droneModeText.textContent = !droneModeUnlocked ? "无人机库未安装" : droneAttacking ? "蜂巢 · 出击" : "蜂巢 · 整备充能";
+    dom.droneModeHint.textContent = !droneModeUnlocked ? "T 打开装配 · 机库占两格" : `${Math.round(state.tower.droneEnergy)} / ${Math.round(droneEnergyMax)} 电量 · ${droneAttacking ? "停止拾币，G 提前召回" : "拾币充能，G 再次出击"}`;
+    dom.droneModeButton.setAttribute("aria-label", `${dom.droneModeText.textContent}，快捷键 G`);
+    dom.droneModeButton.title = `${dom.droneModeText.textContent} · G`;
+  }
   if (droneModeUnlocked && state.threatSeals?.modifiers?.severedSupply && !detonateActive) {
     dom.droneModeHint.textContent = isChapterTwo(state) ? "断供封印生效 · 航母回收甲板停机 · 手动拾取仍可用" : "断供封印生效 · 无人机无法拾币 · 手动拾取仍可用";
   }
@@ -2889,7 +2926,7 @@ function updateUi() {
     dom.objectiveText.textContent = isChapterTwo(state) ? (state.wave.active ? "敌舰沿主航道集中推进。安排强袭窗口，别让能源见底。" : "红色海域是主攻方向。保留甲板超载与定向空袭。") : (state.wave.active ? "敌群正在集中涌入，使用技能清开塔下空间。" : "地图红光标出了主攻方向，准备星落与超载。");
   } else if (state.threat < 2) {
     dom.objectiveTitle.textContent = isChapterTwo(state) ? "舰载机群主动出击" : "怪潮已至";
-    dom.objectiveText.textContent = isChapterTwo(state) ? "发现敌舰后自动离舰、编队开火并返航补给。研究攻击机与轰炸机以应对不同舰种。" : (state.coins < 20 ? "鼠标滑过战场金币即可拾取，10 秒未收集就会消失。" : "第一笔金币到手。沿科技树选择路线。");
+    dom.objectiveText.textContent = isChapterTwo(state) ? "发现敌舰后自动离舰、编队开火并返航补给。研究攻击机与轰炸机以应对不同舰种。" : (state.coins < 20 ? "鼠标滑过战场金币即可拾取，10 秒未收集就会消失。" : "按 T 装配六槽防线：重炮、环刃、机库各占两格。");
   } else if (state.threat < 5) {
     dom.objectiveTitle.textContent = isChapterTwo(state) ? "制海圈正在收紧" : "外圈正在收紧";
     dom.objectiveText.textContent = isChapterTwo(state) ? "快艇与铁甲舰同时出现。强袭负责远海，护航守住近海。" : "疾行怪与重甲怪已加入，留一个技能救场。";
@@ -3323,7 +3360,7 @@ setTopbarCollapsed(window.innerWidth > 1180);
 if (previewMode === "tutorial-coin") showFirstRunTutorial(1, true);
 if (previewMode === "tutorial-upgrade") showFirstRunTutorial(2, true);
 if (previewMode === "tutorial-branches") showFirstRunTutorial(3, true);
-if (previewMode === "tech" || previewMode === "element-tech" || previewMode === "drone-energy" || previewMode === "drone-protocols") setTechTreeOpen(true);
+if (previewMode === "modules" || previewMode === "tech" || previewMode === "element-tech" || previewMode === "drone-energy" || previewMode === "drone-protocols") setTechTreeOpen(true);
 announce(isChapterTwo(state) ? "极夜航道 · 护航与强袭由你调度" : "守住中央晶塔");
 refreshLeaderboard();
 void restoreAccountSession();
@@ -3516,6 +3553,10 @@ document.addEventListener("keydown", (event) => {
   }
   if (starfallAiming) {
     if (event.key === "Escape" || event.key.toLowerCase() === "e") cancelStarfallAim();
+    return;
+  }
+  if (techTreeOpen && state.tower.moduleBay) {
+    if (event.key === "Escape" || event.key.toLowerCase() === "t") { event.preventDefault(); setTechTreeOpen(false, true); }
     return;
   }
   if (techTreeOpen && event.key >= "1" && event.key <= "4") {

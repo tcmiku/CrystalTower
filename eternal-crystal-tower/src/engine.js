@@ -1,5 +1,6 @@
 import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, getArenaEdgePosition } from "./config.js";
 import { SeededRng } from "./rng.js";
+import { createModuleBay, installedModule, adjacentReactors, moduleDamageMultiplier, shieldSector } from "./modules.js";
 import { ENDLESS_SHOP_RULES, createEndlessShopState, hasEndlessRelic, refreshEndlessShop, releaseEndlessShopNotice } from "./endless-shop.js";
 import { CHAPTER_TWO_CONFIG, CHAPTER_TWO_ID, CHAPTER_TWO_TECH_ORDER, CHAPTER_TWO_TECH_TREE, CHAPTER_TWO_UPGRADE_META, chooseChapterTwoEnemyType, isChapterTwo } from './chapter-two.js';
 
@@ -213,6 +214,9 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
     // 舰载机是第二章的主武器：开局即主动离舰作战，G 键改为召回/再次出击。
     state.tower.droneMode = "attack";
     state.tower.targetProtocol = "radar";
+  } else {
+    state.tower.moduleBay = createModuleBay();
+    state.coins = 180;
   }
   state.tower.droneEnergy = getDroneEnergyMax(state);
   state.tower.hp = getTowerStats(state).maxHp;
@@ -372,6 +376,8 @@ export function getTechStatus(state, key) {
   const cfg = getTechConfig(state, key);
   const level = state.tower.upgrades[key];
   if (!cfg || level == null) return { unlocked: false, maxed: true, cost: Infinity, reason: "未知科技" };
+  if (state.tower.moduleBay && !["damage", "rate", "ascend"].includes(key)) return { unlocked: false, maxed: false, cost: Infinity, reason: "请在六槽装配中安装或强化模块" };
+  if (state.tower.moduleBay && key === "rate" && !installedModule(state, "pulse") && !installedModule(state, "cannon")) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), reason: "需要主炮模块" };
   if (level >= cfg.maxLevel) return { unlocked: false, maxed: true, cost: Infinity, reason: "研究完成" };
   const limitBroken = state.endlessMode === true && state.endlessShop?.equippedRelics?.includes("breakthroughLimit");
   const excluded = limitBroken ? null : cfg.excludes?.find((excludedKey) => (state.tower.upgrades[excludedKey] ?? 0) > 0);
@@ -381,7 +387,7 @@ export function getTechStatus(state, key) {
   if (cfg.towerLevel && state.tower.upgrades.ascend + 1 < cfg.towerLevel) {
     return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, requiredTowerLevel: cfg.towerLevel, reason: `需要晶塔等级 ${cfg.towerLevel}` };
   }
-  const requirements = cfg.requiresByLevel?.[level] ?? cfg.requires ?? {};
+  const requirements = state.tower.moduleBay && key === "ascend" ? {} : cfg.requiresByLevel?.[level] ?? cfg.requires ?? {};
   for (const [requiredKey, requiredLevel] of Object.entries(requirements)) {
     if ((state.tower.upgrades[requiredKey] ?? 0) < requiredLevel) {
       return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), requiredThreat, reason: `需要${techName(state, requiredKey)} ${requiredLevel} 级` };
@@ -956,19 +962,30 @@ function fireStarPiercer(state, target, damage) {
   state.events.push({ type: "cannonStarPiercer", targetId: target.id, enemyType: target.type, elite: target.elite, x1: x, y1: y, x2: target.x, y2: target.y, damage: damage * cfg.starPiercerDamageMultiplier });
 }
 
-function fireTower(state) {
+function fireTower(state, weaponId = null) {
   // 第二章的航母是舰载机平台，不装备自动主炮；所有常规主动火力由无人机承担。
   if (isChapterTwo(state)) {
     state.tower.priorityTargetIds = [];
     return false;
   }
   const stats = getTowerStats(state);
-  const targets = findTargets(state, stats.projectileCount);
+  const module = weaponId ? installedModule(state, weaponId) : null;
+  const heavy = weaponId === "cannon";
+  if (module) {
+    stats.damage *= (heavy ? 3.4 : 1 + (module.level - 1) * 0.35) * moduleDamageMultiplier(state, weaponId);
+    stats.range = heavy ? 620 : stats.range;
+    if (!heavy) { stats.pierce = 0; stats.bossDamageMultiplier = 1; }
+  }
+  const position = getTowerPosition(state);
+  const targets = module ? rankTargets(state, state.enemies.filter((enemy) => {
+    const distance = Math.hypot(enemy.x - position.x, enemy.y - position.y);
+    return enemy.hp > 0 && distance <= stats.range && (!heavy || distance >= 140);
+  }), stats.projectileCount) : findTargets(state, stats.projectileCount);
   state.tower.priorityTargetIds = targets.map((target) => target.id);
   if (!targets.length) return false;
   const { x: centerX, y: centerY } = getTowerPosition(state);
-  const siegeLevel = state.tower.upgrades.cannonSiege;
-  const chargeLevel = state.tower.upgrades.cannonCharge;
+  const siegeLevel = module && !heavy ? 0 : state.tower.upgrades.cannonSiege;
+  const chargeLevel = module && !heavy ? 0 : state.tower.upgrades.cannonCharge;
   let chargeMultiplier = 1;
   let fullCharge = false;
   if (siegeLevel > 0 && chargeLevel > 0) {
@@ -980,7 +997,7 @@ function fireTower(state) {
     const stacks = Math.min(maxStacks, state.tower.siegeStreak);
     fullCharge = stacks >= maxStacks;
     chargeMultiplier += stacks * cfg.chargeBonusPerStack;
-  } else {
+  } else if (!module || heavy) {
     state.tower.siegeTargetId = null;
     state.tower.siegeStreak = 0;
   }
@@ -1001,7 +1018,7 @@ function fireTower(state) {
       continue;
     }
     const angle = Math.atan2(target.y - centerY, target.x - centerX);
-    const element = rollProjectileElement(state);
+    const element = rollProjectileElement(state, 1, weaponId);
     state.projectiles.push({
       id: state.nextId++, x: centerX, y: centerY,
       vx: Math.cos(angle) * GAME_CONFIG.tower.projectileSpeed,
@@ -1021,7 +1038,19 @@ function fireTower(state) {
   return true;
 }
 
-function rollProjectileElement(state, chanceMultiplier = 1) {
+function rollProjectileElement(state, chanceMultiplier = 1, weaponId = "blade") {
+  if (state.tower.moduleBay) {
+    const reactors = adjacentReactors(state, weaponId);
+    if (!reactors.length) return null;
+    const total = reactors.reduce((sum, reactor) => sum + 0.25 + reactor.level * 0.1, 0);
+    const roll = state.rng.next();
+    let cursor = 0;
+    for (const reactor of reactors) {
+      cursor += (0.25 + reactor.level * 0.1) * Math.min(1, 0.9 / total) * chanceMultiplier;
+      if (roll < cursor) return reactor.id;
+    }
+    return null;
+  }
   const enabled = ["frost", "fire", "lightning"].filter((key) => state.tower.upgrades[key] > 0);
   if (!enabled.length) return null;
   const roll = state.rng.next();
@@ -1172,6 +1201,28 @@ export function applyElementalHit(state, enemy, element, baseDamage) {
     return false;
   }
   const bossScale = isBossEnemy(enemy) ? cfg.bossEffectMultiplier : 1;
+  if (state.tower.moduleBay && !(element === "frost" && enemy.type === "colossus" && enemy.enraged)) {
+    const prior = enemy.moduleElement;
+    if (prior && prior !== element && (enemy.moduleElementTimer ?? 0) > 0) {
+      const pair = [prior, element].sort().join("+");
+      const name = pair === "fire+frost" ? "融爆" : pair === "fire+lightning" ? "超导" : "碎晶";
+      enemy.moduleElement = null;
+      enemy.moduleElementTimer = 0;
+      // Consume the primer, and do not recursively apply elements to the splash victims.
+      let hits = 0;
+      for (const target of state.enemies) {
+        if (target.hp <= 0 || Math.hypot(target.x - enemy.x, target.y - enemy.y) > 115 + target.radius) continue;
+        damageEnemy(state, target, baseDamage * 1.8, element);
+        hits += 1;
+      }
+      state.elementFx.push({ element: "cannonEcho", x: enemy.x, y: enemy.y, radius: 115, life: 0.5, maxLife: 0.5 });
+      state.floaters.push({ x: enemy.x, y: enemy.y - enemy.radius, text: name, life: 1, color: "#dfb5ff" });
+      state.events.push({ type: "moduleReaction", reaction: name, hits, enemyId: enemy.id });
+    } else {
+      enemy.moduleElement = element;
+      enemy.moduleElementTimer = 3;
+    }
+  }
   const prismaticScale = hasEndlessRelic(state, "prismaticSovereign") ? ENDLESS_SHOP_RULES.prismaticEffectMultiplier : 1;
   const lunarScale = (state.relics.owned.lunar && state.phase === "night" ? amplifyMultiplier(GAME_CONFIG.relics.lunar.nightElementMultiplier, relicPotency(state, "lunar")) : 1)
     * (state.phase === "night" ? state.threatSeals?.modifiers?.elementMultiplier ?? 1 : 1);
@@ -1792,7 +1843,7 @@ function updateBossAnchor(state, anchor, dt) {
   }
 }
 
-function damageTower(state, damage, heavy = false, source = "enemy") {
+export function damageTower(state, damage, heavy = false, source = "enemy", origin = null) {
   if (state.admin?.invincible) return false;
   if ((state.tower.damageImmunity ?? 0) > 0) return false;
   if (heavy && state.tower.droneMode === "collect" && state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge > 0) {
@@ -1804,7 +1855,10 @@ function damageTower(state, damage, heavy = false, source = "enemy") {
   }
   if (state.skills.heal.shieldBurstArmed) releaseShieldBurst(state);
   const reductionActive = hasSkillResearchNode(state, "heal", "lastStand") && state.skills.heal.damageReduction > 0;
-  const reducedDamage = damage * (reductionActive ? 1 - GAME_CONFIG.activeSkillResearch.heal.damageReduction : 1);
+  const sector = shieldSector(state, origin, getTowerPosition(state));
+  const sectorMultiplier = sector ? 1 - (0.35 + sector.level * 0.1) : 1;
+  const reducedDamage = damage * sectorMultiplier * (reductionActive ? 1 - GAME_CONFIG.activeSkillResearch.heal.damageReduction : 1);
+  if (sector) state.events.push({ type: "sectorBlock", slot: sector.slot, prevented: damage * (1 - sectorMultiplier) });
   let remainingDamage = reducedDamage;
   const droneShieldAbsorbed = Math.min(state.tower.droneGuardShield, remainingDamage);
   state.tower.droneGuardShield -= droneShieldAbsorbed;
@@ -1989,7 +2043,7 @@ function tickColossusSkill(state, boss, skill, skillState, dt) {
     queueColossusSummon(state, boss, skillState);
     skillState.tick += cfg.summon.interval * (affix.summonIntervalMultiplier ?? 1);
   } else if (skill === "beam" && skillState.tick <= 0) {
-    damageTower(state, boss.damage * cfg.beam.damageMultiplier * colossusAttackMultiplier(boss) * (affix.beamDamageMultiplier ?? 1), true, "colossusBeam");
+    damageTower(state, boss.damage * cfg.beam.damageMultiplier * colossusAttackMultiplier(boss) * (affix.beamDamageMultiplier ?? 1), true, "colossusBeam", boss);
     boss.rangedFlash = Math.max(boss.rangedFlash, cfg.beam.tickInterval + 0.08);
     skillState.tick += cfg.beam.tickInterval * (affix.beamTickMultiplier ?? 1);
     state.events.push({ type: "colossusBeam", x: boss.x, y: boss.y });
@@ -2163,7 +2217,7 @@ function updateSovereign(state, boss, dt) {
     queueSovereignRiftWave(state, boss);
     boss.skillTick += cfg.summon.interval;
   } else if (boss.activeSkill === "beam" && boss.skillTick <= 0) {
-    damageTower(state, boss.damage * cfg.beam.damageMultiplier * (boss.enraged ? cfg.enrageDamageMultiplier : 1), true, "sovereignBeam");
+    damageTower(state, boss.damage * cfg.beam.damageMultiplier * (boss.enraged ? cfg.enrageDamageMultiplier : 1), true, "sovereignBeam", boss);
     boss.rangedFlash = Math.max(boss.rangedFlash, cfg.beam.tickInterval + 0.08);
     boss.skillTick += cfg.beam.tickInterval;
     state.events.push({ type: "sovereignBeam", x: boss.x, y: boss.y });
@@ -2182,7 +2236,7 @@ function updateHostileProjectiles(state, dt) {
     const reachedTarget = Math.hypot(projectile.x - projectile.targetX, projectile.y - projectile.targetY) <= projectile.radius + 9;
     const hitTower = Math.hypot(projectile.x - centerX, projectile.y - centerY) <= towerRadius + projectile.radius;
     if (reachedTarget || hitTower) {
-      if (hitTower) damageTower(state, projectile.damage, true, projectile.kind === "sovereignMortar" ? "sovereignArtillery" : "colossusArtillery");
+      if (hitTower) damageTower(state, projectile.damage, true, projectile.kind === "sovereignMortar" ? "sovereignArtillery" : "colossusArtillery", { x: centerX - projectile.vx, y: centerY - projectile.vy });
       state.events.push({ type: "colossusImpact", x: projectile.x, y: projectile.y, hitTower });
       projectile.life = 0;
     }
@@ -2219,6 +2273,7 @@ function updateEnemies(state, dt) {
     if (enemy.sawScarTimer <= 0) enemy.sawScarStacks = 0;
     enemy.phaseBreakInvulnerability = Math.max(0, (enemy.phaseBreakInvulnerability ?? 0) - dt);
     enemy.freezeTimer = Math.max(0, (enemy.freezeTimer ?? 0) - dt);
+    enemy.moduleElementTimer = Math.max(0, (enemy.moduleElementTimer ?? 0) - dt);
     enemy.markTimer = Math.max(0, (enemy.markTimer ?? 0) - dt);
     enemy.starMarkTimer = Math.max(0, (enemy.starMarkTimer ?? 0) - dt);
     enemy.weakpointTimer = Math.max(0, (enemy.weakpointTimer ?? 0) - dt);
@@ -2280,7 +2335,7 @@ function updateEnemies(state, dt) {
         if (decoy) {
           decoy.hp = Math.max(0, decoy.hp - damage);
           state.events.push({ type: "relicDecoyHit", x: decoy.x, y: decoy.y, damage });
-        } else damageTower(state, damage, heavy, enemy.type);
+        } else damageTower(state, damage, heavy, enemy.type, enemy);
         enemy.attackCooldown += attackInterval;
         if (enemy.attackRange > 0) enemy.rangedFlash = 0.16;
       }
@@ -2310,7 +2365,7 @@ export function getSawContactDamage(state) {
   const overdrive = state.tower.upgrades.sawOverdrive;
   const baseDamage = cfg.damage * (1 + (count - 1) * cfg.growthDamage);
   const towerDamage = getTowerStats(state).damage * cfg.towerDamageMultiplier;
-  return (baseDamage + towerDamage) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.damagePerLevel);
+  return (baseDamage + towerDamage) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.damagePerLevel) * moduleDamageMultiplier(state, "blade");
 }
 
 function getSawScarMultiplier(enemy) {
@@ -2379,6 +2434,8 @@ function updateSaws(state, dt, enemySpatialIndex = null) {
       const reach = enemy.radius + bladeRadius;
       if (dx * dx + dy * dy <= reach * reach) {
         damageEnemy(state, enemy, damage * getSawScarMultiplier(enemy), "saw");
+        const element = state.tower.moduleBay ? rollProjectileElement(state, 1, "blade") : null;
+        if (element) applyElementalHit(state, enemy, element, damage);
         enemy.sawHitCooldowns ??= [];
         enemy.sawHitCooldowns[index] = cfg.hitInterval;
         applySawScar(state, enemy);
@@ -3128,7 +3185,7 @@ function updateDrones(state, dt) {
     // Self-destruct drones spend a fixed battery charge per launch instead of
     // draining continuously while they travel to their priority target.
   } else if (attackMode) {
-    state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - cfg.attackDrainPerSecond * dt);
+    state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - (installedModule(state, "hangar") ? 2 : cfg.attackDrainPerSecond) * dt);
     if (state.tower.droneEnergy <= 0) {
       state.tower.droneMode = "collect";
       state.events.push({ type: "droneDepleted" });
@@ -3137,7 +3194,7 @@ function updateDrones(state, dt) {
     updateDroneGuard(state, dt);
   } else if (!guardCooldownWasActive) {
     const relayMultiplier = 1 + (state.tower.upgrades.droneRelay ?? 0) * tech.relayRegenPerLevel;
-    state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + cfg.guardRegenPerSecond * relayMultiplier * dt);
+    state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + (installedModule(state, "hangar") ? 14 : cfg.guardRegenPerSecond) * relayMultiplier * dt);
     if (state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge < 1) {
       state.tower.interceptRecharge = Math.max(0, state.tower.interceptRecharge - dt);
       if (state.tower.interceptRecharge <= 0) {
@@ -3163,7 +3220,7 @@ function updateDrones(state, dt) {
       }
     }
   }
-  const chapterDamageMultiplier = isChapterTwo(state) ? CHAPTER_TWO_CONFIG.droneDamageMultiplier : 1;
+  const chapterDamageMultiplier = isChapterTwo(state) ? CHAPTER_TWO_CONFIG.droneDamageMultiplier : installedModule(state, "hangar") ? 2.8 * moduleDamageMultiplier(state, "hangar") : 1;
   const payloadMultiplier = 1 + (state.tower.upgrades.dronePayload ?? 0) * tech.payloadDamagePerLevel;
   const lowEnergy = state.tower.droneEnergy <= getDroneEnergyMax(state) * tech.overdriveEnergyThreshold;
   const overdriveMultiplier = isChapterTwo(state) && state.tower.upgrades.droneOverdrive > 0 && lowEnergy ? tech.overdriveDamageMultiplier : 1;
@@ -3203,7 +3260,9 @@ function updateDrones(state, dt) {
     const distance = moveDroneTowards(drone, target, cfg.attackSpeed * movementMultiplier, dt);
     if (distance <= target.radius + cfg.contactRadius && drone.hitCooldown <= 0) {
       damageEnemy(state, target, damage, "drone");
-      const energyCost = cfg.hitEnergyCost * (overdriveMultiplier > 1 ? tech.overdriveEnergyCostMultiplier : 1);
+      const element = state.tower.moduleBay ? rollProjectileElement(state, 1, "hangar") : null;
+      if (element) applyElementalHit(state, target, element, damage);
+      const energyCost = (installedModule(state, "hangar") ? 2 : cfg.hitEnergyCost) * (overdriveMultiplier > 1 ? tech.overdriveEnergyCostMultiplier : 1);
       state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - energyCost);
       if (state.tower.upgrades.droneHunt > 0 && target.elite) {
         target.markTimer = Math.max(target.markTimer, cfg.huntMarkDuration);
@@ -3638,6 +3697,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   state.events.length = 0;
   state._eventParticleCursor = 0;
   state.time += dt;
+  if (state.tower.moduleBay) state.tower.moduleBay.refitCooldown = Math.max(0, state.tower.moduleBay.refitCooldown - dt);
   updateThreat(state);
   updateWave(state, dt);
   updateSpawning(state, dt);
@@ -3708,13 +3768,19 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   // tower that has been idle for a while fires once per simulation frame when
   // an enemy finally enters range.
   state.tower.fireCooldown = Math.max(0, state.tower.fireCooldown - dt);
-  if (!entryCombatLocked && state.tower.fireCooldown <= 0 && fireTower(state)) {
+  const guns = state.tower.moduleBay ? state.tower.moduleBay.installed.filter((module) => ["pulse", "cannon"].includes(module.id)) : [null];
+  for (const [gunIndex, gun] of guns.entries()) {
+  if (gun) gun.cooldown = gunIndex === 0 ? state.tower.fireCooldown : Math.max(0, (gun.cooldown ?? 0) - dt);
+  if (!entryCombatLocked && (gun ? gun.cooldown : state.tower.fireCooldown) <= 0 && fireTower(state, gun?.id)) {
     const overloadRateMultiplier = overloadSkill.permanentEngaged
       ? overloadSkill.unstable > 0 ? ENDLESS_SHOP_RULES.overloadUnstableRateMultiplier : GAME_CONFIG.skills.overload.rateMultiplier
       : overloadSkill.active > 0 ? GAME_CONFIG.skills.overload.rateMultiplier
       : overloadSkill.slow > 0 ? GAME_CONFIG.skills.overload.slowRateMultiplier : 1;
     const economyRateMultiplier = state.skills.coinVacuum.fireRateBuff > 0 ? GAME_CONFIG.activeSkillResearch.coinVacuum.fireRateMultiplier : 1;
-    state.tower.fireCooldown = 1 / (stats.fireRate * overloadRateMultiplier * economyRateMultiplier);
+    const cooldown = 1 / (stats.fireRate * overloadRateMultiplier * economyRateMultiplier) / (gun?.id === "cannon" ? 0.55 : 1);
+    if (gunIndex === 0) state.tower.fireCooldown = cooldown;
+    if (gun) gun.cooldown = cooldown;
+  }
   }
 
   updateEnemies(state, dt);
@@ -3748,6 +3814,8 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 
 export function snapshotState(state) {
   return {
+    moduleBay: state.tower.moduleBay ? structuredClone(state.tower.moduleBay) : null,
+    modulePrimers: state.enemies.filter((enemy) => enemy.moduleElementTimer > 0).map((enemy) => [enemy.id, enemy.moduleElement, Number(enemy.moduleElementTimer.toFixed(3))]),
     chapter: state.chapter, time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry }, skillResearch: { ...state.skillResearch }, endlessShop: { ...state.endlessShop, equippedRelics: [...state.endlessShop.equippedRelics], relicOffers: [...state.endlessShop.relicOffers], randomOffers: [...state.endlessShop.randomOffers], cyclePurchases: [...state.endlessShop.cyclePurchases], levels: { ...state.endlessShop.levels } },
     towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), cannonCascadeCooldown: Number((state.tower.cannonCascadeCooldown ?? 0).toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawStormCharge: Number((state.tower.sawStormCharge ?? 0).toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),
     drones: state.drones.map((drone) => [Number(drone.x.toFixed(2)), Number(drone.y.toFixed(2)), drone.targetId, Number((drone.recoveryTimer ?? 0).toFixed(3)), drone.droneClass ?? null, drone.phase ?? null, drone.ammo ?? 0, Number((drone.refitTimer ?? 0).toFixed(3))]),
