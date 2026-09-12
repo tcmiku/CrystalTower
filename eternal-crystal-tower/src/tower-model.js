@@ -130,9 +130,9 @@ function buildModularChassis(layout, modules) {
 export function getMountedMuzzle(module, tier=0, angle=0, shoot=0, viewYaw=0, peers=null) {
   const {x,y,z,scale}=getModuleMount(module,getModelLayout(tier),peers);
   const yaw=getCannonPose(tier,angle).yaw;
-  const length=(module.id==='cannon'?35:26)*scale-Math.min(1,Math.max(0,shoot/.28))*4;
+  const length=(module.id==='cannon'?35:module.id==='mortar'?15:26)*scale-Math.min(1,Math.max(0,shoot/.28))*4;
   const px=x+Math.cos(yaw)*length,pz=z+Math.sin(yaw)*length;
-  return {muzzleX:px*Math.cos(viewYaw)-pz*Math.sin(viewYaw),muzzleY:GROUND_Y-.8*(y+20*scale)+.6*(px*Math.sin(viewYaw)+pz*Math.cos(viewYaw))};
+  return {muzzleX:px*Math.cos(viewYaw)-pz*Math.sin(viewYaw),muzzleY:GROUND_Y-.8*(y+(module.id==='mortar'?43:20)*scale)+.6*(px*Math.sin(viewYaw)+pz*Math.cos(viewYaw))};
 }
 
 // Arena-space spawn point for a mounted gun barrel tip (top-down x/y).
@@ -141,7 +141,7 @@ export function getGunMuzzleWorld(towerX, towerY, module, tier = 0, aimAngle = 0
   const { x, z, scale } = getModuleMount(module, getModelLayout(tier), peers);
   const mountX = towerX + x;
   const mountY = towerY + z;
-  const barrel = (module.id === "cannon" ? 35 : 26) * scale;
+  const barrel = (module.id === "cannon" ? 35 : module.id === "mortar" ? 15 : 26) * scale;
   return {
     x: mountX + Math.cos(aimAngle) * barrel,
     y: mountY + Math.sin(aimAngle) * barrel

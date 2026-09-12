@@ -1,10 +1,11 @@
 import { GAME_CONFIG, getArenaEdgePosition, getCrowdVisualScale } from "./config.js";
-import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getSawBladeRadius, getSawOrbitRadius, getStarfallConeHalfAngle, getTowerPosition, getTowerStats } from "./engine.js";
+import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getSawBladeRadius, getSawOrbitRadius, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 import { isChapterTwo } from "./chapter-two.js";
 import { ArenaModelRenderer } from './arena-model.js';
 import { DroneModelRenderer } from './drone-model.js';
 import { BladeModelRenderer } from './blade-model.js';
 import { recordModuleAttack } from './module-effects.js';
+import { drawModuleGround, drawModuleOrdnance } from './module-renderer.js';
 import { EnemyModelRenderer, ENEMY_MODEL_TYPES } from './enemy-model.js';
 import { TowerModelRenderer, getModelLayout, getCannonPose, getMountedMuzzle } from "./tower-model.js";
 
@@ -603,6 +604,7 @@ export class Renderer {
     this.drawTowerGroundVeins(ctx, state);
     this.drawWaveWarning(ctx, state);
     this.drawRange(ctx, state);
+    drawModuleGround(ctx, state, this.time, getTowerPosition(state), getTowerRadius(state));
     this.drawEmberZones(ctx, state);
     this.drawRelicDecoys(ctx, state);
     this.drawCoins(ctx, state);
@@ -615,6 +617,7 @@ export class Renderer {
     this.drawSaws(ctx, state);
     this.drawDrones(ctx, state);
     this.drawTower(ctx, state);
+    drawModuleOrdnance(ctx, state, this.time, getTowerPosition(state));
     this.drawParticles(ctx, state);
     this.drawFloaters(ctx, state);
     this.drawBossBar(ctx, state);
@@ -1530,8 +1533,14 @@ export class Renderer {
     for (const projectile of state.hostileProjectiles ?? []) {
       const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
       const ux = projectile.vx / speed;
-      if ((projectile.kind === "colossusMortar" || projectile.kind === "sovereignMortar") && imageReady(this.assets.bossProjectile)) {
       const uy = projectile.vy / speed;
+      if (projectile.kind === "enemyBolt") {
+        ctx.save(); ctx.strokeStyle = "#ee9dca"; ctx.fillStyle = "#ffe6f1"; ctx.lineWidth = 2; ctx.shadowColor = "#d05591"; ctx.shadowBlur = 7;
+        ctx.beginPath(); ctx.moveTo(projectile.x - ux * 20, projectile.y - uy * 20); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
+        ctx.translate(projectile.x,projectile.y);ctx.rotate(Math.atan2(uy,ux));ctx.beginPath();ctx.moveTo(7,0);ctx.lineTo(-4,4);ctx.lineTo(-2,0);ctx.lineTo(-4,-4);ctx.closePath();ctx.fill();ctx.restore();
+        continue;
+      }
+      if ((projectile.kind === "colossusMortar" || projectile.kind === "sovereignMortar") && imageReady(this.assets.bossProjectile)) {
         const angle = Math.atan2(projectile.vy, projectile.vx);
         const pulse = 0.72 + Math.sin(this.time * 24 + projectile.id) * 0.18;
         ctx.save();
@@ -1759,7 +1768,7 @@ export class Renderer {
       const sovereignEntry = isSovereign ? 1 - Math.max(0, enemy.entryTimer ?? 0) / GAME_CONFIG.sovereign.entryDuration : 1;
       const renderY = isSovereign ? enemy.y - (1 - sovereignEntry) * 390 : enemy.y;
       const fastCrowdSprite = crowdMode && !isChapterTwo(state) && !isBoss && !isColossus && !isSovereign && !isAnchor && !enemy.elite && enemy.type !== "hexer" && enemy.type !== "rammer" && imageReady(atlas);
-      if (enemy.rangedFlash > 0) {
+      if (enemy.rangedFlash > 0 && (!state.tower.moduleBay || isBoss || isColossus || isSovereign || isAnchor)) {
         ctx.save();
         ctx.globalAlpha = Math.min(1, enemy.rangedFlash * 6.25);
         ctx.strokeStyle = "#c795ff";
@@ -2311,7 +2320,7 @@ export class Renderer {
     const mount = getTowerCannonLayout(state.tower.upgrades.ascend);
     const artScale = TOWER_ART_SCALE * (state.enemies.some(enemy => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1);
     const aimIds = state.tower.gunAimTargetIds ?? {};
-    for (const key of ["pulse", "cannon", "base"]) {
+    for (const key of ["pulse", "cannon", "mortar", "base"]) {
       const targetId = aimIds[key];
       const target = targetId == null ? null : state.enemies.find((enemy) => enemy.id === targetId && enemy.hp > 0);
       if (!target) {

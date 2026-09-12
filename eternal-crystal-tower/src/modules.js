@@ -19,7 +19,11 @@ export const MODULE_BALANCE = Object.freeze({
   blade: Object.freeze({ orbitRadius: 118, towerDamageMultiplier: .65, stormDamageMultiplier: 1.5,
     launchDamageMultiplier: 2.2, launchDamagePerLevel: .2, launchInterval: .85, bounceDamagePerHop: .15,
     returnDamageMultiplier: 1.1, burstDamageMultiplier: .6 }),
-  hangar: Object.freeze({ damageMultiplier: 2.8, attackDrain: 2, hitEnergy: 2, regen: 14, regenPerLevel: 4, speedPerLevel: .12 })
+  hangar: Object.freeze({ damageMultiplier: 2.8, attackDrain: 2, hitEnergy: 2, regen: 14, regenPerLevel: 4, speedPerLevel: .12 }),
+  mortar: Object.freeze({ minRange: 180, range: 600, interval: 3, flight: [.9, .7, .7], radius: [90, 90, 110], damage: 3, damagePerLevel: .2, clusterSpread: 60, clusterDamage: .42, staggerDamage: .75, staggerDuration: 1 }),
+  gravity: Object.freeze({ distance: 230, radius: [100, 120, 120], duration: [2, 2, 2.5], interval: 8, pullSpeed: 95, elitePull: .35, bossSlow: .85 }),
+  interceptor: Object.freeze({ capacity: [2, 3, 3], recharge: [2, 2, 1.6], rangeBeyondTower: 90, projectileSpeed: 300 }),
+  service: Object.freeze({ regenMultiplier: 1.4, returnMultiplier: 1.2, launchDuration: 3, flightDrainMultiplier: .5, dockRadius: 24 })
 });
 export const SPECIALIZATIONS = Object.freeze({
   pulseSplit: { module: "pulse", name: "裂晶散射", description: "轻炮命中后分裂两枚晶矢，可再追击一次；单发伤害降低 15%。" },
@@ -29,7 +33,9 @@ export const SPECIALIZATIONS = Object.freeze({
   bladeGuard: { module: "blade", name: "晶刃屏障", description: "每 1.2 秒拦截一枚进入刀环的炮弹，拦截后刀环扩张 2 秒。" },
   bladeReturn: { module: "blade", name: "回旋飞刃", description: "每 0.85 秒发射一刃，伤害为塔攻击的 2.2／2.64／3.08 倍；最多弹射 0／1／2 次，每跳 +15%，返程伤害 110%。飞出期间近身防线变薄。" },
   hangarHeavy: { module: "hangar", name: "重型猎杀", description: "机群缩编为两架，单机伤害 ×2.5，命中耗电 ×2；优先首领与精英。" },
-  hangarSwarm: { module: "hangar", name: "蜂群清扫", description: "增加两架轻型无人机，分散追击不同目标；单机伤害降低 25%。" }
+  hangarSwarm: { module: "hangar", name: "蜂群清扫", description: "增加两架轻型无人机，分散追击不同目标；单机伤害降低 25%。" },
+  mortarCluster: { module: "mortar", name: "集束轰击", description: "一次发射三枚分散落点的晶弹，每枚伤害为普通炮弹的 42%；覆盖更广，单点伤害降低。" },
+  mortarStagger: { module: "mortar", name: "震荡压制", description: "炮弹伤害降低 25%，命中后打断普通远程单位蓄能并压制 1 秒；首领免疫压制。" }
 });
 export const MODULES = Object.freeze({
   pulse: { name: "晶矢轻炮", size: 1, cost: 60, color: "#7fe9ff", icon: "damage", weapon: true, description: "全向射击，基础射程 360。每级伤害 +35%，适合给元素反应提供连续命中。" },
@@ -39,11 +45,15 @@ export const MODULES = Object.freeze({
   shield: { name: "扇区护盾", size: 1, cost: 80, color: "#78dabb", icon: "droneGuard", description: "只减免所在 60° 扇区的来袭伤害，I／II／III 级减伤 45%／55%／65%。朝向与战场编号一致。" },
   frost: { name: "霜棱反应器", size: 1, cost: 90, color: "#91ddff", icon: "frost", element: "frost", description: "只强化相邻武器：伤害 +15%／级，35%／45%／55% 概率附加冰冻。与火焰交替命中触发融爆。" },
   fire: { name: "烬火反应器", size: 1, cost: 90, color: "#ff8d70", icon: "fire", element: "fire", description: "只强化相邻武器：伤害 +15%／级，附加灼烧。火＋冰触发融爆；火＋雷建立超导电链，传递部分伤害。" },
-  lightning: { name: "雷鸣反应器", size: 1, cost: 100, color: "#c8a3ff", icon: "lightning", element: "lightning", description: "只强化相邻武器：伤害 +15%／级，附加连锁。与冰触发碎晶裂片并暴露弱点；与火建立传伤电链。" }
+  lightning: { name: "雷鸣反应器", size: 1, cost: 100, color: "#c8a3ff", icon: "lightning", element: "lightning", description: "只强化相邻武器：伤害 +15%／级，附加连锁。与冰触发碎晶裂片并暴露弱点；与火建立传伤电链。" },
+  mortar: { name: "星陨迫击炮", size: 2, cost: 160, color: "#9ccaff", icon: "moduleMortar", weapon: true, description: "每 3 秒曲射轰炸固定落点，射程 180—600。I／II／III 级伤害 ×3／3.6／4.2；II 级落地缩短至 0.7 秒，III 级爆炸范围扩大至 110。继承相邻元素；高速与近身敌人容易漏过。" },
+  gravity: { name: "引力锚", size: 2, cost: 140, color: "#bba1ff", icon: "moduleGravity", directional: true, description: "每 8 秒在所在扇区中圈展开引力场，持续 2 秒；II 级范围 100→120，III 级持续 2.5 秒。聚拢普通敌人，精英牵引减弱；首领不被拖动，仅可移动首领轻微减速。自身不造成伤害。" },
+  interceptor: { name: "截光阵列", size: 1, cost: 100, color: "#7df3db", icon: "moduleInterceptor", directional: true, description: "拦截所在 60° 扇区的普通敌弹，初始需充能。I 级存 2 发，每 2 秒恢复 1 发；II 级存 3 发，III 级恢复缩短至 1.6 秒。不能拦截首领炮击、光束和近身攻击。" },
+  service: { name: "快速整备舱", size: 1, cost: 110, color: "#a8e8b2", icon: "moduleService", description: "必须邻接机库：实际归航后回电 +40%；II 级回航速度 +20%；III 级在舱内补回至少 10% 电量并充满后，下次出击前 3 秒飞行耗电减半，命中耗电不变。" }
 });
 
 export function createModuleBay() {
-  return { installed: [{ id: "pulse", slot: 0, level: 1, invested: 60 }], specializations: {}, revision: 0, refitCooldown: 0 };
+  return { installed: [{ id: "pulse", slot: 0, level: 1, invested: 60 }], specializations: {}, revision: 0, refitCooldown: 0, combat: { shells: [], fields: [], effects: [] } };
 }
 export function moduleCells(module, columns = BAY_COLUMNS) {
   const step = module.rotation === 1 ? columns : 1;
@@ -119,6 +129,13 @@ export function syncModuleUpgrades(state) {
   state.tower.moduleShieldCharge = 0;
   state.tower.bladeExpansion = 0;
   state.tower.pulseRelay = 0;
+  state.tower.moduleBay.combat = { shells: [], fields: [], effects: [] };
+  for (const module of state.tower.moduleBay.installed) {
+    if (module.id === "mortar") module.cooldown = MODULE_BALANCE.mortar.interval;
+    if (module.id === "gravity") module.cooldown = 1;
+    if (module.id === "interceptor") { module.charges = 0; module.recharge = 0; }
+    if (module.id === "service") { module.launchBuff = 0; module.recharged = false; module.recoveredEnergy = 0; module.servicing = false; module.pulseCooldown = 0; }
+  }
   for (const module of state.tower.moduleBay.installed) { module.focusStacks = 0; module.focusTarget = null; }
   state.tower.moduleBay.revision += 1;
 }

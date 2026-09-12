@@ -1,4 +1,4 @@
-import { MODULES, SPECIALIZATIONS, getBayLayout, moduleAt, installedModule, occupiedSlots, adjacentReactors, modulePlacementStatus, moduleMoveStatus, moduleUpgradeCost, installModule, removeModule, moveModule, upgradeModule } from './modules.js';
+import { MODULES, MODULE_BALANCE, SPECIALIZATIONS, getBayLayout, moduleAt, installedModule, occupiedSlots, adjacentReactors, modulesAdjacent, modulePlacementStatus, moduleMoveStatus, moduleUpgradeCost, installModule, removeModule, moveModule, upgradeModule } from './modules.js';
 
 export const createCompactModuleUi = (root,state,options) => createModuleUi(root,state,{...options,compact:true});
 
@@ -116,8 +116,20 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
     }
     const id=event.target.closest('[data-id]')?.dataset.id;if(id)select(id);
   });
+  function updateLive(){
+    const live=info.querySelector('.module-live-status');if(!live)return;
+    const m=installedModule(state,selected);let text='';
+    if(m?.id==='mortar')text=`${m.cooldown>0?`装填 ${m.cooldown.toFixed(1)}s`:'等待射程内目标'} · 在途 ${state.tower.moduleBay.combat.shells.length} 枚`;
+    else if(m?.id==='gravity')text=`${directions[m.slot%6]} · ${m.cooldown>0?`牵引冷却 ${m.cooldown.toFixed(1)}s`:'等待扇区目标'}`;
+    else if(m?.id==='interceptor')text=`${directions[m.slot%6]} · 拦截弹 ${m.charges??0}/${MODULE_BALANCE.interceptor.capacity[m.level-1]}${m.charges<MODULE_BALANCE.interceptor.capacity[m.level-1]?` · 充能 ${Math.max(0,MODULE_BALANCE.interceptor.recharge[m.level-1]-(m.recharge??0)).toFixed(1)}s`:''}`;
+    else if(m?.id==='service')text=!modulesAdjacent(state,'hangar','service')?'未连接 · 需与机库共享一条边':m.launchBuff>0?`出击省电 ${m.launchBuff.toFixed(1)}s`:m.servicing?'归航整备 · 回电加速':m.recharged&&m.level>=3?'整备完成 · 下次出击省电':'已连接机库 · 等待归航';
+    else if(selected&&MODULES[selected]?.directional)text='锚定格决定防守方向 · 战场预览显示范围';
+    else if(selected)text=`${MODULES[selected].size} 格${MODULES[selected].element?' · 只连接共享边的武器':''}`;
+    if(live.textContent!==text)live.textContent=text;
+  }
   function update(){
     if(gesture?.dragging)return;
+    updateLive();
     const bay=state.tower.moduleBay,next=JSON.stringify([bay.revision,Math.floor(state.coins),Math.ceil(bay.refitCooldown),state.over,selected,held,state.tower.upgrades]);
     if(signature===next)return;signature=next;
     const focus=root.contains(document.activeElement)?document.activeElement.dataset.focus:null;
@@ -135,6 +147,7 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
       n.innerHTML=`<b>${cell+1}</b>`;n.setAttribute('aria-label',`第 ${cell+1} 格，${directions[cell%6]}，${MODULES[moduleAt(state,cell)?.id]?.name??'空格'}`);board.append(n);
     }
     const connected=selected?(MODULES[selected]?.weapon?adjacentReactors(state,selected).map(m=>m.id):bay.installed.filter(m=>MODULES[m.id].weapon&&adjacentReactors(state,m.id).some(r=>r.id===selected)).map(m=>m.id)):[];
+    if(['hangar','service'].includes(selected)&&modulesAdjacent(state,'hangar','service'))connected.push(selected==='hangar'?'service':'hangar');
     for(const m of bay.installed){
       const n=document.createElement('button');n.type='button';n.className=`module-piece${selected===m.id?' inspected':''}${connected.includes(m.id)?' connected':''}`;n.dataset.id=m.id;n.dataset.focus=`piece-${m.id}`;
       n.style.gridColumn=`${m.slot%columns+1} / span ${m.rotation?1:MODULES[m.id].size}`;n.style.gridRow=`${Math.floor(m.slot/columns)+1} / span ${m.rotation?MODULES[m.id].size:1}`;n.style.setProperty('--module-color',MODULES[m.id].color);
@@ -150,7 +163,8 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
       info.innerHTML=`<div class="module-selected-title"><strong>${meta.name}${m?.specialization ? ` · ${SPECIALIZATIONS[m.specialization].name}` : ""}</strong><details><summary aria-label="模块说明">ⓘ</summary><p>${meta.description}${m?.specialization ? `<br><b>${SPECIALIZATIONS[m.specialization].name}</b>：${SPECIALIZATIONS[m.specialization].description}` : meta.weapon ? "<br>击败精英后可获得武器专精，本局每件限选一个方向。" : ""}${selected === "shield" ? "<br>邻接重炮：格挡充能；邻接环刃：格挡后扩张。" : selected === "hangar" || selected === "pulse" ? "<br>机库与轻炮相邻：半电以下主动回航，轻炮加速 6 秒。" : ""}</p></details></div><div class="module-actions">${m?btn('移动','move',locked())+btn(m.level>=3?'已满级':`强化 ◆${moduleUpgradeCost(m)}`,'upgrade',locked()||m.level>=3||state.coins<moduleUpgradeCost(m))+btn(`拆卸 +${Math.floor(m.invested*.8)}`,'remove',locked()):btn(`安装 ◆${meta.cost}`,'install',!available(selected))}</div>`;
     }else info.innerHTML='<div class="module-selected-title"><strong>选择模块</strong></div><div class="module-actions"></div>';
     if(coreStatus){const core=root.querySelector('.module-core-upgrades');core.innerHTML='';for(const [key,title] of [['damage','伤害'],['rate','射速'],['ascend','升阶']]){const status=coreStatus(key);core.insertAdjacentHTML('beforeend',btn(`${title} · ${status.maxed?'满级':status.unlocked?`◆${status.cost}`:'未解锁'}`,`core-${key}`,!status.unlocked||state.coins<status.cost))}}
-    updateTools();paint();if(focus)root.querySelector(`[data-focus="${focus}"]`)?.focus({preventScroll:true});
+    info.insertAdjacentHTML('beforeend','<div class="module-live-status"></div>');
+    updateLive();updateTools();paint();if(focus)root.querySelector(`[data-focus="${focus}"]`)?.focus({preventScroll:true});
   }
   update();return {update,handleKey,cancel,destroy:()=>{controller.abort();ghost.remove();delete state.moduleSelection;delete state.modulePreview}};
 }

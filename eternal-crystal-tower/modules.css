@@ -274,3 +274,7 @@
 }
 
 .reward-back { align-self: end; padding: 12px 18px; color: #cceaff; background: #15243b; border: 1px solid #55799b; border-radius: 10px; cursor: pointer; }
+
+.module-editor .module-selection { height:110px; min-height:110px; }
+.module-live-status { margin-top:8px; min-height:15px; color:#a8d9cc; font-size:10px; line-height:1.5; font-variant-numeric:tabular-nums; }
+.module-art.tech-icon-generated { background-size:contain; background-position:center; }

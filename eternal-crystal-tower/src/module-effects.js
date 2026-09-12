@@ -10,6 +10,9 @@ export function recordModuleAttack(fx,event) {
   else if(['sawLaunch','sawBounce','sawShoot','sawStorm','sawHomecoming'].includes(event.type) || ['hit','kill'].includes(event.type) && ['saw','launchedSaw','sawHomecoming','sawGun','sawStorm'].includes(event.source)) id='blade';
   else if(['droneHit','droneWeapon','droneLaunch','droneSalvo','droneDetonate','droneSupport'].includes(event.type)) id='hangar';
   else if(event.type==='sectorBlock' && event.prevented>0) id='shield';
+  else if(event.type==='moduleGravity') id='gravity';
+  else if(event.type==='moduleIntercept') id='interceptor';
+  else if(['moduleService','moduleServiceLaunch'].includes(event.type)) id='service';
   if(MODULES[id]) fx[`attack-${id}`]=MODULE_ATTACK_DURATION;
 }
 
@@ -17,12 +20,27 @@ export function recordModuleAttack(fx,event) {
 export function sampleModuleEffects(module, layout, time, aimYaw=0, attack=0, peers=null) {
   const mount=getModuleMount(module,layout,peers), effects=[], level=Math.max(1,Math.min(3,module.level??1));
   const color=MODULES[module.id].color, phase=time+module.slot*.37;
-  const yaw=['pulse','cannon'].includes(module.id)?aimYaw:mount.yaw;
+  const yaw=['pulse','cannon','mortar'].includes(module.id)?aimYaw:mount.yaw;
   const point=([x,y,z])=>[mount.x+mount.scale*(x*Math.cos(yaw)-z*Math.sin(yaw)),mount.y+y*mount.scale,mount.z+mount.scale*(x*Math.sin(yaw)+z*Math.cos(yaw))];
   const path=(points,alpha=.65,width=1,fill=false,tint=color)=>effects.push({points:points.map(point),alpha,width,fill,color:tint});
   const ring=(radius,y,start=0,arc=Math.PI*2,alpha=.5)=>path(Array.from({length:25},(_,i)=>{const a=start+i*arc/24;return [Math.cos(a)*radius,y,Math.sin(a)*radius]}),alpha,1.2);
   const diamond=(x,y,z,r,alpha,tint=color)=>path([[x-r,y,z],[x,y+r,z],[x+r,y,z],[x,y-r,z],[x-r,y,z]],alpha,1,true,tint);
   switch(module.id) {
+    case 'mortar':
+      for(const z of [-7,7]) diamond(-12,20+Math.sin(phase*3)*2,z,2.3,.7);
+      ring(14,12,phase,Math.PI,.4);
+      break;
+    case 'gravity':
+      for(let i=0;i<3;i++) ring(9+i*2,20+i*6,phase*(i%2?-2:2)+i,Math.PI*1.3,.65);
+      diamond(0,29,0,3,.6);
+      break;
+    case 'interceptor':
+      path([[0,23,-6],[21,23,-6],[24,23,6],[0,23,6]],.45,1);
+      for(let i=0;i<3;i++) diamond(17,20,-6+i*6,1.5,.5);
+      break;
+    case 'service':
+      for(const x of [-6,6]) {const y=22+(phase*8)%12;path([[x-2,y,6],[x+2,y,6]],.8,2);}
+      break;
     case 'pulse': case 'cannon': {
       const heavy=module.id==='cannon', length=heavy?30:22;
       for(const side of [-1,1]) {
@@ -74,7 +92,16 @@ export function sampleModuleEffects(module, layout, time, aimYaw=0, attack=0, pe
   const power=Math.max(0,Math.min(1,attack/MODULE_ATTACK_DURATION));
   if(power>0) {
     const age=1-power;
-    if(module.id==='pulse'||module.id==='cannon') {
+    if(module.id==='mortar') {
+      path([[11,40,-6],[18+age*12,53+age*28,0],[20,42,6]],power,1,true,'#e9f7ff');
+      ring(14+age*20,14,0,Math.PI*2,power*.7);
+    } else if(module.id==='gravity') {
+      for(let i=0;i<3;i++) ring(26-age*16,18+i*9,phase+i,Math.PI*1.7,power*.8);
+    } else if(module.id==='interceptor') {
+      for(const z of [-6,0,6]) path([[17,19,z],[31+age*12,22,z]],power,2,false,'#e6fff7');
+    } else if(module.id==='service') {
+      for(const x of [-6,6]) path([[x-3,22,6],[x,40+age*14,6],[x+3,22,6]],power*.7,1,true,'#d7ffe1');
+    } else if(module.id==='pulse'||module.id==='cannon') {
       const heavy=module.id==='cannon',tip=heavy?35:26,reach=(heavy?37:25)*power;
       // Directional muzzle lance, white hot center and a spreading shock collar.
       path([[tip,16,-4],[tip+reach,18,0],[tip,20,4],[tip+4,18,0]],power,1,true,'#fff7de');

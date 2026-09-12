@@ -381,7 +381,7 @@ export function getTechStatus(state, key) {
   const level = state.tower.upgrades[key];
   if (!cfg || level == null) return { unlocked: false, maxed: true, cost: Infinity, reason: "未知科技" };
   if (state.tower.moduleBay && !["damage", "rate", "ascend"].includes(key)) return { unlocked: false, maxed: false, cost: Infinity, reason: "请在六槽装配中安装或强化模块" };
-  if (state.tower.moduleBay && key === "rate" && !installedModule(state, "pulse") && !installedModule(state, "cannon")) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), reason: "需要主炮模块" };
+  if (state.tower.moduleBay && key === "rate" && !["pulse", "cannon", "mortar"].some(id => installedModule(state, id))) return { unlocked: false, maxed: false, cost: getUpgradeCost(state, key), reason: "需要主炮模块" };
   if (level >= cfg.maxLevel) return { unlocked: false, maxed: true, cost: Infinity, reason: "研究完成" };
   const limitBroken = state.endlessMode === true && state.endlessShop?.equippedRelics?.includes("breakthroughLimit");
   const excluded = limitBroken ? null : cfg.excludes?.find((excludedKey) => (state.tower.upgrades[excludedKey] ?? 0) > 0);
@@ -431,6 +431,12 @@ export function toggleDroneMode(state) {
     state.events.push({ type: "moduleSynergy", name: "回航接力 · 轻炮加速 6 秒" });
   }
   state.tower.droneMode = state.tower.droneMode === "attack" ? "collect" : "attack";
+  const service = modulesAdjacent(state, "hangar", "service") ? installedModule(state, "service") : null;
+  if (service) {
+    service.launchBuff = state.tower.droneMode === "attack" && service.level >= 3 && service.recharged ? MODULE_BALANCE.service.launchDuration : 0;
+    if (state.tower.droneMode === "attack") { service.recharged = false; service.recoveredEnergy = 0; }
+    if (service.launchBuff > 0) state.events.push({ type: "moduleServiceLaunch" });
+  }
   state.events.push({ type: "droneMode", mode: state.tower.droneMode });
   return true;
 }
@@ -2280,7 +2286,7 @@ function updateColossus(state, boss, dt) {
   const bulwarkActive = boss.activeSkill === "bulwark" || Boolean(boss.activeSkills?.bulwark);
   const speedMultiplier = (bulwarkActive ? cfg.bulwark.orbitSpeedMultiplier : 1) * (boss.enraged ? cfg.enrageOrbitSpeedMultiplier : 1);
   const freezeMultiplier = !boss.enraged && boss.freezeTimer > 0 ? 0.35 : 1;
-  boss.orbitAngle += cfg.orbitSpeed * speedMultiplier * freezeMultiplier * dt;
+  boss.orbitAngle += cfg.orbitSpeed * speedMultiplier * freezeMultiplier * (boss.gravitySlow ?? 1) * dt;
   boss.x = GAME_CONFIG.arena.centerX + Math.cos(boss.orbitAngle) * cfg.orbitRadiusX;
   boss.y = GAME_CONFIG.arena.centerY + Math.sin(boss.orbitAngle) * cfg.orbitRadiusY;
   if (boss.enraged) {
@@ -2418,16 +2424,144 @@ function updateSovereign(state, boss, dt) {
   if (boss.skillTimer <= 0 || (boss.activeSkill === "summon" && boss.summonWavesRemaining <= 0)) finishSovereignSkill(boss);
 }
 
+function updateModuleSupport(state, dt) {
+  const bay = state.tower.moduleBay;
+  if (!bay) return;
+  const combat = bay.combat;
+  const tower = getTowerPosition(state);
+  for (const effect of combat.effects) effect.life -= dt;
+  combat.effects = combat.effects.filter(effect => effect.life > 0);
+  for (const field of combat.fields) field.life -= dt;
+  combat.fields = combat.fields.filter(field => field.life > 0);
+  const anchor = installedModule(state, "gravity"), cfg = MODULE_BALANCE.gravity;
+  if (anchor) {
+    anchor.cooldown = Math.max(0, (anchor.cooldown ?? 1) - dt);
+    const angle = sectorAngle(anchor.slot % 6);
+    const x = tower.x + Math.cos(angle) * cfg.distance, y = tower.y + Math.sin(angle) * cfg.distance;
+    const radius = cfg.radius[anchor.level - 1];
+    if (anchor.cooldown <= 0 && state.enemies.some(enemy => enemy.hp > 0 && enemy.type !== "anchor" && Math.hypot(enemy.x - x, enemy.y - y) <= radius + enemy.radius)) {
+      const duration = cfg.duration[anchor.level - 1];
+      combat.fields.push({ x, y, radius, life: duration, duration });
+      anchor.cooldown = cfg.interval;
+      state.events.push({ type: "moduleGravity", x, y });
+    }
+  }
+  for (const enemy of state.enemies) {
+    enemy.gravitySlow = 1;
+    if (enemy.hp <= 0 || enemy.type === "anchor") continue;
+    for (const field of combat.fields) {
+      const dx = field.x - enemy.x, dy = field.y - enemy.y, distance = Math.hypot(dx, dy);
+      if (distance > field.radius + enemy.radius) continue;
+      if (isBossEnemy(enemy)) { enemy.gravitySlow = cfg.bossSlow; continue; }
+      // Pull never teleports a unit or interrupts its attacks. Elites resist displacement.
+      const travel = Math.min(Math.max(0, distance - 14), cfg.pullSpeed * (enemy.elite ? cfg.elitePull : 1) * dt);
+      if (distance > 0) { enemy.x += dx / distance * travel; enemy.y += dy / distance * travel; }
+    }
+  }
+  const interceptor = installedModule(state, "interceptor"), rule = MODULE_BALANCE.interceptor;
+  if (interceptor) {
+    const capacity = rule.capacity[interceptor.level - 1], interval = rule.recharge[interceptor.level - 1];
+    interceptor.charges ??= 0;
+    if (interceptor.charges < capacity) {
+      interceptor.recharge = (interceptor.recharge ?? 0) + dt;
+      while (interceptor.recharge + 1e-9 >= interval && interceptor.charges < capacity) {
+        interceptor.recharge -= interval;
+        interceptor.charges += 1;
+      }
+    }
+    if (interceptor.charges >= capacity) interceptor.recharge = 0;
+  }
+}
+
+function updateMortar(state, dt) {
+  const bay = state.tower.moduleBay;
+  if (!bay) return;
+  const combat = bay.combat, cfg = MODULE_BALANCE.mortar;
+  for (const shell of combat.shells) {
+    shell.life -= dt;
+    if (shell.life > 0) continue;
+    let hits = 0;
+    for (const enemy of state.enemies) {
+      if (enemy.hp <= 0 || Math.hypot(enemy.x - shell.x, enemy.y - shell.y) > shell.radius + enemy.radius) continue;
+      damageEnemy(state, enemy, shell.damage, "explosion");
+      if (shell.element) applyElementalHit(state, enemy, shell.element, shell.damage);
+      if (shell.stagger && enemy.attackRange > 0 && !isBossEnemy(enemy) && enemy.type !== "anchor") {
+        enemy.moduleSuppression = cfg.staggerDuration;
+        enemy.attackCooldown = Math.max(enemy.attackCooldown, cfg.staggerDuration);
+        if (enemy.volleyAt != null) enemy.volleyAt = Math.ceil((state.time + cfg.staggerDuration) / 6) * 6;
+      }
+      hits += 1;
+    }
+    combat.effects.push({ kind: "mortar", x: shell.x, y: shell.y, radius: shell.radius, life: .6, duration: .6 });
+    state.events.push({ type: "mortarImpact", x: shell.x, y: shell.y, hits });
+  }
+  combat.shells = combat.shells.filter(shell => shell.life > 0);
+  const mortar = installedModule(state, "mortar");
+  if (!mortar) { state.tower.gunAimTargetIds.mortar = null; return; }
+  mortar.cooldown = Math.max(0, (mortar.cooldown ?? cfg.interval) - dt);
+  const tower = getTowerPosition(state), stats = getTowerStats(state);
+  const candidates = state.enemies.filter(enemy => {
+    const distance = Math.hypot(enemy.x - tower.x, enemy.y - tower.y);
+    return enemy.hp > 0 && distance >= cfg.minRange && distance <= cfg.range;
+  });
+  const target = rankTargets(state, candidates, 1)[0];
+  state.tower.gunAimTargetIds.mortar = target?.id ?? null;
+  if (!target || mortar.cooldown > 0) return;
+  const origin = getGunMuzzleWorld(tower.x, tower.y, mortar, state.tower.upgrades.ascend, Math.atan2(target.y - tower.y, target.x - tower.x), bay.installed);
+  const cluster = mortar.specialization === "mortarCluster", stagger = mortar.specialization === "mortarStagger";
+  const damage = stats.damage * cfg.damage * (1 + (mortar.level - 1) * cfg.damagePerLevel) * moduleDamageMultiplier(state, "mortar") * (cluster ? cfg.clusterDamage : stagger ? cfg.staggerDamage : 1);
+  for (let i = 0; i < (cluster ? 3 : 1); i++) {
+    const angle = i * Math.PI * 2 / 3;
+    const flight = cfg.flight[mortar.level - 1] + (cluster ? i * .12 : 0);
+    combat.shells.push({ id: state.nextId++, fromX: origin.x, fromY: origin.y,
+      x: target.x + (cluster ? Math.cos(angle) * cfg.clusterSpread : 0), y: target.y + (cluster ? Math.sin(angle) * cfg.clusterSpread : 0),
+      radius: cfg.radius[mortar.level - 1], life: flight, duration: flight, damage, element: rollProjectileElement(state, 1, "mortar"), stagger });
+  }
+  const overload = state.skills.overload;
+  const overloadRate = overload.permanentEngaged ? overload.unstable > 0 ? ENDLESS_SHOP_RULES.overloadUnstableRateMultiplier : GAME_CONFIG.skills.overload.rateMultiplier
+    : overload.active > 0 ? GAME_CONFIG.skills.overload.rateMultiplier : overload.slow > 0 ? GAME_CONFIG.skills.overload.slowRateMultiplier : 1;
+  mortar.cooldown = cfg.interval * GAME_CONFIG.tower.fireRate / stats.fireRate / overloadRate;
+  state.events.push({ type: "shoot", tier: state.tower.upgrades.ascend, weaponId: "mortar" });
+}
+
 function updateHostileProjectiles(state, dt) {
   const { width, height } = GAME_CONFIG.arena;
   const { x: centerX, y: centerY } = getTowerPosition(state);
   const towerRadius = getTowerRadius(state);
+  const interceptor = installedModule(state, "interceptor");
   for (const projectile of state.hostileProjectiles) {
+    if (projectile.life <= 0) continue;
+    const oldX = projectile.x, oldY = projectile.y;
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
     projectile.life -= dt;
-    const reachedTarget = Math.hypot(projectile.x - projectile.targetX, projectile.y - projectile.targetY) <= projectile.radius + 9;
+    const stepX = projectile.x - oldX, stepY = projectile.y - oldY;
+    const t = Math.max(0, Math.min(1, ((centerX - oldX) * stepX + (centerY - oldY) * stepY) / (stepX * stepX + stepY * stepY || 1)));
+    const nearX = oldX + stepX * t, nearY = oldY + stepY * t;
+    const sector = ((Math.floor((Math.atan2(oldY - centerY, oldX - centerX) + Math.PI / 2 + Math.PI / 6) / (Math.PI / 3)) % 6) + 6) % 6;
+    if (interceptor?.charges > 0 && projectile.interceptable === true && sector === interceptor.slot % 6
+      && Math.hypot(nearX - centerX, nearY - centerY) <= towerRadius + MODULE_BALANCE.interceptor.rangeBeyondTower) {
+      interceptor.charges -= 1;
+      projectile.life = 0;
+      const angle = sectorAngle(interceptor.slot % 6);
+      const effect = { kind: "intercept", x: oldX, y: oldY, fromX: centerX + Math.cos(angle) * towerRadius, fromY: centerY + Math.sin(angle) * towerRadius, life: .28, duration: .28 };
+      state.tower.moduleBay.combat.effects.push(effect);
+      state.events.push({ type: "moduleIntercept", x: oldX, y: oldY });
+      continue;
+    }
+    const reachedTarget = Math.hypot(oldX - projectile.targetX, oldY - projectile.targetY) <= Math.hypot(stepX, stepY) + projectile.radius + 9;
     const hitTower = Math.hypot(projectile.x - centerX, projectile.y - centerY) <= towerRadius + projectile.radius;
+    if (projectile.kind === "enemyBolt") {
+      if (reachedTarget || hitTower) {
+        const decoy = projectile.decoyId ? state.decoys.find(item => item.id === projectile.decoyId && item.hp > 0) : null;
+        if (decoy && Math.hypot(decoy.x - projectile.targetX, decoy.y - projectile.targetY) <= decoy.radius + 9) {
+          decoy.hp = Math.max(0, decoy.hp - projectile.damage);
+          state.events.push({ type: "relicDecoyHit", x: decoy.x, y: decoy.y, damage: projectile.damage });
+        } else if (!projectile.decoyId) damageTower(state, projectile.damage, projectile.heavy, projectile.source, { x: centerX - projectile.vx, y: centerY - projectile.vy });
+        projectile.life = 0;
+      }
+      continue;
+    }
     if (reachedTarget || hitTower) {
       if (hitTower) damageTower(state, projectile.damage, true, projectile.kind === "sovereignMortar" ? "sovereignArtillery" : "colossusArtillery", { x: centerX - projectile.vx, y: centerY - projectile.vy });
       state.events.push({ type: "colossusImpact", x: projectile.x, y: projectile.y, hitTower });
@@ -2466,6 +2600,7 @@ function updateEnemies(state, dt) {
     if (enemy.sawScarTimer <= 0) enemy.sawScarStacks = 0;
     enemy.phaseBreakInvulnerability = Math.max(0, (enemy.phaseBreakInvulnerability ?? 0) - dt);
     enemy.freezeTimer = Math.max(0, (enemy.freezeTimer ?? 0) - dt);
+    enemy.moduleSuppression = Math.max(0, (enemy.moduleSuppression ?? 0) - dt);
     enemy.moduleElementTimer = Math.max(0, (enemy.moduleElementTimer ?? 0) - dt);
     enemy.fractureTimer = Math.max(0, (enemy.fractureTimer ?? 0) - dt);
     enemy.conductTimer = Math.max(0, (enemy.conductTimer ?? 0) - dt);
@@ -2533,11 +2668,12 @@ function updateEnemies(state, dt) {
     const dy = targetY - enemy.y;
     const distance = Math.hypot(dx, dy) || 1;
     if (distance > targetRadius + enemy.radius + 3 + (enemy.attackRange ?? 0)) {
-      const moveSpeed = enemy.freezeTimer > 0 ? 0 : enemy.speed;
+      const moveSpeed = enemy.freezeTimer > 0 ? 0 : enemy.speed * (enemy.gravitySlow ?? 1);
       enemy.x += dx / distance * moveSpeed * dt;
       enemy.y += dy / distance * moveSpeed * dt;
       enemy.attackCooldown = 0;
     } else {
+      if (enemy.moduleSuppression > 0) continue;
       enemy.attackCooldown -= dt;
       if (enemy.volleyAt != null) {
         if (enemy.freezeTimer > 0) { enemy.volleyAt = Math.ceil((state.time + 2) / 6) * 6; continue; }
@@ -2550,7 +2686,14 @@ function updateEnemies(state, dt) {
         const attackInterval = GAME_CONFIG.combat.enemyAttackInterval * (overloadedBoss ? GAME_CONFIG.boss.overloadAttackIntervalMultiplier : 1);
         const damage = enemy.damage * GAME_CONFIG.combat.enemyAttackInterval * (enemy.volleyAt != null ? 3 : 1);
         const heavy = isBossEnemy(enemy) || enemy.type === "brute" || enemy.type === "rammer" || enemy.type === "rustBeetle" || enemy.type === "porcelainWarden";
-        if (decoy) {
+        if (state.tower.moduleBay && enemy.attackRange > 0 && !isBossEnemy(enemy)) {
+          const angle = Math.atan2(targetY - enemy.y, targetX - enemy.x);
+          const speed = MODULE_BALANCE.interceptor.projectileSpeed;
+          state.hostileProjectiles.push({ id: state.nextId++, kind: "enemyBolt", interceptable: true,
+            x: enemy.x, y: enemy.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+            targetX, targetY, decoyId: decoy?.id ?? null, radius: 6, life: distance / speed + 1, damage, heavy, source: enemy.type });
+          state.events.push({ type: "enemyShoot", x: enemy.x, y: enemy.y });
+        } else if (decoy) {
           decoy.hp = Math.max(0, decoy.hp - damage);
           state.events.push({ type: "relicDecoyHit", x: decoy.x, y: decoy.y, damage });
         } else damageTower(state, damage, heavy, enemy.type, enemy);
@@ -3399,6 +3542,10 @@ function updateDrones(state, dt) {
   const tech = CHAPTER_TWO_CONFIG.droneTech;
   const hangar = installedModule(state, "hangar"), tuning = MODULE_BALANCE.hangar;
   const movementMultiplier = 1 + (hangar ? (hangar.level - 1) * tuning.speedPerLevel : 0);
+  const service = modulesAdjacent(state, "hangar", "service") ? installedModule(state, "service") : null;
+  const serviceRule = MODULE_BALANCE.service;
+  const returnMultiplier = movementMultiplier * (service?.level >= 2 ? serviceRule.returnMultiplier : 1);
+  if (service) { service.launchBuff = Math.max(0, (service.launchBuff ?? 0) - dt); service.servicing = false; }
   for (const drone of state.drones) {
     const wasRecovering = drone.recoveryTimer > 0;
     drone.recoveryTimer = Math.max(0, (drone.recoveryTimer ?? 0) - dt);
@@ -3417,7 +3564,8 @@ function updateDrones(state, dt) {
     // Self-destruct drones spend a fixed battery charge per launch instead of
     // draining continuously while they travel to their priority target.
   } else if (attackMode) {
-    state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - (hangar ? tuning.attackDrain : cfg.attackDrainPerSecond) * dt);
+    const flightMultiplier = service?.launchBuff > 0 ? serviceRule.flightDrainMultiplier : 1;
+    state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - (hangar ? tuning.attackDrain : cfg.attackDrainPerSecond) * flightMultiplier * dt);
     if (state.tower.droneEnergy <= 0) {
       state.tower.droneMode = "collect";
       state.events.push({ type: "droneDepleted" });
@@ -3426,7 +3574,20 @@ function updateDrones(state, dt) {
     updateDroneGuard(state, dt);
   } else if (!guardCooldownWasActive) {
     const relayMultiplier = 1 + (state.tower.upgrades.droneRelay ?? 0) * tech.relayRegenPerLevel;
-    state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + (hangar ? tuning.regen + (hangar.level - 1) * tuning.regenPerLevel : cfg.guardRegenPerSecond) * relayMultiplier * dt);
+    const docked = service ? state.drones.filter((drone, index) => {
+      const home = getDroneOrbitPosition(state, index);
+      return drone.recoveryTimer <= 0 && Math.hypot(drone.x - home.x, drone.y - home.y) <= serviceRule.dockRadius;
+    }).length : 0;
+    const serviceMultiplier = 1 + (serviceRule.regenMultiplier - 1) * docked / Math.max(1, count);
+    const before = state.tower.droneEnergy, maxEnergy = getDroneEnergyMax(state);
+    state.tower.droneEnergy = Math.min(maxEnergy, before + (hangar ? tuning.regen + (hangar.level - 1) * tuning.regenPerLevel : cfg.guardRegenPerSecond) * relayMultiplier * serviceMultiplier * dt);
+    if (service && docked > 0 && state.tower.droneEnergy > before) {
+      service.servicing = true;
+      service.recoveredEnergy = (service.recoveredEnergy ?? 0) + state.tower.droneEnergy - before;
+      if (state.tower.droneEnergy >= maxEnergy && service.recoveredEnergy >= maxEnergy * .1) service.recharged = true;
+      service.pulseCooldown = (service.pulseCooldown ?? 0) - dt;
+      if (service.pulseCooldown <= 0) { state.events.push({ type: "moduleService" }); service.pulseCooldown = .4; }
+    }
     if (state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge < 1) {
       state.tower.interceptRecharge = Math.max(0, state.tower.interceptRecharge - dt);
       if (state.tower.interceptRecharge <= 0) {
@@ -3467,7 +3628,7 @@ function updateDrones(state, dt) {
       const target = findDroneDetonationTarget(state, drone);
       if (!target) {
         drone.targetId = null;
-        moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed * movementMultiplier, dt);
+        moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed * returnMultiplier, dt);
         continue;
       }
       drone.targetId = target.id;
@@ -3477,7 +3638,7 @@ function updateDrones(state, dt) {
     }
     if (!attackMode) {
       drone.targetId = null;
-      moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed * movementMultiplier, dt);
+      moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed * returnMultiplier, dt);
       continue;
     }
     const living = state.enemies.filter((enemy) => enemy.hp > 0);
@@ -3489,7 +3650,7 @@ function updateDrones(state, dt) {
     const target = lockedAnchor ?? heavyTarget ?? (claimed ? rankTargets(state, swarmPool.length ? swarmPool : living, 1)[0] : huntTarget ?? rankTargets(state, living, 1)[0]);
     if (!target) {
       drone.targetId = null;
-      moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed * movementMultiplier, dt);
+      moveDroneTowards(drone, getDroneOrbitPosition(state, index), cfg.returnSpeed * returnMultiplier, dt);
       continue;
     }
     drone.targetId = target.id;
@@ -4042,9 +4203,13 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   }
   }
 
-  if (!entryCombatLocked) updateChapterOneObjectives(state, dt);
+  if (!entryCombatLocked) {
+    updateChapterOneObjectives(state, dt);
+    updateModuleSupport(state, dt);
+  }
   updateEnemies(state, dt);
   if (!entryCombatLocked) {
+    updateMortar(state, dt);
     updateDrones(state, dt);
     const needsEnemySpatialIndex = state.projectiles.length > 0 || state.launchedSaws.length > 0 || state.tower.upgrades.saw > 0;
     const enemySpatialIndex = needsEnemySpatialIndex ? buildEnemySpatialIndex(state.enemies) : null;

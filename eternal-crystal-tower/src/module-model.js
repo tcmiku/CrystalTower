@@ -28,6 +28,41 @@ export function buildModuleMesh(builder, { id, level = 1, component = "all" }) {
       m.box(heavy ? 15 : 11, 21, side * (heavy ? 4 : 2), heavy ? 31 : 22, 2, 2, color);
       if (heavy) m.box(-10, 12, side * 10, 12, 8, 5, armor);
     }
+  } else if (id === 'mortar') {
+    m.ring(0,8,0,13,0,7,armor,12);
+    for (const side of [-1,1]) m.box(0,12,side*11,18,10,5,edge);
+    const rim=(height,radius,i)=>{const a=i*Math.PI/4;return [height*.48+Math.cos(a)*radius*.88,15+height*.88-Math.cos(a)*radius*.48,Math.sin(a)*radius]};
+    for(let i=0;i<8;i++) {
+      m.face([rim(0,8,i),rim(0,8,i+1),rim(30,8,i+1),rim(30,8,i)],armor);
+      m.face([rim(27,8.6,i),rim(27,8.6,i+1),rim(31,8.6,i+1),rim(31,8.6,i)],edge);
+      m.face([rim(31,8.6,i),rim(31,8.6,i+1),rim(31,5.5,i+1),rim(31,5.5,i)],color,.4);
+    }
+    m.face(Array.from({length:8},(_,i)=>rim(30.5,5.5,i)),dark);
+    for(const z of [-7,7]) m.crystal(-12,10,z,3,12,0,[color,edge,color]);
+  } else if (id === 'gravity') {
+    m.ring(0,9,0,14,9,5,edge,12);
+    for(const x of [-13,13]) {m.box(x,12,0,5,22,9,armor);m.box(x,33,0,7,3,11,color);}
+    m.ring(0,18,0,10,8,3,color,12);
+    m.ring(0,34,0,10,8,3,color,12);
+    m.crystal(0,20,0,7,17,.4,[color,[.87,.79,1],armor]);
+    m.box(0,8,-8,28,4,3,color);
+  } else if (id === 'interceptor') {
+    m.ring(0,8,0,9,0,5,armor,10);
+    m.box(-3,13,0,13,9,17,edge);
+    for(const z of [-6,0,6]) {m.box(7,17,z,20,4,4,armor);m.box(17,17,z,2,4,4,color);}
+    m.box(-7,20,0,3,12,3,armor);
+    m.face([[-12,31,-6],[-4,36,-6],[1,31,-6],[-4,26,-6]],color,.3);
+    m.box(-4,30,-5,2,3,2,edge);
+  } else if (id === 'service') {
+    m.box(0,8,0,21,12,19,armor);
+    for(const x of [-6,6]) {
+      m.box(x,20,0,7,16,10,edge);
+      m.box(x,22,5.2,5,11,1,color);
+      for(let y=24;y<33;y+=4) m.box(x,y,6,4,1,1,dark);
+    }
+    m.box(0,9,10,17,4,3,color);
+    m.box(0,37,0,17,3,6,armor);
+    m.box(0,37,0,3,7,3,color);
   } else if (id === 'blade') {
     m.ring(0, 8, 0, 12, 0, 7, armor, 12);
     const rotor=buildCrystalBlade(builder);
@@ -158,7 +193,7 @@ export function buildMountedModules(builder, installed, layout) {
       support.box(px,y-1,pz,20*scale,2,3,color,yaw);
     }
     parts.push({name:`socket-${module.id}`,vertices:new Float32Array(support.data)});
-    const gun=module.id==='pulse'||module.id==='cannon';
+    const gun=['pulse','cannon','mortar'].includes(module.id);
     for(const component of gun ? ['base','gun'] : module.id==='blade' ? ['base','rotor'] : ['all']) {
     const vertices=buildModuleMesh(builder,{...module,component:component==='rotor'?'gun':component});
     for(let i=0;i<vertices.length;i+=10) {

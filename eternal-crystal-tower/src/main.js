@@ -1257,6 +1257,17 @@ function createTechEdge(svg, from, to, layout, exclusive = false) {
 function applyTechIconArt(element, key) {
   element.classList.remove("tech-icon-terminal", "tech-icon-generated");
   element.style.removeProperty("background-image");
+  const moduleArt = { moduleMortar: "mortar", moduleGravity: "gravity", moduleInterceptor: "interceptor", moduleService: "service" }[key];
+  if (moduleArt) {
+    element.classList.add("tech-icon-generated");
+    element.style.backgroundImage = `url("./assets/icons/module-${moduleArt}.svg")`;
+    element.style.backgroundSize = "contain";
+    element.style.backgroundPosition = "center";
+    element.textContent = "";
+    return;
+  }
+  element.style.removeProperty("background-size");
+  element.style.removeProperty("background-position");
   if (TECH_NODE_GLYPHS[key]) {
     element.classList.add("tech-icon-terminal");
     element.textContent = TECH_NODE_GLYPHS[key];
@@ -2797,6 +2808,9 @@ function handleEvents(events) {
     else if (event.type === "cannonStarPiercerOverflow") renderer.trigger("cannonStarPiercer");
     else if (event.type === "cannonCascade") { audio.play("overload"); renderer.trigger("cannonCascade"); showToast(`裂晶终点 · 大型连锁爆炸 · 命中 ${event.hits}`); }
     else if (event.type === "shoot") { audio.play("shoot"); renderer.trigger("shoot", event.tier ?? 1, event.weaponId); }
+    else if (event.type === "mortarImpact") audio.play("hit");
+    else if (event.type === "moduleIntercept") audio.play("sawShoot");
+    else if (event.type === "moduleServiceLaunch") showToast("整备出击 · 前 3 秒飞行耗电减半");
     else if (event.type === "sawShoot") audio.play("sawShoot");
     else if (event.type === "sawLaunch" || event.type === "sawBounce") audio.play("sawShoot");
     else if (event.type === "sawStorm") { audio.play("sawShoot"); renderer.trigger("sawStorm", Math.min(1.5, event.pulses)); }
@@ -3568,6 +3582,32 @@ if (previewMode === "chapter-one-formation") {
   Object.assign(state.wave, { nextAt: state.time + 10, direction: 5, sectorCount: 6, formation: "pincer", warningStarted: true });
   state.paused = true;
   announce("双翼夹击预览 · 空格开始战斗");
+}
+if (previewMode === "chapter-one-modules") {
+  state.coins = 4000;
+  state.tower.upgrades.ascend = 1;
+  state.tower.moduleBay.installed = [];
+  for (const [id, slot] of [["gravity", 0], ["interceptor", 2], ["mortar", 3], ["pulse", 5], ["hangar", 6], ["service", 8]]) installModule(state, id, slot);
+  state.tower.hp = getTowerStats(state).maxHp;
+  state.tower.droneEnergy = 45;
+  state.spawnTimer = 12;
+  state.wave.nextAt = 35;
+  const tower = getTowerPosition(state);
+  for (let i = 0; i < 7; i++) {
+    const enemy = spawnEnemy(state, "brute", { x: tower.x - 85 + i * 27, y: tower.y - 310 - (i % 2) * 35 });
+    Object.assign(enemy, { hp: 650, maxHp: 650, speed: 14, damage: 4 });
+  }
+  for (let i = 0; i < 3; i++) {
+    const enemy = spawnEnemy(state, "hexer", { x: tower.x + 215 + i * 13, y: tower.y + 115 + i * 10 });
+    Object.assign(enemy, { hp: 1500, maxHp: 1500, attackRange: 260, attackCooldown: 3 + i * .8, damage: 5 });
+  }
+  // Read-only observability for this isolated, no-save preview and browser QA.
+  window.readModulePreview = () => structuredClone({ time: state.time, paused: state.paused, over: state.over, hp: state.tower.hp,
+    coins: state.coins, energy: state.tower.droneEnergy, mode: state.tower.droneMode, bay: state.tower.moduleBay,
+    enemies: state.enemies.map(({id,x,y,hp}) => ({id,x,y,hp})), hostileProjectiles: state.hostileProjectiles, drones: state.drones });
+  state.paused = true;
+  updateUi();
+  announce("新模块试验场 · 空格开始，点击晶塔调整装配，G 切换无人机");
 }
 if (previewMode === "endless-relic") {
   state.endlessMode = true;
