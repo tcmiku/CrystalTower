@@ -3,7 +3,7 @@ import { buildMountedModules, getModuleMount } from './module-model.js';
 // Local mesh assets: Y is up, the cannon's local +X is forward.
 // The orthographic camera matches the illustrated battlefield (no CDN/runtime dependency).
 const TAU = Math.PI * 2;
-export const MODEL_SIZE = 400;
+export const MODEL_SIZE = 480;
 const ELEVATION = .8;
 const GROUND_DEPTH = .6;
 const GROUND_Y = 38;
@@ -16,8 +16,21 @@ const PALETTE = {
 export function getModelLayout(tier = 0) {
   tier = Math.max(0, Math.min(3, Math.floor(Number(tier) || 0)));
   const mountY = [-10, -28, -40, -49][tier];
-  return { tier, radius: [45, 53, 63, 72][tier], mountX: 0, mountY,
-    mountHeight: (GROUND_Y - mountY) / ELEVATION, length: [52, 67, 81, 96][tier] };
+  // Keep visual rings aligned with the assembly board capacity (6 / 9 / 9 / 12).
+  const bayRows = [2, 3, 3, 4][tier];
+  const slotCount = 3 * bayRows;
+  const rings = Math.max(1, Math.ceil(slotCount / 6));
+  return {
+    tier,
+    radius: [45, 53, 63, 72][tier],
+    mountX: 0,
+    mountY,
+    mountHeight: (GROUND_Y - mountY) / ELEVATION,
+    length: [52, 67, 81, 96][tier],
+    bayRows,
+    slotCount,
+    rings
+  };
 }
 export function getCannonPose(tier, angle = 0, shoot = 0, route = 'none') {
   const layout = getModelLayout(tier);
@@ -96,6 +109,15 @@ function buildModularChassis(layout, modules) {
   const trim=layout.tier===3?PALETTE.gold:PALETTE.silver;
   collar.ring(0,y-5,0,r*.4,0,6,PALETTE.dark,16);
   collar.ring(0,y+1,0,r*.37,r*.25,4,trim,16);
+  // One mounting belt only — bay cells fan around the wall, no stacked decks.
+  const beltY=24+layout.tier*6;
+  collar.ring(0,beltY-8,0,r*1.06,r*.88,6,PALETTE.dark,24);
+  collar.ring(0,beltY-3,0,r*1.02,r*.9,2,layout.tier===3?PALETTE.gold:PALETTE.silver,24);
+  for(let sector=0;sector<6;sector+=1){
+    const a=sector*Math.PI/3-Math.PI/2;
+    const px=Math.cos(a)*r*1.02,pz=Math.sin(a)*r*1.02;
+    collar.box(px,beltY-2,pz,11,3,11,PALETTE.armor,a);
+  }
   crown.crystal(0,y+9,0,12+layout.tier*2,31+layout.tier*5,0,[PALETTE.purple,PALETTE.cyan,PALETTE.ice]);
   for(let i=0;i<3;i++) crown.ring(0,y+14,0,r*.42,r*.42-2,2,PALETTE.cyan,8,i*TAU/3,TAU/3-.25);
   for(let i=9;i<crown.data.length;i+=10) crown.data[i]=Math.max(.4,crown.data[i]);
@@ -105,8 +127,8 @@ function buildModularChassis(layout, modules) {
   return tower;
 }
 
-export function getMountedMuzzle(module, tier=0, angle=0, shoot=0, viewYaw=0) {
-  const {x,y,z,scale}=getModuleMount(module,getModelLayout(tier));
+export function getMountedMuzzle(module, tier=0, angle=0, shoot=0, viewYaw=0, peers=null) {
+  const {x,y,z,scale}=getModuleMount(module,getModelLayout(tier),peers);
   const yaw=getCannonPose(tier,angle).yaw;
   const length=(module.id==='cannon'?35:26)*scale-Math.min(1,Math.max(0,shoot/.28))*4;
   const px=x+Math.cos(yaw)*length,pz=z+Math.sin(yaw)*length;
@@ -114,9 +136,9 @@ export function getMountedMuzzle(module, tier=0, angle=0, shoot=0, viewYaw=0) {
 }
 
 // Arena-space spawn point for a mounted gun barrel tip (top-down x/y).
-export function getGunMuzzleWorld(towerX, towerY, module, tier = 0, aimAngle = 0) {
+export function getGunMuzzleWorld(towerX, towerY, module, tier = 0, aimAngle = 0, peers = null) {
   if (!module) return { x: towerX, y: towerY };
-  const { x, z, scale } = getModuleMount(module, getModelLayout(tier));
+  const { x, z, scale } = getModuleMount(module, getModelLayout(tier), peers);
   const mountX = towerX + x;
   const mountY = towerY + z;
   const barrel = (module.id === "cannon" ? 35 : 26) * scale;
@@ -163,19 +185,7 @@ export function buildTowerModel({tier=0,cannonRoute='none',cannonEnabled=true,el
       panel(r*.075,38,Math.min(top-13,48),r*.70,trim);
     }
   }
-  // Individual sockets and complete crystal facets; rear crystals rise higher.
-  const count=[2,4,6,8][tier];
-  for(let i=0;i<count;i++) {
-    const a=TAU*i/count+(tier===0?.2:Math.PI/8),x=Math.cos(a)*r*.83,z=Math.sin(a)*r*.83;
-    const h=24+tier*8+(z<0?tier*5:0), radius=7+tier*2;
-    body.ring(x,26,z,radius+3,0,6,trim,8);
-    body.ring(x,32,z,radius+1,0,3,PALETTE.dark,8);
-    body.crystal(x,34,z,radius,h,Math.cos(a)*.8);
-  }
-  if(tier===3) {
-    body.ring(0,top-8,-r*.63,13,0,8,PALETTE.gold,8);
-    body.crystal(0,top,-r*.63,12,36,0,[PALETTE.purple,PALETTE.violet,PALETTE.ice]);
-  }
+  // Armor wall stays clean so mounted modules read as the outer silhouette.
   // The forward insignia is a physical diamond mounted on the base fascia.
   const dz=r*.96;
   body.face([[-11,19,dz],[0,4,dz+3],[11,19,dz],[0,36,dz-2]],trim);
@@ -298,7 +308,7 @@ export class TowerModelRenderer {
         const shot=fx[`shoot-${module.id}`]??fx.shoot;
         if(!shot) continue;
         const pulse=Math.min(1,shot/.28);
-        const p=getMountedMuzzle(module,visual.tier,gunAngles?.[module.id]??angle,shot,viewYaw),r=(module.id==='cannon'?10:6)*pulse;
+        const p=getMountedMuzzle(module,visual.tier,gunAngles?.[module.id]??angle,shot,viewYaw,visual.modules),r=(module.id==='cannon'?10:6)*pulse;
         const glow=ctx.createRadialGradient(p.muzzleX,p.muzzleY,0,p.muzzleX,p.muzzleY,r*2);
         glow.addColorStop(0,'#fffbe9');glow.addColorStop(.25,module.id==='cannon'?'#ffc580':'#9ff4ff');glow.addColorStop(1,'#73cfff00');
         ctx.fillStyle=glow;ctx.beginPath();ctx.arc(p.muzzleX,p.muzzleY,r*2,0,TAU);ctx.fill();
@@ -308,7 +318,7 @@ export class TowerModelRenderer {
     const selected=visual.modules?.find(m=>m.id===visual.selectedModule);
     for(const [module,preview] of [[selected,false],[visual.placementPreview,true]]) {
       if(!module)continue;
-      const mount=getModuleMount(module,this.model.layout);
+      const mount=getModuleMount(module,this.model.layout,visual.modules);
       const px=mount.x*Math.cos(viewYaw)-mount.z*Math.sin(viewYaw),py=38-.8*(mount.y+10)+.6*(mount.x*Math.sin(viewYaw)+mount.z*Math.cos(viewYaw));
       ctx.save();ctx.strokeStyle=preview&&!module.valid?'#ff887d':'#afffed';ctx.lineWidth=2;ctx.globalAlpha=.8;
       if(preview)ctx.setLineDash([4,3]);

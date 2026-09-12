@@ -1,16 +1,18 @@
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { createCompactModuleUi, createModuleUi } from "./module-ui.js";
-import { MODULES, occupiedSlots, modulePlacementStatus } from "./modules.js";
-import { applyAdminSettings, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, enableAdminCheats, getDroneDetonateRecovery, getDroneEnergyMax, getSkillCooldownDuration, getTechConfig, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateGame, useSkill } from "./engine.js";
+import { MODULES, SPECIALIZATIONS, installModule, occupiedSlots, modulePlacementStatus, slotCountForTier } from "./modules.js";
+import { applyAdminSettings, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, enableAdminCheats, getDroneDetonateRecovery, getDroneEnergyMax, getSkillCooldownDuration, getTechConfig, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateChapterOneObjectives, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
 import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverEndlessRelic, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
 import { fetchLeaderboard, postLeaderboardEntry } from "./leaderboard-api.js";
 import { fetchGithubCommits } from "./github-updates.js";
 import { deleteAccount, loginAccount, logoutAccount, readCloudSave, registerAccount, restoreSession, writeCloudSave } from "./account-api.js";
 import { AudioSynth } from "./audio.js";
-import { getCombatViewport, Renderer } from "./renderer.js";
+import { getArenaViewTransform, Renderer } from "./renderer.js";
 import { ENDLESS_PRODUCTS, ENDLESS_RELICS, ENDLESS_SHOP_RULES, bossPresent, getEndlessShopPurchaseStatus, hasEndlessRelic, purchaseEndlessShopItem, refreshEndlessShop, rerollEndlessShop, toggleAutoCoinVacuum } from "./endless-shop.js";
 import { CHAPTER_TWO_BRANCH_META, CHAPTER_TWO_CONFIG, CHAPTER_TWO_PROTOCOL_META, CHAPTER_TWO_TECH_LAYOUT, CHAPTER_TWO_TECH_ORDER, CHAPTER_TWO_UPGRADE_META, isChapterTwo } from "./chapter-two.js";
+
+import { FORMATIONS, SECTOR_NAMES, WEAKPOINTS } from "./chapter-one.js";
 
 const UPGRADE_META = {
   damage: { icon: "✦", name: "淬亮晶矢", description: "每级伤害 +25%", max: 10 },
@@ -220,6 +222,7 @@ for (const [id, label, value, icon] of [["phaseText", "天象", "白昼", "icon-
 
 const dom = Object.fromEntries([
   "gameCanvas", "healthText", "healthFill", "coinsText", "threatText", "threatFill", "timeText", "phaseText", "waveText", "waveMeta", "upgradeList", "damageStat", "rateStat", "rangeStat", "droneEnergyStat", "topbar", "topbarToggle", "upgradePanel", "upgradePanelToggle",
+  "zoomOutButton", "zoomResetButton", "zoomInButton",
   "skillBar", "skillBarToggle", "skillList", "seedText", "announcement", "toast", "pauseOverlay", "pauseButton", "muteButton", "speedButton", "objectiveTitle", "objectiveText", "targetProtocolTitle", "targetProtocolList", "targetProtocolHint",
   "techTreePanel", "openTechTreeButton", "adminConsoleLaunchButton", "closeTechTreeButton", "techResearchedText", "techAvailableText", "techThreatText", "techCoinsText", "techPanelThreatText", "moduleFloatPanel",
   "droneModeButton", "droneModeText", "droneModeHint", "droneEnergyFill", "droneProtocolButton", "droneProtocolText", "droneProtocolHint",
@@ -288,6 +291,12 @@ const requestedChapter = urlParams.get("chapter") === "2" ? 2 : save.campaign.cu
 let activeChapter = requestedChapter;
 let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped, save.skillResearch, activeChapter);
 const previewMode = urlParams.get("preview");
+if (previewMode?.startsWith("chapter-one-")) {
+  activeChapter = 1;
+  state = createGameState(baseSeed);
+  enableAdminCheats(state);
+  state.admin.invincible = true;
+}
 const INTRO_SCENES = [
   { background: "./assets/story/intro-bg-city-dawn-v1.png", layers: [], chapter: "序章 · 晶核纪元", bubbles: [{ text: "昔日，晶核照亮世界。", kind: "narration", position: "top-left" }], motion: "motion-push", tone: "dawn", duration: 2600 },
   { background: "./assets/story/intro-bg-ruined-wasteland-v1.png", layers: [], chapter: "序章 · 破碎之日", bubbles: [{ text: "直到那天，晶核破碎。", kind: "narration", position: "top-left" }], motion: "motion-shake", tone: "rupture", duration: 2400 },
@@ -399,7 +408,7 @@ if (previewMode === "astral-enemies") {
   state.tower.fireCooldown = 999;
   const previewEnemies = [
     ["inkHound", { x: 690, y: 210 }],
-    ["orbitMote", { x: 720, y: 330 }],
+    ["orbitMote", { x: 960, y: 470 }],
     ["rustBeetle", { x: 675, y: 480 }],
     ["porcelainWarden", { x: 300, y: 220 }]
   ];
@@ -493,10 +502,10 @@ if (previewMode === "projectiles") {
   state.tower.upgrades.lightning = 1;
   state.tower.hp = getTowerStats(state).maxHp;
   state.projectiles.push(
-    { id: 9001, x: 250, y: 185, vx: 1, vy: 0, damage: 1, radius: 5, pierce: 0, life: 999, tier: 2 },
-    { id: 9002, x: 405, y: 185, vx: 1, vy: 0, damage: 1, radius: 7, pierce: 0, life: 999, tier: 2, element: "frost" },
-    { id: 9003, x: 575, y: 185, vx: 1, vy: 0, damage: 1, radius: 7, pierce: 0, life: 999, tier: 2, element: "fire" },
-    { id: 9004, x: 750, y: 185, vx: 1, vy: 0, damage: 1, radius: 7, pierce: 0, life: 999, tier: 2, element: "lightning" }
+    { id: 9001, x: 490, y: 325, vx: 1, vy: 0, damage: 1, radius: 5, pierce: 0, life: 999, tier: 2 },
+    { id: 9002, x: 645, y: 325, vx: 1, vy: 0, damage: 1, radius: 7, pierce: 0, life: 999, tier: 2, element: "frost" },
+    { id: 9003, x: 815, y: 325, vx: 1, vy: 0, damage: 1, radius: 7, pierce: 0, life: 999, tier: 2, element: "fire" },
+    { id: 9004, x: 990, y: 325, vx: 1, vy: 0, damage: 1, radius: 7, pierce: 0, life: 999, tier: 2, element: "lightning" }
   );
   state.paused = true;
 }
@@ -511,7 +520,7 @@ if (previewMode === "cannon-star") {
 if (previewMode === "cannon-cascade") {
   state.spawnTimer = 999; state.wave.nextAt = 999; state.paused = true; state.threat = 13; state.phase = "night";
   state.tower.upgrades.ascend = 3;
-  const center = { x: 650, y: 360 };
+  const center = { x: 890, y: 500 };
   const targets = [];
   for (let index = 0; index < 7; index += 1) {
     const angle = index * Math.PI * 2 / 7;
@@ -598,9 +607,9 @@ if (previewMode === "sovereign-skills") {
 }
 if (previewMode === "protocols") {
   state.spawnTimer = 999; state.wave.nextAt = 999; state.threat = 8;
-  spawnEnemy(state, "brute", { x: 580, y: 360 });
-  spawnEnemy(state, "runner", { x: 620, y: 360 });
-  spawnEnemy(state, "hexer", { x: 750, y: 360 });
+  spawnEnemy(state, "brute", { x: 820, y: 500 });
+  spawnEnemy(state, "runner", { x: 860, y: 500 });
+  spawnEnemy(state, "hexer", { x: 990, y: 500 });
   spawnEnemy(state, "sentinel", { x: 700, y: 270 }, { elite: true, affix: "shield" });
   for (const enemy of state.enemies) { enemy.hp = enemy.maxHp = 100_000; enemy.freezeTimer = 999; }
 }
@@ -609,7 +618,7 @@ if (previewMode === "drone-protocols") {
   purchaseUpgrade(state, "damage");
   purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneBattery"); purchaseUpgrade(state, "droneDetonate");
-  const boss = spawnEnemy(state, "boss", { x: 730, y: 360 });
+  const boss = spawnEnemy(state, "boss", { x: 970, y: 500 });
   boss.speed = 0; boss.hp = boss.maxHp = 100_000;
 }
 if (previewMode === "drone-energy") {
@@ -618,7 +627,7 @@ if (previewMode === "drone-energy") {
   purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "droneScavenge"); purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneIntercept"); purchaseUpgrade(state, "droneHunt");
   state.tower.droneEnergy = 42; toggleDroneMode(state);
-  const elite = spawnEnemy(state, "sentinel", { x: 650, y: 360 }, { elite: true, affix: "sprint" });
+  const elite = spawnEnemy(state, "sentinel", { x: 890, y: 500 }, { elite: true, affix: "sprint" });
   elite.hp = elite.maxHp = 100_000; elite.speed = 0;
   spawnEnemy(state, "rammer", { x: 730, y: 430 }).speed = 0;
   updateGame(state, 0.05);
@@ -714,8 +723,8 @@ if (previewMode === "skill-risk") {
   state.skills.overload.cooldown = 22.5;
   state.skills.overload.heat = 58;
   state.tower.targetProtocol = "radar";
-  const striker = spawnEnemy(state, "brute", { x: 520, y: 360 });
-  const ranged = spawnEnemy(state, "hexer", { x: 480, y: 150 });
+  const striker = spawnEnemy(state, "brute", { x: 760, y: 500 });
+  const ranged = spawnEnemy(state, "hexer", { x: 720, y: 290 });
   spawnEnemy(state, "brute", { x: 680, y: 340 });
   spawnEnemy(state, "brute", { x: 690, y: 380 });
   striker.speed = 0;
@@ -788,6 +797,7 @@ let baseCampRoom = null;
 let researchBayTab = "relics";
 let resumeAfterBaseCamp = false;
 let relicChoiceOpen = false;
+let pendingRelicReplacement = null;
 let resumeAfterRelicChoice = false;
 let relicHudSignature = "";
 let sealHudSignature = "";
@@ -891,6 +901,7 @@ function queueCloudSync(candidate = save) {
 }
 
 function persistSave() {
+  if (previewMode?.startsWith("chapter-one-")) return;
   save = writeSave(save);
   void queueCloudSync(save);
   return save;
@@ -1420,10 +1431,7 @@ function updateTechTreeUi() {
 
 function positionTechPanelOrigin(worldPoint) {
   const rect = dom.gameCanvas.getBoundingClientRect();
-  const viewport = getCombatViewport(rect.width, rect.height);
-  const scale = Math.min(viewport.width / GAME_CONFIG.arena.width, viewport.height / GAME_CONFIG.arena.height);
-  const offsetX = viewport.x + (viewport.width - GAME_CONFIG.arena.width * scale) / 2;
-  const offsetY = viewport.y + (viewport.height - GAME_CONFIG.arena.height * scale) / 2;
+  const { scale, offsetX, offsetY } = renderer.getViewTransform(rect.width, rect.height);
   const clientX = rect.left + offsetX + worldPoint.x * scale;
   const clientY = rect.top + offsetY + worldPoint.y * scale;
   const originX = Math.max(8, Math.min(92, (clientX / Math.max(1, window.innerWidth)) * 100));
@@ -1434,10 +1442,7 @@ function positionTechPanelOrigin(worldPoint) {
 
 function worldToClientPoint(worldPoint) {
   const rect = dom.gameCanvas.getBoundingClientRect();
-  const viewport = getCombatViewport(rect.width, rect.height);
-  const scale = Math.min(viewport.width / GAME_CONFIG.arena.width, viewport.height / GAME_CONFIG.arena.height);
-  const offsetX = viewport.x + (viewport.width - GAME_CONFIG.arena.width * scale) / 2;
-  const offsetY = viewport.y + (viewport.height - GAME_CONFIG.arena.height * scale) / 2;
+  const { scale, offsetX, offsetY } = renderer.getViewTransform(rect.width, rect.height);
   return {
     x: rect.left + offsetX + worldPoint.x * scale,
     y: rect.top + offsetY + worldPoint.y * scale,
@@ -2380,10 +2385,7 @@ function releaseStarfall(angle) {
 
 function canvasPoint(event) {
   const rect = dom.gameCanvas.getBoundingClientRect();
-  const viewport = getCombatViewport(rect.width, rect.height);
-  const scale = Math.min(viewport.width / GAME_CONFIG.arena.width, viewport.height / GAME_CONFIG.arena.height);
-  const offsetX = viewport.x + (viewport.width - GAME_CONFIG.arena.width * scale) / 2;
-  const offsetY = viewport.y + (viewport.height - GAME_CONFIG.arena.height * scale) / 2;
+  const { scale, offsetX, offsetY } = renderer.getViewTransform(rect.width, rect.height);
   return {
     x: (event.clientX - rect.left - offsetX) / scale,
     y: (event.clientY - rect.top - offsetY) / scale
@@ -2633,23 +2635,57 @@ function renderThreatSealHud() {
   }
 }
 
+function rewardMeta(id) {
+  if (id.startsWith("spec:")) {
+    const meta = SPECIALIZATIONS[id.slice(5)];
+    return { ...meta, icon: "✦", type: `${MODULES[meta.module].name} · 专精`, art: "./assets/generated/relic-mirror-ai.png", effect: "每件武器限选一个方向 · 拆卸后本局保留" };
+  }
+  if (id === "supply:repair") return { name: "应急维修", icon: "✚", type: "即时补给", art: RELIC_META.ward.art, description: "恢复 30% 最大生命；溢出治疗转为护盾。", effect: "不占遗物槽位 · 不改变构筑" };
+  if (id === "supply:coins") return { name: "战备物资", icon: "◆", type: "即时补给", art: RELIC_META.gilded.art, description: `获得 ${80 + state.threat * 12} 金币，用于装配或升级。`, effect: "不占遗物槽位 · 立即到账" };
+  return RELIC_META[id];
+}
+
+function renderRelicReplacement(id) {
+  pendingRelicReplacement = id;
+  dom.relicChoiceTitle.textContent = `接入「${RELIC_META[id].name}」`;
+  dom.relicChoiceSource.textContent = "选择卸下的遗物；完成替换前保留原构筑。";
+  dom.relicChoiceSlots.textContent = "替换不增加槽位，也不消耗金币";
+  dom.relicChoiceKeys.textContent = "数字键选择旧遗物 · Esc 返回";
+  dom.relicChoiceList.replaceChildren();
+  const owned = Object.keys(state.relics.owned).filter(key => state.relics.owned[key]);
+  dom.relicChoiceList.classList.toggle("single-choice", owned.length === 1);
+  dom.relicChoiceList.classList.toggle("four-choice", owned.length === 4);
+  for (const [index, oldId] of owned.entries()) {
+    const meta = RELIC_META[oldId];
+    const wrapper = document.createElement("div"); wrapper.className = "relic-card-wrap";
+    const button = document.createElement("button"); button.type = "button"; button.className = "relic-card";
+    button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" /></span><span class="relic-card-index">0${index + 1}</span><span class="relic-card-body"><span class="relic-card-type">将卸下</span><h3>${meta.name}</h3><p>${relicDescription(oldId)}</p><span class="relic-card-effect">替换为：${RELIC_META[id].name}</span></span>`;
+    button.addEventListener("click", () => selectRunRelic(id, oldId)); wrapper.append(button); dom.relicChoiceList.append(wrapper);
+  }
+  const back = document.createElement("button"); back.type = "button"; back.className = "reward-back"; back.textContent = "返回奖励选择";
+  back.addEventListener("click", renderRelicChoice); dom.relicChoiceList.append(back);
+  dom.relicChoiceList.querySelector("button")?.focus();
+}
+
 function renderRelicChoice() {
+  pendingRelicReplacement = null;
   if (!state.relicChoice) return;
   const endlessChoice = state.relicChoice.source === "endlessWave";
-  dom.relicChoiceTitle.textContent = endlessChoice ? "无尽回路增幅" : "战场遗物选择";
+  dom.relicChoiceTitle.textContent = endlessChoice ? "无尽回路增幅" : state.tower.moduleBay ? "战场改造奖励" : "战场遗物选择";
   dom.relicChoiceSource.textContent = RELIC_SOURCE_TEXT[state.relicChoice.source] ?? "回收一项战场模块。";
   const numericOnly = state.relicChoice.choices.every((id) => id.startsWith("boost:"));
   dom.relicChoiceSlots.textContent = endlessChoice
     ? `无视栏位 · 当前 ${state.relics.endlessStacks ?? 0} 层`
     : numericOnly
     ? `栏位缺口 · 数值强化`
-    : `模块 ${state.relics.picks} / ${state.relics.slots}${state.relics.lockedChoice ? " · 已锁定 1 项" : ""}`;
+    : `遗物 ${state.relics.picks} / ${state.relics.slots}${state.relics.picks >= state.relics.slots && state.tower.moduleBay ? " · 可替换已装遗物" : ""}${state.relics.lockedChoice ? " · 已锁定 1 项" : ""}`;
   dom.relicChoiceKeys.textContent = endlessChoice ? "按数字键 1 选择" : `按数字键 ${state.relicChoice.choices.map((_, index) => index + 1).join(" / ")} 选择`;
   dom.relicChoiceList.classList.toggle("single-choice", endlessChoice);
   dom.relicChoiceList.classList.toggle("four-choice", state.relicChoice.choices.length === 4);
   dom.relicChoiceList.replaceChildren();
   state.relicChoice.choices.forEach((id, index) => {
-    const meta = RELIC_META[id];
+    const meta = rewardMeta(id);
+    const specialReward = id.startsWith("spec:") || id.startsWith("supply:");
     const isLocked = state.relics.lockedChoice === id;
     const wrapper = document.createElement("div");
     wrapper.className = "relic-card-wrap";
@@ -2659,11 +2695,11 @@ function renderRelicChoice() {
     const level = save.relicArchive.upgrades[id] ?? 0;
     button.className = `relic-card ${id.startsWith("boost:") ? "" : relicRarityClass(level)}`;
     button.dataset.relic = id;
-    const effect = id === "boost:endless" ? `${meta.effect} · 选择后达到 ${(state.relics.endlessStacks ?? 0) + 1} 层` : relicEffect(id, level);
-    button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" aria-hidden="true" decoding="async"></span><span class="relic-card-index">0${index + 1}</span>${relicIconMarkup(id, meta.icon, "relic-card-icon")}<span class="relic-card-body"><span class="relic-card-type">${id.startsWith("boost:") ? meta.type : `${relicRarityName(level)} · +${level} · ${meta.type}`}</span><h3>${meta.name}</h3><p>${relicDescription(id, level)}</p><span class="relic-card-effect">${effect}</span></span>`;
+    const effect = specialReward ? meta.effect : id === "boost:endless" ? `${meta.effect} · 选择后达到 ${(state.relics.endlessStacks ?? 0) + 1} 层` : relicEffect(id, level);
+    button.innerHTML = `<span class="relic-card-art"><img src="${meta.art}" alt="" aria-hidden="true" decoding="async"></span><span class="relic-card-index">0${index + 1}</span>${relicIconMarkup(id, meta.icon, "relic-card-icon")}<span class="relic-card-body"><span class="relic-card-type">${specialReward || id.startsWith("boost:") ? meta.type : `${relicRarityName(level)} · +${level} · ${meta.type}`}</span><h3>${meta.name}</h3><p>${specialReward ? meta.description : relicDescription(id, level)}</p><span class="relic-card-effect">${effect}</span></span>`;
     button.addEventListener("click", () => selectRunRelic(id));
     wrapper.append(button);
-    if (!id.startsWith("boost:")) {
+    if (!specialReward && !id.startsWith("boost:")) {
       const lock = document.createElement("button");
       lock.type = "button"; lock.className = "relic-lock-button";
       lock.setAttribute("aria-pressed", String(isLocked));
@@ -2698,8 +2734,13 @@ function setRelicChoiceOpen(open) {
   }
 }
 
-function selectRunRelic(id) {
-  if (!chooseRelic(state, id)) return;
+function selectRunRelic(id, replaceId = null) {
+  if (state.tower.moduleBay && RELIC_META[id] && !id.startsWith("boost:") && state.relics.picks >= state.relics.slots && !replaceId) {
+    renderRelicReplacement(id);
+    return;
+  }
+  if (!chooseRelic(state, id, replaceId)) return;
+  pendingRelicReplacement = null;
   audio.play("ascend");
   handleEvents(state.events);
   renderRelicHud();
@@ -2722,12 +2763,12 @@ function handleEvents(events) {
     }
     else if (event.type === "relicChoiceLocked") showToast(event.locked ? `${RELIC_META[event.id].name} · 将保留至下次奖励` : "遗物选项已解除锁定");
     else if (event.type === "relicChosen") {
-      if (!event.id.startsWith("boost:") && discoverHiddenRelic(save, event.id)) {
+      if (RELIC_META[event.id] && !event.id.startsWith("boost:") && discoverHiddenRelic(save, event.id)) {
         state.relics.discovered[event.id] = true;
         persistSave();
         renderRelicArchive();
       }
-      announce(event.id === "boost:endless" ? `无界增幅核 · 当前 ${state.relics.endlessStacks} 层` : `${RELIC_META[event.id]?.name ?? "战场回路"} · 已接入本局构筑`);
+      announce(event.id === "boost:endless" ? `无界增幅核 · 当前 ${state.relics.endlessStacks} 层` : `${rewardMeta(event.id)?.name ?? "战场回路"} · 已领取`);
     }
     else if (event.type === "endlessShopRefreshPending") showToast(`裂隙行商更新 · 击败首领后恢复交易`);
     else if (event.type === "endlessShopRefreshReady") {
@@ -2765,7 +2806,12 @@ function handleEvents(events) {
     else if (event.type === "kill") { audio.play("kill"); showFirstRunTutorial(1); }
     else if (event.type === "coin") { audio.play("coin"); showFirstRunTutorial(2); }
     else if (event.type === "purchase") { audio.play("purchase"); if (event.key === "damage" && tutorialStep === 2) { clearTutorialHighlights(); dom.tutorialGuide.classList.add("hidden"); } }
-    else if (event.type === "ascend") { audio.play("ascend"); renderer.trigger("ascend"); announce(`塔阶苏醒 · ${getTowerStats(state).name}`); }
+    else if (event.type === "ascend") {
+      audio.play("ascend");
+      renderer.trigger("ascend");
+      announce(`塔阶苏醒 · ${getTowerStats(state).name}`);
+      if (state.tower.moduleBay) showToast(`拼装板扩容 · ${slotCountForTier(state.tower.upgrades.ascend)} 格`);
+    }
     else if (event.type === "towerHit") { audio.play("towerHit"); renderer.trigger("towerHit", event.heavy ? 1.7 : 1); }
     else if (event.type === "bossSpawn") { audio.play("boss"); renderer.trigger("bossSpawn"); announce(isChapterTwo(state) ? "极夜旗舰驶入航道" : "腐化王冠踏入战场"); }
     else if (event.type === "colossusSpawn") { audio.play("boss"); renderer.trigger("bossSpawn", 1.5); announce(`威胁 ${formatThreat(event.threat ?? state.threat)} · 虚环吞星兽 · ${COLOSSUS_AFFIX_NAMES[event.affix] ?? "未知异变"}`); }
@@ -2795,7 +2841,7 @@ function handleEvents(events) {
     else if (event.type === "sovereignPhase") { audio.play("boss"); renderer.trigger("bossSpawn", 1.35); announce(`命核破碎 · 剩余 ${event.healthBar} 管生命`); }
     else if (event.type === "sovereignShieldBreak") { audio.play("waveStart"); renderer.trigger("waveStart", 1.7); announce("降临护盾破碎 · 裂界魔君被迫只施放召唤"); }
     else if (event.type === "sovereignSummonEmpowered") { audio.play("boss"); renderer.trigger("bossSpawn", 1.8); announce("双命核崩解 · 裂隙增殖 · 词缀精英加入召唤"); }
-    else if (event.type === "sovereignEnrage") { audio.play("boss"); renderer.trigger("bossSpawn", 2.4); announce("终末狂暴 · 元素强化与异常效果全部失效"); }
+    else if (event.type === "sovereignEnrage") { audio.play("boss"); renderer.trigger("bossSpawn", 2.4); announce(state.tower.moduleBay ? "终末狂暴 · 冰冻转为脆化 · 元素反应仍然有效" : "终末狂暴 · 元素强化与异常效果全部失效"); }
     else if (event.type === "sovereignElementImmune") showToast("终末狂暴 · 元素效果无效");
     else if (event.type === "sovereignDefeated") {
       sovereignSpeedLocked = false;
@@ -2852,7 +2898,10 @@ function handleEvents(events) {
     else if (event.type === "relicGilded") showToast(`拾金脉冲 · 额外金币 +${event.value}`);
     else if (event.type === "threat") { announce(isChapterTwo(state) && event.level === CHAPTER_TWO_CONFIG.finalThreat ? `威胁 ${formatThreat(event.level)} · 渊潮王舰信号确认` : event.level === GAME_CONFIG.sovereign.spawnThreat ? `威胁 ${formatThreat(event.level)} · 超巨型灾厄来袭` : !isChapterTwo(state) && event.level === (state.threatSeals?.modifiers?.colossusSpawnThreat ?? GAME_CONFIG.colossus.spawnThreat) ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · ${isChapterTwo(state) ? "极夜旗舰来袭" : "大首领来袭"}` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
     else if (event.type === "phase") { audio.play("phase"); announce(isChapterTwo(state) ? (event.phase === "day" ? "海况转稳 · 侦测距离恢复" : "极夜风暴压上海面") : (event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场")); }
-    else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce(isChapterTwo(state) ? "侦测到大规模舰队" : "侦测到大规模怪潮"); }
+    else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce(isChapterTwo(state) ? "侦测到大规模舰队" : `${SECTOR_NAMES[state.wave.direction] ?? "外围"} · ${FORMATIONS[state.wave.formation]?.name ?? "怪潮"} · ${FORMATIONS[state.wave.formation]?.hint ?? "准备迎击"}`); }
+    else if (event.type === "bossWeakpoints") announce("连接节点暴露 · 击破一个获得反噬、停火或破甲；其余节点随之消失");
+    else if (event.type === "bossWeakpointBroken") { audio.play("ascend"); announce(WEAKPOINTS[event.role].hint); }
+    else if (event.type === "moduleSynergy") showToast(event.name);
     else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(event.endless ? `无尽${isChapterTwo(state) ? "舰队" : "怪潮"} ${event.index} 抵达 · 精英信号 ${event.eliteCount}` : `第 ${event.index} 次${isChapterTwo(state) ? "舰队" : "怪潮"}抵达`); }
     else if (event.type === "waveCleared" && event.endless) showToast(`无尽怪潮 ${String(event.index).padStart(2, "0")} 已肃清 · 获得增幅选择`);
     else if (event.type === "overloadRelease") { audio.play("overload"); renderer.trigger("overloadRelease", event.overheated ? 1.5 : 1); announce(event.damage > 0 ? `${event.overheated ? "过热" : "临界"}泄压 · 范围冲击 ${Math.round(event.damage)}` : event.overheated ? "热浪爆发 · 晶塔过热" : event.early ? "超载中断 · 提前释放冲击" : "超载冲击释放"); }
@@ -2891,7 +2940,7 @@ function updateUi() {
   dom.phaseText.textContent = isChapterTwo(state) ? (state.phase === "day" ? "静海" : "风暴") : (state.phase === "day" ? "白昼" : "长夜");
   dom.phaseText.parentElement.classList.toggle("night", state.phase === "night");
   dom.waveText.textContent = state.wave.active ? "涌入中" : formatTime(Math.max(0, state.wave.nextAt - state.time));
-  dom.waveMeta.textContent = `${state.endlessMode ? "无尽 · " : ""}第 ${String(state.wave.index + (state.wave.active ? 0 : 1)).padStart(2, "0")} 波`;
+  dom.waveMeta.textContent = `${state.endlessMode ? "无尽 · " : ""}第 ${String(state.wave.index + (state.wave.active ? 0 : 1)).padStart(2, "0")} 波${(state.wave.warningStarted || state.wave.active) && FORMATIONS[state.wave.formation] ? ` · ${FORMATIONS[state.wave.formation].name}` : ""}`;
   dom.waveText.closest(".wave-status").classList.toggle("warning", state.wave.warningStarted || state.wave.active);
   renderRelicHud();
   renderThreatSealHud();
@@ -3019,12 +3068,12 @@ function updateUi() {
   if (sovereign) {
     dom.objectiveTitle.textContent = isChapterTwo(state)
       ? (sovereign.entryTimer > 0 ? "渊潮王舰 · 正在压境" : sovereign.enraged ? "王舰狂暴 · 全甲板交火" : `渊潮王舰 · 舰体 ${sovereign.healthBar}/4`)
-      : (sovereign.entryTimer > 0 ? "时流锁定 · 双方停火" : sovereign.enraged ? "终末狂暴 · 元素无效" : sovereign.healthBar <= 2 ? "裂隙增殖 · 精英召唤" : `裂界魔君 · 命核 ${sovereign.healthBar}/4`);
+      : (sovereign.entryTimer > 0 ? "时流锁定 · 双方停火" : sovereign.enraged ? "终末狂暴 · 击破连接节点" : sovereign.healthBar <= 2 ? "裂隙增殖 · 精英召唤" : `裂界魔君 · 命核 ${sovereign.healthBar}/4`);
     dom.objectiveText.textContent = sovereign.entryTimer > 0
       ? (isChapterTwo(state) ? "海面已经清空。王舰进入射界前，护航编队正在最后充能。" : "战场已被清空并强制回归 1×，登场动画结束前双方无法攻击。")
       : sovereign.intentSkill === "summon" || sovereign.activeSkill === "summon" ? (isChapterTwo(state) ? "敌方增援即将入海。切换强袭编队，优先击沉靠近航母的舰船。" : "多处裂隙将同时召唤怪群，优先清理靠近晶塔的目标。")
         : (state.tower.fireRateSuppression ?? 0) > 0 ? `远程压制生效中：晶矢攻击频率降低，剩余 ${state.tower.fireRateSuppression.toFixed(1)} 秒。`
-          : sovereign.enraged ? "最后一管命核已进入狂暴：冰冻、灼烧与雷电连锁无法作用于首领。" : sovereign.healthBar <= 2 ? "召唤已强化：每波裂隙数量增加，并混入带词缀精英。" : sovereign.spawnShield > 0 ? "降临护盾存在；击破后首领下一招必定为召唤。" : "首领固定在战场上方，四条血量逐管击破。";
+          : sovereign.enraged ? "最后命核狂暴：冰冻转为短暂脆化；灼烧、连锁与元素反应继续生效。击破连接节点创造窗口。" : sovereign.healthBar <= 2 ? "召唤已强化：每波裂隙数量增加，并混入带词缀精英。" : sovereign.spawnShield > 0 ? "降临护盾存在；击破后首领下一招必定为召唤。" : "首领固定在战场上方，四条血量逐管击破。";
   } else if (colossus) {
     const activeColossusSkills = Object.keys(colossus.activeSkills ?? {}).map((skill) => COLOSSUS_SKILL_NAMES[skill]).filter(Boolean);
     dom.objectiveTitle.textContent = colossus.enraged ? `第二命核 · 狂暴并行 ${activeColossusSkills.length}/4` : colossus.spawnShield > 0 ? "首领护盾 · 优先击破" : `巨兽词条 · ${COLOSSUS_AFFIX_NAMES[colossus.colossusAffix] ?? "未知异变"}`;
@@ -3471,6 +3520,7 @@ dom.droneProtocolButton.addEventListener("click", switchDroneProtocol);
 for (const button of dom.targetProtocolList.children) button.addEventListener("click", () => switchTargetProtocol(button.dataset.protocol));
 document.body.dataset.chapter = String(state.chapter);
 updateUi();
+updateCameraZoomLabel();
 setTopbarCollapsed(true);
 setSidePanelCollapsed(true);
 setSkillBarCollapsed(true);
@@ -3485,6 +3535,39 @@ if (previewMode === "relics" || previewMode === "relic-lock") {
   offerRelicChoice(state, "eliteWave");
   if (previewMode === "relic-lock" && state.relicChoice?.choices[0]) lockRelicChoice(state, state.relicChoice.choices[0]);
   handleEvents(state.events);
+}
+if (previewMode === "chapter-one-rewards") {
+  state.coins = 1200;
+  state.spawnTimer = state.wave.nextAt = 99999;
+  installModule(state, "cannon", 1);
+  installModule(state, "blade", 3);
+  state.relics.owned.ward = true;
+  state.relics.picks = state.relics.slots = 1;
+  offerRelicChoice(state, "eliteWave");
+  offerRelicChoice(state, "boss");
+  handleEvents(state.events);
+}
+if (previewMode === "chapter-one-boss") {
+  state.coins = 1200;
+  state.threat = 20; state.time = 855;
+  state.spawnTimer = state.wave.nextAt = 99999;
+  installModule(state, "cannon", 1);
+  state.tower.moduleBay.refitCooldown = 0;
+  installModule(state, "blade", 3);
+  state.tower.upgrades.ascend = 3;
+  state.tower.upgrades.damage = 5;
+  state.tower.hp = getTowerStats(state).maxHp;
+  const boss = spawnEnemy(state, "sovereign");
+  boss.entryTimer = boss.phaseBreakInvulnerability = 0;
+  updateChapterOneObjectives(state, 0);
+  handleEvents(state.events);
+}
+if (previewMode === "chapter-one-formation") {
+  state.time = 270; state.threat = 7;
+  state.spawnTimer = 99999;
+  Object.assign(state.wave, { nextAt: state.time + 10, direction: 5, sectorCount: 6, formation: "pincer", warningStarted: true });
+  state.paused = true;
+  announce("双翼夹击预览 · 空格开始战斗");
 }
 if (previewMode === "endless-relic") {
   state.endlessMode = true;
@@ -3637,7 +3720,11 @@ document.addEventListener("keydown", (event) => {
   }
   if (relicChoiceOpen) {
     const index = Number(event.key) - 1;
-    if (index >= 0 && index < (state.relicChoice?.choices.length ?? 0)) selectRunRelic(state.relicChoice.choices[index]);
+    if (pendingRelicReplacement) {
+      if (event.key === "Escape") renderRelicChoice();
+      const owned = Object.keys(state.relics.owned).filter(id => state.relics.owned[id]);
+      if (Number.isInteger(index) && owned[index]) selectRunRelic(pendingRelicReplacement, owned[index]);
+    } else if (Number.isInteger(index) && index >= 0 && index < (state.relicChoice?.choices.length ?? 0)) selectRunRelic(state.relicChoice.choices[index]);
     return;
   }
   if (endlessShopOpen) {
@@ -3710,6 +3797,9 @@ document.addEventListener("keydown", (event) => {
   else if (event.key.toLowerCase() === "t") setTechTreeOpen(!techTreeOpen, techTreeOpen);
   else if (event.key.toLowerCase() === "u") setUpdatesOpen(!updatesModalOpen, updatesModalOpen);
   else if (event.key === "Escape" && techTreeOpen) setTechTreeOpen(false, true);
+  else if (event.key === "+" || event.key === "=") { event.preventDefault(); applyCameraZoom(renderer.zoom + GAME_CONFIG.arena.camera.zoomStep); }
+  else if (event.key === "-" || event.key === "_") { event.preventDefault(); applyCameraZoom(renderer.zoom - GAME_CONFIG.arena.camera.zoomStep); }
+  else if (event.key === "0") { event.preventDefault(); resetCameraZoom(); }
   else if (event.key === " " || event.code === "Space") { event.preventDefault(); togglePause(); }
   else if (event.key.toLowerCase() === "p" || event.key === "Escape") togglePause();
 });
@@ -3858,6 +3948,74 @@ dom.gameCanvas.addEventListener("pointermove", (event) => {
 dom.gameCanvas.addEventListener("pointerleave", () => {
   dom.gameCanvas.classList.remove("tower-hover");
 });
+
+function updateCameraZoomLabel() {
+  if (!dom.zoomResetButton) return;
+  const percent = Math.round(renderer.zoom * 100);
+  dom.zoomResetButton.textContent = `${percent}%`;
+  dom.zoomResetButton.title = `缩放 ${percent}% · 双击重置`;
+}
+
+// Wheel / pinch zoom. Default is slightly pulled back so the larger map reads
+// as a battlefield instead of a cropped close-up.
+const cameraZoom = { pinchDistance: 0 };
+function applyCameraZoom(nextZoom, clientX, clientY) {
+  const rect = dom.gameCanvas.getBoundingClientRect();
+  const before = renderer.getViewTransform(rect.width, rect.height);
+  const zoom = renderer.setZoom(nextZoom);
+  const afterBase = getArenaViewTransform(rect.width, rect.height, zoom, 0, 0);
+  if (Number.isFinite(clientX) && Number.isFinite(clientY)) {
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    const worldX = (sx - before.offsetX) / before.scale;
+    const worldY = (sy - before.offsetY) / before.scale;
+    // Keep the point under the cursor fixed while the scale changes.
+    renderer.setPan(
+      (sx - afterBase.offsetX) / afterBase.scale - worldX,
+      (sy - afterBase.offsetY) / afterBase.scale - worldY
+    );
+  }
+  updateCameraZoomLabel();
+  return zoom;
+}
+
+function resetCameraZoom() {
+  renderer.setPan(0, 0);
+  applyCameraZoom(GAME_CONFIG.arena.camera.defaultZoom);
+}
+
+dom.zoomInButton?.addEventListener("click", () => applyCameraZoom(renderer.zoom + GAME_CONFIG.arena.camera.zoomStep));
+dom.zoomOutButton?.addEventListener("click", () => applyCameraZoom(renderer.zoom - GAME_CONFIG.arena.camera.zoomStep));
+dom.zoomResetButton?.addEventListener("click", resetCameraZoom);
+
+dom.gameCanvas.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  const step = GAME_CONFIG.arena.camera.zoomStep * (event.deltaY > 0 ? 1 : -1);
+  applyCameraZoom(renderer.zoom - step, event.clientX, event.clientY);
+}, { passive: false });
+
+dom.gameCanvas.addEventListener("touchstart", (event) => {
+  if (event.touches.length === 2) {
+    const [a, b] = event.touches;
+    cameraZoom.pinchDistance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  }
+}, { passive: true });
+
+dom.gameCanvas.addEventListener("touchmove", (event) => {
+  if (event.touches.length !== 2 || !cameraZoom.pinchDistance) return;
+  event.preventDefault();
+  const [a, b] = event.touches;
+  const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  const ratio = distance / Math.max(1, cameraZoom.pinchDistance);
+  cameraZoom.pinchDistance = distance;
+  const midX = (a.clientX + b.clientX) / 2;
+  const midY = (a.clientY + b.clientY) / 2;
+  applyCameraZoom(renderer.zoom * ratio, midX, midY);
+}, { passive: false });
+
+dom.gameCanvas.addEventListener("touchend", () => {
+  cameraZoom.pinchDistance = 0;
+}, { passive: true });
 dom.gameCanvas.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "touch") event.preventDefault();
   const { x, y } = canvasPoint(event);

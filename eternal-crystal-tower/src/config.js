@@ -1,13 +1,14 @@
 export const GAME_CONFIG = Object.freeze({
   arena: {
-    width: 960,
-    height: 720,
-    centerX: 480,
-    centerY: 360,
+    width: 1440,
+    height: 1000,
+    centerX: 720,
+    centerY: 500,
     // The wide desktop camera exposes substantially more world on the left and
     // right than the original 4:3 arena. Rays are intersected with this box so
     // every enemy enters through a visible map edge, including diagonal waves.
-    spawnRing: { centerX: 480, centerY: 360, radiusX: 790, radiusY: 390, ingressArc: 1.16, radialJitter: 10 }
+    spawnRing: { centerX: 720, centerY: 500, radiusX: 1180, radiusY: 545, ingressArc: 1.16, radialJitter: 10 },
+    camera: { defaultZoom: 0.88, minZoom: 0.58, maxZoom: 1.45, zoomStep: 0.08 }
   },
   fixedStep: 1 / 60,
   tower: { maxHp: 600, damage: 12, fireRate: 1.2, range: 360, radius: 38, projectileSpeed: 650, healthBarDuration: 3.2 },
@@ -72,10 +73,10 @@ export const GAME_CONFIG = Object.freeze({
   sovereign: {
     spawnThreat: 20,
     healthBars: 4,
-    fixedX: 480,
-    fixedY: 138,
-    towerX: 480,
-    towerY: 600,
+    fixedX: 720,
+    fixedY: 200,
+    towerX: 720,
+    towerY: 850,
     towerScale: 0.72,
     entryDuration: 3.2,
     phaseBreakInvulnerability: 0.85,

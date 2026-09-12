@@ -81,7 +81,12 @@
 
       <section class="play-layout">
         <div class="arena-wrap">
-          <canvas id="gameCanvas" width="960" height="720" aria-label="永耀晶塔战场"></canvas>
+          <canvas id="gameCanvas" width="1440" height="1000" aria-label="永耀晶塔战场"></canvas>
+          <div class="camera-zoom-controls" aria-label="画面缩放">
+            <button id="zoomOutButton" class="icon-button camera-zoom-button" type="button" aria-label="缩小画面" title="缩小（滚轮 / -）">−</button>
+            <button id="zoomResetButton" class="icon-button camera-zoom-button camera-zoom-label" type="button" aria-label="重置缩放" title="重置缩放">100%</button>
+            <button id="zoomInButton" class="icon-button camera-zoom-button" type="button" aria-label="放大画面" title="放大（滚轮 / +）">+</button>
+          </div>
           <div class="permanent-resource-hud" aria-label="永久资源"><span class="echo-resource"><i></i><small>遗响</small><b id="battleEchoShardText">0</b></span><span class="core-resource"><i></i><small>核心</small><b id="battleCoreFragmentText">0</b></span></div>
           <div id="threatSealHud" class="threat-seal-hud hidden" aria-label="本局威胁封印"></div>
           <div id="relicRunHud" class="relic-run-hud" aria-label="本局临时遗物"></div>

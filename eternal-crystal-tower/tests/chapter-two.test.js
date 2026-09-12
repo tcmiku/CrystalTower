@@ -34,7 +34,7 @@ test('第二章让同构筑舰载无人机承担更高输出', () => {
     state.wave.nextAt = 999;
     state.tower.fireCooldown = 999;
     if (state.chapter === 1) toggleDroneMode(state);
-    state.testTarget = spawnEnemy(state, 'brute', { x: 480, y: 155 });
+    state.testTarget = spawnEnemy(state, 'brute', { x: 720, y: 295 });
     for (let step = 0; step < 150; step += 1) updateGame(state, GAME_CONFIG.fixedStep);
   }
   const chapterOneTarget = chapterOne.testTarget;
@@ -165,7 +165,7 @@ test('甲板维修响应无人机击沉，低能超频以额外耗能换取伤�
   repair.tower.hp = getTowerStats(repair).maxHp * 0.5;
   const damagedHp = repair.tower.hp;
   for (let index = 0; index < 5; index += 1) {
-    const enemy = spawnEnemy(repair, 'wisp', { x: 100 + index * 30, y: 100 });
+    const enemy = spawnEnemy(repair, 'wisp', { x: 340 + index * 30, y: 240 });
     enemy.hp = 1;
     damageEnemy(repair, enemy, 2, 'drone');
     updateGame(repair, GAME_CONFIG.fixedStep);
@@ -244,9 +244,9 @@ test('战斗机攻击机和轰炸机会选择各自擅长的敌舰', () => {
   const state = createChapterTwo(118);
   state.spawnTimer = state.wave.nextAt = 999;
   Object.assign(state.tower.upgrades, { droneHunt: 1, dronePayload: 1 });
-  const runner = spawnEnemy(state, 'runner', { x: 760, y: 250 });
-  const brute = spawnEnemy(state, 'brute', { x: 720, y: 360 });
-  const boss = spawnEnemy(state, 'boss', { x: 780, y: 470 });
+  const runner = spawnEnemy(state, 'runner', { x: 1000, y: 390 });
+  const brute = spawnEnemy(state, 'brute', { x: 960, y: 500 });
+  const boss = spawnEnemy(state, 'boss', { x: 1020, y: 610 });
   runner.speed = brute.speed = boss.speed = 0;
 
   updateGame(state, GAME_CONFIG.fixedStep);
@@ -261,9 +261,9 @@ test('集中打击让全部舰载机锁定同一高威胁目标', () => {
   const state = createChapterTwo(119);
   state.spawnTimer = state.wave.nextAt = 999;
   Object.assign(state.tower.upgrades, { droneHunt: 1, dronePayload: 1 });
-  spawnEnemy(state, 'runner', { x: 700, y: 220 }).speed = 0;
-  spawnEnemy(state, 'brute', { x: 720, y: 360 }).speed = 0;
-  const boss = spawnEnemy(state, 'boss', { x: 700, y: 500 });
+  spawnEnemy(state, 'runner', { x: 940, y: 360 }).speed = 0;
+  spawnEnemy(state, 'brute', { x: 960, y: 500 }).speed = 0;
+  const boss = spawnEnemy(state, 'boss', { x: 940, y: 640 });
   boss.speed = 0;
   setTargetProtocol(state, 'hunter');
 
@@ -276,7 +276,7 @@ test('分散清扫为舰载机分配不同目标以减少火力浪费', () => {
   const state = createChapterTwo(120);
   state.spawnTimer = state.wave.nextAt = 999;
   Object.assign(state.tower.upgrades, { droneHunt: 1, dronePayload: 1 });
-  for (const [type, x] of [['wisp', 680], ['runner', 720], ['crawler', 760]]) spawnEnemy(state, type, { x, y: 300 }).speed = 0;
+  for (const [type, x] of [['wisp', 680], ['runner', 720], ['crawler', 760]]) spawnEnemy(state, type, { x, y: 440 }).speed = 0;
   setTargetProtocol(state, 'breach');
 
   updateGame(state, GAME_CONFIG.fixedStep);
@@ -303,7 +303,7 @@ test('航母回收甲板在无人机强袭时独立收取金币', () => {
   state.spawnTimer = state.wave.nextAt = 999;
   state.tower.fireCooldown = 999;
   state.tower.droneCooldown = 0;
-  state.coinOrbs.push({ x: 240, y: 180, renderX: 240, renderY: 180, value: 10, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  state.coinOrbs.push({ x: 480, y: 320, renderX: 480, renderY: 320, value: 10, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
 
   updateGame(state, GAME_CONFIG.fixedStep);
   assert.equal(state.tower.droneMode, 'attack');

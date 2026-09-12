@@ -14,8 +14,8 @@ export function recordModuleAttack(fx,event) {
 }
 
 // Bounded, deterministic particles: no game RNG, accumulated emitters or saved state.
-export function sampleModuleEffects(module, layout, time, aimYaw=0, attack=0) {
-  const mount=getModuleMount(module,layout), effects=[], level=Math.max(1,Math.min(3,module.level??1));
+export function sampleModuleEffects(module, layout, time, aimYaw=0, attack=0, peers=null) {
+  const mount=getModuleMount(module,layout,peers), effects=[], level=Math.max(1,Math.min(3,module.level??1));
   const color=MODULES[module.id].color, phase=time+module.slot*.37;
   const yaw=['pulse','cannon'].includes(module.id)?aimYaw:mount.yaw;
   const point=([x,y,z])=>[mount.x+mount.scale*(x*Math.cos(yaw)-z*Math.sin(yaw)),mount.y+y*mount.scale,mount.z+mount.scale*(x*Math.sin(yaw)+z*Math.cos(yaw))];
@@ -112,9 +112,9 @@ export function drawModuleEffects(ctx,modules,layout,time,viewYaw,aimYaw,behind=
   if(!modules) return;
   ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineJoin='round';
   for(const module of modules) {
-    const mount=getModuleMount(module,layout);
+    const mount=getModuleMount(module,layout,modules);
     if((mount.x*Math.sin(viewYaw)+mount.z*Math.cos(viewYaw)<-8)!==behind) continue;
-    for(const effect of sampleModuleEffects(module,layout,time,gunYaws[module.id]??aimYaw,fx[`attack-${module.id}`]??0)) {
+    for(const effect of sampleModuleEffects(module,layout,time,gunYaws[module.id]??aimYaw,fx[`attack-${module.id}`]??0,modules)) {
       ctx.globalAlpha=effect.alpha;ctx.strokeStyle=effect.color;ctx.fillStyle=effect.color;ctx.lineWidth=effect.width;
       ctx.beginPath();
       effect.points.forEach(([x,y,z],i)=>{

@@ -1,0 +1,66 @@
+- main [ref=e2]:
+  - generic [ref=e3]: CRYSTAL TOWER / MODULE WORKSHOP
+  - heading "永耀晶塔 · 塔身外挂模块" [level=1] [ref=e4]
+  - paragraph [ref=e5]: 完整圆形塔身、中央悬浮晶核和分层装甲。模块挂在同一圈安装带上，按拼装格沿塔身圆周均匀分布，满配时环绕展开、不上下堆叠。
+  - generic [ref=e6]:
+    - link "经典塔身检视 →" [ref=e7] [cursor=pointer]:
+      - /url: ./tower-model-preview.html
+    - link "战场预览 →" [ref=e8] [cursor=pointer]:
+      - /url: /?preview=tower-visual
+  - generic [ref=e9]:
+    - generic "防御塔模块挂载三维预览" [ref=e10]
+    - complementary [ref=e11]:
+      - heading "组装效果" [level=2] [ref=e12]
+      - generic [ref=e13]: 防线配置
+      - combobox "防线配置" [ref=e14] [cursor=pointer]:
+        - option "重炮 + 环刃 + 霜棱" [selected]
+        - option "机库 + 火焰 + 雷鸣"
+        - option "竖置重炮 + 护盾"
+        - option "机库 / 反应器 / 护盾"
+        - option "满配 · 双炮 + 刃 + 机库 + 反应器"
+        - option "全部拆卸"
+      - generic [ref=e15]: 塔身阶级（扩大半径与容量）
+      - slider "塔身阶级（扩大半径与容量）" [ref=e16]: "1"
+      - generic [ref=e17]: 模块等级
+      - slider "模块等级" [ref=e18]: "2"
+      - generic [ref=e19]: 查看角度
+      - slider "查看角度" [ref=e20]: "-25"
+      - button "自动环视" [ref=e21] [cursor=pointer]
+      - button "演示模块攻击" [ref=e22] [cursor=pointer]
+      - generic [ref=e23]:
+        - strong [ref=e24]: 9 格
+        - text: · 单环安装 · 占用 5已装：贯星重炮、环刃发生器、霜棱反应器
+      - paragraph [ref=e25]: 模型与游戏共用同一套网格和深度渲染。阶级只扩大塔身半径与容量，模块始终在同一安装环上。
+  - generic [ref=e26]:
+    - article [ref=e27]:
+      - heading "晶矢轻炮" [level=2] [ref=e28]
+      - generic "晶矢轻炮安装效果" [ref=e29]
+      - paragraph [ref=e30]: 晶能导轨流光 · 独立炮口闪光
+    - article [ref=e31]:
+      - heading "贯星重炮" [level=2] [ref=e32]
+      - generic "贯星重炮安装效果" [ref=e33]
+      - paragraph [ref=e34]: 蓄能光环 · 导轨充能与后坐
+    - article [ref=e35]:
+      - heading "环刃发生器" [level=2] [ref=e36]
+      - generic "环刃发生器安装效果" [ref=e37]
+      - paragraph [ref=e38]: 高速旋转环刃 · 绿色弧形拖尾
+    - article [ref=e39]:
+      - heading "蜂巢无人机库" [level=2] [ref=e40]
+      - generic "蜂巢无人机库安装效果" [ref=e41]
+      - paragraph [ref=e42]: 机库航灯 · 出舱扫描光
+    - article [ref=e43]:
+      - heading "扇区护盾" [level=2] [ref=e44]
+      - generic "扇区护盾安装效果" [ref=e45]
+      - paragraph [ref=e46]: 向外扩散的六边形护盾波
+    - article [ref=e47]:
+      - heading "霜棱反应器" [level=2] [ref=e48]
+      - generic "霜棱反应器安装效果" [ref=e49]
+      - paragraph [ref=e50]: 旋绕冰晶 · 飘落霜粒
+    - article [ref=e51]:
+      - heading "烬火反应器" [level=2] [ref=e52]
+      - generic "烬火反应器安装效果" [ref=e53]
+      - paragraph [ref=e54]: 炉芯焰舌 · 上升余烬
+    - article [ref=e55]:
+      - heading "雷鸣反应器" [level=2] [ref=e56]
+      - generic "雷鸣反应器安装效果" [ref=e57]
+      - paragraph [ref=e58]: 双极跳跃电弧 · 旋转电场

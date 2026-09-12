@@ -8,6 +8,8 @@ import { recordModuleAttack } from './module-effects.js';
 import { EnemyModelRenderer, ENEMY_MODEL_TYPES } from './enemy-model.js';
 import { TowerModelRenderer, getModelLayout, getCannonPose, getMountedMuzzle } from "./tower-model.js";
 
+import { FORMATIONS, SECTOR_NAMES, WEAKPOINTS, sectorAngle } from "./chapter-one.js";
+
 const ENEMY_COLORS = {
   wisp: ["#ff706d", "#8e273e"],
   runner: ["#ffae68", "#a23b38"],
@@ -72,6 +74,25 @@ export function getCombatViewport(width, height) {
     rightInset: 0,
     bottomInset: 0
   };
+}
+
+export function clampCameraZoom(zoom) {
+  const camera = GAME_CONFIG.arena.camera;
+  const value = Number(zoom);
+  if (!Number.isFinite(value)) return camera.defaultZoom;
+  return Math.min(camera.maxZoom, Math.max(camera.minZoom, value));
+}
+
+// Shared world↔screen mapping. zoom < 1 reveals more of the map; zoom > 1
+// tightens on the tower. pan is in world units, applied after centering.
+export function getArenaViewTransform(cssWidth, cssHeight, zoom = GAME_CONFIG.arena.camera.defaultZoom, panX = 0, panY = 0) {
+  const logical = GAME_CONFIG.arena;
+  const viewport = getCombatViewport(cssWidth, cssHeight);
+  const fit = Math.min(viewport.width / logical.width, viewport.height / logical.height);
+  const scale = fit * clampCameraZoom(zoom);
+  const offsetX = viewport.x + viewport.width / 2 - (logical.centerX - panX) * scale;
+  const offsetY = viewport.y + viewport.height / 2 - (logical.centerY - panY) * scale;
+  return { scale, offsetX, offsetY, fit, zoom: clampCameraZoom(zoom), viewport };
 }
 
 export function getCoverCrop(sourceWidth, sourceHeight, targetWidth, targetHeight, focusX = 0.5, focusY = 0.5) {
@@ -335,6 +356,9 @@ export class Renderer {
     this.towerAimTargetId = null;
     this.towerAimTarget = null;
     this.gunAimAngles = { pulse: -Math.PI / 2, cannon: -Math.PI / 2, base: -Math.PI / 2 };
+    this.zoom = GAME_CONFIG.arena.camera.defaultZoom;
+    this.panX = 0;
+    this.panY = 0;
     const loading = loadGeneratedAssets(onAssetProgress);
     this.assets = loading.assets;
     this.assetsReady = loading.ready;
@@ -408,16 +432,29 @@ export class Renderer {
     return dpr;
   }
 
+  setZoom(zoom) {
+    this.zoom = clampCameraZoom(zoom);
+    return this.zoom;
+  }
+
+  setPan(panX, panY) {
+    const limitX = GAME_CONFIG.arena.width * 0.42;
+    const limitY = GAME_CONFIG.arena.height * 0.42;
+    this.panX = Math.max(-limitX, Math.min(limitX, Number(panX) || 0));
+    this.panY = Math.max(-limitY, Math.min(limitY, Number(panY) || 0));
+  }
+
+  getViewTransform(cssWidth, cssHeight) {
+    return getArenaViewTransform(cssWidth, cssHeight, this.zoom, this.panX, this.panY);
+  }
+
   render(state, delta = 1 / 60) {
     const dpr = this.resize();
     const ctx = this.ctx;
-    const logical = GAME_CONFIG.arena;
     const cssWidth = this.canvas.width / dpr;
     const cssHeight = this.canvas.height / dpr;
-    const viewport = getCombatViewport(cssWidth, cssHeight);
-    const scale = Math.min(viewport.width / logical.width, viewport.height / logical.height);
-    const offsetX = viewport.x + (viewport.width - logical.width * scale) / 2;
-    const offsetY = viewport.y + (viewport.height - logical.height * scale) / 2;
+    const { scale, offsetX, offsetY } = this.getViewTransform(cssWidth, cssHeight);
+    this.warningBounds = { left: (18-offsetX)/scale, right: (cssWidth-offsetX-72)/scale, top: (84-offsetY)/scale, bottom: (cssHeight-offsetY-82)/scale };
     this.time += delta;
     for (const key of Object.keys(this.towerFx)) this.towerFx[key] = Math.max(0, this.towerFx[key] - delta);
     const aimTarget = getTowerAimTarget(state);
@@ -1091,57 +1128,44 @@ export class Renderer {
 
   drawWaveWarning(ctx, state) {
     const wave = state.wave;
-    const warningTime = GAME_CONFIG.waves.warning;
     const countdown = wave.nextAt - state.time;
-    const warning = wave.warningStarted && countdown > 0 && countdown <= warningTime;
+    const warning = wave.warningStarted && countdown > 0 && countdown <= GAME_CONFIG.waves.warning;
     if (!warning && !wave.active) return;
-    const direction = wave.direction;
-    const { width, spawnRing } = GAME_CONFIG.arena;
-    const pulse = 0.45 + Math.sin(this.time * 8) * 0.2;
-    const directionAngles = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];
-    const ingressAngle = directionAngles[direction] ?? directionAngles[0];
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, pulse + .2);
-    ctx.strokeStyle = "rgba(255,70,91,.88)";
-    ctx.shadowColor = "#ff304f";
-    ctx.shadowBlur = 24;
-    ctx.lineWidth = 9;
-    ctx.beginPath();
-    for (let index = 0; index <= 24; index += 1) {
-      const angle = ingressAngle - spawnRing.ingressArc / 2 + spawnRing.ingressArc * index / 24;
-      const point = getArenaEdgePosition(angle);
-      if (index === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
+    const formation = FORMATIONS[wave.formation];
+    const directions = wave.sectorCount === 6 && wave.formation === "pincer" ? [wave.direction, (wave.direction + 2) % 6] : [wave.direction];
+    const bounds = this.warningBounds ?? { left: 18, right: 888, top: 84, bottom: 638 };
+    const pointOnView = angle => {
+      const dx = Math.cos(angle), dy = Math.sin(angle), cx = GAME_CONFIG.arena.centerX, cy = GAME_CONFIG.arena.centerY;
+      const tx = Math.abs(dx) < 1e-6 ? Infinity : ((dx > 0 ? bounds.right : bounds.left) - cx) / dx;
+      const ty = Math.abs(dy) < 1e-6 ? Infinity : ((dy > 0 ? bounds.bottom : bounds.top) - cy) / dy;
+      const distance = Math.max(0, Math.min(tx, ty));
+      return { x: cx + dx * distance, y: cy + dy * distance };
+    };
+    for (const direction of directions) {
+      const angle = wave.sectorCount === 6 ? sectorAngle(direction) : [-Math.PI / 2, 0, Math.PI / 2, Math.PI][direction] ?? -Math.PI / 2;
+      const arc = wave.sectorCount === 6 ? Math.PI / 4 : GAME_CONFIG.arena.spawnRing.ingressArc;
+      ctx.save(); ctx.globalAlpha = 0.65 + Math.sin(this.time * 8) * 0.2;
+      ctx.strokeStyle = "#ff586c"; ctx.shadowColor = "#ff304f"; ctx.shadowBlur = 18; ctx.lineWidth = 7;
+      ctx.beginPath();
+      for (let i = 0; i <= 24; i++) {
+        const point = pointOnView(angle - arc / 2 + arc * i / 24);
+        if (i === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y);
+      }
+      ctx.stroke();
+      const marker = pointOnView(angle);
+      ctx.translate(marker.x, marker.y); ctx.rotate(angle + Math.PI / 2);
+      ctx.fillStyle = "#ff6e7e"; ctx.beginPath(); ctx.moveTo(0,18); ctx.lineTo(-13,-8); ctx.lineTo(13,-8); ctx.closePath(); ctx.fill(); ctx.restore();
     }
-    ctx.stroke();
-    ctx.shadowBlur = 10;
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(255,184,168,.95)";
-    ctx.stroke();
-    const marker = getArenaEdgePosition(ingressAngle);
-    const markerX = marker.x;
-    const markerY = marker.y;
-    ctx.translate(markerX, markerY);
-    ctx.rotate(ingressAngle + Math.PI / 2);
-    ctx.fillStyle = "rgba(255,57,82,.92)";
-    ctx.beginPath();
-    ctx.moveTo(0, 18); ctx.lineTo(-13, -8); ctx.lineTo(13, -8); ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    const names = ["北侧", "东侧", "南侧", "西侧"];
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.fillStyle = "rgba(28,5,20,.88)";
-    ctx.strokeStyle = "rgba(255,100,111,.72)";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.roundRect(width / 2 - 116, 24, 232, 54, 14); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = "#ffb7ac";
-    ctx.font = "800 14px 'Microsoft YaHei UI', sans-serif";
-    ctx.fillText(warning ? `怪潮将在 ${Math.max(1, Math.ceil(countdown))} 秒后抵达` : "怪潮正在涌入", width / 2, 47);
-    ctx.fillStyle = "#ff746f";
-    ctx.font = "700 10px 'Microsoft YaHei UI', sans-serif";
-    ctx.fillText(`${names[direction] ?? "四周"} · 准备迎击`, width / 2, 66);
+    const x = GAME_CONFIG.arena.width / 2;
+    const names = wave.sectorCount === 6 ? SECTOR_NAMES : ["北", "东", "南", "西"];
+    ctx.save(); ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(28,5,20,.9)"; ctx.strokeStyle = "#ff6470";
+    ctx.beginPath(); ctx.roundRect(x-185,84,370,formation ? 78 : 54,14); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#ffb7ac"; ctx.font = "800 14px 'Microsoft YaHei UI',sans-serif";
+    ctx.fillText(`${formation?.name ?? "怪潮"} · ${warning ? `${Math.max(1,Math.ceil(countdown))} 秒后抵达` : "正在涌入"}`, x,107);
+    ctx.fillStyle = "#ff887f"; ctx.font = "700 11px 'Microsoft YaHei UI',sans-serif";
+    ctx.fillText(`${directions.map(d => names[d] ?? "外围").join("＋")} · 准备迎击`,x,126);
+    if (formation) { ctx.fillStyle = "#efd5cf"; ctx.font = "11px 'Microsoft YaHei UI',sans-serif"; ctx.fillText(formation.hint,x,146,350); }
     ctx.restore();
   }
 
@@ -1716,7 +1740,7 @@ export class Renderer {
     for (const anchor of state.enemies.filter((enemy) => enemy.type === "anchor" && enemy.hp > 0 && !enemy.riftAnchor)) {
       const boss = state.enemies.find((enemy) => enemy.id === anchor.anchorBossId && enemy.hp > 0);
       if (!boss) continue;
-      const visual = ANCHOR_VISUALS[anchor.anchorRole] ?? ANCHOR_VISUALS.shield;
+      const visual = { ...(ANCHOR_VISUALS[anchor.anchorRole] ?? ANCHOR_VISUALS.shield), ...(WEAKPOINTS[anchor.weakpointRole] ?? {}) };
       ctx.save(); ctx.strokeStyle = visual.color; ctx.globalAlpha = .48; ctx.shadowColor = visual.color; ctx.shadowBlur = 9; ctx.lineWidth = anchor.anchorRole === "overload" ? 2.5 : 1.6; ctx.setLineDash(anchor.anchorRole === "repair" ? [2, 5] : anchor.anchorRole === "summon" ? [9, 6] : [5, 7]);
       ctx.beginPath(); ctx.moveTo(anchor.x, anchor.y); ctx.lineTo(boss.x, boss.y); ctx.stroke(); ctx.restore();
     }
@@ -1767,7 +1791,7 @@ export class Renderer {
       ctx.shadowColor = enemy.type === "boss" ? resistanceColor ?? bright : bright;
       ctx.shadowBlur = enemy.type === "sovereign" ? 34 : enemy.type === "colossus" ? 24 : enemy.type === "boss" ? 18 : crowdMode ? 0 : 7;
       if (isAnchor) {
-        const visual = ANCHOR_VISUALS[enemy.anchorRole] ?? ANCHOR_VISUALS.shield;
+        const visual = { ...(ANCHOR_VISUALS[enemy.anchorRole] ?? ANCHOR_VISUALS.shield), ...(WEAKPOINTS[enemy.weakpointRole] ?? {}) };
         ctx.rotate(-angle + this.time * 1.7);
         ctx.fillStyle = enemy.hitFlash > 0 ? "#ffffff" : visual.dark; ctx.strokeStyle = visual.color; ctx.lineWidth = 2; ctx.shadowColor = visual.color; ctx.shadowBlur = 16;
         ctx.beginPath(); ctx.moveTo(0, -enemy.radius); ctx.lineTo(enemy.radius * .72, 0); ctx.lineTo(0, enemy.radius); ctx.lineTo(-enemy.radius * .72, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -1882,11 +1906,30 @@ export class Renderer {
       }
 
       if (isAnchor) {
-        const visual = ANCHOR_VISUALS[enemy.anchorRole] ?? ANCHOR_VISUALS.shield;
+        const visual = { ...(ANCHOR_VISUALS[enemy.anchorRole] ?? ANCHOR_VISUALS.shield), ...(WEAKPOINTS[enemy.weakpointRole] ?? {}) };
         ctx.save(); ctx.textAlign = "center"; ctx.font = "800 11px 'Microsoft YaHei UI',sans-serif"; ctx.fillStyle = visual.color; ctx.shadowColor = "#120a2d"; ctx.shadowBlur = 6;
-        ctx.fillText(enemy.counterSkill === "artillery" ? "炮击锚点" : `${visual.name}锚点`, enemy.x, enemy.y + enemy.radius + 22); ctx.restore();
+        ctx.fillText(enemy.weakpointRole ? visual.name : enemy.counterSkill === "artillery" ? "炮击锚点" : `${visual.name}锚点`, enemy.x, enemy.y + enemy.radius + 22); ctx.restore();
       }
 
+      if (enemy.weakpointRole) {
+        ctx.save(); ctx.textAlign = "center"; ctx.font = "10px 'Microsoft YaHei UI',sans-serif"; ctx.fillStyle = "#f2e6c7";
+        ctx.fillText(WEAKPOINTS[enemy.weakpointRole].hint, enemy.x, enemy.y + enemy.radius + 36); ctx.restore();
+      }
+      const status = enemy.broodRemaining > 0 ? `母巢 · ${Math.ceil(enemy.broodTimer)}s` : enemy.volleyAt != null && enemy.volleyAt - state.time <= 2.5 && enemy.volleyAt > state.time ? `蓄能 ${Math.max(0,enemy.volleyAt-state.time).toFixed(1)}s` : enemy.formationGuard ? "盾墙庇护" : enemy.fractureTimer > 0 ? `脆化 ${enemy.fractureTimer.toFixed(1)}s` : "";
+      if (status) {
+        ctx.save(); ctx.textAlign = "center"; ctx.font = "bold 11px 'Microsoft YaHei UI',sans-serif"; ctx.fillStyle = enemy.volleyAt ? "#ffbd75" : "#9eedff";
+        ctx.fillText(status,enemy.x,enemy.y-enemy.radius-22); ctx.restore();
+      }
+      if (enemy.conductTimer > 0) {
+        ctx.save(); ctx.strokeStyle = "#d3acff"; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.7;
+        for (const id of enemy.conductIds ?? []) {
+          if (id <= enemy.id) continue;
+          const other = state.enemies.find(target => target.id === id && target.hp > 0);
+          if (!other || Math.hypot(other.x-enemy.x,other.y-enemy.y)>285) continue;
+          ctx.beginPath(); ctx.moveTo(enemy.x,enemy.y); ctx.lineTo((enemy.x+other.x)/2+Math.sin(this.time*12)*7,(enemy.y+other.y)/2); ctx.lineTo(other.x,other.y); ctx.stroke();
+        }
+        ctx.restore();
+      }
       if (enemy.type === "boss") {
         const phaseColor = { frost: "#7de8ff", fire: "#ff754d", lightning: "#c6a2ff" }[enemy.resistance] ?? "#ffd078";
         ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(this.time * .45); ctx.strokeStyle = phaseColor; ctx.shadowColor = phaseColor; ctx.shadowBlur = 14; ctx.lineWidth = 2.4; ctx.setLineDash([12, 8]);
@@ -2048,7 +2091,7 @@ export class Renderer {
         ctx.restore();
       }
       if (state.tower.anchorLockTimer > 0 && state.tower.anchorLockId === enemy.id) {
-        const visual = ANCHOR_VISUALS[enemy.anchorRole] ?? ANCHOR_VISUALS.shield;
+        const visual = { ...(ANCHOR_VISUALS[enemy.anchorRole] ?? ANCHOR_VISUALS.shield), ...(WEAKPOINTS[enemy.weakpointRole] ?? {}) };
         const radius = enemy.radius + 34 + Math.sin(this.time * 8) * 2;
         ctx.save(); ctx.translate(enemy.x, enemy.y); ctx.rotate(this.time * 1.4); ctx.strokeStyle = visual.color; ctx.shadowColor = visual.color; ctx.shadowBlur = 16; ctx.lineWidth = 3.2;
         ctx.setLineDash([12, 6]); ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.rotate(-this.time * 1.4);

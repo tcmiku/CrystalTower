@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Renderer, getCombatViewport, getCoverCrop, getTowerAimTarget, getTowerVisualState } from "../src/renderer.js";
+import { Renderer, getArenaViewTransform, getCombatViewport, getCoverCrop, getTowerAimTarget, getTowerVisualState, clampCameraZoom } from "../src/renderer.js";
 import { createGameState, getTowerStats } from "../src/engine.js";
+import { GAME_CONFIG } from "../src/config.js";
 
 test("战术面板展开或收起都不挤压战场或改变瞄准坐标", () => {
   const expanded = getCombatViewport(2048, 956, { sidePanelCollapsed: false, skillBarCollapsed: false });
@@ -14,6 +15,21 @@ test("战术面板展开或收起都不挤压战场或改变瞄准坐标", () =>
     { width: collapsed.width, height: collapsed.height, rightInset: collapsed.rightInset, bottomInset: collapsed.bottomInset },
     { width: 2048, height: 956, rightInset: 0, bottomInset: 0 }
   );
+});
+
+test("战场放大后默认拉远，缩放以晶塔为中心且可被钳制", () => {
+  const camera = GAME_CONFIG.arena.camera;
+  assert.ok(camera.defaultZoom < 1);
+  assert.equal(clampCameraZoom(99), camera.maxZoom);
+  assert.equal(clampCameraZoom(0.01), camera.minZoom);
+  const base = getArenaViewTransform(1600, 900, 1, 0, 0);
+  const wide = getArenaViewTransform(1600, 900, camera.defaultZoom, 0, 0);
+  assert.ok(wide.scale < base.scale);
+  const logical = GAME_CONFIG.arena;
+  assert.ok(Math.abs(wide.offsetX + logical.centerX * wide.scale - 800) < 1e-6);
+  assert.ok(Math.abs(wide.offsetY + logical.centerY * wide.scale - 450) < 1e-6);
+  const zoomed = getArenaViewTransform(1600, 900, camera.maxZoom, 0, 0);
+  assert.ok(zoomed.scale > base.scale);
 });
 
 test("超宽战斗画布通过上下裁切保持背景比例", () => {

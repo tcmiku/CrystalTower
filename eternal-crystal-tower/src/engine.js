@@ -414,6 +414,7 @@ export function purchaseUpgrade(state, key) {
   if (key === "ascend") {
     const nextStats = getTowerStats(state);
     state.tower.hp = Math.min(nextStats.maxHp, state.tower.hp + (nextStats.maxHp - oldStats.maxHp) + nextStats.maxHp * 0.2);
+    if (state.tower.moduleBay) state.tower.moduleBay.revision += 1;
     state.events.push({ type: "ascend", level: state.tower.upgrades.ascend });
   } else {
     state.events.push({ type: "purchase", key });
@@ -983,6 +984,14 @@ function fireStarPiercer(state, target, damage, muzzle = null) {
   const x = origin.x;
   const y = origin.y;
   damageEnemy(state, target, damage * cfg.starPiercerDamageMultiplier, "starPiercer");
+  if (hasSpecialization(state, "cannonLance")) {
+    const angle = Math.atan2(target.y-y,target.x-x), nx = Math.cos(angle), ny = Math.sin(angle);
+    for (const other of state.enemies) {
+      if (other === target || other.hp <= 0) continue;
+      const dx = other.x-x, dy = other.y-y, forward = dx*nx+dy*ny;
+      if (forward >= 0 && forward <= 620 && Math.abs(dx*ny-dy*nx) <= other.radius+10) damageEnemy(state, other, damage * cfg.starPiercerDamageMultiplier * 0.65, "starPiercer");
+    }
+  }
   if (hasEndlessRelic(state, "omniversalPiercer") && !target.elite && !isBossEnemy(target) && target.hp < 0) {
     const overflow = -target.hp;
     const dx = target.x - x;
@@ -1083,7 +1092,7 @@ function fireTower(state, weaponId = null, claimedTargetIds = null) {
     const target = targets[targetIndex];
     const aimAngle = Math.atan2(target.y - centerY, target.x - centerX);
     const muzzle = module
-      ? getGunMuzzleWorld(centerX, centerY, module, state.tower.upgrades.ascend, aimAngle)
+      ? getGunMuzzleWorld(centerX, centerY, module, state.tower.upgrades.ascend, aimAngle, state.tower.moduleBay?.installed)
       : { x: centerX + Math.cos(aimAngle) * getTowerRadius(state) * 0.55, y: centerY + Math.sin(aimAngle) * getTowerRadius(state) * 0.55 };
     if (targetIndex === 0 && fullCharge && state.tower.upgrades.cannonStarPiercer > 0 && (target.elite || isBossEnemy(target) || hasEndlessRelic(state, "omniversalPiercer") || hasSpecialization(state, "cannonLance"))) {
       fireStarPiercer(state, target, stats.damage * chargeMultiplier, muzzle);
@@ -1203,7 +1212,7 @@ export function damageEnemy(state, enemy, damage, source = "shot") {
     const boss = state.enemies.find(target => target.id === enemy.anchorBossId && target.hp > 0);
     if (boss) damageEnemy(state, boss, Math.min(hpBefore, appliedDamage) * 2, "resonance");
   }
-  if (source !== "conduct" && (enemy.conductTimer ?? 0) > 0 && appliedDamage > 0) {
+  if (!["conduct", "resonance"].includes(source) && (enemy.conductTimer ?? 0) > 0 && appliedDamage > 0) {
     for (const linkedId of enemy.conductIds ?? []) {
       const linked = state.enemies.find(target => target.id === linkedId && target.hp > 0);
       if (!linked || Math.hypot(linked.x - enemy.x, linked.y - enemy.y) > REACTIONS.conduct.radius * 1.5) continue;
@@ -1910,7 +1919,7 @@ function updateWave(state, dt) {
     wave.warningStarted = true;
     wave.direction = Math.floor(state.rng.next() * (state.tower.moduleBay ? 6 : 4));
     if (state.tower.moduleBay) {
-      const formations = Object.keys(FORMATIONS);
+      const formations = state.threat < 5 ? ["wall", "pincer"] : state.threat < 7 ? ["wall", "pincer", "brood"] : Object.keys(FORMATIONS);
       wave.formation = formations[Math.floor(state.rng.next() * formations.length)];
       wave.sectorCount = 6;
     }
@@ -2033,7 +2042,7 @@ export function damageTower(state, damage, heavy = false, source = "enemy", orig
   const reducedDamage = damage * sectorMultiplier * (reductionActive ? 1 - GAME_CONFIG.activeSkillResearch.heal.damageReduction : 1);
   if (sector) {
     state.events.push({ type: "sectorBlock", slot: sector.slot, prevented: damage * (1 - sectorMultiplier) });
-    if (!(state.tower.synergyCooldown > 0)) {
+    if (damage > 0 && !(state.tower.synergyCooldown > 0)) {
       let activated = false;
       if (modulesAdjacent(state, "shield", "cannon")) { state.tower.moduleShieldCharge = Math.min(3, (state.tower.moduleShieldCharge ?? 0) + 1); activated = true; }
       if (modulesAdjacent(state, "shield", "blade")) { state.tower.bladeExpansion = 2; activated = true; }
@@ -2751,6 +2760,10 @@ function updateLaunchedSaws(state, dt, enemySpatialIndex = null) {
       if (dx * dx + dy * dy > reach * reach) continue;
       saw.hitIds.push(enemy.id);
       damageEnemy(state, enemy, saw.damage * (1 + (saw.bounceIndex ?? 0) * (saw.bounceDamagePerHop ?? cfg.bounceDamagePerHop)) * getSawScarMultiplier(enemy), "launchedSaw");
+      if (state.tower.moduleBay) {
+        const element = rollProjectileElement(state, 1, "blade");
+        if (element) applyElementalHit(state, enemy, element, saw.damage);
+      }
       const nextTarget = saw.bouncesRemaining > 0
         ? rankTargets(state, state.enemies.filter((candidate) => candidate.hp > 0 && !saw.hitIds.includes(candidate.id) && Math.hypot(candidate.x - saw.x, candidate.y - saw.y) <= cfg.bounceRange), 1)[0]
         : null;
@@ -4072,6 +4085,11 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 export function snapshotState(state) {
   return {
     moduleBay: state.tower.moduleBay ? structuredClone(state.tower.moduleBay) : null,
+    chapterOneCombat: state.tower.moduleBay ? {
+      synergies: ["moduleShieldCharge", "bladeExpansion", "pulseRelay", "synergyCooldown", "relayCooldown", "bladeBlockCooldown"].map(key => Number((state.tower[key] ?? 0).toFixed(3))),
+      wave: [state.wave.formation ?? null, state.wave.direction, state.wave.sectorCount ?? 6, state.wave.spawned ?? 0],
+      targets: state.enemies.map(enemy => ({ id: enemy.id, fracture: Number((enemy.fractureTimer ?? 0).toFixed(3)), conduct: Number((enemy.conductTimer ?? 0).toFixed(3)), links: [...(enemy.conductIds ?? [])], weakpoint: enemy.weakpointRole ?? null, cooldown: Number((enemy.weakpointCooldown ?? 0).toFixed(3)), stun: Number((enemy.objectiveStun ?? 0).toFixed(3)), brood: enemy.broodRemaining ?? 0, broodTimer: Number((enemy.broodTimer ?? 0).toFixed(3)), volley: enemy.volleyAt ?? null }))
+    } : null,
     modulePrimers: state.enemies.filter((enemy) => enemy.moduleElementTimer > 0).map((enemy) => [enemy.id, enemy.moduleElement, Number(enemy.moduleElementTimer.toFixed(3))]),
     chapter: state.chapter, time: Number(state.time.toFixed(4)), threat: state.threat, phase: state.phase, coins: state.coins, threatSeals: [...state.threatSeals.equipped], sealResourceCarry: { ...state.threatSeals.resourceCarry }, skillResearch: { ...state.skillResearch }, endlessShop: { ...state.endlessShop, equippedRelics: [...state.endlessShop.equippedRelics], relicOffers: [...state.endlessShop.relicOffers], randomOffers: [...state.endlessShop.randomOffers], cyclePurchases: [...state.endlessShop.cyclePurchases], levels: { ...state.endlessShop.levels } },
     towerHp: Number(state.tower.hp.toFixed(4)), towerShield: Number(state.tower.shield.toFixed(4)), droneGuardShield: Number(state.tower.droneGuardShield.toFixed(4)), upgrades: { ...state.tower.upgrades }, gunAimTargetIds: { ...state.tower.gunAimTargetIds }, siegeTargetId: state.tower.siegeTargetId, siegeStreak: state.tower.siegeStreak, cannonEchoChain: state.tower.cannonEchoChain, cannonEchoChainTimer: Number(state.tower.cannonEchoChainTimer.toFixed(3)), cannonCascadeCooldown: Number((state.tower.cannonCascadeCooldown ?? 0).toFixed(3)), droneMode: state.tower.droneMode, droneDetonateActive: state.tower.droneDetonateActive, droneEnergy: Number(state.tower.droneEnergy.toFixed(3)), droneEnergyMax: getDroneEnergyMax(state), droneGuardCooldown: Number(state.tower.droneGuardCooldown.toFixed(3)), interceptCharge: state.tower.interceptCharge, targetProtocol: state.tower.targetProtocol, anchorLock: [state.tower.anchorLockId, Number(state.tower.anchorLockTimer.toFixed(3))], autoCollectCooldown: Number(state.tower.autoCollectCooldown.toFixed(3)), sawLaunchCooldown: Number(state.tower.sawLaunchCooldown.toFixed(3)), sawStormCharge: Number((state.tower.sawStormCharge ?? 0).toFixed(3)), sawRecoveries: state.tower.sawRecoveries.map((value) => Number(value.toFixed(3))),

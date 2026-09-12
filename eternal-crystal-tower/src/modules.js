@@ -1,7 +1,18 @@
-// A bounded 3 × 2 board. Slot numbers still identify the six battlefield sectors.
+// A 3-column board that grows with tower ascend. Slot numbers identify wall sectors (mod 6) and ring depth.
 export const BAY_COLUMNS = 3;
 export const BAY_ROWS = 2;
 export const SLOT_COUNT = 6;
+export function bayRowsForTier(tier = 0) {
+  const t = Math.max(0, Math.min(3, Math.floor(Number(tier) || 0)));
+  return [2, 3, 3, 4][t];
+}
+export function slotCountForTier(tier = 0) {
+  return BAY_COLUMNS * bayRowsForTier(tier);
+}
+export function getBayLayout(state) {
+  const rows = bayRowsForTier(state?.tower?.upgrades?.ascend ?? 0);
+  return { columns: BAY_COLUMNS, rows, slotCount: BAY_COLUMNS * rows };
+}
 // First-chapter equipment tuning; legacy upgrades and chapter-two ships keep their own rules.
 export const MODULE_BALANCE = Object.freeze({
   cannon: Object.freeze({ damage: 3.4, damagePerLevel: .2, lanceStacks: 2 }),
@@ -27,22 +38,23 @@ export const MODULES = Object.freeze({
   hangar: { name: "蜂巢无人机库", size: 2, cost: 140, color: "#ffd578", icon: "drone", weapon: true, description: "三至五架无人机；II 级协同齐射，III 级重型载荷。每次升级飞行速度 +12%；出击每秒／每击耗电 2，I／II／III 级整备每秒回电 14／18／22；G 切换。" },
   shield: { name: "扇区护盾", size: 1, cost: 80, color: "#78dabb", icon: "droneGuard", description: "只减免所在 60° 扇区的来袭伤害，I／II／III 级减伤 45%／55%／65%。朝向与战场编号一致。" },
   frost: { name: "霜棱反应器", size: 1, cost: 90, color: "#91ddff", icon: "frost", element: "frost", description: "只强化相邻武器：伤害 +15%／级，35%／45%／55% 概率附加冰冻。与火焰交替命中触发融爆。" },
-  fire: { name: "烬火反应器", size: 1, cost: 90, color: "#ff8d70", icon: "fire", element: "fire", description: "只强化相邻武器：伤害 +15%／级，附加灼烧。火＋冰触发融爆；火＋雷触发超导爆炸。" },
-  lightning: { name: "雷鸣反应器", size: 1, cost: 100, color: "#c8a3ff", icon: "lightning", element: "lightning", description: "只强化相邻武器：伤害 +15%／级，附加连锁。与冰交替命中触发碎晶，与火触发超导。" }
+  fire: { name: "烬火反应器", size: 1, cost: 90, color: "#ff8d70", icon: "fire", element: "fire", description: "只强化相邻武器：伤害 +15%／级，附加灼烧。火＋冰触发融爆；火＋雷建立超导电链，传递部分伤害。" },
+  lightning: { name: "雷鸣反应器", size: 1, cost: 100, color: "#c8a3ff", icon: "lightning", element: "lightning", description: "只强化相邻武器：伤害 +15%／级，附加连锁。与冰触发碎晶裂片并暴露弱点；与火建立传伤电链。" }
 });
 
 export function createModuleBay() {
   return { installed: [{ id: "pulse", slot: 0, level: 1, invested: 60 }], specializations: {}, revision: 0, refitCooldown: 0 };
 }
-export function moduleCells(module) {
-  const step = module.rotation === 1 ? BAY_COLUMNS : 1;
+export function moduleCells(module, columns = BAY_COLUMNS) {
+  const step = module.rotation === 1 ? columns : 1;
   return Array.from({ length: MODULES[module.id].size }, (_, i) => module.slot + i * step);
 }
-export function moduleFits(id, slot, rotation = 0) {
-  if (!Object.hasOwn(MODULES, id) || !Number.isInteger(slot) || slot < 0 || slot >= SLOT_COUNT || ![0, 1].includes(rotation)) return false;
-  return rotation === 1 ? Math.floor(slot / BAY_COLUMNS) + MODULES[id].size <= BAY_ROWS : slot % BAY_COLUMNS + MODULES[id].size <= BAY_COLUMNS;
+export function moduleFits(id, slot, rotation = 0, rows = BAY_ROWS, columns = BAY_COLUMNS) {
+  const slotCount = columns * rows;
+  if (!Object.hasOwn(MODULES, id) || !Number.isInteger(slot) || slot < 0 || slot >= slotCount || ![0, 1].includes(rotation)) return false;
+  return rotation === 1 ? Math.floor(slot / columns) + MODULES[id].size <= rows : slot % columns + MODULES[id].size <= columns;
 }
-const touches = (a, b) => Math.abs(a % BAY_COLUMNS - b % BAY_COLUMNS) + Math.abs(Math.floor(a / BAY_COLUMNS) - Math.floor(b / BAY_COLUMNS)) === 1;
+const touches = (a, b, columns = BAY_COLUMNS) => Math.abs(a % columns - b % columns) + Math.abs(Math.floor(a / columns) - Math.floor(b / columns)) === 1;
 export const moduleAt = (state, slot) => state.tower.moduleBay?.installed.find((module) => moduleCells(module).includes(slot));
 export const installedModule = (state, id) => state.tower.moduleBay?.installed.find((module) => module.id === id);
 export const hasSpecialization = (state, id) => Boolean(installedModule(state, SPECIALIZATIONS[id]?.module)?.specialization === id);
@@ -64,19 +76,21 @@ export const moduleUpgradeCost = (module) => Math.round(MODULES[module.id].cost 
 export function adjacentReactors(state, id) {
   const weapon = installedModule(state, id);
   if (!weapon) return [];
-  const cells = moduleCells(weapon);
-  return state.tower.moduleBay.installed.filter((module) => MODULES[module.id].element && cells.some((slot) => moduleCells(module).some((cell) => touches(slot, cell))));
+  const { columns } = getBayLayout(state);
+  const cells = moduleCells(weapon, columns);
+  return state.tower.moduleBay.installed.filter((module) => MODULES[module.id].element && cells.some((slot) => moduleCells(module, columns).some((cell) => touches(slot, cell, columns))));
 }
 export const moduleDamageMultiplier = (state, id) => 1 + adjacentReactors(state, id).reduce((sum, reactor) => sum + reactor.level * 0.15, 0);
 export function modulePlacementStatus(state, id, slot, moving = false, rotation = 0) {
   const bay = state.tower.moduleBay;
-  if (!bay || !Object.hasOwn(MODULES, id) || !Number.isInteger(slot) || slot < 0 || slot >= SLOT_COUNT || state.over) return { ok: false, reason: "无法装配" };
+  const { columns, rows, slotCount } = getBayLayout(state);
+  if (!bay || !Object.hasOwn(MODULES, id) || !Number.isInteger(slot) || slot < 0 || slot >= slotCount || state.over) return { ok: false, reason: "无法装配" };
   if (bay.refitCooldown > 0) return { ok: false, reason: `重整中 · ${Math.ceil(bay.refitCooldown)} 秒` };
   if (!moving && installedModule(state, id)) return { ok: false, reason: "已安装，选择槽位可移动或强化" };
   if (moving && !installedModule(state, id)) return { ok: false, reason: "模块未安装" };
-  if (!moduleFits(id, slot, rotation)) return { ok: false, reason: "超出拼装板边界，请旋转或换个位置" };
-  const occupied = new Set(bay.installed.filter((module) => !moving || module.id !== id).flatMap(moduleCells));
-  if (moduleCells({ id, slot, rotation }).some((cell) => occupied.has(cell))) return { ok: false, reason: "与已安装模块重叠" };
+  if (!moduleFits(id, slot, rotation, rows, columns)) return { ok: false, reason: "超出拼装板边界，请旋转或换个位置" };
+  const occupied = new Set(bay.installed.filter((module) => !moving || module.id !== id).flatMap((module) => moduleCells(module, columns)));
+  if (moduleCells({ id, slot, rotation }, columns).some((cell) => occupied.has(cell))) return { ok: false, reason: "与已安装模块重叠" };
   if (!moving && state.coins < MODULES[id].cost) return { ok: false, reason: `还差 ${MODULES[id].cost - Math.floor(state.coins)} 金币` };
   return { ok: true, reason: moving ? "移动至此" : "可以安装" };
 }
@@ -105,6 +119,7 @@ export function syncModuleUpgrades(state) {
   state.tower.moduleShieldCharge = 0;
   state.tower.bladeExpansion = 0;
   state.tower.pulseRelay = 0;
+  for (const module of state.tower.moduleBay.installed) { module.focusStacks = 0; module.focusTarget = null; }
   state.tower.moduleBay.revision += 1;
 }
 
@@ -129,7 +144,7 @@ export function moduleMoveStatus(state, id, to, rotation = 0) {
   const hit = state.tower.moduleBay.installed.filter(m=>m.id!==id&&moduleCells(m).some(c=>cells.includes(c)));
   if (hit.length!==1 || hit[0].slot!==to) return status;
   const other=hit[0], destination={...other,slot:source.slot};
-  if(!moduleFits(other.id,destination.slot,other.rotation??0))return status;
+  if(!moduleFits(other.id,destination.slot,other.rotation??0,getBayLayout(state).rows,getBayLayout(state).columns))return status;
   const otherCells=moduleCells(destination), occupied=state.tower.moduleBay.installed.filter(m=>m!==source&&m!==other).flatMap(moduleCells);
   if(otherCells.some(c=>cells.includes(c)||occupied.includes(c))||cells.some(c=>occupied.includes(c)))return status;
   return {ok:true,reason:"交换位置",swap:other.id};
@@ -167,7 +182,11 @@ export function upgradeModule(state, slot) {
 export function shieldSector(state, origin, tower) {
   if (!origin || !state.tower.moduleBay) return null;
   const angle = Math.atan2(origin.y - tower.y, origin.x - tower.x) + Math.PI / 2;
-  const slot = ((Math.floor((angle + Math.PI / 6) / (Math.PI / 3)) % 6) + 6) % 6;
-  const module = moduleAt(state, slot);
-  return module?.id === "shield" ? module : null;
+  const sector = ((Math.floor((angle + Math.PI / 6) / (Math.PI / 3)) % 6) + 6) % 6;
+  // Outer rings share the same six battlefield sectors; prefer the innermost shield.
+  for (let slot = sector; slot < getBayLayout(state).slotCount; slot += 6) {
+    const module = moduleAt(state, slot);
+    if (module?.id === "shield") return module;
+  }
+  return null;
 }

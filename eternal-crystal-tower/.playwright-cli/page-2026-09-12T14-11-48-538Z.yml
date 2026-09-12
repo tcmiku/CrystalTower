@@ -1,0 +1,10 @@
+- generic [active] [ref=e1]:
+  - status "游戏素材加载中" [ref=e2]:
+    - generic [ref=e3]:
+      - text: ETERNAL CRYSTAL TOWER
+      - heading "永耀晶塔" [level=1] [ref=e6]
+      - paragraph [ref=e7]: 守住光，直到最后一击
+      - generic [ref=e10]:
+        - generic [ref=e11]: 正在唤醒晶塔核心 · 2 / 2
+        - strong [ref=e12]: 100%
+  - text: × ↑ ↑ ↑

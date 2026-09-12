@@ -84,7 +84,7 @@ test('实际装配状态进入塔身渲染，换位强化和拆卸即时反映',
   assert.equal(buildTowerModel(getTowerVisualState(state)).parts.some(p=>p.name==='module-hangar'),false);
 });
 
-test('圆塔保持完整主体，附件沿六个塔身扇区挂载', async()=>{
+test('圆塔保持完整主体，附件均匀环绕塔身挂载', async()=>{
   const {getModuleMount}=await import('../src/module-model.js');
   for(const tier of [0,1,2,3]) {
     const layout=getModelLayout(tier);
@@ -96,13 +96,32 @@ test('圆塔保持完整主体，附件沿六个塔身扇区挂载', async()=>{
     const original=buildTowerModel({tier,cannonEnabled:false}).parts[0].vertices;
     assert.deepEqual(bare.parts[0].vertices.slice(0,original.length),original);
     const sockets=Array.from({length:6},(_,slot)=>getModuleMount({id:'pulse',slot},layout));
-    assert.equal(new Set(sockets.map(p=>`${p.x}:${p.z}`)).size,6);
+    assert.equal(new Set(sockets.map(p=>`${p.x.toFixed(2)}:${p.z.toFixed(2)}`)).size,6);
     for(const p of sockets) assert.ok(Math.hypot(p.x,p.z)>layout.radius);
-    assert.ok(sockets[0].z<0);assert.ok(sockets[3].z>0);
-    const horizontal=getModuleMount({id:'cannon',slot:1,rotation:0},layout);
-    const vertical=getModuleMount({id:'cannon',slot:1,rotation:1},layout);
+    const bearings=Array.from({length:layout.slotCount},(_,slot)=>getModuleMount({id:'pulse',slot},layout));
+    assert.ok(bearings.some(p=>p.z<0));
+    assert.ok(bearings.some(p=>p.x<0));
+    assert.ok(bearings.some(p=>p.x>0));
+    const horizontal=getModuleMount({id:'pulse',slot:1,rotation:0},layout);
+    const vertical=getModuleMount({id:'pulse',slot:1,rotation:1},layout);
     assert.equal(vertical.x,horizontal.x);assert.equal(vertical.z,horizontal.z);
     assert.ok(Math.abs(vertical.yaw-horizontal.yaw-Math.PI/2)<1e-9);
+    const cannonWide=getModuleMount({id:'cannon',slot:0,rotation:0},layout);
+    const cannonTall=getModuleMount({id:'cannon',slot:0,rotation:1},layout);
+    const cellStep=Math.PI*2/layout.slotCount;
+    assert.ok(Math.abs(cannonWide.angle-cannonTall.angle-cellStep/2)<1e-9);
+    const outer=Array.from({length:layout.slotCount},(_,slot)=>getModuleMount({id:'pulse',slot},layout));
+    assert.equal(new Set(outer.map(p=>`${p.x.toFixed(2)}:${p.z.toFixed(2)}`)).size,layout.slotCount);
+    for(let i=1;i<outer.length;i++){
+      assert.ok(Math.abs((outer[i].angle-outer[i-1].angle)-cellStep)<1e-9);
+    }
+    for(const p of outer) assert.ok(Math.abs(p.y-outer[0].y)<1e-9);
+    const loadout=[{id:'pulse',slot:0},{id:'cannon',slot:2},{id:'blade',slot:3},{id:'hangar',slot:5},{id:'frost',slot:6},{id:'fire',slot:8},{id:'lightning',slot:9},{id:'shield',slot:11}];
+    const mounted=loadout.map(m=>getModuleMount(m,layout,loadout));
+    const ring=Math.PI*2/loadout.length;
+    for(let i=1;i<mounted.length;i++){
+      assert.ok(Math.abs((mounted[i].angle-mounted[i-1].angle)-ring)<1e-9);
+    }
   }
 });
 

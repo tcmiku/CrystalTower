@@ -1,4 +1,5 @@
 import {TowerModelRenderer,meshBuilder} from './tower-model.js';
+import {GAME_CONFIG} from './config.js';
 
 // Orthographic ground projection: (x, height, z) -> (x, .6*z-.8*height).
 // Keeping ground positions in combat coordinates preserves all hit tests.
@@ -6,13 +7,17 @@ export function buildArenaModel(){
   const mesh=meshBuilder();
   const stone=[.19,.27,.36],edge=[.105,.15,.23],metal=[.26,.36,.47];
   const random=(x,z)=>{const v=Math.sin(x*127.1+z*311.7)*43758.5453;return v-Math.floor(v);};
-  for(let x=-2200;x<3200;x+=80)for(let z=-2200;z<3400;z+=80){
+  const cx=GAME_CONFIG.arena.centerX;
+  // Combat Y maps to ground Z with the orthographic .6 depth squash.
+  const cz=GAME_CONFIG.arena.centerY/0.6;
+  // Floor covers the larger playfield plus the outer spawn ring.
+  for(let x=cx-1600;x<cx+1600;x+=80)for(let z=cz-1400;z<cz+1400;z+=80){
     const n=random(x,z),h=-2-n*2;
     const color=stone.map(v=>v*(.82+n*.25));
     {
       // Close-set beveled paving keeps the combat floor quiet and readable.
-      const cx=x+40,cz=z+40;
-      const corners=[[-39,-34],[-34,-39],[34,-39],[39,-34],[39,34],[34,39],[-34,39],[-39,34]].map(([dx,dz])=>[cx+dx,h,cz+dz]);
+      const px=x+40,pz=z+40;
+      const corners=[[-39,-34],[-34,-39],[34,-39],[39,-34],[39,34],[34,39],[-34,39],[-39,34]].map(([dx,dz])=>[px+dx,h,pz+dz]);
       mesh.face(corners.slice().reverse(),color);
       for(let i=0;i<8;i++){
         const p=corners[i],q=corners[(i+1)%8];
@@ -22,28 +27,29 @@ export function buildArenaModel(){
     }
   }
   {
-    mesh.ring(480,-15,650,118,0,15,edge,48);
-    mesh.ring(480,0,650,115,104,3,metal,48);
-    mesh.ring(480,0,650,105,100,2,[.13,.48,.56],48);
-    mesh.ring(480,0,650,98,0,1,[.18,.25,.33],48);
+    // Approach pad sits under the tower once depth squash is applied.
+    mesh.ring(cx,-15,cz,118,0,15,edge,48);
+    mesh.ring(cx,0,cz,115,104,3,metal,48);
+    mesh.ring(cx,0,cz,105,100,2,[.13,.48,.56],48);
+    mesh.ring(cx,0,cz,98,0,1,[.18,.25,.33],48);
   }
   // Broken boundary architecture leaves four cardinal approaches open.
   for(let i=0;i<32;i++){
     const a=i*Math.PI*2/32;
     if(i%8<2||i%8>6)continue;
-    const x=480+Math.cos(a)*650,z=600+Math.sin(a)*780;
+    const x=cx+Math.cos(a)*980,z=cz+Math.sin(a)*720;
     const h=25+random(i,7)*65;
     mesh.box(x,-8,z,78,h,54,edge,a);
     mesh.box(x,h-8,z,84,6,60,metal,a);
     for(let j=0;j<3;j++){
-      const cx=x+(j-1)*29,cz=z+Math.sin(j*2)*24;
-      mesh.crystal(cx,h-1,cz,8+random(i,j)*11,30+random(j,i)*65,.4,
+      const ox=x+(j-1)*29,oz=z+Math.sin(j*2)*24;
+      mesh.crystal(ox,h-1,oz,8+random(i,j)*11,30+random(j,i)*65,.4,
         [[.23,.18,.45],[.25,.42,.62],[.45,.59,.73]]);
     }
   }
-  for(let i=0;i<56;i++){
-    const a=i*2.39996,r=600+random(i,5)*340;
-    const x=480+Math.cos(a)*r,z=600+Math.sin(a)*r*1.4;
+  for(let i=0;i<72;i++){
+    const a=i*2.39996,r=780+random(i,5)*420;
+    const x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r*1.15;
     mesh.box(x,-8,z,12+random(i,3)*40,9+random(i,4)*18,22,stone,a);
   }
   return new Float32Array(mesh.data);

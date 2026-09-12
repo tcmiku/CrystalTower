@@ -1,4 +1,4 @@
-import { MODULES, moduleAt, installedModule, occupiedSlots, adjacentReactors, modulePlacementStatus, moduleMoveStatus, moduleUpgradeCost, installModule, removeModule, moveModule, upgradeModule } from './modules.js';
+import { MODULES, SPECIALIZATIONS, getBayLayout, moduleAt, installedModule, occupiedSlots, adjacentReactors, modulePlacementStatus, moduleMoveStatus, moduleUpgradeCost, installModule, removeModule, moveModule, upgradeModule } from './modules.js';
 
 export const createCompactModuleUi = (root,state,options) => createModuleUi(root,state,{...options,compact:true});
 
@@ -25,14 +25,16 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
     updateTools();paint();return true;
   }
   function cancel(){lastPoint=null;held=null;hover=null;gesture=null;ghost.hidden=true;delete state.modulePreview;signature='';update()}
+  function bayLayout(){return getBayLayout(state)}
   function rawCell(event) {
+    const {columns,rows}=bayLayout();
     const r=board.getBoundingClientRect(),style=getComputedStyle(board),gapX=parseFloat(style.columnGap)||0,gapY=parseFloat(style.rowGap)||0;
-    const w=(r.width-gapX*2)/3,h=(r.height-gapY)/2,px=event.clientX-r.left,py=event.clientY-r.top;
+    const w=(r.width-gapX*(columns-1))/columns,h=(r.height-gapY*(rows-1))/rows,px=event.clientX-r.left,py=event.clientY-r.top;
     const x=Math.floor(px/(w+gapX)),y=Math.floor(py/(h+gapY));
-    if(x<0||x>2||y<0||y>1||px-x*(w+gapX)>w||py-y*(h+gapY)>h)return null;
+    if(x<0||x>=columns||y<0||y>=rows||px-x*(w+gapX)>w||py-y*(h+gapY)>h)return null;
     return {x,y};
   }
-  function target(event){const c=rawCell(event);if(!c||!held)return null;const x=c.x-held.offset.x,y=c.y-held.offset.y;return x<0||x>2||y<0||y>1?null:y*3+x}
+  function target(event){const c=rawCell(event);if(!c||!held)return null;const {columns,rows}=bayLayout();const x=c.x-held.offset.x,y=c.y-held.offset.y;return x<0||x>=columns||y<0||y>=rows?null:y*columns+x}
   const placement=cell=>held.from!==null?moduleMoveStatus(state,held.id,cell,held.rotation):modulePlacementStatus(state,held.id,cell,false,held.rotation);
   function updateTools(){root.querySelector('[data-action="rotate"]').disabled=(!held&&!selected)||MODULES[held?.id??selected]?.size===1||locked();root.querySelector('[data-action="cancel"]').style.visibility=held?'visible':'hidden'}
   function paint(){
@@ -43,10 +45,11 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
     if(!held||hover===null)return;
     const status=placement(hover);
     state.modulePreview={id:held.id,slot:hover,rotation:held.rotation,valid:status.ok};
-    const x=hover%3,y=Math.floor(hover/3);
+    const {columns,rows}=bayLayout();
+    const x=hover%columns,y=Math.floor(hover/columns);
     for(let i=0;i<MODULES[held.id].size;i++){
       const cx=x+(held.rotation===0?i:0),cy=y+(held.rotation===1?i:0);
-      if(cx<3&&cy<2)board.querySelector(`[data-cell="${cy*3+cx}"]`)?.classList.add(status.ok?'preview-good':'preview-bad');
+      if(cx<columns&&cy<rows)board.querySelector(`[data-cell="${cy*columns+cx}"]`)?.classList.add(status.ok?'preview-good':'preview-bad');
     }
     if(!status.ok||status.swap)hint.textContent=status.reason;
     ghost.classList.toggle('invalid',!status.ok);
@@ -75,7 +78,8 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
     if(event.button!==0||held)return;
     const source=event.target.closest('[data-id]');if(!source||!available(source.dataset.id))return;
     const m=source.classList.contains('module-piece')?installedModule(state,source.dataset.id):null,c=rawCell(event);
-    gesture={id:source.dataset.id,x:event.clientX,y:event.clientY,dragging:false,offset:m&&c?{x:c.x-m.slot%3,y:c.y-Math.floor(m.slot/3)}:{x:0,y:0}};
+    const {columns}=bayLayout();
+    gesture={id:source.dataset.id,x:event.clientX,y:event.clientY,dragging:false,offset:m&&c?{x:c.x-m.slot%columns,y:c.y-Math.floor(m.slot/columns)}:{x:0,y:0}};
     root.setPointerCapture(event.pointerId);
   });
   listen(root,'pointermove',event=>{
@@ -117,17 +121,23 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
     const bay=state.tower.moduleBay,next=JSON.stringify([bay.revision,Math.floor(state.coins),Math.ceil(bay.refitCooldown),state.over,selected,held,state.tower.upgrades]);
     if(signature===next)return;signature=next;
     const focus=root.contains(document.activeElement)?document.activeElement.dataset.focus:null;
-    root.querySelector('.module-capacity').innerHTML=`${occupiedSlots(state)}<small>/6</small>`;
+    const {columns,rows,slotCount}=bayLayout();
+    board.style.setProperty('--module-rows',String(rows));
+    root.querySelector('.module-capacity').innerHTML=`${occupiedSlots(state)}<small>/${slotCount}</small>`;
     root.querySelector('.module-wallet').textContent=`◆ ${Math.floor(state.coins)}${bay.refitCooldown>0?` · ${Math.ceil(bay.refitCooldown)}s`:''}`;
     board.innerHTML='';
-    for(let cell=0;cell<6;cell++){
+    board.style.setProperty('--module-columns',String(columns));
+    board.style.setProperty('--module-rows',String(rows));
+    for(let cell=0;cell<slotCount;cell++){
       const n=document.createElement('button');n.type='button';n.className='module-cell';n.dataset.cell=cell;n.dataset.focus=`cell-${cell}`;
-      n.innerHTML=`<b>${cell+1}</b>`;n.setAttribute('aria-label',`第 ${cell+1} 格，${directions[cell]}，${MODULES[moduleAt(state,cell)?.id]?.name??'空格'}`);board.append(n);
+      n.style.gridColumn=String(cell%columns+1);
+      n.style.gridRow=String(Math.floor(cell/columns)+1);
+      n.innerHTML=`<b>${cell+1}</b>`;n.setAttribute('aria-label',`第 ${cell+1} 格，${directions[cell%6]}，${MODULES[moduleAt(state,cell)?.id]?.name??'空格'}`);board.append(n);
     }
     const connected=selected?(MODULES[selected]?.weapon?adjacentReactors(state,selected).map(m=>m.id):bay.installed.filter(m=>MODULES[m.id].weapon&&adjacentReactors(state,m.id).some(r=>r.id===selected)).map(m=>m.id)):[];
     for(const m of bay.installed){
       const n=document.createElement('button');n.type='button';n.className=`module-piece${selected===m.id?' inspected':''}${connected.includes(m.id)?' connected':''}`;n.dataset.id=m.id;n.dataset.focus=`piece-${m.id}`;
-      n.style.gridColumn=`${m.slot%3+1} / span ${m.rotation?1:MODULES[m.id].size}`;n.style.gridRow=`${Math.floor(m.slot/3)+1} / span ${m.rotation?MODULES[m.id].size:1}`;n.style.setProperty('--module-color',MODULES[m.id].color);
+      n.style.gridColumn=`${m.slot%columns+1} / span ${m.rotation?1:MODULES[m.id].size}`;n.style.gridRow=`${Math.floor(m.slot/columns)+1} / span ${m.rotation?MODULES[m.id].size:1}`;n.style.setProperty('--module-color',MODULES[m.id].color);
       n.innerHTML=`<span class="module-art"></span><small>Lv.${m.level}</small>`;n.setAttribute('aria-label',MODULES[m.id].name);icon(n.firstChild,MODULES[m.id].icon);board.append(n);
     }
     const cards=root.querySelector('.module-cards');cards.innerHTML='';
@@ -137,7 +147,7 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
       n.setAttribute('aria-label',`${meta.name}，${meta.size} 格，${m?'已安装':`${meta.cost} 金币`}`);icon(n.querySelector('.module-art'),meta.icon);cards.append(n);
     }
     if(selected){const meta=MODULES[selected],m=installedModule(state,selected);
-      info.innerHTML=`<div class="module-selected-title"><strong>${meta.name}</strong><details><summary aria-label="模块说明">ⓘ</summary><p>${meta.description}</p></details></div><div class="module-actions">${m?btn('移动','move',locked())+btn(m.level>=3?'已满级':`强化 ◆${moduleUpgradeCost(m)}`,'upgrade',locked()||m.level>=3||state.coins<moduleUpgradeCost(m))+btn(`拆卸 +${Math.floor(m.invested*.8)}`,'remove',locked()):btn(`安装 ◆${meta.cost}`,'install',!available(selected))}</div>`;
+      info.innerHTML=`<div class="module-selected-title"><strong>${meta.name}${m?.specialization ? ` · ${SPECIALIZATIONS[m.specialization].name}` : ""}</strong><details><summary aria-label="模块说明">ⓘ</summary><p>${meta.description}${m?.specialization ? `<br><b>${SPECIALIZATIONS[m.specialization].name}</b>：${SPECIALIZATIONS[m.specialization].description}` : meta.weapon ? "<br>击败精英后可获得武器专精，本局每件限选一个方向。" : ""}${selected === "shield" ? "<br>邻接重炮：格挡充能；邻接环刃：格挡后扩张。" : selected === "hangar" || selected === "pulse" ? "<br>机库与轻炮相邻：半电以下主动回航，轻炮加速 6 秒。" : ""}</p></details></div><div class="module-actions">${m?btn('移动','move',locked())+btn(m.level>=3?'已满级':`强化 ◆${moduleUpgradeCost(m)}`,'upgrade',locked()||m.level>=3||state.coins<moduleUpgradeCost(m))+btn(`拆卸 +${Math.floor(m.invested*.8)}`,'remove',locked()):btn(`安装 ◆${meta.cost}`,'install',!available(selected))}</div>`;
     }else info.innerHTML='<div class="module-selected-title"><strong>选择模块</strong></div><div class="module-actions"></div>';
     if(coreStatus){const core=root.querySelector('.module-core-upgrades');core.innerHTML='';for(const [key,title] of [['damage','伤害'],['rate','射速'],['ascend','升阶']]){const status=coreStatus(key);core.insertAdjacentHTML('beforeend',btn(`${title} · ${status.maxed?'满级':status.unlocked?`◆${status.cost}`:'未解锁'}`,`core-${key}`,!status.unlocked||state.coins<status.cost))}}
     updateTools();paint();if(focus)root.querySelector(`[data-focus="${focus}"]`)?.focus({preventScroll:true});

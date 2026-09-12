@@ -84,29 +84,78 @@ export function buildModuleMesh(builder, { id, level = 1, component = "all" }) {
   return new Float32Array(component === "gun" ? m.data.slice(gunStart,gunEnd) : component === "base" ? [...m.data.slice(0,gunStart),...m.data.slice(gunEnd)] : m.data);
 }
 
-export function getModuleMount(module, layout) {
-  // The numbered slot identifies a wall attachment sector, north first.
-  const angle=module.slot*Math.PI/3-Math.PI/2;
-  const radius=layout.radius*1.08+17;
-  return {x:Math.cos(angle)*radius,z:Math.sin(angle)*radius,
-    y:29+layout.tier*6+Math.max(0,-Math.sin(angle))*18,
-    scale:1.35+layout.tier*.07, yaw:angle+(module.rotation===1?Math.PI/2:0),angle};
+export function getModuleMountRadius(layout, deck = 0) {
+  // One mounting belt just outside the armor wall.
+  return layout.radius * 1.28 + 20;
+}
+
+export function getModuleMountAngle(slot, deck = 0) {
+  const sector = ((slot % 6) + 6) % 6;
+  // Wall pads stay six-sector; module mounts use the board grid instead.
+  return sector * Math.PI / 3 - Math.PI / 2 + deck * (Math.PI / 3);
+}
+
+export function getModuleMount(module, layout, peers = null) {
+  // Modules share one mounting belt. When the full loadout is known they are
+  // placed at equal bearings (sorted by slot); otherwise each board cell gets
+  // an even fraction of the circle for single-item previews and tests.
+  const columns = 3;
+  const meta = MODULES[module.id];
+  const size = meta?.size ?? 1;
+  const rotation = module.rotation ?? 0;
+  const y = 24 + layout.tier * 6;
+  const scale = Math.max(0.78, 1.18 + layout.tier * 0.03);
+  const radius = getModuleMountRadius(layout, 0);
+  let angle;
+  const list = Array.isArray(peers) ? peers.filter((m) => MODULES[m?.id]) : null;
+  if (list && list.length >= 2) {
+    // Equal bearings around the ring; slot only sets the walk order.
+    const ordered = [...list].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0) || String(a.id).localeCompare(String(b.id)));
+    let index = ordered.findIndex((m) => m.id === module.id);
+    let count = ordered.length;
+    if (index < 0) {
+      ordered.push(module);
+      ordered.sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0) || String(a.id).localeCompare(String(b.id)));
+      index = ordered.findIndex((m) => m.id === module.id);
+      count = ordered.length;
+    }
+    angle = -Math.PI / 2 + Math.max(0, index) * (Math.PI * 2 / Math.max(1, count));
+  } else {
+    // Lone module (or no peers): board cell still picks the bearing.
+    const col = module.slot % columns;
+    const row = Math.floor(module.slot / columns);
+    const midCol = col + (rotation === 0 ? (size - 1) / 2 : 0);
+    const slotCount = Math.max(6, layout.slotCount ?? columns * (layout.bayRows ?? 2));
+    const cellIndex = row * columns + midCol;
+    angle = -Math.PI / 2 + cellIndex * (Math.PI * 2 / slotCount);
+  }
+  return {
+    x: Math.cos(angle) * radius,
+    z: Math.sin(angle) * radius,
+    y,
+    scale,
+    yaw: angle + (rotation === 1 ? Math.PI / 2 : 0),
+    angle,
+    ring: 0
+  };
 }
 
 export function buildMountedModules(builder, installed, layout) {
   const parts = [];
   for (const module of installed) {
     if (!MODULES[module.id]) continue;
-    const {x,y,z,scale,yaw,angle}=getModuleMount(module,layout);
+    const {x,y,z,scale,yaw,angle,ring}=getModuleMount(module,layout,installed);
     const support = builder(), color=rgb(MODULES[module.id].color);
-    // A short mechanical cantilever, anchored into a curved wall collar.
-    const radius=Math.hypot(x,z), inner=layout.radius*.69, reach=radius-inner;
-    support.ring(0,y-9,0,layout.radius*.88,layout.radius*.72,9,armor,5,angle-.24,.48);
+    // Short cantilever from the tower wall out to the deck pad.
+    const radius=Math.hypot(x,z);
+    const inner=layout.radius*0.88;
+    const reach=Math.max(14,radius-inner);
+    support.ring(0,y-8,0,layout.radius*1.02,layout.radius*0.9,8,armor,5,angle-.2,.4);
     support.box(Math.cos(angle)*(inner+reach/2),y-6,Math.sin(angle)*(inner+reach/2),reach+6,6,12,dark,angle);
-    support.box(x,y-3,z,28*scale,3,25*scale,edge,yaw);
+    support.box(x,y-3,z,26*scale,3,23*scale,edge,yaw);
     for(const side of [-1,1]) {
-      const px=x-Math.sin(yaw)*side*10*scale,pz=z+Math.cos(yaw)*side*10*scale;
-      support.box(px,y-1,pz,22*scale,2,3,color,yaw);
+      const px=x-Math.sin(yaw)*side*9*scale,pz=z+Math.cos(yaw)*side*9*scale;
+      support.box(px,y-1,pz,20*scale,2,3,color,yaw);
     }
     parts.push({name:`socket-${module.id}`,vertices:new Float32Array(support.data)});
     const gun=module.id==='pulse'||module.id==='cannon';

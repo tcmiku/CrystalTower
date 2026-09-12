@@ -18,7 +18,7 @@ function advance(state, seconds, observer = () => {}) {
     observer(state);
   }
 }
-function target(state, x = 780, y = 360, type = "brute") {
+function target(state, x = 1020, y = 500, type = "brute") {
   const enemy = spawnEnemy(state, type, { x, y });
   Object.assign(enemy, { hp: 100000, maxHp: 100000, speed: 0, damage: 0 });
   return enemy;
@@ -138,29 +138,25 @@ test("sector shield reduces only the matching incoming direction, including afte
   const state = emptyBay();
   assert.ok(installModule(state, "shield", 0));
   const start = state.tower.hp;
-  damageTower(state, 100, false, "test", { x: 480, y: 100 });
+  damageTower(state, 100, false, "test", { x: 720, y: 240 });
   assert.equal(state.tower.hp, start - 55);
-  damageTower(state, 100, false, "test", { x: 480, y: 620 });
+  damageTower(state, 100, false, "test", { x: 720, y: 760 });
   assert.equal(state.tower.hp, start - 155);
   assert.ok(moveModule(state, 0, 3));
-  damageTower(state, 100, false, "test", { x: 480, y: 620 });
+  damageTower(state, 100, false, "test", { x: 720, y: 760 });
   assert.equal(state.tower.hp, start - 210);
   assert.ok(upgradeModule(state, 3));
-  damageTower(state, 100, false, "test", { x: 480, y: 620 });
+  damageTower(state, 100, false, "test", { x: 720, y: 760 });
   assert.equal(state.tower.hp, start - 255);
 });
 
 test("enemy attacks and hostile projectiles carry direction into the shield rule", () => {
   const state = emptyBay();
   assert.ok(installModule(state, "shield", 0));
-  const enemy = target(state, 480, 330, "wisp");
-  enemy.damage = 100;
-  enemy.attackCooldown = 0;
-  advance(state, 0.02);
+  damageTower(state, 100, false, "wisp", { x: 720, y: 300 });
   assert.ok(state.events.some((event) => event.type === "sectorBlock"));
-  enemy.hp = 0;
   const hp = state.tower.hp;
-  state.hostileProjectiles.push({ kind: "colossusArtillery", x: 480, y: 325, targetX: 480, targetY: 360, vx: 0, vy: 200, radius: 10, life: 1, damage: 100 });
+  state.hostileProjectiles.push({ kind: "colossusArtillery", x: 720, y: 465, targetX: 720, targetY: 500, vx: 0, vy: 200, radius: 10, life: 1, damage: 100 });
   advance(state, 0.02);
   assert.equal(state.tower.hp, hp - 55);
 });
@@ -186,18 +182,18 @@ test("paused assembly supports multiple edits; running refits block immediate sh
 test("heavy cannon reaches 620, has a real near blind spot and pierces; ring blades cover the blind spot", () => {
   const cannon = emptyBay();
   assert.ok(installModule(cannon, "cannon", 0));
-  const near = target(cannon, 570);
+  const near = target(cannon, 810);
   advance(cannon, 3);
   assert.equal(near.hp, 100000);
-  const far = target(cannon, 1000);
+  const far = target(cannon, 1240);
   advance(cannon, 3);
   assert.ok(far.hp < 100000);
   const blade = emptyBay();
   assert.ok(installModule(blade, "blade", 0));
-  const crowd = target(blade, 570);
+  const crowd = target(blade, 810);
   advance(blade, 3);
   assert.ok(crowd.hp < 100000);
-  const ranged = target(blade, 750, 360, "hexer");
+  const ranged = target(blade, 990, 500, "hexer");
   advance(blade, 3);
   assert.equal(ranged.hp, 100000);
 });
@@ -227,8 +223,8 @@ test("dual main guns lock different enemies and both projectiles fly", () => {
   const state = emptyBay();
   assert.ok(installModule(state, "pulse", 0));
   assert.ok(installModule(state, "cannon", 3));
-  const near = target(state, 520, 360);
-  const far = target(state, 780, 360);
+  const near = target(state, 760, 500);
+  const far = target(state, 1020, 500);
   const aimed = new Set();
   let dualAimFrames = 0;
   advance(state, 4, (current) => {
@@ -270,8 +266,8 @@ test("moving a reactor away removes both the weapon damage bonus and elemental s
 test("reactions require different elements within three seconds and consume the primer", () => {
   const state = emptyBay();
   const enemy = target(state);
-  const neighbor = target(state, 800, 380);
-  const outside = target(state, 500, 100);
+  const neighbor = target(state, 1040, 520);
+  const outside = target(state, 720, 200);
   applyElementalHit(state, enemy, "frost", 10);
   applyElementalHit(state, enemy, "frost", 10);
   assert.equal(state.events.filter((event) => event.type === "moduleReaction").length, 0);
@@ -305,9 +301,9 @@ test("hive build deals damage, spends energy, stops coin collection and must ret
   assert.ok(installModule(state, "fire", 5));
   assert.equal(state.tower.upgrades.drone, 3);
   assert.equal(toggleDroneMode(state), true);
-  const enemy = target(state, 650);
+  const enemy = target(state, 890);
   const energy = state.tower.droneEnergy;
-  state.coinOrbs.push({ x: 450, y: 400, renderX: 450, renderY: 400, value: 10, age: 0, collectAge: 0, collector: null });
+  state.coinOrbs.push({ x: 690, y: 540, renderX: 690, renderY: 540, value: 10, age: 0, collectAge: 0, collector: null });
   advance(state, 1);
   assert.ok(state.tower.droneEnergy < energy);
   assert.equal(state.coinOrbs[0]?.collector, null);

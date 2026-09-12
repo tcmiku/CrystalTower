@@ -102,9 +102,9 @@ test("管理员模式不会生成、拾取或结算遗响碎片、核心残片�
 
 test("塔优先选择射程内离中心最近的目标", () => {
   const state = createGameState(2);
-  const far = spawnEnemy(state, "wisp", { x: 780, y: 360 });
-  const near = spawnEnemy(state, "wisp", { x: 560, y: 360 });
-  spawnEnemy(state, "wisp", { x: 900, y: 360 });
+  const far = spawnEnemy(state, "wisp", { x: 1020, y: 500 });
+  const near = spawnEnemy(state, "wisp", { x: 800, y: 500 });
+  spawnEnemy(state, "wisp", { x: 1140, y: 500 });
   assert.deepEqual(findTargets(state, 2).map((enemy) => enemy.id), [near.id, far.id]);
 });
 
@@ -116,7 +116,7 @@ test("无目标期间不会积累负开火冷却造成连发", () => {
   updateGame(state, 30);
   assert.equal(state.tower.fireCooldown, 0);
 
-  spawnEnemy(state, "boss", { x: 650, y: 360 }).speed = 0;
+  spawnEnemy(state, "boss", { x: 890, y: 500 }).speed = 0;
   updateGame(state, 1 / 60);
   assert.equal(state.events.filter((event) => event.type === "shoot").length, 1);
   for (let index = 0; index < 30; index += 1) updateGame(state, 1 / 60);
@@ -130,7 +130,7 @@ test("无目标期间不会积累负开火冷却造成连发", () => {
   sawState.tower.upgrades.sawGun = 1;
   updateGame(sawState, 30);
   assert.equal(sawState.tower.sawFireCooldown, 0);
-  spawnEnemy(sawState, "boss", { x: 650, y: 360 }).speed = 0;
+  spawnEnemy(sawState, "boss", { x: 890, y: 500 }).speed = 0;
   updateGame(sawState, 1 / 60);
   assert.equal(sawState.events.filter((event) => event.type === "sawShoot").length, 1);
   for (let index = 0; index < 30; index += 1) updateGame(sawState, 1 / 60);
@@ -139,10 +139,10 @@ test("无目标期间不会积累负开火冷却造成连发", () => {
 
 test("四种目标协议会改变自动攻击的优先目标", () => {
   const state = createGameState(12);
-  const brute = spawnEnemy(state, "brute", { x: 580, y: 360 });
-  const runner = spawnEnemy(state, "runner", { x: 620, y: 360 });
-  const hexer = spawnEnemy(state, "hexer", { x: 750, y: 360 });
-  const elite = spawnEnemy(state, "sentinel", { x: 700, y: 270 }, { elite: true, affix: "shield" });
+  const brute = spawnEnemy(state, "brute", { x: 820, y: 500 });
+  const runner = spawnEnemy(state, "runner", { x: 860, y: 500 });
+  const hexer = spawnEnemy(state, "hexer", { x: 990, y: 500 });
+  const elite = spawnEnemy(state, "sentinel", { x: 940, y: 410 }, { elite: true, affix: "shield" });
   assert.equal(findTargets(state, 1)[0].id, brute.id);
 
   assert.equal(setTargetProtocol(state, "hunter"), true);
@@ -158,8 +158,8 @@ test("四种目标协议会改变自动攻击的优先目标", () => {
 
 test("锚点不再强制抢占目标，点击后会锁定五秒", () => {
   const state = createGameState(13);
-  spawnEnemy(state, "brute", { x: 540, y: 360 }, { elite: true, affix: "sprint" });
-  const boss = spawnEnemy(state, "boss", { x: 720, y: 360 });
+  spawnEnemy(state, "brute", { x: 780, y: 500 }, { elite: true, affix: "sprint" });
+  const boss = spawnEnemy(state, "boss", { x: 960, y: 500 });
   setTargetProtocol(state, "hunter");
   assert.equal(findTargets(state, 1)[0].id, boss.id);
   const repair = state.enemies.find((enemy) => enemy.anchorRole === "repair");
@@ -234,13 +234,13 @@ test("弹丸首次命中后立即消失且不会继续命中后方目标", () =>
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.tower.fireCooldown = 999;
-  const first = spawnEnemy(state, "brute", { x: 600, y: 360 });
-  const second = spawnEnemy(state, "brute", { x: 600, y: 360 });
+  const first = spawnEnemy(state, "brute", { x: 840, y: 500 });
+  const second = spawnEnemy(state, "brute", { x: 840, y: 500 });
   first.speed = 0;
   second.speed = 0;
   const firstHp = first.hp;
   const secondHp = second.hp;
-  state.projectiles.push({ id: 9991, x: 600, y: 360, vx: 0, vy: 0, damage: 10, radius: 7, pierce: 99, life: 1, tier: 2 });
+  state.projectiles.push({ id: 9991, x: 840, y: 500, vx: 0, vy: 0, damage: 10, radius: 7, pierce: 99, life: 1, tier: 2 });
 
   updateGame(state);
 
@@ -254,11 +254,11 @@ test("弹丸空间索引不会漏掉跨网格的大体型目标", () => {
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.tower.fireCooldown = 999;
-  const target = spawnEnemy(state, "brute", { x: 250, y: 250 });
+  const target = spawnEnemy(state, "brute", { x: 490, y: 390 });
   target.speed = 0;
   target.radius = 130;
   target.hp = target.maxHp = 1_000;
-  state.projectiles.push({ id: 9992, x: 125, y: 250, vx: 0, vy: 0, damage: 10, radius: 7, pierce: 0, life: 1, tier: 0 });
+  state.projectiles.push({ id: 9992, x: 365, y: 390, vx: 0, vy: 0, damage: 10, radius: 7, pierce: 0, life: 1, tier: 0 });
 
   updateGame(state);
 
@@ -317,8 +317,8 @@ test("破城炮膛蓄能与穿透会强化连续单体攻击", () => {
   state.threat = 12; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.hp = 1_000_000;
   for (let index = 0; index < 3; index += 1) purchaseUpgrade(state, "damage");
   purchaseUpgrade(state, "cannonSiege"); purchaseUpgrade(state, "cannonCharge"); purchaseUpgrade(state, "cannonPierce");
-  const first = spawnEnemy(state, "brute", { x: 600, y: 360 });
-  const second = spawnEnemy(state, "brute", { x: 650, y: 360 });
+  const first = spawnEnemy(state, "brute", { x: 840, y: 500 });
+  const second = spawnEnemy(state, "brute", { x: 890, y: 500 });
   first.speed = 0; second.speed = 0;
   updateGame(state, 1 / 60);
   for (let index = 0; index < 24; index += 1) updateGame(state, 1 / 60);
@@ -336,8 +336,8 @@ test("裂晶炮膛会分裂晶矢并在击杀时触发晶爆", () => {
   state.threat = 12; state.coins = 100_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.hp = 1_000_000;
   for (let index = 0; index < 3; index += 1) purchaseUpgrade(state, "damage");
   purchaseUpgrade(state, "cannonSplit"); purchaseUpgrade(state, "cannonGrowth"); purchaseUpgrade(state, "cannonEcho");
-  const target = spawnEnemy(state, "brute", { x: 600, y: 360 });
-  const nearby = spawnEnemy(state, "wisp", { x: 650, y: 360 });
+  const target = spawnEnemy(state, "brute", { x: 840, y: 500 });
+  const nearby = spawnEnemy(state, "wisp", { x: 890, y: 500 });
   target.speed = 0; nearby.speed = 0;
   let splitSeen = false;
   for (let index = 0; index < 24; index += 1) {
@@ -361,7 +361,7 @@ test("贯星炮满蓄能时只对精英或首领发射并直接穿透护盾", ()
     purchaseUpgrade(state, "cannonCharge"); purchaseUpgrade(state, "cannonPierce"); purchaseUpgrade(state, "cannonWeakpoint");
   }
   purchaseUpgrade(state, "cannonStarPiercer");
-  const elite = spawnEnemy(state, "brute", { x: 600, y: 360 }, { elite: true, affix: "shield" });
+  const elite = spawnEnemy(state, "brute", { x: 840, y: 500 }, { elite: true, affix: "shield" });
   elite.speed = 0; elite.hp = elite.maxHp = 100_000; elite.affixShield = elite.affixShieldMax = 5_000;
   let laserSeen = false;
   for (let volley = 0; volley < 8; volley += 1) {
@@ -383,7 +383,7 @@ test("贯星炮满蓄能时只对精英或首领发射并直接穿透护盾", ()
   const normal = createGameState(506);
   normal.threat = 13; normal.spawnTimer = 999; normal.wave.nextAt = 999;
   normal.tower.upgrades = { ...state.tower.upgrades };
-  const brute = spawnEnemy(normal, "brute", { x: 600, y: 360 });
+  const brute = spawnEnemy(normal, "brute", { x: 840, y: 500 });
   brute.speed = 0; brute.hp = brute.maxHp = 100_000;
   for (let volley = 0; volley < 8; volley += 1) {
     normal.tower.fireCooldown = 0;
@@ -401,10 +401,10 @@ test("裂晶回响短时间连续击杀会触发醒目的大型连锁爆炸", ()
   state.tower.upgrades.cannonEcho = 3;
   state.tower.upgrades.cannonCascade = 1;
   for (let index = 0; index < GAME_CONFIG.cannon.split.cascadeKills; index += 1) {
-    const defeated = spawnEnemy(state, "wisp", { x: 590 + index * 8, y: 350 + index * 5 });
+    const defeated = spawnEnemy(state, "wisp", { x: 830 + index * 8, y: 490 + index * 5 });
     defeated.speed = 0; defeated.hp = 0; defeated.lastDamageSource = "cannonEcho";
   }
-  const survivor = spawnEnemy(state, "brute", { x: 650, y: 360 });
+  const survivor = spawnEnemy(state, "brute", { x: 890, y: 500 });
   survivor.speed = 0; survivor.hp = survivor.maxHp = 100_000;
   const hpBefore = survivor.hp;
 
@@ -442,7 +442,7 @@ test("晶愈的过量治疗转为护盾且护盾优先吸收伤害", () => {
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.tower.fireCooldown = 999;
-  const attacker = spawnEnemy(state, "brute", { x: 520, y: 360 });
+  const attacker = spawnEnemy(state, "brute", { x: 760, y: 500 });
   attacker.speed = 0;
   updateGame(state, 0.1);
   assert.equal(state.tower.hp, 600);
@@ -455,8 +455,8 @@ test("超载结束释放击退且过热会触发短暂降速", () => {
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.tower.hp = 1_000_000;
-  const normal = spawnEnemy(state, "brute", { x: 600, y: 330 });
-  const boss = spawnEnemy(state, "boss", { x: 600, y: 400 });
+  const normal = spawnEnemy(state, "brute", { x: 840, y: 470 });
+  const boss = spawnEnemy(state, "boss", { x: 840, y: 540 });
   normal.speed = 0;
   boss.speed = 0;
   const normalBefore = Math.hypot(normal.x - 480, normal.y - 360);
@@ -481,7 +481,7 @@ test("再次使用超载会提前结束并立即击退且保留原冷却", () =>
   const state = createGameState(81);
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
-  const enemy = spawnEnemy(state, "brute", { x: 600, y: 360 });
+  const enemy = spawnEnemy(state, "brute", { x: 840, y: 500 });
   enemy.speed = 0;
   const before = enemy.x;
   assert.equal(useSkill(state, "overload"), true);
@@ -503,7 +503,7 @@ test("晶愈护盾达到上限后下一次受击只释放一次晶片爆炸", ()
   assert.equal(useSkill(state, "heal"), true);
   assert.equal(state.tower.shield, 210);
   assert.equal(state.skills.heal.shieldBurstArmed, true);
-  const attacker = spawnEnemy(state, "brute", { x: 520, y: 360 });
+  const attacker = spawnEnemy(state, "brute", { x: 760, y: 500 });
   attacker.speed = 0;
   const before = attacker.hp;
   updateGame(state, 0.1);
@@ -516,9 +516,9 @@ test("晶愈护盾达到上限后下一次受击只释放一次晶片爆炸", ()
 test("星落只轰击玩家手动指定的方向", () => {
   const state = createGameState(9);
   state.threat = 4;
-  const eastA = spawnEnemy(state, "brute", { x: 620, y: 350 });
-  const eastB = spawnEnemy(state, "brute", { x: 650, y: 375 });
-  const west = spawnEnemy(state, "brute", { x: 330, y: 360 });
+  const eastA = spawnEnemy(state, "brute", { x: 860, y: 490 });
+  const eastB = spawnEnemy(state, "brute", { x: 890, y: 515 });
+  const west = spawnEnemy(state, "brute", { x: 570, y: 500 });
   const before = new Map(state.enemies.map((enemy) => [enemy.id, enemy.hp]));
   assert.equal(useSkill(state, "starfall"), false);
   assert.equal(state.skills.starfall.cooldown, 0);
@@ -537,11 +537,11 @@ test("星落大范围命中合并音效事件与飘字", () => {
   state.tower.upgrades.cannonEcho = 3;
   state.tower.upgrades.cannonCascade = 1;
   for (let index = 0; index < 120; index += 1) {
-    const enemy = spawnEnemy(state, "wisp", { x: 560 + (index % 20) * 6, y: 360 + (index % 5 - 2) * 4 });
+    const enemy = spawnEnemy(state, "wisp", { x: 800 + (index % 20) * 6, y: 500 + (index % 5 - 2) * 4 });
     enemy.hp = 1;
   }
   for (let index = 0; index < 20; index += 1) {
-    const survivor = spawnEnemy(state, "sentinel", { x: 560 + index * 3, y: 430 + index % 2 * 7 });
+    const survivor = spawnEnemy(state, "sentinel", { x: 800 + index * 3, y: 570 + index % 2 * 7 });
     survivor.hp = survivor.maxHp = 100_000;
   }
   assert.equal(useSkill(state, "starfall", { angle: 0 }), true);
@@ -556,8 +556,8 @@ test("星落大范围命中合并音效事件与飘字", () => {
 test("星落手动方向不再受目标协议改写", () => {
   const state = createGameState(84);
   setTargetProtocol(state, "radar");
-  const ranged = spawnEnemy(state, "hexer", { x: 480, y: 150 });
-  const melee = spawnEnemy(state, "brute", { x: 650, y: 350 });
+  const ranged = spawnEnemy(state, "hexer", { x: 720, y: 290 });
+  const melee = spawnEnemy(state, "brute", { x: 890, y: 490 });
   const rangedHp = ranged.hp;
   assert.equal(useSkill(state, "starfall", { angle: 0 }), true);
   assert.equal(ranged.hp, rangedHp);
@@ -578,8 +578,8 @@ test("普通怪、精英和首领使用统一街机积分规则", () => {
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.tower.hp = 1_000_000;
-  const wisp = spawnEnemy(state, "wisp", { x: 700, y: 300 });
-  const elite = spawnEnemy(state, "brute", { x: 720, y: 400 }, { elite: true, affix: "shield" });
+  const wisp = spawnEnemy(state, "wisp", { x: 940, y: 440 });
+  const elite = spawnEnemy(state, "brute", { x: 960, y: 540 }, { elite: true, affix: "shield" });
   wisp.hp = 0;
   elite.hp = 0;
   updateGame(state, GAME_CONFIG.fixedStep);
@@ -651,7 +651,7 @@ test("威胁六开始加入异星敌群，威胁五及以前不会出现", () =>
   for (const type of ["inkHound", "orbitMote", "rustBeetle", "porcelainWarden"]) {
     const sample = createGameState(500 + type.length);
     sample.threat = 6;
-    const enemy = spawnEnemy(sample, type, { x: 700, y: 360 });
+    const enemy = spawnEnemy(sample, type, { x: 940, y: 500 });
     assert.equal(enemy.maxHp, GAME_CONFIG.enemies[type].hp * GAME_CONFIG.threat.hpGrowth ** 5);
   }
 });
@@ -719,27 +719,27 @@ test("无尽怪潮从两只精英开始并随威胁提升至六只", () => {
 test("精英怪会确定性获得护盾、狂奔、吞金或分裂词缀", () => {
   const first = createGameState(44);
   const second = createGameState(44);
-  const affixA = spawnEnemy(first, "brute", { x: 700, y: 300 }, { elite: true }).affix;
-  const affixB = spawnEnemy(second, "brute", { x: 700, y: 300 }, { elite: true }).affix;
+  const affixA = spawnEnemy(first, "brute", { x: 940, y: 440 }, { elite: true }).affix;
+  const affixB = spawnEnemy(second, "brute", { x: 940, y: 440 }, { elite: true }).affix;
   assert.equal(affixA, affixB);
   assert.ok(["shield", "sprint", "devour", "split"].includes(affixA));
 
-  const shielded = spawnEnemy(first, "brute", { x: 700, y: 350 }, { elite: true, affix: "shield" });
+  const shielded = spawnEnemy(first, "brute", { x: 940, y: 490 }, { elite: true, affix: "shield" });
   const hp = shielded.hp;
   damageEnemy(first, shielded, 30);
   assert.equal(shielded.hp, hp);
   assert.ok(shielded.affixShield < shielded.affixShieldMax);
 
-  const sprinter = spawnEnemy(first, "brute", { x: 700, y: 400 }, { elite: true, affix: "sprint" });
+  const sprinter = spawnEnemy(first, "brute", { x: 940, y: 540 }, { elite: true, affix: "sprint" });
   assert.equal(sprinter.speed, GAME_CONFIG.enemies.brute.speed * 1.55);
 });
 
 test("吞金精英会吃掉附近金币回血，分裂精英死亡后生成两个子体", () => {
   const devourState = createGameState(45);
   devourState.spawnTimer = 999; devourState.wave.nextAt = 999; devourState.tower.fireCooldown = 999;
-  const devourer = spawnEnemy(devourState, "brute", { x: 700, y: 300 }, { elite: true, affix: "devour" });
+  const devourer = spawnEnemy(devourState, "brute", { x: 940, y: 440 }, { elite: true, affix: "devour" });
   devourer.hp *= 0.5;
-  devourState.coinOrbs.push({ x: 705, y: 305, renderX: 705, renderY: 305, value: 20, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  devourState.coinOrbs.push({ x: 945, y: 445, renderX: 945, renderY: 445, value: 20, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   const damagedHp = devourer.hp;
   updateGame(devourState, 0.6);
   assert.equal(devourState.coinOrbs.length, 0);
@@ -747,7 +747,7 @@ test("吞金精英会吃掉附近金币回血，分裂精英死亡后生成两�
 
   const splitState = createGameState(46);
   splitState.spawnTimer = 999; splitState.wave.nextAt = 999; splitState.tower.fireCooldown = 999;
-  const splitter = spawnEnemy(splitState, "runner", { x: 700, y: 300 }, { elite: true, affix: "split" });
+  const splitter = spawnEnemy(splitState, "runner", { x: 940, y: 440 }, { elite: true, affix: "split" });
   damageEnemy(splitState, splitter, splitter.hp + 1);
   updateGame(splitState, 0.01);
   const children = splitState.enemies.filter((enemy) => enemy.splitChild);
@@ -758,7 +758,7 @@ test("吞金精英会吃掉附近金币回血，分裂精英死亡后生成两�
 test("首领分阶段切换元素抗性并以四个锚点保护自身", () => {
   const state = createGameState(47);
   state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999; state.threat = 10;
-  const boss = spawnEnemy(state, "boss", { x: 700, y: 360 });
+  const boss = spawnEnemy(state, "boss", { x: 940, y: 500 });
   assert.equal(boss.resistance, "frost");
   assert.equal(state.enemies.filter((enemy) => enemy.type === "anchor").length, 4);
   assert.deepEqual(state.enemies.filter((enemy) => enemy.type === "anchor").map((enemy) => enemy.anchorRole), ["shield", "repair", "summon", "overload"]);
@@ -786,7 +786,7 @@ test("首领分阶段切换元素抗性并以四个锚点保护自身", () => {
 test("四种首领锚点分别提供减伤、修复、召唤和攻击过载", () => {
   const state = createGameState(91);
   state.threat = 10; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999; state.tower.hp = 1_000_000;
-  const boss = spawnEnemy(state, "boss", { x: 520, y: 360 });
+  const boss = spawnEnemy(state, "boss", { x: 760, y: 500 });
   boss.speed = 0;
   const shield = state.enemies.find((enemy) => enemy.anchorRole === "shield");
   const repair = state.enemies.find((enemy) => enemy.anchorRole === "repair");
@@ -812,7 +812,7 @@ test("四种首领锚点分别提供减伤、修复、召唤和攻击过载", ()
   const measureBossDamage = (overloaded) => {
     const sample = createGameState(overloaded ? 92 : 93);
     sample.threat = 10; sample.spawnTimer = 999; sample.wave.nextAt = 999; sample.tower.fireCooldown = 999; sample.tower.hp = 1_000_000;
-    const sampleBoss = spawnEnemy(sample, "boss", { x: 520, y: 360 });
+    const sampleBoss = spawnEnemy(sample, "boss", { x: 760, y: 500 });
     sampleBoss.speed = 0;
     for (const anchor of sample.enemies.filter((enemy) => enemy.type === "anchor")) if (anchor.anchorRole !== "overload" || !overloaded) anchor.hp = 0;
     updateGame(sample, 0.01);
@@ -830,7 +830,7 @@ test("威胁十首领击败事件携带二倍速解锁门槛", () => {
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.tower.fireCooldown = 999;
-  const boss = spawnEnemy(state, "boss", { x: 700, y: 360 });
+  const boss = spawnEnemy(state, "boss", { x: 940, y: 500 });
   for (const anchor of state.enemies.filter((enemy) => enemy.type === "anchor")) anchor.hp = 0;
   updateGame(state, 0.01);
   boss.spawnShield = 0;
@@ -850,7 +850,7 @@ test("咒晶怪会停在塔外进行远程攻击", () => {
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.tower.fireCooldown = 999;
-  const enemy = spawnEnemy(state, "hexer", { x: 680, y: 360 });
+  const enemy = spawnEnemy(state, "hexer", { x: 920, y: 500 });
   const startX = enemy.x;
   const hp = state.tower.hp;
   updateGame(state, 0.8);
@@ -873,29 +873,29 @@ test("科技树同时检查威胁等级和前置科技", () => {
 test("金币初始需要点击，点击后才飞向晶塔结算", () => {
   const state = createGameState(61);
   state.spawnTimer = 999;
-  state.coinOrbs.push({ x: 200, y: 180, renderX: 200, renderY: 180, value: 9, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  state.coinOrbs.push({ x: 440, y: 320, renderX: 440, renderY: 320, value: 9, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   for (let index = 0; index < 120; index += 1) updateGame(state, 1 / 60);
   assert.equal(state.coins, 0);
-  assert.equal(collectCoinAt(state, 200, 180), true);
+  assert.equal(collectCoinAt(state, 440, 320), true);
   for (let index = 0; index < 30; index += 1) updateGame(state, 1 / 60);
   assert.equal(state.coins, 9);
 });
 
 test("移动端可以使用扩大的触控半径拾取金币", () => {
   const preciseState = createGameState(611);
-  preciseState.coinOrbs.push({ x: 200, y: 180, renderX: 200, renderY: 180, value: 9, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
-  assert.equal(collectCoinAt(preciseState, 238, 180), false);
+  preciseState.coinOrbs.push({ x: 440, y: 320, renderX: 440, renderY: 320, value: 9, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  assert.equal(collectCoinAt(preciseState, 478, 320), false);
 
   const touchState = createGameState(611);
-  touchState.coinOrbs.push({ x: 200, y: 180, renderX: 200, renderY: 180, value: 9, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
-  assert.equal(collectCoinAt(touchState, 238, 180, GAME_CONFIG.coins.clickRadius * 1.8), true);
+  touchState.coinOrbs.push({ x: 440, y: 320, renderX: 440, renderY: 320, value: 9, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  assert.equal(collectCoinAt(touchState, 478, 320, GAME_CONFIG.coins.clickRadius * 1.8), true);
 });
 
 test("未收集金币十秒后消失且不会结算", () => {
   const state = createGameState(62);
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
-  state.coinOrbs.push({ x: 220, y: 190, renderX: 220, renderY: 190, value: 13, age: 9.98, collectAge: 0, collector: null, droneIndex: 0 });
+  state.coinOrbs.push({ x: 460, y: 330, renderX: 460, renderY: 330, value: 13, age: 9.98, collectAge: 0, collector: null, droneIndex: 0 });
   updateGame(state, 0.01);
   assert.equal(state.coinOrbs.length, 1);
   updateGame(state, 0.02);
@@ -908,8 +908,8 @@ test("十秒内开始回收的金币不会在飞行途中消失", () => {
   const state = createGameState(63);
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
-  state.coinOrbs.push({ x: 220, y: 190, renderX: 220, renderY: 190, value: 13, age: 9.98, collectAge: 0, collector: null, droneIndex: 0 });
-  assert.equal(collectCoinAt(state, 220, 190), true);
+  state.coinOrbs.push({ x: 460, y: 330, renderX: 460, renderY: 330, value: 13, age: 9.98, collectAge: 0, collector: null, droneIndex: 0 });
+  assert.equal(collectCoinAt(state, 460, 330), true);
   for (let index = 0; index < 30; index += 1) updateGame(state, 1 / 60);
   assert.equal(state.coinOrbs.length, 0);
   assert.equal(state.coins, 13);
@@ -918,8 +918,8 @@ test("十秒内开始回收的金币不会在飞行途中消失", () => {
 test("金潮归塔立即吸收全场金币并应用永久金币倍率", () => {
   const state = createGameState(64, { damage: 0, health: 0, income: 2 });
   state.coinOrbs.push(
-    { x: 220, y: 190, renderX: 220, renderY: 186, value: 5, age: 2, collectAge: 0, collector: null, droneIndex: 0 },
-    { x: 700, y: 510, renderX: 650, renderY: 480, value: 7, age: 8, collectAge: 0.2, collector: "drone", droneIndex: 0 }
+    { x: 460, y: 330, renderX: 460, renderY: 326, value: 5, age: 2, collectAge: 0, collector: null, droneIndex: 0 },
+    { x: 940, y: 650, renderX: 890, renderY: 620, value: 7, age: 8, collectAge: 0.2, collector: "drone", droneIndex: 0 }
   );
   assert.equal(useSkill(state, "coinVacuum"), true);
   assert.equal(state.coins, 14);
@@ -933,7 +933,7 @@ test("金潮归塔立即吸收全场金币并应用永久金币倍率", () => {
 test("金潮归塔大量金币只采样有限轨迹但完整结算", () => {
   const state = createGameState(64001);
   state.coinOrbs.push(...Array.from({ length: 120 }, (_, index) => ({
-    x: 40 + index * 3, y: 80 + index, renderX: 40 + index * 3, renderY: 80 + index,
+    x: 40 + index * 3, y: 220 + index, renderX: 40 + index * 3, renderY: 220 + index,
     value: 1, age: index / 10, collectAge: 0, collector: null, droneIndex: 0
   })));
   assert.equal(useSkill(state, "coinVacuum"), true);
@@ -1045,7 +1045,7 @@ test("星落研究扩大瞄准、附加星痕并在群体命中后追加落星",
 test("金潮归塔研究提高金币价值并把大量回收转为冷却与攻速循环", () => {
   const state = createGameState(6407, undefined, undefined, undefined, undefined, undefined, { coinVacuum: { branch: "salvage", nodes: ["magnet", "cooldownLoop"] } });
   for (let index = 0; index < 15; index += 1) {
-    state.coinOrbs.push({ x: 200 + index, y: 180, renderX: 200 + index, renderY: 180, value: 10, age: index / 2, collectAge: 0, collector: null, droneIndex: 0 });
+    state.coinOrbs.push({ x: 440 + index, y: 320, renderX: 440 + index, renderY: 320, value: 10, age: index / 2, collectAge: 0, collector: null, droneIndex: 0 });
   }
   assert.equal(useSkill(state, "coinVacuum"), true);
   assert.equal(state.coins, 165);
@@ -1056,7 +1056,7 @@ test("金潮归塔研究提高金币价值并把大量回收转为冷却与攻�
   assert.equal(state.skills.heal.cooldown, 24);
   assert.equal(state.skills.coinVacuum.cooldownCredit, 0);
   const conversion = createGameState(64071, undefined, undefined, undefined, undefined, undefined, { coinVacuum: { branch: "conversion", nodes: ["surge", "overdrive"] } });
-  conversion.coinOrbs.push(...Array.from({ length: 20 }, (_, index) => ({ x: 200 + index, y: 180, renderX: 200 + index, renderY: 180, value: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 })));
+  conversion.coinOrbs.push(...Array.from({ length: 20 }, (_, index) => ({ x: 440 + index, y: 320, renderX: 440 + index, renderY: 320, value: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 })));
   assert.equal(useSkill(conversion, "coinVacuum"), true);
   assert.equal(conversion.skills.coinVacuum.fireRateBuff, 7);
   assert.equal(conversion.skills.coinVacuum.damageBuff, 7);
@@ -1119,10 +1119,10 @@ test("研究磁吸核心后护航模式仍允许手动点击金币", () => {
   purchaseUpgrade(state, "damage");
   purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "autoCollect");
   state.tower.droneCooldown = 999;
-  state.coinOrbs.push({ x: 240, y: 200, renderX: 240, renderY: 200, value: 12, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  state.coinOrbs.push({ x: 480, y: 340, renderX: 480, renderY: 340, value: 12, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   const before = state.coins;
   assert.equal(state.tower.droneMode, "collect");
-  assert.equal(collectCoinAt(state, 240, 200), true);
+  assert.equal(collectCoinAt(state, 480, 340), true);
   for (let index = 0; index < 30; index += 1) updateGame(state, 1 / 60);
   assert.equal(state.coins, before + 12);
 });
@@ -1154,7 +1154,7 @@ test("攻击模式无人机脱离轨道并近身伤害敌人", () => {
   purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "autoCollect");
   toggleDroneMode(state);
-  const enemy = spawnEnemy(state, "brute", { x: 650, y: 360 });
+  const enemy = spawnEnemy(state, "brute", { x: 890, y: 500 });
   enemy.hp = enemy.maxHp = 100_000;
   const beforeHp = enemy.hp;
   for (let index = 0; index < 120; index += 1) updateGame(state, 1 / 60);
@@ -1170,7 +1170,7 @@ test("攻击模式暂停自动回收但保留手动拾币，耗尽后返回护�
   state.tower.droneEnergy = 20;
   assert.equal(toggleDroneMode(state), true);
   spawnPermanentResourceDrop(state, "echo", 2, 300, 300, { source: "elite" });
-  state.coinOrbs.push({ x: 300, y: 300, renderX: 300, renderY: 300, value: 10, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  state.coinOrbs.push({ x: 540, y: 440, renderX: 540, renderY: 440, value: 10, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   const coins = state.coins;
   updateGame(state, 1);
   assert.equal(state.tower.droneMode, "attack");
@@ -1178,10 +1178,10 @@ test("攻击模式暂停自动回收但保留手动拾币，耗尽后返回护�
   assert.equal(state.resourceDrops.length, 1);
   assert.equal(state.coinOrbs[0].collector, null);
   assert.equal(state.coins, coins);
-  assert.equal(collectCoinAt(state, 300, 300), true);
+  assert.equal(collectCoinAt(state, 540, 440), true);
   updateGame(state, 0.5);
   assert.equal(state.coins, coins + 10);
-  state.coinOrbs.push({ x: 310, y: 300, renderX: 310, renderY: 300, value: 10, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  state.coinOrbs.push({ x: 550, y: 440, renderX: 550, renderY: 440, value: 10, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   state.tower.droneEnergy = 1;
   updateGame(state, 0.3);
   assert.equal(state.tower.droneMode, "collect");
@@ -1215,8 +1215,8 @@ test("自爆协议优先锁定精英并在接近后造成范围伤害，随后�
   purchaseUpgrade(state, "damage");
   purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone");
   purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneBattery"); purchaseUpgrade(state, "droneDetonate");
-  const ordinary = spawnEnemy(state, "brute", { x: 430, y: 360 });
-  const elite = spawnEnemy(state, "sentinel", { x: 700, y: 360 }, { elite: true, affix: "sprint" });
+  const ordinary = spawnEnemy(state, "brute", { x: 670, y: 500 });
+  const elite = spawnEnemy(state, "sentinel", { x: 940, y: 500 }, { elite: true, affix: "sprint" });
   elite.hp = elite.maxHp = 10_000; elite.speed = 0;
   assert.equal(toggleDroneDetonate(state), true);
   updateGame(state, 1 / 60);
@@ -1243,7 +1243,7 @@ test("防御协议消耗电力生成无人机护盾，耗尽后冷却并自动�
   assert.ok(state.tower.droneGuardShield > 0);
   assert.ok(state.tower.droneGuardShield <= getDroneGuardShieldMax(state));
   const shieldBeforeHit = state.tower.droneGuardShield;
-  const rammer = spawnEnemy(state, "rammer", { x: 520, y: 360 });
+  const rammer = spawnEnemy(state, "rammer", { x: 760, y: 500 });
   rammer.speed = 0;
   const hp = state.tower.hp;
   updateGame(state, 0.71);
@@ -1270,7 +1270,7 @@ test("拾荒协议加快拾币并提高无人机带回的金币价值", () => {
   state.threat = 6; state.coins = 10_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "droneScavenge");
   state.tower.droneEnergy = 40;
-  state.coinOrbs.push({ x: 620, y: 360, renderX: 620, renderY: 360, value: 10, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  state.coinOrbs.push({ x: 860, y: 500, renderX: 860, renderY: 500, value: 10, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   const coins = state.coins;
   updateGame(state, 0.01);
   assert.ok(state.tower.droneCooldown < GAME_CONFIG.coins.droneInterval / 2);
@@ -1283,7 +1283,7 @@ test("拦截协议在护航模式抵挡一次重击", () => {
   const state = createGameState(76);
   state.threat = 6; state.coins = 10_000; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "droneIntercept");
-  const rammer = spawnEnemy(state, "rammer", { x: 520, y: 360 });
+  const rammer = spawnEnemy(state, "rammer", { x: 760, y: 500 });
   rammer.speed = 0;
   const hp = state.tower.hp;
   updateGame(state, 0.71);
@@ -1300,7 +1300,7 @@ test("猎杀协议标记精英并使所有炮弹增伤", () => {
   purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "damage"); purchaseUpgrade(state, "damage");
   purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "drone"); purchaseUpgrade(state, "autoCollect"); purchaseUpgrade(state, "droneHunt");
   toggleDroneMode(state);
-  const elite = spawnEnemy(state, "sentinel", { x: 628, y: 360 }, { elite: true, affix: "sprint" });
+  const elite = spawnEnemy(state, "sentinel", { x: 868, y: 500 }, { elite: true, affix: "sprint" });
   elite.hp = elite.maxHp = 10_000; elite.speed = 0;
   updateGame(state, 0.02);
   assert.ok(elite.markTimer > 0);
@@ -1320,7 +1320,7 @@ test("晶刃炮膛解锁后由每枚晶刃发射弹丸", () => {
   assert.equal(purchaseUpgrade(state, "sawOverdrive"), true);
   purchaseUpgrade(state, "sawAccelerator"); purchaseUpgrade(state, "sawMagnitude"); purchaseUpgrade(state, "sawBreathing");
   assert.equal(purchaseUpgrade(state, "sawGun"), true);
-  spawnEnemy(state, "brute", { x: 650, y: 360 });
+  spawnEnemy(state, "brute", { x: 890, y: 500 });
   updateGame(state, 1 / 60);
   const sawShots = state.projectiles.filter((projectile) => projectile.source === "sawGun");
   assert.equal(sawShots.length, 3);
@@ -1357,8 +1357,8 @@ test("疾旋锻刃提高环绕速度和伤害", () => {
     purchaseUpgrade(sample, "saw"); purchaseUpgrade(sample, "saw"); purchaseUpgrade(sample, "saw");
   }
   purchaseUpgrade(boosted, "sawOverdrive"); purchaseUpgrade(boosted, "sawOverdrive"); purchaseUpgrade(boosted, "sawOverdrive");
-  const baseEnemy = spawnEnemy(base, "boss", { x: 584, y: 360 });
-  const boostedEnemy = spawnEnemy(boosted, "boss", { x: 584, y: 360 });
+  const baseEnemy = spawnEnemy(base, "boss", { x: 824, y: 500 });
+  const boostedEnemy = spawnEnemy(boosted, "boss", { x: 824, y: 500 });
   for (const enemy of [...base.enemies, ...boosted.enemies]) if (enemy.type !== "anchor") enemy.speed = 0;
   updateGame(base, 0.01); updateGame(boosted, 0.01);
   assert.ok(boosted.tower.sawAngle > base.tower.sawAngle * 1.8);
@@ -1403,8 +1403,8 @@ test("弹射飞刃连续命中其他目标并按科技缩短恢复", () => {
   purchaseUpgrade(state, "sawLaunch");
   purchaseUpgrade(state, "sawRicochet"); purchaseUpgrade(state, "sawRicochet");
   purchaseUpgrade(state, "sawRecovery"); purchaseUpgrade(state, "sawRecovery");
-  const first = spawnEnemy(state, "brute", { x: 650, y: 360 });
-  const second = spawnEnemy(state, "brute", { x: 650, y: 450 });
+  const first = spawnEnemy(state, "brute", { x: 890, y: 500 });
+  const second = spawnEnemy(state, "brute", { x: 890, y: 590 });
   first.speed = 0; second.speed = 0;
   const firstHp = first.hp; const secondHp = second.hp;
   updateGame(state, 1 / 60);
@@ -1424,7 +1424,7 @@ test("弹射飞刃分支禁用晶刃炮膛弹幕", () => {
   state.tower.upgrades.saw = 3;
   state.tower.upgrades.sawGun = 3;
   state.tower.upgrades.sawLaunch = 1;
-  spawnEnemy(state, "brute", { x: 650, y: 360 }).speed = 0;
+  spawnEnemy(state, "brute", { x: 890, y: 500 }).speed = 0;
   updateGame(state, 1 / 60);
   assert.equal(state.projectiles.filter((projectile) => projectile.source === "sawGun").length, 0);
   assert.equal(state.launchedSaws.length, 1);
@@ -1467,7 +1467,7 @@ test("满级晶刃炮膛获得穿透并继承元素附魔", () => {
   state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   Object.assign(state.tower.upgrades, { saw: 3, sawOverdrive: 3, sawGun: 3, frost: 1, fire: 1, lightning: 1 });
   state.rng.next = () => 0;
-  spawnEnemy(state, "brute", { x: 650, y: 360 }).speed = 0;
+  spawnEnemy(state, "brute", { x: 890, y: 500 }).speed = 0;
   updateGame(state, .01);
   const shots = state.projectiles.filter((projectile) => projectile.source === "sawGun");
   assert.equal(shots.length, 3);
@@ -1509,7 +1509,7 @@ test("折跃飞刃没有新目标时可延迟复击精英或首领", () => {
   const state = createGameState(823);
   state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   Object.assign(state.tower.upgrades, { saw: 3, sawLaunch: 1, sawRicochet: 3 });
-  const enemy = spawnEnemy(state, "brute", { x: 680, y: 360 }, { elite: true, affix: "sprint" });
+  const enemy = spawnEnemy(state, "brute", { x: 920, y: 500 }, { elite: true, affix: "sprint" });
   enemy.hp = enemy.maxHp = 100_000; enemy.speed = 0;
   updateGame(state, 1 / 60);
   const singleHit = state.launchedSaws[0].damage;
@@ -1566,8 +1566,8 @@ test("元素科技同时检查威胁、金币与晶塔等级", () => {
 
 test("冰霜弹能冻结普通敌人且对首领持续时间衰减", () => {
   const state = createGameState(102);
-  const normal = spawnEnemy(state, "brute", { x: 700, y: 330 });
-  const boss = spawnEnemy(state, "boss", { x: 700, y: 430 });
+  const normal = spawnEnemy(state, "brute", { x: 940, y: 470 });
+  const boss = spawnEnemy(state, "boss", { x: 940, y: 570 });
   applyElementalHit(state, normal, "frost", 20);
   applyElementalHit(state, boss, "frost", 20);
   assert.equal(normal.freezeTimer, 1.2);
@@ -1576,8 +1576,8 @@ test("冰霜弹能冻结普通敌人且对首领持续时间衰减", () => {
 
 test("火焰弹附加持续灼烧且首领承受的灼烧更弱", () => {
   const state = createGameState(103);
-  const normal = spawnEnemy(state, "brute", { x: 700, y: 330 });
-  const boss = spawnEnemy(state, "boss", { x: 700, y: 430 });
+  const normal = spawnEnemy(state, "brute", { x: 940, y: 470 });
+  const boss = spawnEnemy(state, "boss", { x: 940, y: 570 });
   applyElementalHit(state, normal, "fire", 100);
   applyElementalHit(state, boss, "fire", 100);
   assert.ok(normal.burnDamagePerTick > boss.burnDamagePerTick);
@@ -1586,11 +1586,11 @@ test("火焰弹附加持续灼烧且首领承受的灼烧更弱", () => {
 
 test("雷电弹按距离连锁三名敌人并削弱对首领的连锁伤害", () => {
   const state = createGameState(104);
-  const primary = spawnEnemy(state, "brute", { x: 500, y: 300 });
-  const first = spawnEnemy(state, "brute", { x: 530, y: 300 });
-  const boss = spawnEnemy(state, "boss", { x: 560, y: 300 });
-  const third = spawnEnemy(state, "brute", { x: 590, y: 300 });
-  const far = spawnEnemy(state, "brute", { x: 800, y: 300 });
+  const primary = spawnEnemy(state, "brute", { x: 740, y: 440 });
+  const first = spawnEnemy(state, "brute", { x: 770, y: 440 });
+  const boss = spawnEnemy(state, "boss", { x: 800, y: 440 });
+  const third = spawnEnemy(state, "brute", { x: 830, y: 440 });
+  const far = spawnEnemy(state, "brute", { x: 1040, y: 440 });
   const before = new Map(state.enemies.map((enemy) => [enemy.id, enemy.hp]));
   applyElementalHit(state, primary, "lightning", 100);
   assert.equal(Number((before.get(first.id) - first.hp).toFixed(1)), 62);
@@ -1600,8 +1600,8 @@ test("雷电弹按距离连锁三名敌人并削弱对首领的连锁伤害", ()
   assert.equal(state.elementFx.length, 3);
 
   const bossSourceState = createGameState(106);
-  const bossSource = spawnEnemy(bossSourceState, "boss", { x: 500, y: 300 });
-  const chained = spawnEnemy(bossSourceState, "brute", { x: 530, y: 300 });
+  const bossSource = spawnEnemy(bossSourceState, "boss", { x: 740, y: 440 });
+  const chained = spawnEnemy(bossSourceState, "brute", { x: 770, y: 440 });
   const chainedBefore = chained.hp;
   applyElementalHit(bossSourceState, bossSource, "lightning", 100);
   assert.ok(chainedBefore - chained.hp < 62);
@@ -1614,7 +1614,7 @@ test("解锁元素科技后晶塔会实际发射元素晶矢", () => {
   state.tower.upgrades.frost = 1;
   state.tower.upgrades.fire = 1;
   state.tower.upgrades.lightning = 1;
-  const target = spawnEnemy(state, "boss", { x: 720, y: 360 });
+  const target = spawnEnemy(state, "boss", { x: 960, y: 500 });
   target.hp = target.maxHp = 1_000_000;
   const seen = new Set();
   for (let frame = 0; frame < 900; frame += 1) {
@@ -1630,7 +1630,7 @@ test("普通怪超过二百四十个后压缩且完整保留战斗与结算总�
   state.wave.nextAt = 999;
   state.tower.fireCooldown = 999;
   state.tower.hp = 1_000_000;
-  for (let index = 0; index < 1000; index += 1) spawnEnemy(state, "wisp", { x: 700, y: 300 });
+  for (let index = 0; index < 1000; index += 1) spawnEnemy(state, "wisp", { x: 940, y: 440 });
 
   assert.equal(state.enemies.length, GAME_CONFIG.combat.normalEnemyBudget);
   assert.equal(state.enemies.reduce((sum, enemy) => sum + enemy.unitCount, 0), 1000);
@@ -1653,12 +1653,12 @@ test("金币达到八十枚后合并最近金币堆且不刷新十秒寿命", ()
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.tower.fireCooldown = 999;
-  const oldest = { x: 700, y: 300, renderX: 700, renderY: 300, value: 2, pileCount: 1, age: 8.4, collectAge: 0, collector: null, droneIndex: 0 };
+  const oldest = { x: 940, y: 440, renderX: 940, renderY: 440, value: 2, pileCount: 1, age: 8.4, collectAge: 0, collector: null, droneIndex: 0 };
   state.coinOrbs.push(oldest);
   for (let index = 1; index < GAME_CONFIG.coins.maxOrbs; index += 1) {
-    state.coinOrbs.push({ x: 40 + index, y: 40, renderX: 40 + index, renderY: 40, value: 1, pileCount: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+    state.coinOrbs.push({ x: 40 + index, y: 180, renderX: 40 + index, renderY: 180, value: 1, pileCount: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   }
-  const enemy = spawnEnemy(state, "wisp", { x: 702, y: 300 });
+  const enemy = spawnEnemy(state, "wisp", { x: 942, y: 440 });
   enemy.hp = 0;
   updateGame(state, 0.01);
 
@@ -1670,9 +1670,9 @@ test("金币达到八十枚后合并最近金币堆且不刷新十秒寿命", ()
 
 test("精英、首领和锚点不会被普通怪预算压缩", () => {
   const state = createGameState(118);
-  for (let index = 0; index < GAME_CONFIG.combat.normalEnemyBudget; index += 1) spawnEnemy(state, "wisp", { x: 700, y: 300 });
-  const elite = spawnEnemy(state, "brute", { x: 720, y: 320 }, { elite: true, affix: "shield" });
-  const boss = spawnEnemy(state, "boss", { x: 760, y: 360 });
+  for (let index = 0; index < GAME_CONFIG.combat.normalEnemyBudget; index += 1) spawnEnemy(state, "wisp", { x: 940, y: 440 });
+  const elite = spawnEnemy(state, "brute", { x: 960, y: 460 }, { elite: true, affix: "shield" });
+  const boss = spawnEnemy(state, "boss", { x: 1000, y: 500 });
   assert.equal(elite.elite, true);
   assert.equal(elite.unitCount, 1);
   assert.equal(boss.type, "boss");
@@ -1883,8 +1883,8 @@ test("精英只掉遗响碎片而核心残片只由首领掉落", () => {
   const state = createGameState(9102);
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
-  const elite = spawnEnemy(state, "sentinel", { x: 300, y: 300 }, { elite: true, affix: "shield" });
-  const boss = spawnEnemy(state, "boss", { x: 700, y: 300 });
+  const elite = spawnEnemy(state, "sentinel", { x: 540, y: 440 }, { elite: true, affix: "shield" });
+  const boss = spawnEnemy(state, "boss", { x: 940, y: 440 });
   elite.hp = 0;
   boss.hp = 0;
   updateGame(state, GAME_CONFIG.fixedStep);
@@ -1898,8 +1898,8 @@ test("无尽挑战中的精英和首领只计分且不再掉专属资源或遗�
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.tower.fireCooldown = 999;
-  const elite = spawnEnemy(state, "sentinel", { x: 300, y: 300 }, { elite: true, waveElite: true, affix: "shield" });
-  const boss = spawnEnemy(state, "boss", { x: 700, y: 300 });
+  const elite = spawnEnemy(state, "sentinel", { x: 540, y: 440 }, { elite: true, waveElite: true, affix: "shield" });
+  const boss = spawnEnemy(state, "boss", { x: 940, y: 440 });
   elite.hp = 0;
   boss.hp = 0;
   updateGame(state, GAME_CONFIG.fixedStep);
@@ -2008,7 +2008,7 @@ test("无尽怪潮彻底肃清后获得不占栏位且可无限叠加的无界�
   state.wave.nextAt = 999;
   state.wave.pendingClear = [7];
   state.tower.fireCooldown = 999;
-  const finalEnemy = spawnEnemy(state, "wisp", { x: 700, y: 360 }, { waveIndex: 7 });
+  const finalEnemy = spawnEnemy(state, "wisp", { x: 940, y: 500 }, { waveIndex: 7 });
 
   updateGame(state, 0.01);
   assert.equal(state.relicChoice, null);
@@ -2034,14 +2034,14 @@ test("无尽怪潮彻底肃清后获得不占栏位且可无限叠加的无界�
 test("怪潮精英、普通首领与巨兽阶段会触发临时遗物奖励", () => {
   const eliteState = createGameState(9402);
   eliteState.spawnTimer = 999; eliteState.wave.nextAt = 999; eliteState.tower.fireCooldown = 999;
-  const elite = spawnEnemy(eliteState, "wisp", { x: 650, y: 360 }, { elite: true, waveElite: true, waveIndex: 1 });
+  const elite = spawnEnemy(eliteState, "wisp", { x: 890, y: 500 }, { elite: true, waveElite: true, waveIndex: 1 });
   damageEnemy(eliteState, elite, elite.maxHp * 2, "shot");
   updateGame(eliteState, 0.01);
   assert.equal(eliteState.relicChoice?.source, "eliteWave");
 
   const bossState = createGameState(9403);
   bossState.spawnTimer = 999; bossState.wave.nextAt = 999; bossState.tower.fireCooldown = 999;
-  const boss = spawnEnemy(bossState, "boss", { x: 650, y: 360 });
+  const boss = spawnEnemy(bossState, "boss", { x: 890, y: 500 });
   damageEnemy(bossState, boss, boss.maxHp * 20, "shot");
   updateGame(bossState, 0.01);
   assert.equal(bossState.relicChoice?.source, "boss");
@@ -2079,7 +2079,7 @@ test("月相调律提高白昼金币、长夜元素效果并在昼夜切换时�
   const day = createGameState(9406);
   day.relics.owned.lunar = true; day.relics.picks = 1;
   day.spawnTimer = 999; day.wave.nextAt = 999; day.tower.fireCooldown = 999;
-  const target = spawnEnemy(day, "wisp", { x: 650, y: 360 });
+  const target = spawnEnemy(day, "wisp", { x: 890, y: 500 });
   const reward = target.reward;
   damageEnemy(day, target, target.maxHp * 2, "shot");
   updateGame(day, 0.01);
@@ -2087,7 +2087,7 @@ test("月相调律提高白昼金币、长夜元素效果并在昼夜切换时�
 
   const night = createGameState(9407);
   night.relics.owned.lunar = true; night.relics.picks = 1; night.phase = "night";
-  const frozen = spawnEnemy(night, "wisp", { x: 650, y: 360 });
+  const frozen = spawnEnemy(night, "wisp", { x: 890, y: 500 });
   applyElementalHit(night, frozen, "frost", 20);
   assert.equal(frozen.freezeTimer, GAME_CONFIG.elements.frost.freezeDuration * GAME_CONFIG.relics.lunar.nightElementMultiplier);
 
@@ -2103,8 +2103,8 @@ test("镜面裂片每五次普通攻击折射且首领目标不会触发", () =>
   const state = createGameState(9409);
   state.relics.owned.mirror = true; state.relics.picks = 1;
   state.spawnTimer = 999; state.wave.nextAt = 999;
-  const first = spawnEnemy(state, "sentinel", { x: 590, y: 360 });
-  const second = spawnEnemy(state, "sentinel", { x: 640, y: 360 });
+  const first = spawnEnemy(state, "sentinel", { x: 830, y: 500 });
+  const second = spawnEnemy(state, "sentinel", { x: 880, y: 500 });
   for (let volley = 0; volley < GAME_CONFIG.relics.mirror.everyShots; volley += 1) {
     state.tower.fireCooldown = 0;
     updateGame(state, 0.001);
@@ -2124,8 +2124,8 @@ test("镜面裂片每五次普通攻击折射且首领目标不会触发", () =>
   bossState.relics.owned.mirror = true; bossState.relics.picks = 1;
   bossState.relics.mirrorShots = GAME_CONFIG.relics.mirror.everyShots - 1;
   bossState.spawnTimer = 999; bossState.wave.nextAt = 999;
-  spawnEnemy(bossState, "boss", { x: 590, y: 360 });
-  spawnEnemy(bossState, "sentinel", { x: 640, y: 360 });
+  spawnEnemy(bossState, "boss", { x: 830, y: 500 });
+  spawnEnemy(bossState, "sentinel", { x: 880, y: 500 });
   bossState.tower.targetProtocol = "hunter";
   let bossRefracted = false;
   for (let step = 0; step < 24; step += 1) {
@@ -2139,7 +2139,7 @@ test("余烬回收由灼烧或爆炸击杀生成区域并加速区内金币消�
   const state = createGameState(9411);
   state.relics.owned.ember = true; state.relics.picks = 1;
   state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
-  const target = spawnEnemy(state, "wisp", { x: 650, y: 360 });
+  const target = spawnEnemy(state, "wisp", { x: 890, y: 500 });
   damageEnemy(state, target, target.maxHp * 2, "fire");
   updateGame(state, 0.01);
   assert.equal(state.emberZones.length, 1);
@@ -2164,7 +2164,7 @@ test("所有基础与隐藏遗物从新存档起即可随机出现", () => {
 test("棱镜护佑按击杀数补充护盾，霜葬花冠让冻结死亡扩散", () => {
   const ward = createGameState(9501, undefined, { ward: true });
   ward.relics.owned.ward = true; ward.spawnTimer = 999; ward.wave.nextAt = 999; ward.tower.fireCooldown = 999;
-  const pack = spawnEnemy(ward, "wisp", { x: 700, y: 360 });
+  const pack = spawnEnemy(ward, "wisp", { x: 940, y: 500 });
   pack.unitCount = GAME_CONFIG.relics.ward.kills;
   pack.hp = 0;
   updateGame(ward, 0.01);
@@ -2172,8 +2172,8 @@ test("棱镜护佑按击杀数补充护盾，霜葬花冠让冻结死亡扩散",
 
   const frost = createGameState(9502, undefined, { frostbloom: true });
   frost.relics.owned.frostbloom = true; frost.spawnTimer = 999; frost.wave.nextAt = 999; frost.tower.fireCooldown = 999;
-  const frozen = spawnEnemy(frost, "wisp", { x: 650, y: 360 });
-  const nearby = spawnEnemy(frost, "sentinel", { x: 700, y: 360 });
+  const frozen = spawnEnemy(frost, "wisp", { x: 890, y: 500 });
+  const nearby = spawnEnemy(frost, "sentinel", { x: 940, y: 500 });
   frozen.freezeTimer = 1; frozen.hp = 0;
   const hpBefore = nearby.hp;
   updateGame(frost, 0.01);
@@ -2184,14 +2184,14 @@ test("棱镜护佑按击杀数补充护盾，霜葬花冠让冻结死亡扩散",
 test("雷脉导体、断罪刻印和逆时沙漏分别强化雷链、斩杀与冷却", () => {
   const storm = createGameState(9503, undefined, { stormglass: true });
   storm.relics.owned.stormglass = true;
-  const origin = spawnEnemy(storm, "sentinel", { x: 480, y: 360 });
-  for (let index = 0; index < 6; index += 1) spawnEnemy(storm, "sentinel", { x: 520 + index * 22, y: 360 });
+  const origin = spawnEnemy(storm, "sentinel", { x: 720, y: 500 });
+  for (let index = 0; index < 6; index += 1) spawnEnemy(storm, "sentinel", { x: 760 + index * 22, y: 500 });
   applyElementalHit(storm, origin, "lightning", 100);
   assert.equal(storm.events.find((event) => event.type === "elementHit")?.chains, GAME_CONFIG.elements.lightning.chainCount + GAME_CONFIG.relics.stormglass.extraChains);
 
   const execute = createGameState(9504, undefined, { execution: true });
   execute.relics.owned.execution = true;
-  const target = spawnEnemy(execute, "sentinel", { x: 650, y: 360 });
+  const target = spawnEnemy(execute, "sentinel", { x: 890, y: 500 });
   target.hp = target.maxHp * 0.3;
   const before = target.hp;
   damageEnemy(execute, target, 10, "shot");
@@ -2209,8 +2209,8 @@ test("拾金脉冲可复制金币价值，遗响碎片可在战场点击收集",
   const state = createGameState(9506, undefined, { gilded: true });
   state.relics.owned.gilded = true; state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   state.rng.next = () => 0;
-  state.coinOrbs.push({ x: 480, y: 360, renderX: 480, renderY: 360, value: 20, pileCount: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
-  collectCoinAt(state, 480, 360);
+  state.coinOrbs.push({ x: 720, y: 500, renderX: 720, renderY: 500, value: 20, pileCount: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  collectCoinAt(state, 720, 500);
   updateGame(state, GAME_CONFIG.coins.collectDuration + 0.01);
   assert.equal(state.coins, 35);
 
@@ -2221,8 +2221,8 @@ test("拾金脉冲可复制金币价值，遗响碎片可在战场点击收集",
 
 test("威胁二十清空战场并只生成固定于顶部的超巨型首领", () => {
   const state = createGameState(20001);
-  spawnEnemy(state, "wisp", { x: 100, y: 100 });
-  spawnEnemy(state, "boss", { x: 800, y: 500 });
+  spawnEnemy(state, "wisp", { x: 340, y: 240 });
+  spawnEnemy(state, "boss", { x: 1040, y: 640 });
   state.time = GAME_CONFIG.threat.duration * 19 - 0.05;
   state.tower.hp = 1_000_000;
   updateGame(state, 0.1);
@@ -2270,7 +2270,7 @@ test("裂界魔君降临护盾击破后会取消当前技能并强制召唤", ()
   const boss = spawnEnemy(state, "sovereign");
   boss.entryTimer = 0; boss.phaseBreakInvulnerability = 0;
   boss.activeSkill = "beam";
-  state.hostileProjectiles.push({ id: state.nextId++, kind: "sovereignMortar", x: 100, y: 100, vx: 0, vy: 0, targetX: 100, targetY: 100, radius: 5, life: 2, damage: 1 });
+  state.hostileProjectiles.push({ id: state.nextId++, kind: "sovereignMortar", x: 340, y: 240, vx: 0, vy: 0, targetX: 340, targetY: 240, radius: 5, life: 2, damage: 1 });
   damageEnemy(state, boss, boss.spawnShieldMax + 1, "shot");
   assert.equal(boss.spawnShield, 0);
   assert.equal(boss.activeSkill, null);
@@ -2345,7 +2345,7 @@ test("tower health bar timer starts after a hit and expires", () => {
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
   state.tower.fireCooldown = 999;
-  const enemy = spawnEnemy(state, "wisp", { x: 520, y: 360 });
+  const enemy = spawnEnemy(state, "wisp", { x: 760, y: 500 });
   enemy.speed = 0;
   updateGame(state, 1 / 60);
   assert.ok(state.tower.healthBarTimer > 0);
@@ -2400,9 +2400,9 @@ test("折光雷晶让镜面折射继续生成可见连锁闪电", () => {
   const state = createGameState(9605, undefined, { mirror: true, stormglass: true }, 4, { discovered: { prismArc: true } });
   state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   state.relics.owned.mirror = true; state.relics.owned.prismArc = true;
-  const first = spawnEnemy(state, "brute", { x: 520, y: 360 });
-  const second = spawnEnemy(state, "brute", { x: 580, y: 360 });
-  const third = spawnEnemy(state, "brute", { x: 630, y: 360 });
+  const first = spawnEnemy(state, "brute", { x: 760, y: 500 });
+  const second = spawnEnemy(state, "brute", { x: 820, y: 500 });
+  const third = spawnEnemy(state, "brute", { x: 870, y: 500 });
   for (const enemy of [first, second, third]) { enemy.speed = 0; enemy.hp = enemy.maxHp = 1000; }
   state.projectiles.push({ id: state.nextId++, x: first.x, y: first.y, vx: 0, vy: 0, damage: 100, radius: 5, pierce: 0, life: 1, tier: 1, mirrorReady: true });
   updateGame(state, 1 / 60);
@@ -2415,8 +2415,8 @@ test("霜烬共生核让霜葬击杀生成冻结与灼烧并存的区域", () =>
   const state = createGameState(9606, undefined, { frostbloom: true, ember: true }, 4, { discovered: { frostfire: true } });
   state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
   state.relics.owned.frostbloom = true; state.relics.owned.frostfire = true;
-  const frozen = spawnEnemy(state, "wisp", { x: 520, y: 360 });
-  const nearby = spawnEnemy(state, "brute", { x: 560, y: 360 });
+  const frozen = spawnEnemy(state, "wisp", { x: 760, y: 500 });
+  const nearby = spawnEnemy(state, "brute", { x: 800, y: 500 });
   frozen.speed = 0; nearby.speed = 0; frozen.freezeTimer = 2; nearby.hp = nearby.maxHp = 1000;
   damageEnemy(state, frozen, frozen.maxHp * 2, "frost");
   updateGame(state, 1 / 60);
@@ -2463,7 +2463,7 @@ test("长夜、狂潮与断供封印实际改写昼夜、怪潮、遗物和金�
 
   const longNight = createGameState(9703, undefined, undefined, undefined, undefined, ["longNight"]);
   longNight.phase = "night";
-  const frozen = spawnEnemy(longNight, "wisp", { x: 650, y: 360 });
+  const frozen = spawnEnemy(longNight, "wisp", { x: 890, y: 500 });
   applyElementalHit(longNight, frozen, "frost", 20);
   assert.equal(frozen.freezeTimer, GAME_CONFIG.elements.frost.freezeDuration * GAME_CONFIG.threatSeals.longNight.elementMultiplier);
 
@@ -2479,13 +2479,13 @@ test("长夜、狂潮与断供封印实际改写昼夜、怪潮、遗物和金�
 
   const severed = createGameState(9705, undefined, undefined, undefined, undefined, ["severedSupply"]);
   severed.spawnTimer = 999; severed.wave.nextAt = 999; severed.tower.fireCooldown = 999;
-  const target = spawnEnemy(severed, "wisp", { x: 650, y: 360 });
+  const target = spawnEnemy(severed, "wisp", { x: 890, y: 500 });
   damageEnemy(severed, target, target.maxHp * 2, "shot");
   updateGame(severed, 0.01);
   assert.equal(severed.coinOrbs[0].value, target.reward * GAME_CONFIG.threatSeals.severedSupply.coinMultiplier);
   severed.tower.upgrades.drone = 1;
   severed.tower.droneCooldown = 0;
-  severed.coinOrbs.push({ x: 350, y: 300, renderX: 350, renderY: 300, value: 5, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  severed.coinOrbs.push({ x: 590, y: 440, renderX: 590, renderY: 440, value: 5, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
   updateGame(severed, 1);
   assert.equal(severed.coinOrbs.every((orb) => !orb.collector || orb.collector !== "drone"), true);
 });
@@ -2494,7 +2494,7 @@ test("封印会给标准怪潮精英排队额外特殊遗物，而不是跳过�
   const state = createGameState(9706, undefined, { ward: true, decoy: true, lunar: true, mirror: true }, 4, undefined, ["frenzy"]);
   state.rng.next = () => 0;
   state.spawnTimer = 999; state.wave.nextAt = 999; state.tower.fireCooldown = 999;
-  const elite = spawnEnemy(state, "wisp", { x: 650, y: 360 }, { elite: true, waveElite: true, waveIndex: 1 });
+  const elite = spawnEnemy(state, "wisp", { x: 890, y: 500 }, { elite: true, waveElite: true, waveIndex: 1 });
   damageEnemy(state, elite, elite.maxHp * 2, "shot");
   updateGame(state, 0.01);
   assert.equal(state.relicChoice?.source, "eliteWave");
@@ -2524,7 +2524,7 @@ test("巨兽与无伤封印分别提前首领、补发核心并强化技能代�
   flawless.tower.hp = 200;
   assert.equal(useSkill(flawless, "heal"), true);
   assert.equal(flawless.skills.heal.cooldown, GAME_CONFIG.skills.heal.cooldown * GAME_CONFIG.threatSeals.flawless.healCooldownMultiplier);
-  const target = spawnEnemy(flawless, "brute", { x: 650, y: 360 });
+  const target = spawnEnemy(flawless, "brute", { x: 890, y: 500 });
   target.hp = target.maxHp = 1_000;
   const hpBefore = target.hp;
   assert.equal(useSkill(flawless, "starfall", { angle: 0 }), true);
@@ -2583,8 +2583,8 @@ test("永续超载、全屏星落与终焉保险按专属遗物规则工作", ()
   const starfall = createGameState(9804);
   starfall.endlessMode = true;
   starfall.endlessShop.equippedRelics.push("globalStarfall");
-  const east = spawnEnemy(starfall, "brute", { x: 700, y: 360 });
-  const west = spawnEnemy(starfall, "brute", { x: 260, y: 360 });
+  const east = spawnEnemy(starfall, "brute", { x: 940, y: 500 });
+  const west = spawnEnemy(starfall, "brute", { x: 500, y: 500 });
   assert.equal(useSkill(starfall, "starfall"), true);
   assert.ok(east.hp < east.maxHp && west.hp < west.maxHp);
   assert.equal(starfall.skills.starfall.protocol, "global");
@@ -2627,8 +2627,8 @@ test("鎏金奇点翻倍金币结算并额外恢复技能冷却", () => {
   state.tower.fireCooldown = 999;
   state.endlessShop.equippedRelics.push("goldenSingularity");
   for (const skill of Object.values(state.skills)) skill.cooldown = 10;
-  state.coinOrbs.push({ x: 220, y: 190, renderX: 220, renderY: 190, value: 20, pileCount: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
-  assert.equal(collectCoinAt(state, 220, 190), true);
+  state.coinOrbs.push({ x: 460, y: 330, renderX: 460, renderY: 330, value: 20, pileCount: 1, age: 0, collectAge: 0, collector: null, droneIndex: 0 });
+  assert.equal(collectCoinAt(state, 460, 330), true);
   updateGame(state, GAME_CONFIG.coins.collectDuration + 0.01);
   assert.equal(state.coins, 40);
   assert.ok(state.skills.heal.cooldown <= 10 - GAME_CONFIG.coins.collectDuration - ENDLESS_SHOP_RULES.goldenCooldownPerOrb);
@@ -2651,9 +2651,9 @@ test("终末猎杀冠冕强化精英与首领伤害但不影响普通敌人", ()
   const state = createGameState(9809);
   state.endlessMode = true;
   state.endlessShop.equippedRelics.push("apexHunter");
-  const normal = spawnEnemy(state, "brute", { x: 620, y: 300 });
-  const elite = spawnEnemy(state, "brute", { x: 660, y: 300 }, { elite: true });
-  const boss = spawnEnemy(state, "brute", { x: 700, y: 300 });
+  const normal = spawnEnemy(state, "brute", { x: 860, y: 440 });
+  const elite = spawnEnemy(state, "brute", { x: 900, y: 440 }, { elite: true });
+  const boss = spawnEnemy(state, "brute", { x: 940, y: 440 });
   boss.type = "boss";
   for (const enemy of [normal, elite, boss]) enemy.hp = enemy.maxHp = 1_000;
   damageEnemy(state, normal, 100, "shot");
@@ -2672,7 +2672,7 @@ test("棱镜主宰矩阵保证三元素附魔并强化元素附加效果", () =>
   state.tower.upgrades.fire = 1;
   state.tower.upgrades.lightning = 1;
   state.rng.next = () => 0.99;
-  const target = spawnEnemy(state, "brute", { x: 650, y: 360 });
+  const target = spawnEnemy(state, "brute", { x: 890, y: 500 });
   state.tower.fireCooldown = 0;
   state.spawnTimer = 999;
   state.wave.nextAt = 999;
