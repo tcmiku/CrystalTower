@@ -223,6 +223,31 @@ test("light and heavy cannons both fire with independent cadence, and removal st
   assert.ok(mesh.parts.find((part) => part.name === "body").vertices.length > 0);
 });
 
+test("dual main guns lock different enemies and both projectiles fly", () => {
+  const state = emptyBay();
+  assert.ok(installModule(state, "pulse", 0));
+  assert.ok(installModule(state, "cannon", 3));
+  const near = target(state, 520, 360);
+  const far = target(state, 780, 360);
+  const aimed = new Set();
+  let dualAimFrames = 0;
+  advance(state, 4, (current) => {
+    const pulseId = current.tower.gunAimTargetIds?.pulse;
+    const cannonId = current.tower.gunAimTargetIds?.cannon;
+    if (pulseId && cannonId && pulseId !== cannonId) {
+      dualAimFrames += 1;
+      aimed.add(pulseId);
+      aimed.add(cannonId);
+    }
+  });
+  assert.ok(dualAimFrames > 10, "两门主炮应持续锁定不同目标");
+  assert.ok(aimed.has(near.id) && aimed.has(far.id), "轻炮与重炮都应分别命中两个目标");
+  const damages = new Set();
+  advance(state, 2, (current) => current.projectiles.forEach((shot) => damages.add(shot.damage)));
+  assert.ok(damages.has(12));
+  assert.ok(damages.has(40.8));
+});
+
 test("moving a reactor away removes both the weapon damage bonus and elemental shots", () => {
   const state = emptyBay();
   assert.ok(installModule(state, "pulse", 0));

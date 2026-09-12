@@ -113,6 +113,19 @@ export function getMountedMuzzle(module, tier=0, angle=0, shoot=0, viewYaw=0) {
   return {muzzleX:px*Math.cos(viewYaw)-pz*Math.sin(viewYaw),muzzleY:GROUND_Y-.8*(y+20*scale)+.6*(px*Math.sin(viewYaw)+pz*Math.cos(viewYaw))};
 }
 
+// Arena-space spawn point for a mounted gun barrel tip (top-down x/y).
+export function getGunMuzzleWorld(towerX, towerY, module, tier = 0, aimAngle = 0) {
+  if (!module) return { x: towerX, y: towerY };
+  const { x, z, scale } = getModuleMount(module, getModelLayout(tier));
+  const mountX = towerX + x;
+  const mountY = towerY + z;
+  const barrel = (module.id === "cannon" ? 35 : 26) * scale;
+  return {
+    x: mountX + Math.cos(aimAngle) * barrel,
+    y: mountY + Math.sin(aimAngle) * barrel
+  };
+}
+
 export function buildTowerModel({tier=0,cannonRoute='none',cannonEnabled=true,elements={},modules=null}={}) {
   const layout=getModelLayout(tier); tier=layout.tier;
   if (modules !== null) return buildModularChassis(layout, modules);
@@ -249,10 +262,12 @@ export class TowerModelRenderer {
     for(const b of this.buffers) gl.deleteBuffer(b);
     this.buffers=this.model.parts.map(part=>{const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,part.vertices,gl.STATIC_DRAW);return buffer;});
   }
-  draw(ctx,visual,angle,time,fx={},viewYaw=0) {
+  draw(ctx,visual,angle,time,fx={},viewYaw=0,gunAngles=null) {
     this.prepare(visual);
     const pose=getCannonPose(visual.tier,angle,fx.shoot??0,visual.cannonRoute);
     const expansion=visual.overloadBand==='off'?1:visual.overloadBand==='overheated'?1.30:1.16;
+    const gunYaws={};
+    if(gunAngles) for(const [weapon,gunAngle] of Object.entries(gunAngles)) gunYaws[weapon]=getCannonPose(visual.tier,gunAngle,fx.shoot??0,visual.cannonRoute).yaw;
     ctx.save();ctx.shadowBlur=0;
     ctx.fillStyle='rgba(2,8,23,.28)';ctx.beginPath();ctx.ellipse(0,GROUND_Y+4,this.model.layout.radius*1.12,this.model.layout.radius*.53,0,0,TAU);ctx.fill();
     drawModuleEffects(ctx,visual.modules,this.model.layout,time,viewYaw,pose.yaw,true);
@@ -267,14 +282,15 @@ export class TowerModelRenderer {
         gl.bindBuffer(gl.ARRAY_BUFFER,this.buffers[i]);
         this.attributes.forEach((attr,j)=>{gl.enableVertexAttribArray(attr);gl.vertexAttribPointer(attr,j===3?1:3,gl.FLOAT,false,40,j*12);});
         const movable=i===1||i===2;
-        gl.uniform1f(u.yaw,movable?pose.yaw:part.aim?pose.yaw-part.baseYaw:(part.spin??0)*time);
+        const partYaw=part.aim?(gunYaws[part.weapon]??pose.yaw):movable?pose.yaw:(part.spin??0)*time;
+        gl.uniform1f(u.yaw,part.aim?partYaw-part.baseYaw:partYaw);
         gl.uniform3f(u.pivot,...(part.pivot??[0,0,0]));gl.uniform1f(u.expansion,i===3?expansion:1);
         const recoil=part.aim?Math.min(1,Math.max(0,(fx[`shoot-${part.weapon}`]??fx.shoot??0)/.28))*4:0;
         gl.uniform3f(u.offset,i===2?-pose.recoil:-Math.cos(part.baseYaw??0)*recoil,movable?this.model.layout.mountHeight:part.name==='core-energy'?Math.sin(time*1.7)*2.4:0,-Math.sin(part.baseYaw??0)*recoil);
         gl.drawArrays(gl.TRIANGLES,0,part.vertices.length/10);
       });
       ctx.drawImage(this.canvas,-MODEL_SIZE/2,-MODEL_SIZE/2,MODEL_SIZE,MODEL_SIZE);
-    } else this.drawSoftware(ctx,pose,viewYaw,expansion,time,fx);
+    } else this.drawSoftware(ctx,pose,viewYaw,expansion,time,fx,gunYaws);
     drawModuleEffects(ctx,visual.modules,this.model.layout,time,viewYaw,pose.yaw,false);
     if(visual.modules && (fx.shoot??0)>0) {
       ctx.save();ctx.globalCompositeOperation='lighter';
@@ -282,22 +298,31 @@ export class TowerModelRenderer {
         const shot=fx[`shoot-${module.id}`]??fx.shoot;
         if(!shot) continue;
         const pulse=Math.min(1,shot/.28);
-        const p=getMountedMuzzle(module,visual.tier,angle,shot,viewYaw),r=(module.id==='cannon'?10:6)*pulse;
+        const p=getMountedMuzzle(module,visual.tier,gunAngles?.[module.id]??angle,shot,viewYaw),r=(module.id==='cannon'?10:6)*pulse;
         const glow=ctx.createRadialGradient(p.muzzleX,p.muzzleY,0,p.muzzleX,p.muzzleY,r*2);
         glow.addColorStop(0,'#fffbe9');glow.addColorStop(.25,module.id==='cannon'?'#ffc580':'#9ff4ff');glow.addColorStop(1,'#73cfff00');
         ctx.fillStyle=glow;ctx.beginPath();ctx.arc(p.muzzleX,p.muzzleY,r*2,0,TAU);ctx.fill();
       }
       ctx.restore();
     }
+    const selected=visual.modules?.find(m=>m.id===visual.selectedModule);
+    for(const [module,preview] of [[selected,false],[visual.placementPreview,true]]) {
+      if(!module)continue;
+      const mount=getModuleMount(module,this.model.layout);
+      const px=mount.x*Math.cos(viewYaw)-mount.z*Math.sin(viewYaw),py=38-.8*(mount.y+10)+.6*(mount.x*Math.sin(viewYaw)+mount.z*Math.cos(viewYaw));
+      ctx.save();ctx.strokeStyle=preview&&!module.valid?'#ff887d':'#afffed';ctx.lineWidth=2;ctx.globalAlpha=.8;
+      if(preview)ctx.setLineDash([4,3]);
+      ctx.beginPath();ctx.ellipse(px,py,22*mount.scale,13*mount.scale,0,0,TAU);ctx.stroke();ctx.restore();
+    }
     ctx.restore();return pose;
   }
-  drawSoftware(ctx,pose,viewYaw,expansion,time=0,fx={}) {
+  drawSoftware(ctx,pose,viewYaw,expansion,time=0,fx={},gunYaws=null) {
     // Same mesh on devices without WebGL. GPU depth testing is preferred.
     const triangles=[];
     const turn=(p,a)=>[p[0]*Math.cos(a)-p[2]*Math.sin(a),p[1],p[0]*Math.sin(a)+p[2]*Math.cos(a)];
     this.model.parts.forEach((part,index)=>{
       const movable=index===1||index===2, data=part.vertices;
-      const yaw=movable?pose.yaw:part.aim?pose.yaw-part.baseYaw:(part.spin??0)*time,pivot=part.pivot??[0,0,0];
+      const yaw=movable?pose.yaw:part.aim?((gunYaws?.[part.weapon]??pose.yaw)-part.baseYaw):(part.spin??0)*time,pivot=part.pivot??[0,0,0];
       const recoil=part.aim?Math.min(1,Math.max(0,(fx[`shoot-${part.weapon}`]??fx.shoot??0)/.28))*4:0;
       for(let i=0;i<data.length;i+=30) {
         const points=[];let depth=0;

@@ -197,7 +197,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(renderer, /resource-echo-shard-ai\.png/);
   assert.match(renderer, /enemy-astral-atlas-ai\.png/);
   assert.match(renderer, /const overload = state\.skills\.overload\.active > 0 \|\| state\.skills\.overload\.permanentEngaged/);
-  assert.match(renderer, /crystalShieldCache/);
+  assert.match(renderer, /drawTowerCrystalShield/);
   assert.doesNotMatch(renderer, /overloadWaveGlow\.addColorStop/);
   assert.match(renderer, /const shardCount = 8/);
   assert.match(renderer, /const rayCount = 8/);

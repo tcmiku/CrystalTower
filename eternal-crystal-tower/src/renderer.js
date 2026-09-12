@@ -1,7 +1,6 @@
 import { GAME_CONFIG, getArenaEdgePosition, getCrowdVisualScale } from "./config.js";
-import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getSawBladeRadius, getSawOrbitRadius, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
+import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getSawBladeRadius, getSawOrbitRadius, getStarfallConeHalfAngle, getTowerPosition, getTowerStats } from "./engine.js";
 import { isChapterTwo } from "./chapter-two.js";
-import { MODULES, moduleAt, adjacentReactors } from "./modules.js";
 import { ArenaModelRenderer } from './arena-model.js';
 import { DroneModelRenderer } from './drone-model.js';
 import { EnemyModelRenderer, ENEMY_MODEL_TYPES } from './enemy-model.js';
@@ -146,6 +145,8 @@ export function getTowerVisualState(state) {
     hpRatio,
     damageBand: hpRatio < 0.15 ? "collapse" : hpRatio < 0.40 ? "critical" : hpRatio < 0.70 ? "damaged" : "intact",
     cannonRoute: upgrades.cannonSiege > 0 ? "siege" : upgrades.cannonSplit > 0 ? "split" : "none",
+    selectedModule: state?.moduleSelection,
+    placementPreview: state?.modulePreview,
     modules: tower.moduleBay ? tower.moduleBay.installed.map(({id,slot,rotation=0,level}) => ({id,slot,rotation,level})) : null,
     cannonEnabled: !tower.moduleBay || tower.moduleBay.installed.some((module) => ["pulse", "cannon"].includes(module.id)),
     elements: { frost: upgrades.frost > 0, fire: upgrades.fire > 0, lightning: upgrades.lightning > 0 },
@@ -334,6 +335,7 @@ export class Renderer {
     this.towerAimAngle = -Math.PI / 2;
     this.towerAimTargetId = null;
     this.towerAimTarget = null;
+    this.gunAimAngles = { pulse: -Math.PI / 2, cannon: -Math.PI / 2, base: -Math.PI / 2 };
     const loading = loadGeneratedAssets(onAssetProgress);
     this.assets = loading.assets;
     this.assetsReady = loading.ready;
@@ -429,6 +431,7 @@ export class Renderer {
       this.towerAimTargetId = null;
       this.towerAimTarget = null;
     }
+    this.updateGunAimAngles(state, delta);
     const targetDayMix = state.phase === "day" ? 1 : 0;
     this.dayMix += (targetDayMix - this.dayMix) * Math.min(1, delta * 0.42);
     this.shake = Math.max(0, this.shake - delta * 16);
@@ -572,90 +575,22 @@ export class Renderer {
     this.drawSaws(ctx, state);
     this.drawDrones(ctx, state);
     this.drawTower(ctx, state);
-    this.drawModuleSlots(ctx, state);
     this.drawParticles(ctx, state);
     this.drawFloaters(ctx, state);
     this.drawBossBar(ctx, state);
     this.drawVignette(ctx, state);
   }
 
-  drawModuleSlots(ctx, state) {
-    if (!state.tower.moduleBay) return;
-    const { x, y } = getTowerPosition(state);
-    const radius = 82 * getTowerRadius(state) / (38 + state.tower.upgrades.ascend * 5);
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    for (let slot = 0; slot < 6; slot += 1) {
-      const module = moduleAt(state, slot);
-      const angle = slot * Math.PI / 3 - Math.PI / 2;
-      const color = module ? MODULES[module.id].color : "#63798b";
-      ctx.strokeStyle = color; ctx.lineWidth = module ? 3 : 1;
-      ctx.beginPath(); ctx.arc(0, 0, radius, angle - 0.45, angle + 0.45); ctx.stroke();
-      if (module?.id === "shield") {
-        ctx.fillStyle = "#78dabb22"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius + 24, angle - Math.PI / 6, angle + Math.PI / 6); ctx.closePath(); ctx.fill();
-        ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, radius + 24, angle - Math.PI / 6, angle + Math.PI / 6); ctx.stroke();
-      }
-      const px = Math.cos(angle) * radius; const py = Math.sin(angle) * radius;
-      ctx.fillStyle = "#102538"; ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = color; ctx.fillText(String(slot + 1), px, py);
-      if (module?.slot === slot && MODULES[module.id].weapon) {
-        for (const reactor of adjacentReactors(state, module.id)) {
-          const targetAngle = reactor.slot * Math.PI / 3 - Math.PI / 2;
-          ctx.strokeStyle = MODULES[reactor.id].color; ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(Math.cos(targetAngle) * radius, Math.sin(targetAngle) * radius); ctx.stroke();
-        }
-      }
-    }
-    ctx.restore();
-  }
-
   drawTowerGroundVeins(ctx, state) {
-    if (isChapterTwo(state)) return;
-    const visual = getTowerVisualState(state);
+    if (!this.towerFx.coinVacuum) return;
     const { x, y } = getTowerPosition(state);
-    const tier = visual.tier;
-    const routeColor = visual.cannonRoute === "siege" ? "#ffd27a" : visual.cannonRoute === "split" ? "#d9b4ff" : "#79dff5";
-    const damageAlpha = visual.damageBand === "collapse" ? 0.28 : visual.damageBand === "critical" ? 0.5 : 1;
-    const pulse = 0.78 + Math.sin(this.time * 2.1) * 0.12;
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(this.time * 0.025);
-    ctx.globalCompositeOperation = "lighter";
-    ctx.lineCap = "round";
-    for (let ring = 0; ring <= tier; ring += 1) {
-      const radius = 86 + ring * 43;
-      ctx.globalAlpha = (0.12 + tier * 0.025) * damageAlpha * pulse;
-      ctx.strokeStyle = routeColor;
-      ctx.lineWidth = ring === tier ? 2.4 : 1.2;
-      ctx.setLineDash([5 + ring * 2, 13 - Math.min(5, ring)]);
-      ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke();
-    }
-    ctx.setLineDash([]);
-    const branchCount = 6 + tier * 2;
-    for (let branch = 0; branch < branchCount; branch += 1) {
-      const angle = branch * Math.PI * 2 / branchCount + (visual.cannonRoute === "split" ? Math.PI / branchCount : 0);
-      const inner = 52 + tier * 10;
-      const outer = 138 + tier * 38;
-      const bend = Math.sin(this.time * 0.65 + branch) * 3;
-      ctx.globalAlpha = (0.18 + tier * 0.035) * damageAlpha;
-      ctx.strokeStyle = routeColor;
-      ctx.lineWidth = branch % 3 === 0 ? 2.2 : 1;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
-      ctx.quadraticCurveTo(Math.cos(angle + 0.08) * (inner + outer) * 0.5 + bend, Math.sin(angle + 0.08) * (inner + outer) * 0.5 + bend, Math.cos(angle) * outer, Math.sin(angle) * outer);
-      ctx.stroke();
-      ctx.globalAlpha = (0.3 + tier * 0.04) * damageAlpha;
-      ctx.fillStyle = routeColor;
-      ctx.beginPath(); ctx.arc(Math.cos(angle) * outer, Math.sin(angle) * outer, branch % 3 === 0 ? 3.2 : 2, 0, Math.PI * 2); ctx.fill();
-    }
-    if (this.towerFx.coinVacuum > 0) {
-      const progress = 1 - this.towerFx.coinVacuum / 1.1;
-      ctx.globalAlpha = (1 - progress) * 0.7;
-      ctx.strokeStyle = "#ffe68a";
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(0, 0, 48 + progress * 170, 0, Math.PI * 2); ctx.stroke();
-    }
+    const progress = 1 - this.towerFx.coinVacuum / 1.1;
+    ctx.globalAlpha = (1 - progress) * 0.7;
+    ctx.strokeStyle = "#ffe68a";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, 48 + progress * 170, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 
@@ -2332,6 +2267,25 @@ export class Renderer {
     }
   }
 
+  updateGunAimAngles(state, delta) {
+    const towerPosition = getTowerPosition(state);
+    const mount = getTowerCannonLayout(state.tower.upgrades.ascend);
+    const artScale = TOWER_ART_SCALE * (state.enemies.some(enemy => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1);
+    const aimIds = state.tower.gunAimTargetIds ?? {};
+    for (const key of ["pulse", "cannon", "base"]) {
+      const targetId = aimIds[key];
+      const target = targetId == null ? null : state.enemies.find((enemy) => enemy.id === targetId && enemy.hp > 0);
+      if (!target) {
+        this.gunAimAngles[key] = this.towerAimAngle;
+        continue;
+      }
+      const desiredAngle = Math.atan2(target.y - towerPosition.y - mount.mountY * artScale, target.x - towerPosition.x - mount.mountX * artScale);
+      const current = this.gunAimAngles[key] ?? this.towerAimAngle;
+      const deltaAngle = Math.atan2(Math.sin(desiredAngle - current), Math.cos(desiredAngle - current));
+      this.gunAimAngles[key] = current + deltaAngle * Math.min(1, delta * 12);
+    }
+  }
+
   drawTowerAim(ctx, state, visual, tier) {
     if (isChapterTwo(state)) return;
     const target = this.towerAimTarget;
@@ -2424,17 +2378,6 @@ export class Renderer {
       ctx.restore();
     }
 
-    if (visual.shieldBand === "armed") {
-      const armedPulse = .72 + Math.sin(this.time * 5.5) * .18;
-      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = armedPulse;
-      ctx.strokeStyle = "#c8fbff"; ctx.shadowColor = "#72e8ff"; ctx.shadowBlur = 12; ctx.lineWidth = 3;
-      for (let plate = 0; plate < 6; plate += 1) {
-        const angle = plate * Math.PI / 3 + this.time * .15; const radius = 62 + tier * 9;
-        ctx.save(); ctx.rotate(angle); ctx.beginPath(); ctx.moveTo(-12, -radius); ctx.lineTo(0, -radius - 10); ctx.lineTo(12, -radius); ctx.lineTo(8, -radius + 13); ctx.lineTo(-8, -radius + 13); ctx.closePath(); ctx.stroke(); ctx.restore();
-      }
-      ctx.restore();
-    }
-
     if (this.towerFx.heal > 0) {
       const progress = 1 - this.towerFx.heal / 1.1;
       ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = (1 - progress) * .68; ctx.strokeStyle = "#9fffd0"; ctx.shadowColor = "#79ffad"; ctx.shadowBlur = 12; ctx.lineWidth = 2.5;
@@ -2479,15 +2422,10 @@ export class Renderer {
     const visual = getTowerVisualState(state);
     const tier = visual.tier;
     const stats = getTowerStats(state);
-    const hpRatio = visual.hpRatio;
     const overload = state.skills.overload.active > 0 || state.skills.overload.permanentEngaged;
     const heatRatio = Math.max(0, Math.min(1.25, state.skills.overload.heat / GAME_CONFIG.skills.overload.overheatThreshold));
 
     ctx.save(); ctx.translate(x, y); ctx.scale(towerScale * towerArtScale, towerScale * towerArtScale);
-    ctx.globalAlpha = 0.18 + hpRatio * 0.12;
-    ctx.fillStyle = overload ? (heatRatio >= 1 ? "#ff704d" : "#c99cff") : state.skills.overload.slow > 0 ? "#b9474f" : "#7ceeff";
-    ctx.beginPath(); ctx.arc(0, 0, 55 + tier * 13 + Math.sin(this.time * 2.5) * 4, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
 
     const crystalShieldRatio = state.tower.shield > 0
       ? Math.min(1, state.tower.shield / (stats.maxHp * GAME_CONFIG.skills.heal.shieldCapFraction))
@@ -2558,15 +2496,6 @@ export class Renderer {
       ctx.restore();
     }
 
-    for (let ring = 0; ring <= tier; ring += 1) {
-      ctx.save(); ctx.rotate(this.time * (ring % 2 ? -0.45 : 0.35) + ring);
-      ctx.strokeStyle = ring === 2 ? "rgba(255,207,114,.68)" : "rgba(124,238,255,.55)";
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([7, 10 + ring * 3]);
-      ctx.beginPath(); ctx.arc(0, 0, 49 + ring * 13, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
-
     if (isChapterTwo(state)) {
       const deckLength = 166 + tier * 18;
       if (imageReady(this.assets.chapterTwoCarrier)) {
@@ -2585,7 +2514,7 @@ export class Renderer {
       }
       ctx.save(); ctx.rotate(this.time * .5); ctx.strokeStyle = "rgba(116,235,255,.55)"; ctx.beginPath(); ctx.arc(0, 0, deckLength * .54, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     } else {
-      this.towerModel.draw(ctx, visual, this.towerAimAngle, this.time, this.towerFx);
+      this.towerModel.draw(ctx, visual, this.towerAimAngle, this.time, this.towerFx, 0, this.gunAimAngles);
     }
     ctx.shadowBlur = 0;
     // Route and elemental modules belong to the depth-tested model.
@@ -2603,205 +2532,58 @@ export class Renderer {
   }
 
   drawTowerCrystalShield(ctx, tier, ratio, armed, foreground) {
-    const frame = Math.floor(this.time * 24);
-    const ratioBucket = Math.round(ratio * 12) / 12;
-    const cacheKey = `${tier}:${ratioBucket}:${armed ? 1 : 0}`;
-    if (!this.crystalShieldCache || this.crystalShieldCache.key !== cacheKey) {
-      this.crystalShieldCache = { key: cacheKey, background: null, foreground: null, backgroundFrame: -1, foregroundFrame: -1 };
-    }
-    const cacheSlot = foreground ? "foreground" : "background";
-    const frameSlot = `${cacheSlot}Frame`;
-    let sprite = this.crystalShieldCache[cacheSlot];
-    if (!sprite) {
-      const size = 280;
-      sprite = createEffectCanvas(size, size);
-      if (sprite) {
-        this.crystalShieldCache[cacheSlot] = sprite;
-      }
-    }
-    if (sprite) {
-      if (this.crystalShieldCache[frameSlot] !== frame) {
-        const spriteCtx = sprite.getContext("2d");
-        spriteCtx.setTransform(1, 0, 0, 1, 0, 0);
-        spriteCtx.clearRect(0, 0, sprite.width, sprite.height);
-        spriteCtx.translate(sprite.width / 2, sprite.height / 2);
-        this.drawTowerCrystalShieldDirect(spriteCtx, tier, ratioBucket, armed, foreground);
-        this.crystalShieldCache[frameSlot] = frame;
-      }
-      ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      ctx.drawImage(sprite, -140, -140);
-      ctx.restore();
-      return;
-    }
-    this.drawTowerCrystalShieldDirect(ctx, tier, ratio, armed, foreground);
-  }
-
-  drawTowerCrystalShieldDirect(ctx, tier, ratio, armed, foreground) {
-    const radius = 69 + tier * 10;
-    const breath = Math.sin(this.time * 2.2) * 1.5;
-    const shellRadius = radius + breath;
-    const segmentCount = 12;
-    const activeSegments = Math.max(1, Math.ceil(ratio * segmentCount));
-
+    const breath = Math.sin(this.time * 2.1) * 1.5;
+    const radius = 58 + tier * 9 + breath;
     ctx.save();
     ctx.globalCompositeOperation = "screen";
-
     if (!foreground) {
-      // 背景层只需要提供范围感，避免每帧创建径向渐变。
-      ctx.globalAlpha = .06 + ratio * .08;
+      ctx.globalAlpha = 0.04 + ratio * 0.07;
       ctx.fillStyle = armed ? "#dfffff" : "#35d7ff";
-      ctx.beginPath(); ctx.arc(0, 0, shellRadius + 7, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = .18 + ratio * .13;
-      ctx.strokeStyle = "#70e8ff";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 10]);
       ctx.beginPath();
-      ctx.ellipse(0, 0, shellRadius + 2, shellRadius * .53, .22, 0, Math.PI * 2);
-      ctx.ellipse(0, 0, shellRadius + 2, shellRadius * .53, -1.05, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.ellipse(0, 6, radius * 1.05, radius * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
       return;
     }
 
-    const pulse = .5 + Math.sin(this.time * 3.6) * .5;
-    const liveColor = armed ? "#eaffff" : "#8cefff";
-    const liveStroke = armed ? "#f1ffff" : "#75edff";
-    const dimColor = "#3d8eac";
-    const dimStroke = "#4c91aa";
-    const drawDiamondPath = (predicate, fill, stroke, alpha, lineWidth) => {
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = fill;
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = lineWidth;
-      ctx.beginPath();
-      for (let plate = 0; plate < 6; plate += 1) {
-        if (!predicate(plate)) continue;
-        const angle = -Math.PI / 2 + plate * Math.PI / 3;
-        const plateRadius = shellRadius + 1 + Math.sin(this.time * 2.8 + plate) * 1.2;
-        const radialX = Math.cos(angle);
-        const radialY = Math.sin(angle);
-        const tangentX = -radialY;
-        const tangentY = radialX;
-        const px = radialX * plateRadius;
-        const py = radialY * plateRadius;
-        const add = (radial, tangent, move = false) => {
-          const pointX = px + radialX * radial + tangentX * tangent;
-          const pointY = py + radialY * radial + tangentY * tangent;
-          if (move) ctx.moveTo(pointX, pointY);
-          else ctx.lineTo(pointX, pointY);
-        };
-        add(8 + pulse * 2, 0, true); add(0, -4); add(-8 - pulse * 2, 0); add(0, 4); ctx.closePath();
-      }
-      ctx.fill(); ctx.stroke();
-    };
+    // Lightweight orbit, same style as the sector-shield module pulses.
+    const live = armed ? "#eaffff" : "#8cefff";
+    const dim = armed ? "#9adfff" : "#5ec8e8";
+    const active = Math.max(1, Math.round(ratio * 3));
 
-    // 只给外壳保留一次弱阴影，内部结构线全部关闭阴影。
-    ctx.globalAlpha = .22 + ratio * .16;
-    ctx.strokeStyle = liveStroke;
-    ctx.shadowColor = armed ? "#d8ffff" : "#64e7ff";
-    ctx.shadowBlur = armed ? 12 : 8;
-    ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.arc(0, 0, shellRadius, 0, Math.PI * 2); ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    ctx.globalAlpha = .08 + ratio * .08 + pulse * .025;
-    ctx.fillStyle = armed ? "#dcffff" : "#72eaff";
+    // Soft equator ring
+    ctx.globalAlpha = 0.18 + ratio * 0.16;
+    ctx.strokeStyle = dim;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([12, 10]);
+    ctx.lineDashOffset = -this.time * 14;
     ctx.beginPath();
-    for (let side = 0; side < 6; side += 1) {
-      const angle = -Math.PI / 2 + Math.PI / 6 + side * Math.PI / 3;
-      const px = Math.cos(angle) * (shellRadius - 4);
-      const py = Math.sin(angle) * (shellRadius - 4);
-      side ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-    }
-    ctx.closePath(); ctx.fill();
-
-    // 晶片、能量肋骨和分段弧线分别合并成少量路径。
-    drawDiamondPath((plate) => plate * 2 < activeSegments, liveColor, liveStroke, .58 + ratio * .3 + pulse * .08, 1.5);
-    drawDiamondPath((plate) => plate * 2 >= activeSegments, dimColor, dimStroke, .17, .75);
-
-    ctx.globalAlpha = .22 + ratio * .2;
-    ctx.strokeStyle = liveStroke;
-    ctx.lineWidth = 1.15;
-    ctx.beginPath();
-    for (let plate = 0; plate < 6; plate += 1) {
-      if (plate * 2 >= activeSegments) continue;
-      const angle = -Math.PI / 2 + plate * Math.PI / 3;
-      ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(angle) * (shellRadius - 8), Math.sin(angle) * (shellRadius - 8));
-    }
+    ctx.ellipse(0, 4, radius, radius * 0.52, 0, 0, Math.PI * 2);
     ctx.stroke();
-
-    ctx.globalAlpha = .3 + ratio * .28 + pulse * .08;
-    ctx.strokeStyle = liveStroke;
-    ctx.lineWidth = 1.1;
-    ctx.setLineDash([3, 5]);
-    ctx.lineDashOffset = -this.time * 12;
-    ctx.beginPath();
-    for (let side = 0; side < 6; side += 1) {
-      const angle = -Math.PI / 2 + side * Math.PI / 3;
-      const px = Math.cos(angle) * (shellRadius - 4);
-      const py = Math.sin(angle) * (shellRadius - 4);
-      side ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-    }
-    ctx.closePath(); ctx.stroke();
     ctx.setLineDash([]);
 
-    const drawSegments = (lit) => {
-      ctx.globalAlpha = lit ? .58 + ratio * .34 : .13;
-      ctx.strokeStyle = lit ? liveStroke : dimStroke;
-      ctx.lineWidth = lit ? 2.7 : .9;
+    // Orbiting crystal points on one tilted ring
+    const spin = this.time * 0.85;
+    for (let i = 0; i < 3; i += 1) {
+      const lit = i < active;
+      const a = spin + (i / 3) * Math.PI * 2;
+      const px = Math.cos(a) * radius;
+      const py = Math.sin(a) * radius * 0.5 - 4;
+      const size = lit ? 6.5 : 4;
+      ctx.globalAlpha = lit ? 0.55 + ratio * 0.35 : 0.14;
+      ctx.fillStyle = lit ? live : "#3d8eac";
+      ctx.strokeStyle = lit ? "#d9fdff" : "#4c91aa";
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      for (let index = 0; index < segmentCount; index += 1) {
-        if ((index < activeSegments) !== lit) continue;
-        const start = -Math.PI / 2 + index * Math.PI * 2 / segmentCount + .035;
-        const end = start + Math.PI * 2 / segmentCount - .07;
-        ctx.arc(0, 0, shellRadius, start, end);
-      }
+      ctx.moveTo(px, py - size);
+      ctx.lineTo(px + size * 0.55, py);
+      ctx.lineTo(px, py + size * 0.75);
+      ctx.lineTo(px - size * 0.55, py);
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
-    };
-    drawSegments(true);
-    drawSegments(false);
-
-    ctx.globalAlpha = .48 + ratio * .25;
-    ctx.strokeStyle = "#d9fdff";
-    ctx.lineWidth = 1.35;
-    ctx.setLineDash([18, 48]);
-    ctx.lineDashOffset = -this.time * 18;
-    ctx.beginPath(); ctx.arc(0, 0, shellRadius + 4, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = .46 + ratio * .34;
-    ctx.strokeStyle = "#f1ffff";
-    ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.arc(0, 0, shellRadius - 2, -2.72, -1.78); ctx.stroke();
-    ctx.globalAlpha *= .58;
-    ctx.beginPath(); ctx.arc(0, 0, shellRadius - 2, .35, .93); ctx.stroke();
-
-    if (armed) {
-      const armedPulse = .76 + Math.sin(this.time * 5.2) * .2;
-      ctx.globalAlpha = armedPulse;
-      ctx.fillStyle = "#eaffff";
-      ctx.strokeStyle = "#7feeff";
-      ctx.lineWidth = 1.25;
-      ctx.beginPath();
-      for (let index = 0; index < 4; index += 1) {
-        const angle = this.time * .28 + index * Math.PI / 2;
-        const shardRadius = shellRadius + 10;
-        const radialX = Math.cos(angle);
-        const radialY = Math.sin(angle);
-        const tangentX = -radialY;
-        const tangentY = radialX;
-        const px = radialX * shardRadius;
-        const py = radialY * shardRadius;
-        ctx.moveTo(px + radialX * 5, py + radialY * 5);
-        ctx.lineTo(px + tangentX * 3, py + tangentY * 3);
-        ctx.lineTo(px - radialX * 5, py - radialY * 5);
-        ctx.lineTo(px - tangentX * 3, py - tangentY * 3);
-        ctx.closePath();
-      }
-      ctx.fill(); ctx.stroke();
     }
+
     ctx.restore();
   }
 

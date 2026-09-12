@@ -2,6 +2,16 @@
 export const BAY_COLUMNS = 3;
 export const BAY_ROWS = 2;
 export const SLOT_COUNT = 6;
+export const SPECIALIZATIONS = Object.freeze({
+  pulseSplit: { module: "pulse", name: "裂晶散射", description: "轻炮命中后分裂两枚晶矢，可再追击一次；单发伤害降低 15%。" },
+  pulseFocus: { module: "pulse", name: "持续校准", description: "轻炮连续锁定同一目标逐步加速，最多 +60%；换目标重置。" },
+  cannonLance: { module: "cannon", name: "贯星蓄能", description: "重炮蓄能上限提前开放，满蓄能可对任何目标贯穿；射速降低 20%。" },
+  cannonBurst: { module: "cannon", name: "震荡炮弹", description: "重炮射速 +35%，命中产生 95 范围爆炸；单发伤害降低 25%，失去穿透与蓄能。" },
+  bladeGuard: { module: "blade", name: "晶刃屏障", description: "每 1.2 秒拦截一枚进入刀环的炮弹，拦截后刀环扩张 2 秒。" },
+  bladeReturn: { module: "blade", name: "回旋飞刃", description: "晶刃离塔追敌、弹射后沿返程再次切割；飞出期间近身防线变薄。" },
+  hangarHeavy: { module: "hangar", name: "重型猎杀", description: "机群缩编为两架，单机伤害 ×2.5，命中耗电 ×2；优先首领与精英。" },
+  hangarSwarm: { module: "hangar", name: "蜂群清扫", description: "增加两架轻型无人机，分散追击不同目标；单机伤害降低 25%。" }
+});
 export const MODULES = Object.freeze({
   pulse: { name: "晶矢轻炮", size: 1, cost: 60, color: "#7fe9ff", icon: "damage", weapon: true, description: "全向射击，基础射程 360。每级伤害 +35%，适合给元素反应提供连续命中。" },
   cannon: { name: "贯星重炮", size: 2, cost: 150, color: "#ffb377", icon: "cannonSiege", weapon: true, description: "射程 620，140 内无法锁敌；伤害 ×3.4，射速 ×0.55，穿透与首领加伤。强化后连续锁敌蓄能。" },
@@ -14,7 +24,7 @@ export const MODULES = Object.freeze({
 });
 
 export function createModuleBay() {
-  return { installed: [{ id: "pulse", slot: 0, level: 1, invested: 60 }], revision: 0, refitCooldown: 0 };
+  return { installed: [{ id: "pulse", slot: 0, level: 1, invested: 60 }], specializations: {}, revision: 0, refitCooldown: 0 };
 }
 export function moduleCells(module) {
   const step = module.rotation === 1 ? BAY_COLUMNS : 1;
@@ -27,6 +37,20 @@ export function moduleFits(id, slot, rotation = 0) {
 const touches = (a, b) => Math.abs(a % BAY_COLUMNS - b % BAY_COLUMNS) + Math.abs(Math.floor(a / BAY_COLUMNS) - Math.floor(b / BAY_COLUMNS)) === 1;
 export const moduleAt = (state, slot) => state.tower.moduleBay?.installed.find((module) => moduleCells(module).includes(slot));
 export const installedModule = (state, id) => state.tower.moduleBay?.installed.find((module) => module.id === id);
+export const hasSpecialization = (state, id) => Boolean(installedModule(state, SPECIALIZATIONS[id]?.module)?.specialization === id);
+export function modulesAdjacent(state, first, second) {
+  const a = installedModule(state, first), b = installedModule(state, second);
+  return Boolean(a && b && moduleCells(a).some(cell => moduleCells(b).some(other => touches(cell, other))));
+}
+export function specializeModule(state, id) {
+  const meta = SPECIALIZATIONS[id], module = meta && installedModule(state, meta.module);
+  if (!module || module.specialization || state.over) return false;
+  module.specialization = id;
+  state.tower.moduleBay.specializations ??= {};
+  state.tower.moduleBay.specializations[meta.module] = id;
+  syncModuleUpgrades(state);
+  return true;
+}
 export const occupiedSlots = (state) => state.tower.moduleBay?.installed.reduce((sum, module) => sum + MODULES[module.id].size, 0) ?? 0;
 export const moduleUpgradeCost = (module) => Math.round(MODULES[module.id].cost * (1.5 ** module.level));
 export function adjacentReactors(state, id) {
@@ -59,12 +83,20 @@ export function syncModuleUpgrades(state) {
     if (module.id === "blade") Object.assign(upgrades, { saw: 1 + level * 2, sawOverdrive: level >= 2 ? level : 0, sawAccelerator: level >= 2 ? 1 : 0, sawStorm: level === 3 ? 1 : 0 });
     if (module.id === "hangar") Object.assign(upgrades, { drone: level + 2, autoCollect: 1, droneBattery: level - 1, droneHunt: level >= 2 ? 1 : 0, droneScavenge: level >= 2 ? 1 : 0, droneSalvo: level >= 2 ? 1 : 0, dronePayload: level === 3 ? 2 : 0, droneAfterburner: level - 1 });
     if (MODULES[module.id].element) upgrades[module.id] = 1;
+    if (module.specialization === "cannonLance") Object.assign(upgrades, { cannonCharge: Math.max(1, level - 1), cannonStarPiercer: 1 });
+    if (module.specialization === "cannonBurst") Object.assign(upgrades, { cannonCharge: 0, cannonStarPiercer: 0, cannonPierce: 0 });
+    if (module.specialization === "bladeReturn") Object.assign(upgrades, { sawLaunch: 1, sawRicochet: level, sawRecovery: level, sawHomecoming: 1, sawStorm: 0 });
+    if (module.specialization === "hangarHeavy") upgrades.drone = 2;
+    if (module.specialization === "hangarSwarm") upgrades.drone = level + 4;
   }
   state.drones.length = Math.min(state.drones.length, upgrades.drone);
   state.launchedSaws.length = 0;
   if (!upgrades.drone) state.tower.droneMode = "collect";
   state.tower.siegeStreak = 0;
   state.tower.siegeTargetId = null;
+  state.tower.moduleShieldCharge = 0;
+  state.tower.bladeExpansion = 0;
+  state.tower.pulseRelay = 0;
   state.tower.moduleBay.revision += 1;
 }
 
@@ -78,14 +110,29 @@ function changed(state) {
 export function installModule(state, id, slot, rotation = 0) {
   if (!modulePlacementStatus(state, id, slot, false, rotation).ok) return false;
   state.coins -= MODULES[id].cost;
-  state.tower.moduleBay.installed.push({ id, slot, rotation, level: 1, invested: MODULES[id].cost });
+  state.tower.moduleBay.installed.push({ id, slot, rotation, level: 1, invested: MODULES[id].cost, ...(state.tower.moduleBay.specializations?.[id] ? { specialization: state.tower.moduleBay.specializations[id] } : {}) });
   changed(state);
   return true;
+}
+export function moduleMoveStatus(state, id, to, rotation = 0) {
+  const status = modulePlacementStatus(state, id, to, true, rotation);
+  if (status.ok || status.reason !== "与已安装模块重叠") return status;
+  const source = installedModule(state, id), cells = moduleCells({id,slot:to,rotation});
+  const hit = state.tower.moduleBay.installed.filter(m=>m.id!==id&&moduleCells(m).some(c=>cells.includes(c)));
+  if (hit.length!==1 || hit[0].slot!==to) return status;
+  const other=hit[0], destination={...other,slot:source.slot};
+  if(!moduleFits(other.id,destination.slot,other.rotation??0))return status;
+  const otherCells=moduleCells(destination), occupied=state.tower.moduleBay.installed.filter(m=>m!==source&&m!==other).flatMap(moduleCells);
+  if(otherCells.some(c=>cells.includes(c)||occupied.includes(c))||cells.some(c=>occupied.includes(c)))return status;
+  return {ok:true,reason:"交换位置",swap:other.id};
 }
 export function moveModule(state, from, to, rotation) {
   const module = moduleAt(state, from);
   rotation ??= module?.rotation ?? 0;
-  if (!module || (module.slot === to && (module.rotation ?? 0) === rotation) || !modulePlacementStatus(state, module.id, to, true, rotation).ok) return false;
+  if (!module || (module.slot === to && (module.rotation ?? 0) === rotation)) return false;
+  const status=moduleMoveStatus(state,module.id,to,rotation);
+  if(!status.ok)return false;
+  if(status.swap)installedModule(state,status.swap).slot=module.slot;
   module.slot = to;
   module.rotation = rotation;
   changed(state);

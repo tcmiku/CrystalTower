@@ -1179,9 +1179,9 @@ function createUpgradeUi() {
   dom.upgradeList.classList.remove("module-workspace");
   if (state.tower.moduleBay) {
     document.getElementById("techTreeTitle").textContent = "晶塔 · 网格模块拼装";
-    document.querySelector(".tech-tree-header p").textContent = "亲手整理 3×2 拼装板。两格武器可旋转，反应器与武器上下左右接触时供能。";
-    document.querySelector(".tech-tree-footer span").textContent = "拖动或点击放置 · R 旋转 · Esc 取消 · T 返回战斗";
-    document.querySelector(".tech-tree-footer span:nth-child(2)").textContent = "六槽上限 · 金币无法扩容";
+    document.querySelector(".tech-tree-header p").textContent = "";
+    document.querySelector(".tech-tree-footer span").textContent = "R 旋转 · Esc 返回";
+    document.querySelector(".tech-tree-footer span:nth-child(2)").textContent = "";
     dom.closeTechTreeButton.setAttribute("aria-label", "关闭模块装配");
     document.querySelector(".tech-tree-eyebrow").textContent = "战中装配中枢";
     dom.openTechTreeButton.title = "打开完整模块装配面板";
@@ -1471,21 +1471,24 @@ function isPointOnTower(x, y, touchScale = 1) {
   return Math.hypot(x - tower.x, y - tower.y) <= towerClickRadius(touchScale);
 }
 
-function setTechTreeOpen(open, restoreFocus = false) {
+function setTechTreeOpen(open, restoreFocus = false, transfer = false) {
   const nextOpen = Boolean(open) && !state.over;
   if (nextOpen && starfallAiming) cancelStarfallAim(false);
-  if (nextOpen && moduleFloatOpen) setModuleFloatOpen(false);
+  const switching = nextOpen && moduleFloatOpen;
+  const resumeFromFloat = resumeAfterModuleFloat;
+  if (switching) setModuleFloatOpen(false, true);
   if (nextOpen && !techTreeOpen) {
-    resumeAfterTechTree = !state.paused;
+    resumeAfterTechTree = switching ? resumeFromFloat : !state.paused;
     state.paused = true;
     positionTechPanelOrigin(getTowerPosition(state));
   } else if (!nextOpen && techTreeOpen) {
     moduleUi?.cancel();
-    if (state.tower.moduleBay?.pendingRefit) {
+    delete state.moduleSelection;delete state.modulePreview;
+    if (!transfer && state.tower.moduleBay?.pendingRefit) {
       state.tower.moduleBay.refitCooldown = 8;
       state.tower.moduleBay.pendingRefit = false;
     }
-    if (resumeAfterTechTree && !state.over) state.paused = false;
+    if (!transfer && resumeAfterTechTree && !state.over) state.paused = false;
     resumeAfterTechTree = false;
   }
   techTreeOpen = nextOpen;
@@ -1497,12 +1500,14 @@ function setTechTreeOpen(open, restoreFocus = false) {
   updateUi();
 }
 
-function setModuleFloatOpen(open) {
+function setModuleFloatOpen(open, transfer = false) {
   const nextOpen = Boolean(open) && !state.over && Boolean(state.tower.moduleBay);
   if (nextOpen && starfallAiming) cancelStarfallAim(false);
-  if (nextOpen && techTreeOpen) setTechTreeOpen(false);
+  const switching = nextOpen && techTreeOpen;
+  const resumeFromTree = resumeAfterTechTree;
+  if (switching) setTechTreeOpen(false, false, true);
   if (nextOpen && !moduleFloatOpen) {
-    resumeAfterModuleFloat = !state.paused;
+    resumeAfterModuleFloat = switching ? resumeFromTree : !state.paused;
     state.paused = true;
     if (!compactModuleUi) {
       compactModuleUi = createCompactModuleUi(dom.moduleFloatPanel, state, {
@@ -1516,11 +1521,12 @@ function setModuleFloatOpen(open) {
     positionModuleFloatPanel();
   } else if (!nextOpen && moduleFloatOpen) {
     compactModuleUi?.cancel();
-    if (state.tower.moduleBay?.pendingRefit) {
+    delete state.moduleSelection;delete state.modulePreview;
+    if (!transfer && state.tower.moduleBay?.pendingRefit) {
       state.tower.moduleBay.refitCooldown = 8;
       state.tower.moduleBay.pendingRefit = false;
     }
-    if (resumeAfterModuleFloat && !state.over) state.paused = false;
+    if (!transfer && resumeAfterModuleFloat && !state.over) state.paused = false;
     resumeAfterModuleFloat = false;
   }
   moduleFloatOpen = nextOpen;

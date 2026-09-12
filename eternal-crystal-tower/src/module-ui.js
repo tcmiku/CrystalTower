@@ -1,337 +1,146 @@
-import { MODULES, BAY_COLUMNS, SLOT_COUNT, moduleAt, moduleCells, installedModule, occupiedSlots, adjacentReactors, modulePlacementStatus, moduleUpgradeCost, installModule, removeModule, moveModule, upgradeModule } from "./modules.js";
+import { MODULES, moduleAt, installedModule, occupiedSlots, adjacentReactors, modulePlacementStatus, moduleMoveStatus, moduleUpgradeCost, installModule, removeModule, moveModule, upgradeModule } from './modules.js';
 
-export function createCompactModuleUi(root, state, { icon, notify, refresh }) {
-  const controller = new AbortController();
-  const directions = ["北", "东北", "东南", "南", "西南", "西北"];
-  let slot = 0;
-  let held = null;
-  let signature = "";
-  let hover = null;
+export const createCompactModuleUi = (root,state,options) => createModuleUi(root,state,{...options,compact:true});
 
-  const button = (label, handler, disabled = false, className = "") => {
-    const node = document.createElement("button");
-    node.type = "button";
-    node.textContent = label;
-    node.disabled = disabled;
-    node.className = className;
-    node.addEventListener("click", handler);
-    return node;
-  };
-  const redraw = () => { signature = ""; update(); };
-  const cancel = () => { held = null; hover = null; redraw(); };
-  const pick = (id, from = null) => {
-    if (from !== null) slot = from;
-    held = { id, from, rotation: from === null ? 0 : moduleAt(state, from)?.rotation ?? 0 };
-    hover = slot;
-    redraw();
-  };
-  const rotate = () => {
-    if (held && MODULES[held.id].size > 1) {
-      held.rotation = 1 - held.rotation;
-      paintPreview();
-      redraw();
-    }
-  };
-  const statusAt = (cell) => modulePlacementStatus(state, held.id, cell, held.from !== null, held.rotation);
-  function place(cell) {
-    if (!held) return;
-    const status = statusAt(cell);
-    if (!status.ok) { notify(status.reason); return; }
-    const same = held.from === cell && (moduleAt(state, cell)?.rotation ?? 0) === held.rotation;
-    const ok = same || (held.from === null ? installModule(state, held.id, cell, held.rotation) : moveModule(state, held.from, cell, held.rotation));
-    if (ok) {
-      slot = cell;
-      held = null;
-      hover = null;
-      notify("模块已放置");
-      redraw();
-      refresh();
-    }
+export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCore,compact=false}) {
+  const controller=new AbortController(), signal=controller.signal;
+  let selected=null, held=null, gesture=null, hover=null, signature='', suppress=false, lastPoint=null;
+  const directions=['北','东北','东南','南','西南','西北'];
+  root.classList.add('module-editor');
+  if(!compact) root.classList.add('module-workspace');
+  root.innerHTML=`${compact?'<header class="module-float-header"><span>模块装配</span><button type="button" data-action="close" aria-label="关闭模块装配">×</button></header>':''}<section class="module-layout"><div class="module-heading"><span>装配</span><strong class="module-capacity"></strong></div><div class="module-board"></div><div class="module-editor-tools"><button type="button" data-action="rotate" title="旋转 R" aria-label="旋转模块">↻</button><button type="button" data-action="cancel">取消</button><span class="module-hint" role="status"></span></div><div class="module-selection"></div>${coreStatus?'<div class="module-core-upgrades"></div>':''}</section><section class="module-catalog"><div class="module-heading"><span>仓库</span><small class="module-wallet"></small></div><div class="module-cards"></div></section>`;
+  const board=root.querySelector('.module-board'), info=root.querySelector('.module-selection');
+  const ghost=document.createElement('div');ghost.className='module-drag-ghost';ghost.hidden=true;document.body.append(ghost);
+  const listen=(target,type,fn)=>target.addEventListener(type,fn,{signal});
+  const btn=(label,action,disabled=false)=>`<button type="button" data-action="${action}" ${disabled?'disabled':''}>${label}</button>`;
+  const locked=()=>state.over||state.tower.moduleBay.refitCooldown>0;
+  const available=id=>!locked()&&(installedModule(state,id)||state.coins>=MODULES[id].cost);
+  function select(id){selected=id;state.moduleSelection=id;signature='';update()}
+  function begin(id,offset={x:0,y:0}) {
+    if(!available(id))return false;
+    const m=installedModule(state,id);
+    held={id,from:m?.slot??null,rotation:m?.rotation??0,offset};selected=id;state.moduleSelection=id;
+    ghost.style.setProperty('--module-color',MODULES[id].color);
+    ghost.innerHTML='<span class="module-art"></span>';icon(ghost.firstChild,MODULES[id].icon);
+    updateTools();paint();return true;
   }
-  function paintPreview() {
-    root.querySelectorAll(".module-cell").forEach((node) => node.classList.remove("preview-good", "preview-bad"));
-    const hint = root.querySelector(".module-hint");
-    if (!hint) return;
-    if (!held) {
-      hint.textContent = "点击仓库拿起 · 点格放置 · Esc 关闭";
-      return;
-    }
-    const cell = hover ?? slot;
-    const status = statusAt(cell);
-    for (let i = 0; i < MODULES[held.id].size; i++) {
-      const x = cell % BAY_COLUMNS + (held.rotation === 0 ? i : 0);
-      const y = Math.floor(cell / BAY_COLUMNS) + (held.rotation === 1 ? i : 0);
-      if (x < 3 && y < 2) root.querySelector(`[data-cell="${y * 3 + x}"]`)?.classList.add(status.ok ? "preview-good" : "preview-bad");
-    }
-    hint.textContent = `${MODULES[held.id].name} · ${status.reason}${MODULES[held.id].size > 1 ? " · R 旋转" : ""}`;
+  function cancel(){lastPoint=null;held=null;hover=null;gesture=null;ghost.hidden=true;delete state.modulePreview;signature='';update()}
+  function rawCell(event) {
+    const r=board.getBoundingClientRect(),style=getComputedStyle(board),gapX=parseFloat(style.columnGap)||0,gapY=parseFloat(style.rowGap)||0;
+    const w=(r.width-gapX*2)/3,h=(r.height-gapY)/2,px=event.clientX-r.left,py=event.clientY-r.top;
+    const x=Math.floor(px/(w+gapX)),y=Math.floor(py/(h+gapY));
+    if(x<0||x>2||y<0||y>1||px-x*(w+gapX)>w||py-y*(h+gapY)>h)return null;
+    return {x,y};
   }
-  function cellAt(event) {
-    const board = root.querySelector(".module-board");
-    if (!board) return null;
-    const rect = board.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width;
-    const y = (event.clientY - rect.top) / rect.height;
-    return x >= 0 && x < 1 && y >= 0 && y < 1 ? Math.floor(y * 2) * 3 + Math.floor(x * 3) : null;
-  }
-  root.addEventListener("pointermove", (event) => {
-    if (held) {
-      hover = cellAt(event);
-      paintPreview();
+  function target(event){const c=rawCell(event);if(!c||!held)return null;const x=c.x-held.offset.x,y=c.y-held.offset.y;return x<0||x>2||y<0||y>1?null:y*3+x}
+  const placement=cell=>held.from!==null?moduleMoveStatus(state,held.id,cell,held.rotation):modulePlacementStatus(state,held.id,cell,false,held.rotation);
+  function updateTools(){root.querySelector('[data-action="rotate"]').disabled=(!held&&!selected)||MODULES[held?.id??selected]?.size===1||locked();root.querySelector('[data-action="cancel"]').style.visibility=held?'visible':'hidden'}
+  function paint(){
+    board.querySelectorAll('.module-cell').forEach(n=>n.classList.remove('preview-good','preview-bad'));
+    board.querySelectorAll('.module-piece').forEach(n=>n.classList.toggle('lifted',held?.id===n.dataset.id));
+    const hint=root.querySelector('.module-hint');hint.textContent='';
+    delete state.modulePreview;
+    if(!held||hover===null)return;
+    const status=placement(hover);
+    state.modulePreview={id:held.id,slot:hover,rotation:held.rotation,valid:status.ok};
+    const x=hover%3,y=Math.floor(hover/3);
+    for(let i=0;i<MODULES[held.id].size;i++){
+      const cx=x+(held.rotation===0?i:0),cy=y+(held.rotation===1?i:0);
+      if(cx<3&&cy<2)board.querySelector(`[data-cell="${cy*3+cx}"]`)?.classList.add(status.ok?'preview-good':'preview-bad');
     }
-  }, { signal: controller.signal });
-  function handleKey(event) {
-    if (!held) return false;
-    if (event.key === "Escape") cancel();
-    else if (event.key.toLowerCase() === "r") rotate();
+    if(!status.ok||status.swap)hint.textContent=status.reason;
+    ghost.classList.toggle('invalid',!status.ok);
+  }
+  function place(cell,dragged=false){
+    if(!held)return;
+    if(cell===null){cancel();return}
+    const status=placement(cell);
+    if(!status.ok){notify(status.reason);if(dragged)cancel();return}
+    const same=held.from===cell&&(installedModule(state,held.id)?.rotation??0)===held.rotation;
+    const ok=same||(held.from===null?installModule(state,held.id,cell,held.rotation):moveModule(state,held.from,cell,held.rotation));
+    if(ok){cancel();refresh()}
+  }
+  function rotate(){
+    if(!held&&selected)begin(selected);
+    if(!held||MODULES[held.id].size===1)return;
+    held.rotation=1-held.rotation;held.offset={x:held.offset.y,y:held.offset.x};if(lastPoint)hover=target(lastPoint);paint();updateTools();
+  }
+  function handleKey(event){
+    if(event.key==='Escape'&&held)cancel();
+    else if(event.key.toLowerCase()==='r'&&(held||selected)&&!locked())rotate();
     else return false;
-    event.preventDefault();
-    return true;
+    event.preventDefault();return true;
   }
-  function update() {
-    const bay = state.tower.moduleBay;
-    const next = [bay.revision, Math.floor(state.coins), Math.ceil(bay.refitCooldown), state.over, slot, JSON.stringify(held)].join(":");
-    if (signature === next) return;
-    signature = next;
-    root.innerHTML = `
-      <header class="module-float-header">
-        <div><span>拼装板</span><strong>${occupiedSlots(state)}<small>/6</small></strong></div>
-        <button type="button" class="module-float-close" aria-label="关闭模块悬浮框">Esc</button>
-      </header>
-      <div class="module-board" aria-label="六格模块拼装板"></div>
-      <div class="module-placement-tools"></div>
-      <div class="module-selection"></div>
-      <p class="module-hint" role="status"></p>
-      <div class="module-cards" aria-label="模块仓库"></div>
-      <footer class="module-float-footer"><span class="module-float-coins">◆ ${Math.floor(state.coins)}</span><span class="module-float-refit"></span></footer>`;
-    root.querySelector(".module-float-close").addEventListener("click", () => root.dispatchEvent(new CustomEvent("module-float-close", { bubbles: true })));
-    const board = root.querySelector(".module-board");
-    for (let cell = 0; cell < SLOT_COUNT; cell++) {
-      const node = button("", () => { if (held) place(cell); else { slot = cell; redraw(); } }, false, "module-cell");
-      node.dataset.cell = cell;
-      const occupant = moduleAt(state, cell);
-      node.innerHTML = `<b>${cell + 1}</b><small>${["↑", "↗", "↘", "↓", "↙", "↖"][cell]}</small>`;
-      node.setAttribute("aria-label", `第 ${cell + 1} 格，${directions[cell]}扇区，${occupant ? MODULES[occupant.id].name : "空格"}`);
-      node.addEventListener("pointerenter", () => { if (held) { hover = cell; paintPreview(); } });
-      board.append(node);
-    }
-    for (const module of bay.installed) {
-      const meta = MODULES[module.id];
-      const vertical = module.rotation === 1;
-      const node = button("", () => {
-        if (held) place(module.slot);
-        else { slot = module.slot; pick(module.id, module.slot); }
-      }, bay.refitCooldown > 0 || state.over, `module-piece${held?.id === module.id ? " lifted" : ""}`);
-      node.dataset.pick = module.id;
-      node.dataset.from = String(module.slot);
-      node.style.gridColumn = `${module.slot % 3 + 1} / span ${vertical ? 1 : meta.size}`;
-      node.style.gridRow = `${Math.floor(module.slot / 3) + 1} / span ${vertical ? meta.size : 1}`;
-      node.style.setProperty("--module-color", meta.color);
-      node.innerHTML = `<span class="module-art" aria-hidden="true"></span><strong>${meta.name}</strong><small>Lv.${module.level}</small>`;
-      icon(node.querySelector(".module-art"), meta.icon);
-      board.append(node);
-    }
-    if (held) {
-      const tools = root.querySelector(".module-placement-tools");
-      tools.append(
-        button(`旋转 ${held.rotation ? "竖" : "横"}`, rotate, MODULES[held.id].size === 1),
-        button("取消", cancel)
-      );
-    }
-    const selected = held && held.from !== null ? installedModule(state, held.id) : moduleAt(state, slot);
-    const info = root.querySelector(".module-selection");
-    if (selected) {
-      const meta = MODULES[selected.id];
-      const neighbors = meta.weapon ? adjacentReactors(state, selected.id) : bay.installed.filter((item) => MODULES[item.id].weapon && adjacentReactors(state, item.id).includes(selected));
-      info.innerHTML = `<strong>${meta.name} · Lv.${selected.level}</strong><p>${selected.id === "shield" ? `保护${directions[selected.slot]}方` : `${meta.weapon ? "供能" : "强化"}：${neighbors.map((item) => MODULES[item.id].name).join("、") || "无"}`}</p><div class="module-actions"></div>`;
-      const actions = info.querySelector(".module-actions");
-      const locked = bay.refitCooldown > 0 || state.over;
-      const act = (fn, message) => { if (fn()) { held = null; notify(message); } redraw(); refresh(); };
-      actions.append(button("移动", () => pick(selected.id, selected.slot), locked));
-      actions.append(button(selected.level >= 3 ? "已满级" : `强化 ${moduleUpgradeCost(selected)}`, () => act(() => upgradeModule(state, selected.slot), "模块强化完成"), locked || selected.level >= 3 || state.coins < moduleUpgradeCost(selected)));
-      actions.append(button(`拆卸 +${Math.floor(selected.invested * 0.8)}`, () => act(() => removeModule(state, selected.slot), "模块已拆卸"), locked));
-    } else {
-      info.innerHTML = "<strong>自由拼装</strong><p>点击仓库模块拿起，再点格子放置。</p>";
-    }
-    for (const [id, meta] of Object.entries(MODULES)) {
-      const installed = installedModule(state, id);
-      const disabled = Boolean(installed) || bay.refitCooldown > 0 || state.over || state.coins < meta.cost;
-      const card = button("", () => {
-        if (!disabled) pick(id);
-      }, false, `module-card${held?.id === id ? " picked" : ""}${disabled ? " unavailable" : ""}`);
-      card.dataset.pick = id;
-      card.dataset.module = id;
-      card.dataset.available = String(!disabled);
-      card.title = `${meta.name} · ${meta.size} 格 · ${installed ? `Lv.${installed.level}` : `${meta.cost} 金`}`;
-      card.setAttribute("aria-label", `${meta.name}，${meta.size} 格，${installed ? `已安装 Lv.${installed.level}` : `${meta.cost} 金币`}`);
-      card.style.setProperty("--module-color", meta.color);
-      card.innerHTML = `<span class="module-art" aria-hidden="true"></span><span class="module-card-name">${meta.name}</span><span class="module-card-price">${installed ? `Lv.${installed.level}` : meta.cost}</span>`;
-      icon(card.querySelector(".module-art"), meta.icon);
-      root.querySelector(".module-cards").append(card);
-    }
-    root.querySelector(".module-float-refit").textContent = bay.refitCooldown > 0 ? `重整 ${Math.ceil(bay.refitCooldown)}s` : "关闭后重整 8s";
-    paintPreview();
-  }
-  update();
-  return { update, handleKey, cancel, destroy: () => controller.abort() };
-}
-
-export function createModuleUi(root, state, { icon, notify, refresh, coreStatus, buyCore }) {
-  const controller = new AbortController();
-  const listen = (type, handler) => root.addEventListener(type, handler, { signal: controller.signal });
-  let inspected = "pulse";
-  let slot = 0, held = null, signature = "", hover = null, gesture = null, suppressClick = false;
-  const directions = ["北", "东北", "东南", "南", "西南", "西北"];
-  const button = (label, handler, disabled = false, className = "") => {
-    const node = document.createElement("button");
-    node.type = "button"; node.textContent = label; node.disabled = disabled; node.className = className;
-    node.addEventListener("click", handler);
-    return node;
-  };
-  const redraw = () => { signature = ""; update(); };
-  const cancel = () => { held = null; hover = null; redraw(); };
-  const pick = (id, from = null) => {
-    inspected = id;
-    if (from !== null) slot = from;
-    held = { id, from, rotation: from === null ? 0 : moduleAt(state, from)?.rotation ?? 0 };
-    hover = slot; redraw();
-  };
-  const rotate = () => { if (held && MODULES[held.id].size > 1) { held.rotation = 1 - held.rotation; paintPreview(); redraw(); } };
-  const statusAt = (cell) => modulePlacementStatus(state, held.id, cell, held.from !== null, held.rotation);
-  function place(cell) {
-    if (!held) return;
-    const status = statusAt(cell);
-    if (!status.ok) { notify(status.reason); return; }
-    const same = held.from === cell && (moduleAt(state, cell)?.rotation ?? 0) === held.rotation;
-    const ok = same || (held.from === null ? installModule(state, held.id, cell, held.rotation) : moveModule(state, held.from, cell, held.rotation));
-    if (ok) { slot = cell; held = null; hover = null; notify("模块已放置"); redraw(); refresh(); }
-  }
-  function paintPreview() {
-    root.querySelectorAll(".module-cell").forEach((node) => node.classList.remove("preview-good", "preview-bad"));
-    const hint = root.querySelector(".module-hint");
-    if (!hint) return;
-    if (!held) { hint.textContent = "拖动仓库模块到拼装板，或点击拿起后点击格子放置。已装模块也可拖动。"; return; }
-    const cell = hover ?? slot;
-    const status = statusAt(cell);
-    // Clip the ghost at the boundary without wrapping into another row.
-    for (let i = 0; i < MODULES[held.id].size; i++) {
-      const x = cell % BAY_COLUMNS + (held.rotation === 0 ? i : 0);
-      const y = Math.floor(cell / BAY_COLUMNS) + (held.rotation === 1 ? i : 0);
-      if (x < 3 && y < 2) root.querySelector(`[data-cell="${y * 3 + x}"]`)?.classList.add(status.ok ? "preview-good" : "preview-bad");
-    }
-    hint.textContent = `${MODULES[held.id].name} · ${status.reason} · R 旋转，Esc 取消；以指向格为左上角。`;
-  }
-  function cellAt(event) {
-    const board = root.querySelector(".module-board");
-    if (!board) return null;
-    const rect = board.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width, y = (event.clientY - rect.top) / rect.height;
-    return x >= 0 && x < 1 && y >= 0 && y < 1 ? Math.floor(y * 2) * 3 + Math.floor(x * 3) : null;
-  }
-  listen("pointerdown", (event) => {
-    const source = event.target.closest("[data-pick]");
-    if (!source || source.disabled || source.dataset.available === "false" || event.button !== 0) return;
-    gesture = { id: source.dataset.pick, from: source.dataset.from === undefined ? null : Number(source.dataset.from), x: event.clientX, y: event.clientY, dragging: false };
+  listen(root,'pointerdown',event=>{
+    if(event.button!==0||held)return;
+    const source=event.target.closest('[data-id]');if(!source||!available(source.dataset.id))return;
+    const m=source.classList.contains('module-piece')?installedModule(state,source.dataset.id):null,c=rawCell(event);
+    gesture={id:source.dataset.id,x:event.clientX,y:event.clientY,dragging:false,offset:m&&c?{x:c.x-m.slot%3,y:c.y-Math.floor(m.slot/3)}:{x:0,y:0}};
     root.setPointerCapture(event.pointerId);
   });
-  listen("pointermove", (event) => {
-    if (gesture && !gesture.dragging && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 6) {
-      gesture.dragging = true; pick(gesture.id, gesture.from);
-    }
-    if (held) { hover = cellAt(event); paintPreview(); }
+  listen(root,'pointermove',event=>{
+    if(gesture&&!gesture.dragging&&Math.hypot(event.clientX-gesture.x,event.clientY-gesture.y)>7){gesture.dragging=begin(gesture.id,gesture.offset)}
+    if(!held)return;
+    lastPoint={clientX:event.clientX,clientY:event.clientY};hover=target(event);
+    ghost.hidden=!gesture?.dragging;ghost.style.left=`${event.clientX+12}px`;ghost.style.top=`${event.clientY+12}px`;
+    paint();
   });
-  listen("pointerup", (event) => {
-    if (!gesture) return;
-    const current = gesture; gesture = null;
-    if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId);
-    suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
-    if (current.dragging) { const cell = cellAt(event); if (cell !== null) place(cell); else cancel(); }
-    else if (held) { const cell = cellAt(event); if (cell !== null) place(cell); else pick(current.id, current.from); }
-    else pick(current.id, current.from);
+  listen(root,'pointerleave',()=>{if(!gesture){hover=null;paint()}});
+  listen(root,'pointerup',event=>{
+    if(!gesture)return;const g=gesture;gesture=null;
+    if(root.hasPointerCapture(event.pointerId))root.releasePointerCapture(event.pointerId);
+    suppress=true;setTimeout(()=>suppress=false,0);
+    if(g.dragging)place(target(event),true);else select(g.id);
   });
-  listen("pointercancel", () => { gesture = null; cancel(); });
-  function handleKey(event) {
-    if (!held) return false;
-    if (event.key === "Escape") cancel();
-    else if (event.key.toLowerCase() === "r") rotate();
-    else return false;
-    event.preventDefault(); return true;
+  listen(root,'pointercancel',cancel);
+  listen(root,'click',event=>{
+    if(suppress)return;
+    const action=event.target.closest('[data-action]')?.dataset.action;
+    if(action==='close'){root.dispatchEvent(new CustomEvent('module-float-close',{bubbles:true}));return}
+    if(action==='cancel'){cancel();return}
+    if(action==='rotate'){rotate();return}
+    if(action==='move'||action==='install'){begin(selected);return}
+    const m=installedModule(state,selected);
+    if(action==='upgrade'||action==='remove'){
+      if(m&&(action==='upgrade'?upgradeModule(state,m.slot):removeModule(state,m.slot))){cancel();refresh()}return;
+    }
+    if(action?.startsWith('core-')){buyCore(action.slice(5));signature='';update();return}
+    if(event.target.closest('.module-board')&&held){
+      const cell=event.target.closest('[data-cell]')?.dataset.cell;
+      const piece=event.target.closest('.module-piece')?.dataset.id;
+      place(event.detail===0?(cell!==undefined?Number(cell):installedModule(state,piece)?.slot??null):target(event));return;
+    }
+    const id=event.target.closest('[data-id]')?.dataset.id;if(id)select(id);
+  });
+  function update(){
+    if(gesture?.dragging)return;
+    const bay=state.tower.moduleBay,next=JSON.stringify([bay.revision,Math.floor(state.coins),Math.ceil(bay.refitCooldown),state.over,selected,held,state.tower.upgrades]);
+    if(signature===next)return;signature=next;
+    const focus=root.contains(document.activeElement)?document.activeElement.dataset.focus:null;
+    root.querySelector('.module-capacity').innerHTML=`${occupiedSlots(state)}<small>/6</small>`;
+    root.querySelector('.module-wallet').textContent=`◆ ${Math.floor(state.coins)}${bay.refitCooldown>0?` · ${Math.ceil(bay.refitCooldown)}s`:''}`;
+    board.innerHTML='';
+    for(let cell=0;cell<6;cell++){
+      const n=document.createElement('button');n.type='button';n.className='module-cell';n.dataset.cell=cell;n.dataset.focus=`cell-${cell}`;
+      n.innerHTML=`<b>${cell+1}</b>`;n.setAttribute('aria-label',`第 ${cell+1} 格，${directions[cell]}，${MODULES[moduleAt(state,cell)?.id]?.name??'空格'}`);board.append(n);
+    }
+    const connected=selected?(MODULES[selected]?.weapon?adjacentReactors(state,selected).map(m=>m.id):bay.installed.filter(m=>MODULES[m.id].weapon&&adjacentReactors(state,m.id).some(r=>r.id===selected)).map(m=>m.id)):[];
+    for(const m of bay.installed){
+      const n=document.createElement('button');n.type='button';n.className=`module-piece${selected===m.id?' inspected':''}${connected.includes(m.id)?' connected':''}`;n.dataset.id=m.id;n.dataset.focus=`piece-${m.id}`;
+      n.style.gridColumn=`${m.slot%3+1} / span ${m.rotation?1:MODULES[m.id].size}`;n.style.gridRow=`${Math.floor(m.slot/3)+1} / span ${m.rotation?MODULES[m.id].size:1}`;n.style.setProperty('--module-color',MODULES[m.id].color);
+      n.innerHTML=`<span class="module-art"></span><small>Lv.${m.level}</small>`;n.setAttribute('aria-label',MODULES[m.id].name);icon(n.firstChild,MODULES[m.id].icon);board.append(n);
+    }
+    const cards=root.querySelector('.module-cards');cards.innerHTML='';
+    for(const [id,meta] of Object.entries(MODULES)){
+      const m=installedModule(state,id),n=document.createElement('button');n.type='button';n.className=`module-card${selected===id?' inspected':''}${!available(id)?' unavailable':''}`;n.dataset.id=id;n.dataset.focus=`card-${id}`;n.style.setProperty('--module-color',meta.color);
+      n.innerHTML=`<span class="module-footprint" aria-hidden="true">${'<i></i>'.repeat(meta.size)}</span>${m?'<span class="module-installed">✓</span>':''}<span class="module-art"></span><span class="module-card-name">${meta.name}</span><span class="module-card-price">${m?`Lv.${m.level}`:`◆ ${meta.cost}`}</span>`;
+      n.setAttribute('aria-label',`${meta.name}，${meta.size} 格，${m?'已安装':`${meta.cost} 金币`}`);icon(n.querySelector('.module-art'),meta.icon);cards.append(n);
+    }
+    if(selected){const meta=MODULES[selected],m=installedModule(state,selected);
+      info.innerHTML=`<div class="module-selected-title"><strong>${meta.name}</strong><details><summary aria-label="模块说明">ⓘ</summary><p>${meta.description}</p></details></div><div class="module-actions">${m?btn('移动','move',locked())+btn(m.level>=3?'已满级':`强化 ◆${moduleUpgradeCost(m)}`,'upgrade',locked()||m.level>=3||state.coins<moduleUpgradeCost(m))+btn(`拆卸 +${Math.floor(m.invested*.8)}`,'remove',locked()):btn(`安装 ◆${meta.cost}`,'install',!available(selected))}</div>`;
+    }else info.innerHTML='<div class="module-selected-title"><strong>选择模块</strong></div><div class="module-actions"></div>';
+    if(coreStatus){const core=root.querySelector('.module-core-upgrades');core.innerHTML='';for(const [key,title] of [['damage','伤害'],['rate','射速'],['ascend','升阶']]){const status=coreStatus(key);core.insertAdjacentHTML('beforeend',btn(`${title} · ${status.maxed?'满级':status.unlocked?`◆${status.cost}`:'未解锁'}`,`core-${key}`,!status.unlocked||state.coins<status.cost))}}
+    updateTools();paint();if(focus)root.querySelector(`[data-focus="${focus}"]`)?.focus({preventScroll:true});
   }
-  function update() {
-    const bay = state.tower.moduleBay;
-    const next = [bay.revision, Math.floor(state.coins), Math.ceil(bay.refitCooldown), state.over, state.threat, ...["damage", "rate", "ascend"].map((key) => state.tower.upgrades[key]), slot, JSON.stringify(held)].join(":");
-    if (signature === next || gesture?.dragging && signature && signature.split(":")[0] === String(bay.revision)) return;
-    signature = next;
-    const focusKey = root.contains(document.activeElement) ? document.activeElement?.dataset.focus : null;
-    root.classList.add("module-workspace");
-    root.innerHTML = `<section class="module-layout"><div class="module-heading"><span>晶核拼装板 · 3 × 2</span><strong>${occupiedSlots(state)} <small>/ 6 格</small></strong></div><div class="module-board" aria-label="六格模块拼装板"></div><p class="module-hint" role="status"></p><div class="module-placement-tools"></div><div class="module-selection"></div><div class="module-core-upgrades"><strong>晶核调校 · 不占拼装格</strong></div></section><section class="module-catalog"><div class="module-heading"><span>模块仓库</span><small>拿起 → 旋转 → 放置</small></div><div class="module-cards" aria-label="模块图标仓库"></div><div class="module-catalog-detail"></div><p class="module-refit-note">${bay.refitCooldown > 0 ? `防线重整中，还需战斗 ${Math.ceil(bay.refitCooldown)} 秒。` : "放置成功才扣金币。面板内暂停，可连续调整；关闭后重整 8 秒。拆卸返还总投入的 80%。"}</p></section><section class="module-build-guide"><b>拼装规则</b><span><strong>有限空间</strong>两格武器可横放或竖放，不能重叠或越界。</span><span><strong>接触供能</strong>反应器只强化上下左右接触的武器，斜角不连接。</span><span><strong>扇区护盾</strong>格号对应战场扇区，格内箭头标明保护方向。</span></section>`;
-    const board = root.querySelector(".module-board");
-    for (let cell = 0; cell < SLOT_COUNT; cell++) {
-      const node = button("", () => { if (suppressClick) return; if (held) place(cell); else { slot = cell; redraw(); } }, false, "module-cell");
-      node.dataset.cell = cell; node.dataset.focus = `cell-${cell}`;
-      const occupant = moduleAt(state, cell);
-      node.innerHTML = `<b>${cell + 1}</b><small>${["↑", "↗", "↘", "↓", "↙", "↖"][cell]} ${directions[cell]}</small><span>${occupant ? "" : "空格"}</span>`;
-      node.setAttribute("aria-label", `第 ${cell + 1} 格，${directions[cell]}扇区，${occupant ? MODULES[occupant.id].name : "空格"}`);
-      node.addEventListener("focus", () => { if (held) { hover = cell; paintPreview(); } });
-      board.append(node);
-    }
-    for (const module of bay.installed) {
-      const meta = MODULES[module.id], vertical = module.rotation === 1;
-      const node = button("", () => { if (!suppressClick) { if (held) place(module.slot); else { slot = module.slot; pick(module.id, module.slot); } } }, bay.refitCooldown > 0 || state.over, `module-piece${held?.id === module.id ? " lifted" : ""}`);
-      node.dataset.pick = module.id; node.dataset.from = module.slot; node.dataset.focus = `piece-${module.id}`;
-      node.style.gridColumn = `${module.slot % 3 + 1} / span ${vertical ? 1 : meta.size}`;
-      node.style.gridRow = `${Math.floor(module.slot / 3) + 1} / span ${vertical ? meta.size : 1}`;
-      node.style.setProperty("--module-color", meta.color);
-      node.innerHTML = `<span class="module-art"></span><strong>${meta.name}</strong><small>Lv.${module.level} · ${moduleCells(module).map((cell) => cell + 1).join(" + ")} 格${module.id === "shield" ? ` · ${directions[module.slot]}` : ""}</small>`;
-      icon(node.querySelector(".module-art"), meta.icon); board.append(node);
-    }
-    if (held) {
-      const tools = root.querySelector(".module-placement-tools");
-      tools.append(button(`旋转 R · ${held.rotation ? "竖放" : "横放"}`, rotate, MODULES[held.id].size === 1), button("取消 Esc", cancel));
-    }
-    const selected = held && held.from !== null ? installedModule(state, held.id) : moduleAt(state, slot);
-    const info = root.querySelector(".module-selection");
-    if (selected) {
-      const meta = MODULES[selected.id];
-      const neighbors = meta.weapon ? adjacentReactors(state, selected.id) : bay.installed.filter((item) => MODULES[item.id].weapon && adjacentReactors(state, item.id).includes(selected));
-      info.innerHTML = `<strong>${meta.name} · Lv.${selected.level}</strong><p>${selected.id === "shield" ? `保护${directions[selected.slot]}方第 ${selected.slot + 1} 扇区 · 减伤 ${35 + selected.level * 10}%` : `${meta.weapon ? "接触供能" : "强化武器"}：${neighbors.map((item) => MODULES[item.id].name).join("、") || "无连接"}`}</p><div class="module-actions"></div>`;
-      const actions = info.querySelector(".module-actions"), locked = bay.refitCooldown > 0 || state.over;
-      const act = (fn, message) => { if (fn()) { held = null; notify(message); } redraw(); refresh(); };
-      actions.append(button("拿起移动", () => pick(selected.id, selected.slot), locked));
-      actions.append(button(selected.level >= 3 ? "已满级" : `强化 · ${moduleUpgradeCost(selected)} 金`, () => act(() => upgradeModule(state, selected.slot), "模块强化完成"), locked || selected.level >= 3 || state.coins < moduleUpgradeCost(selected)));
-      actions.append(button(`拆卸 · 返 ${Math.floor(selected.invested * 0.8)} 金`, () => act(() => removeModule(state, selected.slot), "模块已拆卸"), locked));
-    } else info.innerHTML = "<strong>自由拼装防线</strong><p>选中仓库模块后预览占地。放不下时，先移动已有模块整理空间。</p>";
-    function showDetails(id) {
-      inspected = id;
-      const meta = MODULES[id], installed = installedModule(state, id);
-      const status = installed ? `已安装 · Lv.${installed.level}` : bay.refitCooldown > 0 ? `重整中 · ${Math.ceil(bay.refitCooldown)} 秒` : state.coins < meta.cost ? `还差 ${Math.ceil(meta.cost-state.coins)} 金币` : '拖动或点击图标拿起';
-      const detail = root.querySelector('.module-catalog-detail');
-      detail.style.setProperty('--module-color', meta.color);
-      detail.innerHTML = `<div class="module-detail-heading"><span class="module-art" aria-hidden="true"></span><div><strong>${meta.name}</strong><small>${meta.size} 格 · ${meta.cost} 金币 · ${status}</small></div></div><p>${meta.description}</p>`;
-      icon(detail.querySelector('.module-art'), meta.icon);
-      root.querySelectorAll('.module-card').forEach(card=>card.classList.toggle('inspected',card.dataset.module===id));
-    }
-    for (const [id, meta] of Object.entries(MODULES)) {
-      const installed = installedModule(state, id);
-      const disabled = Boolean(installed) || bay.refitCooldown > 0 || state.over || state.coins < meta.cost;
-      const card = button("", () => { showDetails(id); if (!suppressClick && !disabled) pick(id); }, false, `module-card${held?.id === id ? " picked" : ""}${disabled ? " unavailable" : ""}`);
-      card.dataset.pick = id; card.dataset.module = id; card.dataset.focus = `install-${id}`; card.dataset.available=String(!disabled);
-      card.setAttribute('aria-disabled',String(disabled));
-      card.setAttribute('aria-label',`${meta.name}，${meta.size} 格，${meta.cost} 金币${installed?'，已安装':disabled?'，暂不可安装':''}，查看说明${disabled?'':'或拿起放置'}`);
-      card.style.setProperty("--module-color", meta.color);
-      card.innerHTML = `<span class="module-footprint" aria-hidden="true">${'<i></i>'.repeat(meta.size)}</span>${installed ? '<span class="module-installed" aria-hidden="true">✓</span>' : ''}<span class="module-art" aria-hidden="true"></span><span class="module-card-name">${meta.name}</span><span class="module-card-price">${installed ? `Lv.${installed.level}` : `◆ ${meta.cost}`}</span>`;
-      card.addEventListener('pointerenter',()=>showDetails(id));
-      card.addEventListener('focus',()=>showDetails(id));
-      icon(card.querySelector(".module-art"), meta.icon); root.querySelector(".module-cards").append(card);
-    }
-    showDetails(held?.id ?? inspected);
-    for (const [key, title] of [["damage", "全武器伤害"], ["rate", "主炮射速"], ["ascend", "晶核升阶"]]) {
-      const status = coreStatus(key);
-      const node = button(`${title} ${state.tower.upgrades[key]} · ${status.maxed ? "已满级" : status.unlocked ? `${status.cost} 金` : status.reason}`, () => { buyCore(key); redraw(); }, !status.unlocked || state.coins < status.cost);
-      node.dataset.upgrade = key; node.dataset.focus = `core-${key}`; root.querySelector(".module-core-upgrades").append(node);
-    }
-    paintPreview();
-    if (focusKey) root.querySelector(`[data-focus="${focusKey}"]`)?.focus({ preventScroll: true });
-  }
-  update();
-  return { update, handleKey, cancel, destroy: () => controller.abort() };
+  update();return {update,handleKey,cancel,destroy:()=>{controller.abort();ghost.remove();delete state.moduleSelection;delete state.modulePreview}};
 }
