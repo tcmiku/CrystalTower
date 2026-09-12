@@ -16,7 +16,7 @@ const VIOLET = [.80, .48, 1];
 const ORANGE_BODY = [.30, .13, .16];
 const ORANGE_GLOW = [1, .45, .10];
 
-export const ENEMY_MODEL_TYPES = ['wisp', 'runner', 'brute', 'crawler', 'sentinel', 'hexer', 'rammer'];
+export const ENEMY_MODEL_TYPES = ['wisp', 'runner', 'brute', 'crawler', 'sentinel', 'hexer', 'rammer', 'inkHound', 'orbitMote', 'rustBeetle'];
 
 const ENEMY_LAYOUTS = {
   wisp: { radius: 22, mountHeight: 0 },
@@ -25,7 +25,10 @@ const ENEMY_LAYOUTS = {
   crawler: { radius: 22, mountHeight: 0 },
   sentinel: { radius: 34, mountHeight: 0 },
   hexer: { radius: 24, mountHeight: 0 },
-  rammer: { radius: 30, mountHeight: 0 }
+  rammer: { radius: 30, mountHeight: 0 },
+  inkHound: { radius: 28, mountHeight: 0 },
+  orbitMote: { radius: 29, mountHeight: 0 },
+  rustBeetle: { radius: 33, mountHeight: 0 }
 };
 
 function shade(color, k) { return color.map(v => Math.min(1, v * k)); }
@@ -41,12 +44,12 @@ function gem(m, cx, cy, cz, rx, ry, rz, color, glow = 0, rings = 5, segs = 10) {
   }
 }
 
-function limb(m, hip, knee, foot, thick, armor = ROCK, joint = LAVA) {
+function limb(m, hip, knee, foot, thick, armor = ROCK, joint = LAVA, footArmor = CRYSTAL_DEEP) {
   const th = thick;
   m.box(hip[0], Math.min(hip[1], knee[1]), hip[2] - th * .45, Math.abs(hip[0] - knee[0]) + th * .3, Math.abs(hip[1] - knee[1]) + th * .25, th * .9, armor);
   m.box(knee[0], Math.min(knee[1], foot[1]), knee[2] - th * .4, Math.abs(knee[0] - foot[0]) + th * .25, Math.abs(knee[1] - foot[1]) + th * .2, th * .8, shade(armor, .85));
   gem(m, (hip[0] + foot[0]) * .5, knee[1] + th * .1, (hip[2] + foot[2]) * .5, th * .55, th * .45, th * .45, joint, .55, 4, 8);
-  m.box(foot[0] - th * .3, foot[1] - th * .15, foot[2] - th * .35, th * 1.1, th * .4, th * .7, CRYSTAL_DEEP);
+  m.box(foot[0] - th * .3, foot[1] - th * .15, foot[2] - th * .35, th * 1.1, th * .4, th * .7, footArmor);
 }
 
 function claw(m, root, mid, tip, width, armor = ROCK, edge = CRYSTAL, glowColor = LAVA) {
@@ -293,6 +296,67 @@ export function buildRammerModel() {
   return { layout: ENEMY_LAYOUTS.rammer, parts: [{ name: 'Rammer charge-horn beast', vertices: new Float32Array(m.data) }] };
 }
 
+export function buildInkHoundModel() {
+  const m=meshBuilder(), ink=[.045,.12,.20], plate=[.14,.27,.35], cyan=[.12,.9,1];
+  gem(m,-5,10,0,24,10,10,ink,0,4,10);
+  gem(m,12,14,0,13,12,11,plate,0,4,8);
+  gem(m,26,12,0,13,6,7,ink,0,4,8);
+  for(const side of [-1,1]) {
+    limb(m,[10,10,side*8],[18,1,side*12],[27,-5,side*11],4.5,plate,cyan,plate);
+    limb(m,[-18,9,side*7],[-25,0,side*12],[-12,-5,side*12],5,ink,cyan,plate);
+    m.crystal(15,21,side*7,4,17,-.7,[ink,plate,cyan]);
+    gem(m,27,15,side*5,4,1.5,1.2,cyan,1,3,6);
+    m.face([[-22,14,side*7],[-7,18,side*9],[8,16,side*9],[-4,14,side*10]],cyan,.7);
+    claw(m,[28,8,side*5],[34,8,side*5],[36,3,side*4],3,plate,cyan,cyan);
+  }
+  claw(m,[-24,12,0],[-39,20,0],[-49,31,0],7,ink,plate,cyan);
+  spineCrystals(m,[[-15,19,0,3,10,-.8],[-5,21,0,3,12,-.8],[5,23,0,3,10,-.8]],[ink,plate,cyan]);
+  return {layout:ENEMY_LAYOUTS.inkHound,parts:[{name:'Ink hound, split ears and cyan veins',vertices:new Float32Array(m.data)}]};
+}
+
+export function buildOrbitMoteModel() {
+  const m=meshBuilder(), shell=[.16,.12,.31], silver=[.67,.76,.9], light=[.68,.94,1];
+  gem(m,0,4,0,11,16,11,shell,0,5,10);
+  m.crystal(0,-8,0,8,30,.15,[light,[.4,.45,.9],silver]);
+  // Two inclined orbital cages, with physical thickness and satellite prisms.
+  for(let ringIndex=0;ringIndex<2;ringIndex++) {
+    const orbit=meshBuilder();orbit.ring(0,-1,0,27,24,2,silver,32);
+    orbit.ring(0,1,0,26,25,1,light,32);
+    const tilt=ringIndex===0?.65:-.75;
+    for(let i=0;i<orbit.data.length;i+=10) {
+      for(const offset of [0,3]) {
+        const y=orbit.data[i+offset+1],z=orbit.data[i+offset+2];
+        orbit.data[i+offset+1]=y*Math.cos(tilt)-z*Math.sin(tilt)+(offset===0?4:0);
+        orbit.data[i+offset+2]=y*Math.sin(tilt)+z*Math.cos(tilt);
+      }
+    }
+    m.data.push(...orbit.data);
+  }
+  for(let i=0;i<3;i++) {const a=i*TAU/3;m.crystal(Math.cos(a)*29,-1,Math.sin(a)*29,4,13,a,[silver,light,shell]);}
+  gem(m,12,5,0,3,5,5,light,1,4,8);
+  return {layout:ENEMY_LAYOUTS.orbitMote,parts:[{name:'Orbit mote with crossed silver cages',vertices:new Float32Array(m.data)}]};
+}
+
+export function buildRustBeetleModel() {
+  const m=meshBuilder(), rust=[.36,.17,.08], copper=[.55,.29,.12], dark=[.13,.10,.07], acid=[.65,1,.16];
+  gem(m,-5,9,0,26,16,23,dark,0,5,12);
+  for(const side of [-1,1]) {
+    gem(m,-6,14,side*11,24,13,11,rust,0,4,10);
+    for(let i=0;i<3;i++) {
+      const x=-20+i*17;
+      limb(m,[x,8,side*17],[x-4,-1,side*27],[x+5,-5,side*32],5,copper,acid,dark);
+      m.box(x,18,side*15,5,3,12,copper,-side*.2);
+      gem(m,x,20,side*19,2,2,2,acid,.7,3,6);
+    }
+    claw(m,[22,7,side*7],[36,10,side*16],[42,7,side*5],7,rust,copper,acid);
+  }
+  gem(m,22,9,0,10,8,13,dark,0,4,8);
+  for(const side of [-1,1]) gem(m,29,12,side*7,2,2,3,acid,1,3,6);
+  m.box(-6,25,0,39,2,2,acid);
+  spineCrystals(m,[[-20,24,0,4,9,-.4],[-8,27,0,4,11,-.3],[5,25,0,4,9,-.2]],[rust,copper,acid]);
+  return {layout:ENEMY_LAYOUTS.rustBeetle,parts:[{name:'Rust beetle, split shell and acid seams',vertices:new Float32Array(m.data)}]};
+}
+
 export function buildEnemyModel(type = 'wisp') {
   switch (type) {
     case 'runner': return buildRunnerModel();
@@ -301,12 +365,20 @@ export function buildEnemyModel(type = 'wisp') {
     case 'sentinel': return buildSentinelModel();
     case 'hexer': return buildHexerModel();
     case 'rammer': return buildRammerModel();
+    case 'inkHound': return buildInkHoundModel();
+    case 'orbitMote': return buildOrbitMoteModel();
+    case 'rustBeetle': return buildRustBeetleModel();
     case 'wisp':
     default: return buildWispModel();
   }
 }
 
 export class EnemyModelRenderer extends TowerModelRenderer {
+  constructor({resolution=256}={}) {
+    super();
+    if(this.canvas) {this.canvas.width=resolution;this.canvas.height=resolution;}
+  }
+
   prepare(visual) {
     const type = typeof visual === 'string' ? visual : (visual?.enemyType ?? 'wisp');
     this.meshCache ??= new Map();
@@ -322,8 +394,6 @@ export class EnemyModelRenderer extends TowerModelRenderer {
       this.gl.bufferData(this.gl.ARRAY_BUFFER, part.vertices, this.gl.STATIC_DRAW);
       return buffer;
     });
-    this.canvas.width = 256;
-    this.canvas.height = 256;
   }
 
   drawEnemy(ctx, enemy, time, angle, scale = 1) {
@@ -333,7 +403,7 @@ export class EnemyModelRenderer extends TowerModelRenderer {
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     ctx.scale(size, size);
-    const hover = type === 'wisp' || type === 'hexer' || type === 'crawler';
+    const hover = type === 'wisp' || type === 'hexer' || type === 'crawler' || type === 'orbitMote';
     const bob = hover ? Math.sin(time * 3 + enemy.id) * 2 : Math.sin(time * 2.2 + enemy.id) * .8;
     ctx.translate(0, -38 + bob);
     const yaw = Math.atan2(Math.sin(angle) / .6, Math.cos(angle));

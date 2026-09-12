@@ -35,7 +35,7 @@ test("页面包含运行所需控件且不加载外部资产", async () => {
   assert.match(html, /遗响碎片、核心残片与星尘不会获得/);
   assert.match(html, /本次记录永久无法进入排行榜/);
   assert.match(html, /id="openUpdatesButton"[^>]*>[\s\S]*?icon-updates/);
-  assert.match(html, /<main class="game-shell topbar-collapsed">/);
+  assert.match(html, /<main class="[^"]*\bcombat-focus\b[^"]*\btopbar-collapsed\b[^"]*\bside-panel-collapsed\b[^"]*">/);
   assert.match(html, /id="topbar" class="topbar is-collapsed"/);
   assert.match(html, /id="topbarToggle"[^>]*aria-expanded="false"/);
   assert.match(html, /id="accountButton"[^>]*>[\s\S]*?icon-account/);

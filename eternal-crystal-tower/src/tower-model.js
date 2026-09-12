@@ -270,7 +270,7 @@ export class TowerModelRenderer {
     if(gunAngles) for(const [weapon,gunAngle] of Object.entries(gunAngles)) gunYaws[weapon]=getCannonPose(visual.tier,gunAngle,fx.shoot??0,visual.cannonRoute).yaw;
     ctx.save();ctx.shadowBlur=0;
     ctx.fillStyle='rgba(2,8,23,.28)';ctx.beginPath();ctx.ellipse(0,GROUND_Y+4,this.model.layout.radius*1.12,this.model.layout.radius*.53,0,0,TAU);ctx.fill();
-    drawModuleEffects(ctx,visual.modules,this.model.layout,time,viewYaw,pose.yaw,true);
+    drawModuleEffects(ctx,visual.modules,this.model.layout,time,viewYaw,pose.yaw,true,fx,gunYaws);
     if(this.gl&&!this.lost) {
       const gl=this.gl,u=this.uniforms;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.useProgram(this.program);
       gl.uniform4f(u.camera,0,38,200,200);
@@ -291,7 +291,7 @@ export class TowerModelRenderer {
       });
       ctx.drawImage(this.canvas,-MODEL_SIZE/2,-MODEL_SIZE/2,MODEL_SIZE,MODEL_SIZE);
     } else this.drawSoftware(ctx,pose,viewYaw,expansion,time,fx,gunYaws);
-    drawModuleEffects(ctx,visual.modules,this.model.layout,time,viewYaw,pose.yaw,false);
+    drawModuleEffects(ctx,visual.modules,this.model.layout,time,viewYaw,pose.yaw,false,fx,gunYaws);
     if(visual.modules && (fx.shoot??0)>0) {
       ctx.save();ctx.globalCompositeOperation='lighter';
       for(const module of visual.modules.filter(m=>['pulse','cannon'].includes(m.id))) {

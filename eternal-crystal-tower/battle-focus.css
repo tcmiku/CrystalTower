@@ -1,0 +1,324 @@
+/* Combat is the full viewport. HUD surfaces occupy only their content, and
+   optional detail panels never resize the canvas underneath them. */
+.game-shell.combat-focus {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.combat-focus .play-layout { display: contents; }
+.combat-focus .arena-wrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  aspect-ratio: auto;
+}
+.combat-focus .arena-wrap::after { inset: 0; border: 0; border-radius: 0; background: none; }
+.combat-focus .topbar,
+.combat-focus .upgrade-panel,
+.combat-focus .skill-bar { transition: none; }
+
+/* A single line for live resources. Account and update controls remain in
+   the expanded header; pause is always directly available. */
+.combat-focus .topbar {
+  position: absolute;
+  z-index: 12;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  width: auto;
+  height: auto;
+  min-height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+.combat-focus .topbar::before,
+.combat-focus .topbar .brand { display: none; }
+.combat-focus .topbar .status-strip {
+  flex: 0 1 690px;
+  width: auto;
+  height: 44px;
+  display: grid;
+  grid-template-columns: 1.4fr 1.1fr .9fr 1fr 1fr 1.2fr;
+  border: 1px solid var(--hud-border);
+  border-radius: 8px;
+  background: rgba(10, 20, 32, .86);
+  overflow: hidden;
+}
+.combat-focus .topbar .status {
+  min-width: 0;
+  height: 42px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  align-content: center;
+  padding: 4px 9px;
+}
+.combat-focus .topbar .status > span { display: none; }
+.combat-focus .topbar .status-readout { align-self: center; justify-content: center; gap: 5px; }
+.combat-focus .topbar .status .status-art { width: 18px; height: 18px; flex: 0 0 18px; }
+.combat-focus .topbar .status strong { margin: 0; font-size: 13px; line-height: 1.2; white-space: nowrap; }
+.combat-focus .topbar .health-track,
+.combat-focus .topbar .threat-track { height: 2px; margin: 0; }
+.combat-focus .topbar .wave-status .status-readout { display: grid; grid-template-columns: 18px auto; gap: 2px 5px; }
+.combat-focus .topbar .wave-status .status-art { grid-row: 1 / 3; }
+.combat-focus .topbar .wave-status small { grid-column: 2; font-size: 8px; line-height: 1; white-space: nowrap; }
+.combat-focus .topbar .top-actions { margin-left: auto; padding: 0; height: 44px; gap: 4px; }
+.combat-focus .topbar .icon-button { width: 40px; min-width: 40px; height: 44px; min-height: 44px; border-radius: 8px; background: rgba(10, 20, 32, .88); }
+.combat-focus .topbar .icon-button .system-art { width: 27px; height: 27px; }
+.combat-focus .topbar.is-collapsed #openUpdatesButton,
+.combat-focus .topbar.is-collapsed #accountButton { display: none; }
+.combat-focus .topbar-toggle {
+  position: static;
+  flex: 0 0 36px;
+  order: 3;
+  width: 36px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  transform: none;
+  border: 1px solid var(--hud-border);
+  border-radius: 8px;
+  color: #b9cfdb;
+  background: rgba(10, 20, 32, .88);
+}
+.combat-focus .topbar-toggle span { font-size: 18px; }
+.combat-focus .topbar:not(.is-collapsed) .status > span { display: block; font-size: 9px; }
+.combat-focus .topbar:not(.is-collapsed) .status-strip { height: 58px; }
+.combat-focus .topbar:not(.is-collapsed) .status { height: 56px; }
+
+/* The rail has no full-height backing. Details are an optional short panel. */
+.combat-focus .upgrade-panel {
+  position: absolute;
+  z-index: 10;
+  top: max(76px, calc(env(safe-area-inset-top) + 68px));
+  right: max(10px, env(safe-area-inset-right));
+  bottom: auto;
+  left: auto;
+  width: 260px;
+  height: auto;
+  min-height: 0;
+  max-height: calc(100dvh - 170px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 42px 12px 12px;
+  overflow: auto;
+  border-radius: 10px;
+}
+.combat-focus .upgrade-panel:not(.is-collapsed) { padding: 42px 12px 12px; }
+.combat-focus .upgrade-panel.is-collapsed {
+  width: 48px;
+  padding: 0;
+  gap: 6px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  overflow: visible;
+}
+.combat-focus .upgrade-panel.is-collapsed::before { display: none; }
+.combat-focus .upgrade-panel-toggle {
+  position: absolute; display: grid; place-items: center; top: 7px; right: 10px; left: auto; width: 36px; height: 30px; min-height: 0;
+  border: 1px solid var(--hud-border); border-radius: 6px; color: #b9cfdb; background: rgba(10, 20, 32, .9); cursor: pointer;
+}
+.combat-focus .upgrade-panel.is-collapsed .upgrade-panel-toggle {
+  position: static;
+  order: 8;
+  width: 44px;
+  height: 32px;
+  margin: 0;
+  background: rgba(10, 20, 32, .85);
+}
+.combat-focus .upgrade-panel.is-collapsed .panel-heading,
+.combat-focus .upgrade-panel.is-collapsed .tech-summary-copy,
+.combat-focus .upgrade-panel.is-collapsed .tech-overview,
+.combat-focus .upgrade-panel.is-collapsed .build-summary,
+.combat-focus .upgrade-panel.is-collapsed .target-protocol header,
+.combat-focus .upgrade-panel.is-collapsed #targetProtocolHint { display: none; }
+.combat-focus .upgrade-panel.is-collapsed .target-protocol { order: 1; width: 44px; margin: 0; padding: 0; border: 0; }
+.combat-focus .upgrade-panel.is-collapsed .protocol-grid { display: flex; flex-direction: column; gap: 4px; width: 44px; margin: 0; }
+.combat-focus .upgrade-panel.is-collapsed .protocol-grid button,
+.combat-focus .upgrade-panel.is-collapsed .tech-tree-launch,
+.combat-focus .upgrade-panel.is-collapsed .side-drone-mode,
+.combat-focus .upgrade-panel.is-collapsed .drone-protocol-button {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(10, 20, 32, .85);
+}
+.combat-focus .upgrade-panel.is-collapsed .tech-tree-launch { order: 0; margin-bottom: 4px; }
+.combat-focus .upgrade-panel.is-collapsed .side-drone-mode { order: 2; }
+.combat-focus .upgrade-panel .side-drone-mode:disabled { display: none; }
+.combat-focus .upgrade-panel.is-collapsed .protocol-grid button > span,
+.combat-focus .upgrade-panel.is-collapsed .tech-tree-launch span,
+.combat-focus .upgrade-panel.is-collapsed .tech-tree-launch kbd,
+.combat-focus .upgrade-panel.is-collapsed .side-drone-mode > span:not(.drone-mode-icon),
+.combat-focus .upgrade-panel.is-collapsed .drone-protocol-button > span:not(.drone-protocol-icon) { display: none; }
+.combat-focus .upgrade-panel.is-collapsed .tech-tree-launch kbd { display: block; position: absolute; top: 2px; right: 2px; min-width: 12px; padding: 1px 2px; font-size: 8px; }
+.combat-focus .upgrade-panel.is-collapsed .side-drone-mode > span:not(.drone-mode-icon) { display: contents; }
+.combat-focus .upgrade-panel.is-collapsed .side-drone-mode > span > b,
+.combat-focus .upgrade-panel.is-collapsed .side-drone-mode > span > small { display: none; }
+.combat-focus .upgrade-panel.is-collapsed .drone-energy-track { position: absolute; left: 5px; right: 5px; bottom: 3px; width: auto; height: 3px; margin: 0; }
+.combat-focus .upgrade-panel.is-collapsed .system-art,
+.combat-focus .upgrade-panel.is-collapsed .battle-art { width: 30px; height: 30px; }
+.combat-focus .upgrade-panel .protocol-grid button[aria-pressed="true"] { border-color: #82c6cf; box-shadow: inset 2px 0 #82c6cf; background: rgba(34, 67, 78, .95); }
+.combat-focus .upgrade-panel:not(.is-collapsed) .panel-heading,
+.combat-focus .upgrade-panel:not(.is-collapsed) .target-protocol header { display: flex; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .tech-overview { display: grid; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .target-protocol { width: 100%; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .protocol-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .protocol-grid button { width: 100%; height: auto; min-height: 56px; padding: 7px; display: flex; align-items: center; flex-direction: row; gap: 5px; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .protocol-grid button > span { display: block; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .protocol-grid .battle-art { width: 25px; height: 25px; flex: 0 0 25px; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .protocol-grid b { font-size: 11px; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .protocol-grid small { font-size: 9px; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .tech-tree-launch { display: flex; align-items: center; width: 100%; min-height: 52px; padding: 8px; gap: 8px; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .tech-tree-launch span,
+.combat-focus .upgrade-panel:not(.is-collapsed) .tech-tree-launch kbd { display: block; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .side-drone-mode { width: 100%; height: auto; min-height: 54px; display: flex; padding: 8px; gap: 8px; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .side-drone-mode > span:not(.drone-mode-icon) { display: block; }
+.combat-focus .upgrade-panel:not(.is-collapsed) .side-drone-mode:disabled { display: none; }
+
+/* Four named skills, with their hotkeys and cooldown numbers always visible. */
+.combat-focus .skill-bar,
+.combat-focus .skill-bar.is-collapsed {
+  position: absolute;
+  z-index: 11;
+  left: 50%;
+  right: auto;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  width: min(680px, calc(100vw - 150px));
+  height: auto;
+  min-height: 0;
+  padding: 5px;
+  gap: 5px;
+  overflow: visible;
+  border-radius: 10px;
+  background: rgba(10, 20, 32, .88);
+}
+.combat-focus .skill-bar.is-collapsed { width: 300px; }
+.combat-focus .skill-bar .objective,
+.combat-focus .skill-bar .seed-label,
+.combat-focus .skill-bar::before { display: none; }
+.combat-focus .skill-bar .skill-list { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: auto; height: auto; gap: 5px; }
+.combat-focus .skill-bar .skill-button { width: 100%; min-width: 0; height: 82px; min-height: 0; padding: 0; overflow: visible; }
+.combat-focus .skill-bar.is-collapsed .skill-button { height: 54px; }
+.combat-focus .skill-bar .skill-icon { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 8px; object-fit: cover; transform: none; opacity: .8; }
+.combat-focus .skill-bar .skill-button::before { border-radius: 8px; }
+.combat-focus .skill-bar .skill-button::after { display: block; left: 5px; right: 5px; bottom: 27px; font-size: 12px; text-align: left; }
+.combat-focus .skill-bar.is-collapsed .skill-button::after { display: block; left: 2px; right: 2px; bottom: 5px; font-size: 10px; text-align: center; letter-spacing: 0; text-shadow: 0 1px 3px #101a26; }
+.combat-focus .skill-bar .skill-key { z-index: 7; left: 3px; top: 3px; right: auto; width: 16px; height: 16px; min-height: 0; padding: 0; font-size: 8px; }
+.combat-focus .skill-bar.is-collapsed .skill-status { display: block; left: auto; right: 4px; top: 5px; bottom: auto; font-size: 0; }
+.combat-focus .skill-bar.is-collapsed .skill-status::before { width: 5px; height: 5px; box-shadow: none; }
+.combat-focus .skill-bar.is-collapsed .skill-status::before { display: block; }
+.combat-focus .skill-bar.is-collapsed .skill-button[data-skill-state="cooldown"] .skill-status { display: none; }
+.combat-focus .skill-bar.is-collapsed .cooldown-ring { display: none; }
+.combat-focus .skill-bar .cooldown-text { z-index: 8; top: 4px; right: 4px; left: auto; bottom: auto; font-size: 12px; line-height: 14px; }
+.combat-focus .skill-bar:not(.is-collapsed) .cooldown-text { display: none; }
+.combat-focus .skill-bar .cooldown-mask { border-radius: 0 0 8px 8px; }
+.combat-focus .skill-bar-toggle {
+  position: static;
+  order: 2;
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--hud-border);
+  border-radius: 6px;
+  color: #b9cfdb;
+  background: rgba(10, 20, 32, .9);
+  box-shadow: none;
+  cursor: pointer;
+}
+.combat-focus .skill-bar.is-collapsed .skill-bar-toggle { position: static; width: 24px; height: 44px; }
+.combat-focus .skill-bar .skill-tooltip { display: flex; width: 220px; max-width: 70vw; left: 50%; transform: translate(-50%, 5px); }
+.combat-focus .skill-bar .skill-button:hover .skill-tooltip,
+.combat-focus .skill-bar .skill-button:focus-visible .skill-tooltip { transform: translate(-50%, 0); }
+
+.combat-focus .permanent-resource-hud { top: 62px; left: 12px; opacity: .8; }
+.combat-focus .permanent-resource-hud > span { min-height: 28px; min-width: 56px; padding-block: 3px; background: rgba(10, 20, 32, .65); }
+.combat-focus .relic-run-hud { top: 100px; left: 12px; }
+.combat-focus .score-hud { top: auto; bottom: 12px; left: 12px; right: auto; min-width: 106px; min-height: 40px; padding: 6px 8px 6px 33px; }
+.combat-focus .score-hud span { font-size: 6px; }
+.combat-focus .score-hud strong { font-size: 13px; }
+.combat-focus .score-hud .system-art { left: 4px; width: 25px; height: 25px; }
+.combat-focus .endless-shop-hud { top: auto; right: 12px; bottom: 12px; }
+.combat-focus .announcement { top: 15%; }
+.combat-focus .toast { bottom: 90px; }
+.combat-focus button:focus-visible { outline: 2px solid #c5e6e8; outline-offset: 2px; }
+
+@media (max-width: 900px) {
+  .combat-focus .topbar .status-strip { grid-template-columns: 1.4fr 1.1fr .9fr 1fr; flex-basis: 430px; }
+  .combat-focus .topbar.is-collapsed .cycle-status,
+  .combat-focus .topbar.is-collapsed .wave-status { display: none; }
+  .combat-focus .topbar:not(.is-collapsed) { flex-wrap: wrap; padding: 6px; background: rgba(10, 20, 32, .96); border-radius: 10px; }
+  .combat-focus .topbar:not(.is-collapsed) .status-strip { flex: 1 0 100%; grid-template-columns: repeat(6, 1fr); }
+  .combat-focus .topbar:not(.is-collapsed) #openUpdatesButton,
+  .combat-focus .topbar:not(.is-collapsed) #accountButton { display: grid !important; }
+  .combat-focus:not(.topbar-collapsed) .upgrade-panel { top: 140px; }
+}
+@media (max-width: 600px) {
+  .combat-focus .topbar { left: max(6px, env(safe-area-inset-left)); right: max(6px, env(safe-area-inset-right)); gap: 4px; }
+  .combat-focus .topbar .status-strip { flex: 1; }
+  .combat-focus .topbar .status { padding: 3px; }
+  .combat-focus .topbar .status strong { font-size: 10px; }
+  .combat-focus .topbar .status-readout { gap: 2px; }
+  .combat-focus .topbar .status .status-art { width: 13px; height: 13px; flex-basis: 13px; }
+  .combat-focus .topbar.is-collapsed .top-actions > :not(#pauseButton) { display: none; }
+  .combat-focus .topbar-toggle { flex-basis: 32px; width: 32px; }
+  .combat-focus .topbar:not(.is-collapsed) .status-strip { grid-template-columns: repeat(3, 1fr); height: 88px; }
+  .combat-focus .topbar:not(.is-collapsed) .status { height: 42px; }
+  .combat-focus:not(.topbar-collapsed) .upgrade-panel { top: 180px; }
+  .combat-focus .upgrade-panel { top: 98px; right: 6px; max-height: calc(100dvh - 195px); }
+  .combat-focus .upgrade-panel.is-collapsed { width: 44px; }
+  .combat-focus .upgrade-panel.is-collapsed .protocol-grid { gap: 3px; }
+  .combat-focus .upgrade-panel:not(.is-collapsed) { width: min(280px, calc(100vw - 24px)); }
+  .combat-focus .skill-bar,
+  .combat-focus .skill-bar.is-collapsed { width: min(300px, calc(100vw - 24px)); bottom: max(8px, env(safe-area-inset-bottom)); }
+  .combat-focus .skill-bar:not(.is-collapsed) .skill-button { height: 76px; }
+  .combat-focus .skill-bar:not(.is-collapsed) .skill-button::after { font-size: 10px; }
+  .combat-focus .skill-bar:not(.is-collapsed) .cooldown-ring { display: none; }
+  .combat-focus .skill-bar:not(.is-collapsed) .skill-status { left: 5px; bottom: 7px; font-size: 8px; }
+  .combat-focus .skill-bar .skill-tooltip { display: none; }
+  .combat-focus .score-hud { left: auto; right: 6px; top: 60px; bottom: auto; min-height: 30px; }
+  .combat-focus .permanent-resource-hud { top: 60px; left: 6px; }
+  .combat-focus .relic-run-hud { left: 6px; top: 98px; }
+  .combat-focus .endless-shop-hud { bottom: 85px; right: 6px; }
+}
+@media (max-height: 540px) and (min-width: 601px) {
+  .combat-focus .upgrade-panel.is-collapsed .target-protocol { width: 92px; }
+  .combat-focus .upgrade-panel.is-collapsed .protocol-grid { display: grid; grid-template-columns: repeat(2, 44px); width: 92px; }
+  .combat-focus .upgrade-panel.is-collapsed { width: 92px; align-items: flex-end; }
+  .combat-focus .upgrade-panel { max-height: calc(100dvh - 100px); }
+}

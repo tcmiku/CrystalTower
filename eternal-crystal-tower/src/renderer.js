@@ -3,6 +3,8 @@ import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax,
 import { isChapterTwo } from "./chapter-two.js";
 import { ArenaModelRenderer } from './arena-model.js';
 import { DroneModelRenderer } from './drone-model.js';
+import { BladeModelRenderer } from './blade-model.js';
+import { recordModuleAttack } from './module-effects.js';
 import { EnemyModelRenderer, ENEMY_MODEL_TYPES } from './enemy-model.js';
 import { TowerModelRenderer, getModelLayout, getCannonPose, getMountedMuzzle } from "./tower-model.js";
 
@@ -59,20 +61,16 @@ const COLOSSUS_AFFIXES = {
   carapace: { name: "不灭甲壳", color: "#ffd36b" }
 };
 
-export function getCombatViewport(width, height, layout = {}) {
-  const desktopDeck = globalThis.matchMedia?.("(min-width: 1181px)")?.matches ?? width >= 1155;
-  const shell = globalThis.document?.querySelector?.(".game-shell");
-  const sidePanelCollapsed = layout.sidePanelCollapsed ?? shell?.classList.contains("side-panel-collapsed") ?? false;
-  const skillBarCollapsed = layout.skillBarCollapsed ?? globalThis.document?.getElementById?.("skillBar")?.classList.contains("is-collapsed") ?? false;
-  const rightInset = desktopDeck ? Math.min(sidePanelCollapsed ? 82 : 268, width * 0.35) : 0;
-  const bottomInset = desktopDeck && !skillBarCollapsed ? Math.min(104, height * 0.28) : 0;
+export function getCombatViewport(width, height) {
+  // HUD panels overlay the stage. Opening one must not move the tower or
+  // change the world-to-pointer mapping while the player is aiming.
   return {
     x: 0,
     y: 0,
-    width: Math.max(1, width - rightInset),
-    height: Math.max(1, height - bottomInset),
-    rightInset,
-    bottomInset
+    width: Math.max(1, width),
+    height: Math.max(1, height),
+    rightInset: 0,
+    bottomInset: 0
   };
 }
 
@@ -331,6 +329,7 @@ export class Renderer {
     this.towerModel = new TowerModelRenderer();
     this.arenaModel = new ArenaModelRenderer();
     this.droneModel = new DroneModelRenderer();
+    this.bladeModel = new BladeModelRenderer();
     this.enemyModel = new EnemyModelRenderer();
     this.towerAimAngle = -Math.PI / 2;
     this.towerAimTargetId = null;
@@ -349,6 +348,10 @@ export class Renderer {
 
   whenAssetsReady() {
     return this.assetsReady;
+  }
+
+  recordCombatEvent(event) {
+    recordModuleAttack(this.towerFx,event);
   }
 
   trigger(type, strength = 1, weaponId = null) {
@@ -2140,23 +2143,10 @@ export class Renderer {
     const overdrive = state.tower.upgrades.sawOverdrive;
     const accelerator = state.tower.upgrades.sawAccelerator ?? 0;
     const bladeScale = getSawBladeRadius(state) / GAME_CONFIG.upgrades.saw.bladeRadius;
-    const drawSaw = (x, y, rotation, scale = 1) => {
-      ctx.save(); ctx.translate(x, y); ctx.rotate(rotation); ctx.scale(scale, scale);
-      ctx.shadowColor = "#ffd47c"; ctx.shadowBlur = 11;
-      if (imageReady(this.assets.saw)) {
-        ctx.drawImage(this.assets.saw, -23, -23, 46, 46);
-      } else {
-        ctx.fillStyle = "#d7dcf1"; ctx.strokeStyle = "#ffc96b"; ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        for (let tooth = 0; tooth < 16; tooth += 1) {
-          const a = tooth * Math.PI / 8;
-          const r = tooth % 2 ? 12 : 18;
-          const px = Math.cos(a) * r; const py = Math.sin(a) * r;
-          tooth ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-        }
-        ctx.closePath(); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = "#313653"; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
-      }
+    const activity=Math.min(1,(this.towerFx['attack-blade']??0)/.45);
+    const drawSaw = (x, y, rotation, scale = 1, returning=false) => {
+      ctx.save(); ctx.translate(x, y);
+      this.bladeModel.drawBlade(ctx,rotation,this.time,scale,returning,activity);
       ctx.restore();
     };
     for (let index = 0; index < count; index += 1) {
@@ -2165,6 +2155,12 @@ export class Renderer {
       const radius = getSawOrbitRadius(state, index);
       const x = centerX + Math.cos(angle) * radius;
       const y = centerY + Math.sin(angle) * radius;
+      ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle='#b6f58a';
+      for(let trail=0;trail<3;trail++) {
+        ctx.globalAlpha=(.10+activity*.15)*(1-trail*.25);ctx.lineWidth=(5-trail)*bladeScale;
+        ctx.beginPath();ctx.arc(centerX,centerY,radius-trail*2,angle-.24-trail*.10,angle);ctx.stroke();
+      }
+      ctx.restore();
       drawSaw(x, y, -this.time * (8 + overdrive * 2) * (accelerator > 0 ? 1.55 : 1), bladeScale);
     }
     for (const saw of state.launchedSaws) {
@@ -2177,7 +2173,7 @@ export class Renderer {
       }
       ctx.restore();
       // 弹射与环绕共用巨刃铸型的尺寸倍率，避免升级后碰撞半径与画面尺寸不一致。
-      drawSaw(saw.x, saw.y, this.time * (saw.returning ? -23 : 18), bladeScale * (saw.returning ? 1.2 : 1.08));
+      drawSaw(saw.x, saw.y, this.time * (saw.returning ? -23 : 18), bladeScale * (saw.returning ? 1.2 : 1.08),saw.returning);
     }
   }
 

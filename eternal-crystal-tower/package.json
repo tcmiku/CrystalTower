@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node scripts/serve.js",
     "test": "node --test",
-    "test:sim": "node tests/simulation.test.js"
+    "test:sim": "node tests/simulation.test.js",
+    "balance": "node scripts/module-balance.mjs"
   }
 }
-

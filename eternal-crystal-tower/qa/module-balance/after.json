@@ -1,0 +1,6198 @@
+{
+  "seeds": [
+    11,
+    71,
+    20260911
+  ],
+  "policy": "700 gold, starter gun retained, legal build first, cheapest core/module upgrades, heal and manual collection, neutral supply rewards, 900 second horizon; isolated weapon tests use base tower stats and 30 seconds",
+  "summary": [
+    {
+      "build": "cannon",
+      "meanSeconds": 900,
+      "meanKills": 4314,
+      "range": [
+        900,
+        900,
+        900
+      ]
+    },
+    {
+      "build": "blade",
+      "meanSeconds": 498.6,
+      "meanKills": 1486,
+      "range": [
+        648.5,
+        649.3,
+        198
+      ]
+    },
+    {
+      "build": "hive",
+      "meanSeconds": 676.5,
+      "meanKills": 2416,
+      "range": [
+        637.8,
+        639.2,
+        752.5
+      ]
+    },
+    {
+      "build": "element",
+      "meanSeconds": 641.9,
+      "meanKills": 2135,
+      "range": [
+        639,
+        643.7,
+        642.9
+      ]
+    },
+    {
+      "build": "mixed",
+      "meanSeconds": 900,
+      "meanKills": 4258,
+      "range": [
+        900,
+        900,
+        900
+      ]
+    }
+  ],
+  "weapons": [
+    {
+      "weapon": "pulse",
+      "level": 1,
+      "scenario": "near",
+      "dps": 14.4,
+      "cost": 60,
+      "dpsPer100Gold": 24,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 1,
+      "scenario": "ranged",
+      "dps": 14.4,
+      "cost": 60,
+      "dpsPer100Gold": 24,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 1,
+      "scenario": "crowd",
+      "dps": 14.4,
+      "cost": 60,
+      "dpsPer100Gold": 24,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 1,
+      "scenario": "ranged-crowd",
+      "dps": 14.4,
+      "cost": 60,
+      "dpsPer100Gold": 24,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 1,
+      "scenario": "boss",
+      "dps": 14.4,
+      "cost": 60,
+      "dpsPer100Gold": 24,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 2,
+      "scenario": "near",
+      "dps": 19.44,
+      "cost": 150,
+      "dpsPer100Gold": 12.96,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 2,
+      "scenario": "ranged",
+      "dps": 19.44,
+      "cost": 150,
+      "dpsPer100Gold": 12.96,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 2,
+      "scenario": "crowd",
+      "dps": 19.44,
+      "cost": 150,
+      "dpsPer100Gold": 12.96,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 2,
+      "scenario": "ranged-crowd",
+      "dps": 19.44,
+      "cost": 150,
+      "dpsPer100Gold": 12.96,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 2,
+      "scenario": "boss",
+      "dps": 19.44,
+      "cost": 150,
+      "dpsPer100Gold": 12.96,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "near",
+      "dps": 24.48,
+      "cost": 285,
+      "dpsPer100Gold": 8.59,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "ranged",
+      "dps": 24.48,
+      "cost": 285,
+      "dpsPer100Gold": 8.59,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "crowd",
+      "dps": 24.48,
+      "cost": 285,
+      "dpsPer100Gold": 8.59,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "dps": 24.48,
+      "cost": 285,
+      "dpsPer100Gold": 8.59,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "boss",
+      "dps": 24.48,
+      "cost": 285,
+      "dpsPer100Gold": 8.59,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 1,
+      "scenario": "near",
+      "dps": 0,
+      "cost": 150,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 1,
+      "scenario": "ranged",
+      "dps": 27.2,
+      "cost": 150,
+      "dpsPer100Gold": 18.13,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 1,
+      "scenario": "crowd",
+      "dps": 0,
+      "cost": 150,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 1,
+      "scenario": "ranged-crowd",
+      "dps": 27.2,
+      "cost": 150,
+      "dpsPer100Gold": 18.13,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 1,
+      "scenario": "boss",
+      "dps": 32.1,
+      "cost": 150,
+      "dpsPer100Gold": 21.4,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 2,
+      "scenario": "near",
+      "dps": 0,
+      "cost": 375,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 2,
+      "scenario": "ranged",
+      "dps": 43.22,
+      "cost": 375,
+      "dpsPer100Gold": 11.52,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 2,
+      "scenario": "crowd",
+      "dps": 0,
+      "cost": 375,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 2,
+      "scenario": "ranged-crowd",
+      "dps": 43.22,
+      "cost": 375,
+      "dpsPer100Gold": 11.52,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 2,
+      "scenario": "boss",
+      "dps": 58.77,
+      "cost": 375,
+      "dpsPer100Gold": 15.67,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "near",
+      "dps": 0,
+      "cost": 713,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "ranged",
+      "dps": 54.07,
+      "cost": 713,
+      "dpsPer100Gold": 7.58,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "crowd",
+      "dps": 0,
+      "cost": 713,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "dps": 54.07,
+      "cost": 713,
+      "dpsPer100Gold": 7.58,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "boss",
+      "dps": 119.46,
+      "cost": 713,
+      "dpsPer100Gold": 16.76,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 1,
+      "scenario": "near",
+      "dps": 59.28,
+      "cost": 120,
+      "dpsPer100Gold": 49.4,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 1,
+      "scenario": "ranged",
+      "dps": 0,
+      "cost": 120,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 1,
+      "scenario": "crowd",
+      "dps": 711.36,
+      "cost": 120,
+      "dpsPer100Gold": 592.8,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 1,
+      "scenario": "ranged-crowd",
+      "dps": 0,
+      "cost": 120,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 1,
+      "scenario": "boss",
+      "dps": 0,
+      "cost": 120,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 2,
+      "scenario": "near",
+      "dps": 138.54,
+      "cost": 300,
+      "dpsPer100Gold": 46.18,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 2,
+      "scenario": "ranged",
+      "dps": 0,
+      "cost": 300,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 2,
+      "scenario": "crowd",
+      "dps": 1678.94,
+      "cost": 300,
+      "dpsPer100Gold": 559.65,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 2,
+      "scenario": "ranged-crowd",
+      "dps": 0,
+      "cost": 300,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 2,
+      "scenario": "boss",
+      "dps": 0,
+      "cost": 300,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "near",
+      "dps": 631.01,
+      "cost": 570,
+      "dpsPer100Gold": 110.7,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "ranged",
+      "dps": 0,
+      "cost": 570,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "crowd",
+      "dps": 7569.18,
+      "cost": 570,
+      "dpsPer100Gold": 1327.93,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "dps": 0,
+      "cost": 570,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "boss",
+      "dps": 0,
+      "cost": 570,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "hangar",
+      "level": 1,
+      "scenario": "near",
+      "dps": 25.87,
+      "cost": 140,
+      "dpsPer100Gold": 18.48,
+      "attackDuty": 0.57,
+      "returns": 3
+    },
+    {
+      "weapon": "hangar",
+      "level": 1,
+      "scenario": "ranged",
+      "dps": 23.9,
+      "cost": 140,
+      "dpsPer100Gold": 17.07,
+      "attackDuty": 0.57,
+      "returns": 2
+    },
+    {
+      "weapon": "hangar",
+      "level": 1,
+      "scenario": "crowd",
+      "dps": 26.12,
+      "cost": 140,
+      "dpsPer100Gold": 18.66,
+      "attackDuty": 0.57,
+      "returns": 2
+    },
+    {
+      "weapon": "hangar",
+      "level": 1,
+      "scenario": "ranged-crowd",
+      "dps": 23.9,
+      "cost": 140,
+      "dpsPer100Gold": 17.07,
+      "attackDuty": 0.57,
+      "returns": 2
+    },
+    {
+      "weapon": "hangar",
+      "level": 1,
+      "scenario": "boss",
+      "dps": 24.39,
+      "cost": 140,
+      "dpsPer100Gold": 17.42,
+      "attackDuty": 0.57,
+      "returns": 2
+    },
+    {
+      "weapon": "hangar",
+      "level": 2,
+      "scenario": "near",
+      "dps": 49.67,
+      "cost": 350,
+      "dpsPer100Gold": 14.19,
+      "attackDuty": 0.581,
+      "returns": 2
+    },
+    {
+      "weapon": "hangar",
+      "level": 2,
+      "scenario": "ranged",
+      "dps": 45.78,
+      "cost": 350,
+      "dpsPer100Gold": 13.08,
+      "attackDuty": 0.581,
+      "returns": 3
+    },
+    {
+      "weapon": "hangar",
+      "level": 2,
+      "scenario": "crowd",
+      "dps": 78.55,
+      "cost": 350,
+      "dpsPer100Gold": 22.44,
+      "attackDuty": 0.581,
+      "returns": 2
+    },
+    {
+      "weapon": "hangar",
+      "level": 2,
+      "scenario": "ranged-crowd",
+      "dps": 45.78,
+      "cost": 350,
+      "dpsPer100Gold": 13.08,
+      "attackDuty": 0.581,
+      "returns": 3
+    },
+    {
+      "weapon": "hangar",
+      "level": 2,
+      "scenario": "boss",
+      "dps": 46.27,
+      "cost": 350,
+      "dpsPer100Gold": 13.22,
+      "attackDuty": 0.581,
+      "returns": 3
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "near",
+      "dps": 79.49,
+      "cost": 665,
+      "dpsPer100Gold": 11.95,
+      "attackDuty": 0.536,
+      "returns": 3
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "ranged",
+      "dps": 79.49,
+      "cost": 665,
+      "dpsPer100Gold": 11.95,
+      "attackDuty": 0.581,
+      "returns": 3
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "crowd",
+      "dps": 124.52,
+      "cost": 665,
+      "dpsPer100Gold": 18.73,
+      "attackDuty": 0.539,
+      "returns": 3
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "dps": 79.49,
+      "cost": 665,
+      "dpsPer100Gold": 11.95,
+      "attackDuty": 0.581,
+      "returns": 3
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "boss",
+      "dps": 79.49,
+      "cost": 665,
+      "dpsPer100Gold": 11.95,
+      "attackDuty": 0.575,
+      "returns": 3
+    }
+  ],
+  "specs": [
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "crowd",
+      "specialization": "pulseSplit",
+      "dps": 39.95,
+      "cost": 285,
+      "dpsPer100Gold": 14.02,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "specialization": "pulseSplit",
+      "dps": 20.81,
+      "cost": 285,
+      "dpsPer100Gold": 7.3,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "boss",
+      "specialization": "pulseSplit",
+      "dps": 20.81,
+      "cost": 285,
+      "dpsPer100Gold": 7.3,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "crowd",
+      "specialization": "pulseFocus",
+      "dps": 37.4,
+      "cost": 285,
+      "dpsPer100Gold": 13.12,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "specialization": "pulseFocus",
+      "dps": 36.72,
+      "cost": 285,
+      "dpsPer100Gold": 12.88,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "pulse",
+      "level": 3,
+      "scenario": "boss",
+      "specialization": "pulseFocus",
+      "dps": 36.72,
+      "cost": 285,
+      "dpsPer100Gold": 12.88,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "crowd",
+      "specialization": "cannonLance",
+      "dps": 0,
+      "cost": 713,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "specialization": "cannonLance",
+      "dps": 109.86,
+      "cost": 713,
+      "dpsPer100Gold": 15.41,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "boss",
+      "specialization": "cannonLance",
+      "dps": 120.1,
+      "cost": 713,
+      "dpsPer100Gold": 16.84,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "crowd",
+      "specialization": "cannonBurst",
+      "dps": 0,
+      "cost": 713,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "specialization": "cannonBurst",
+      "dps": 38.56,
+      "cost": 713,
+      "dpsPer100Gold": 5.41,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "cannon",
+      "level": 3,
+      "scenario": "boss",
+      "specialization": "cannonBurst",
+      "dps": 38.56,
+      "cost": 713,
+      "dpsPer100Gold": 5.41,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "crowd",
+      "specialization": "bladeGuard",
+      "dps": 7569.18,
+      "cost": 570,
+      "dpsPer100Gold": 1327.93,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "specialization": "bladeGuard",
+      "dps": 0,
+      "cost": 570,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "boss",
+      "specialization": "bladeGuard",
+      "dps": 0,
+      "cost": 570,
+      "dpsPer100Gold": 0,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "crowd",
+      "specialization": "bladeReturn",
+      "dps": 5701.61,
+      "cost": 570,
+      "dpsPer100Gold": 1000.28,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "specialization": "bladeReturn",
+      "dps": 178.58,
+      "cost": 570,
+      "dpsPer100Gold": 31.33,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "blade",
+      "level": 3,
+      "scenario": "boss",
+      "specialization": "bladeReturn",
+      "dps": 196.2,
+      "cost": 570,
+      "dpsPer100Gold": 34.42,
+      "attackDuty": 0,
+      "returns": 0
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "crowd",
+      "specialization": "hangarHeavy",
+      "dps": 135.21,
+      "cost": 665,
+      "dpsPer100Gold": 20.33,
+      "attackDuty": 0.589,
+      "returns": 2
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "specialization": "hangarHeavy",
+      "dps": 79.75,
+      "cost": 665,
+      "dpsPer100Gold": 11.99,
+      "attackDuty": 0.589,
+      "returns": 2
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "boss",
+      "specialization": "hangarHeavy",
+      "dps": 81.43,
+      "cost": 665,
+      "dpsPer100Gold": 12.25,
+      "attackDuty": 0.589,
+      "returns": 2
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "crowd",
+      "specialization": "hangarSwarm",
+      "dps": 95.86,
+      "cost": 665,
+      "dpsPer100Gold": 14.41,
+      "attackDuty": 0.395,
+      "returns": 3
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "ranged-crowd",
+      "specialization": "hangarSwarm",
+      "dps": 61.27,
+      "cost": 665,
+      "dpsPer100Gold": 9.21,
+      "attackDuty": 0.423,
+      "returns": 3
+    },
+    {
+      "weapon": "hangar",
+      "level": 3,
+      "scenario": "boss",
+      "specialization": "hangarSwarm",
+      "dps": 60.77,
+      "cost": 665,
+      "dpsPer100Gold": 9.14,
+      "attackDuty": 0.433,
+      "returns": 3
+    }
+  ],
+  "runs": [
+    {
+      "build": "cannon",
+      "seed": 11,
+      "seconds": 900,
+      "over": false,
+      "kills": 4358,
+      "bossKills": 3,
+      "threat": 20,
+      "hp": 1006,
+      "spent": 10296,
+      "returns": 0,
+      "reactions": 8,
+      "attackDuty": 0,
+      "peakEnemies": 80,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "cannon",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "frost",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "cannon",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 37,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "frost",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 600,
+          "kills": 99,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 800,
+          "kills": 149,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 800,
+          "kills": 282,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              2
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 441,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 584,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 867,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1182,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1506,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1905,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 660,
+          "hp": 1006,
+          "kills": 2328,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 720,
+          "hp": 1006,
+          "kills": 2803,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 780,
+          "hp": 1006,
+          "kills": 3350,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 840,
+          "hp": 1006,
+          "kills": 3949,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "cannon",
+      "seed": 71,
+      "seconds": 900,
+      "over": false,
+      "kills": 4293,
+      "bossKills": 3,
+      "threat": 20,
+      "hp": 1043,
+      "spent": 10296,
+      "returns": 0,
+      "reactions": 10,
+      "attackDuty": 0,
+      "peakEnemies": 67,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "cannon",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "frost",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "cannon",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 39,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "frost",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 600,
+          "kills": 93,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 800,
+          "kills": 147,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 800,
+          "kills": 274,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 431,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 576,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 860,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1178,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1485,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1878,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 660,
+          "hp": 967,
+          "kills": 2303,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 720,
+          "hp": 967,
+          "kills": 2773,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 780,
+          "hp": 967,
+          "kills": 3352,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 840,
+          "hp": 967,
+          "kills": 3917,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "cannon",
+      "seed": 20260911,
+      "seconds": 900,
+      "over": false,
+      "kills": 4291,
+      "bossKills": 3,
+      "threat": 20,
+      "hp": 1038,
+      "spent": 10296,
+      "returns": 0,
+      "reactions": 5,
+      "attackDuty": 0,
+      "peakEnemies": 95,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "cannon",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "frost",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "cannon",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 38,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "frost",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 800,
+          "kills": 100,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "frost",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 800,
+          "kills": 150,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 800,
+          "kills": 275,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 438,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 581,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 859,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1169,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1481,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1879,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 660,
+          "hp": 798,
+          "kills": 2309,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 720,
+          "hp": 1038,
+          "kills": 2763,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 780,
+          "hp": 1038,
+          "kills": 3329,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 840,
+          "hp": 1038,
+          "kills": 3904,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "blade",
+      "seed": 11,
+      "seconds": 648.5,
+      "over": true,
+      "kills": 2150,
+      "bossKills": 1,
+      "threat": 15,
+      "hp": 0,
+      "spent": 10153,
+      "returns": 0,
+      "reactions": 0,
+      "attackDuty": 0,
+      "peakEnemies": 57,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "blade",
+          3
+        ],
+        [
+          "frost",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "blade",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 36,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 492,
+          "kills": 92,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 492,
+          "kills": 144,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 317,
+          "kills": 263,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 440,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 586,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 862,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1190,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1507,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1904,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "blade",
+      "seed": 71,
+      "seconds": 649.3,
+      "over": true,
+      "kills": 2127,
+      "bossKills": 1,
+      "threat": 15,
+      "hp": 0,
+      "spent": 10153,
+      "returns": 0,
+      "reactions": 1,
+      "attackDuty": 0,
+      "peakEnemies": 61,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "blade",
+          3
+        ],
+        [
+          "frost",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "blade",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 36,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 489,
+          "kills": 94,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 800,
+          "kills": 148,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 667,
+          "kills": 269,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 995,
+          "kills": 431,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 578,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 845,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1152,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1469,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1876,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "blade",
+      "seed": 20260911,
+      "seconds": 198,
+      "over": true,
+      "kills": 180,
+      "bossKills": 0,
+      "threat": 5,
+      "hp": 0,
+      "spent": 1947,
+      "returns": 0,
+      "reactions": 0,
+      "attackDuty": 0,
+      "peakEnemies": 27,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "blade",
+          2
+        ],
+        [
+          "frost",
+          2
+        ],
+        [
+          "fire",
+          2
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        6,
+        4,
+        1
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "blade",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 36,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 317,
+          "kills": 95,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 557,
+          "kills": 147,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "hive",
+      "seed": 11,
+      "seconds": 637.8,
+      "over": true,
+      "kills": 2126,
+      "bossKills": 1,
+      "threat": 15,
+      "hp": 0,
+      "spent": 10295,
+      "returns": 15,
+      "reactions": 21,
+      "attackDuty": 0.925,
+      "peakEnemies": 62,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "hangar",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "lightning",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "hangar",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 35,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              1
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 600,
+          "kills": 99,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 800,
+          "kills": 156,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "lightning",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 747,
+          "kills": 285,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 451,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 601,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 865,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1188,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1501,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1894,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "hive",
+      "seed": 71,
+      "seconds": 639.2,
+      "over": true,
+      "kills": 2139,
+      "bossKills": 1,
+      "threat": 15,
+      "hp": 0,
+      "spent": 10295,
+      "returns": 15,
+      "reactions": 24,
+      "attackDuty": 0.934,
+      "peakEnemies": 63,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "hangar",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "lightning",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "hangar",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 36,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              1
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 600,
+          "kills": 99,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 800,
+          "kills": 157,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "lightning",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 800,
+          "kills": 278,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              2
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 445,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 590,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 867,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1176,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1492,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1907,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "hive",
+      "seed": 20260911,
+      "seconds": 752.5,
+      "over": true,
+      "kills": 2983,
+      "bossKills": 2,
+      "threat": 17,
+      "hp": 0,
+      "spent": 10295,
+      "returns": 23,
+      "reactions": 43,
+      "attackDuty": 0.935,
+      "peakEnemies": 134,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "hangar",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "lightning",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "hangar",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 38,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              1
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 800,
+          "kills": 101,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 800,
+          "kills": 152,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              1
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "lightning",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 627,
+          "kills": 275,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              2
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 439,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 586,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 869,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1190,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1512,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1920,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 660,
+          "hp": 800,
+          "kills": 2236,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 720,
+          "hp": 1040,
+          "kills": 2699,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "hangar",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "element",
+      "seed": 11,
+      "seconds": 639,
+      "over": true,
+      "kills": 2118,
+      "bossKills": 1,
+      "threat": 15,
+      "hp": 0,
+      "spent": 10058,
+      "returns": 0,
+      "reactions": 18,
+      "attackDuty": 0,
+      "peakEnemies": 55,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "frost",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "lightning",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "frost",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 37,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 593,
+          "kills": 101,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 593,
+          "kills": 151,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "lightning",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 709,
+          "kills": 286,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 991,
+          "kills": 447,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 592,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 869,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1188,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1510,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1900,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "element",
+      "seed": 71,
+      "seconds": 643.7,
+      "over": true,
+      "kills": 2145,
+      "bossKills": 1,
+      "threat": 15,
+      "hp": 0,
+      "spent": 10058,
+      "returns": 0,
+      "reactions": 24,
+      "attackDuty": 0,
+      "peakEnemies": 50,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "frost",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "lightning",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "frost",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 35,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 566,
+          "kills": 100,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 566,
+          "kills": 151,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "lightning",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 623,
+          "kills": 283,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 445,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 595,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 872,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1188,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1507,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1907,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "element",
+      "seed": 20260911,
+      "seconds": 642.9,
+      "over": true,
+      "kills": 2143,
+      "bossKills": 1,
+      "threat": 15,
+      "hp": 0,
+      "spent": 10058,
+      "returns": 0,
+      "reactions": 23,
+      "attackDuty": 0,
+      "peakEnemies": 59,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "frost",
+          3
+        ],
+        [
+          "fire",
+          3
+        ],
+        [
+          "lightning",
+          3
+        ],
+        [
+          "shield",
+          1
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "frost",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 33,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 569,
+          "kills": 100,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              1
+            ],
+            [
+              "lightning",
+              1
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 569,
+          "kills": 149,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              2
+            ],
+            [
+              "fire",
+              2
+            ],
+            [
+              "lightning",
+              2
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 733,
+          "kills": 283,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 625,
+          "kills": 445,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 594,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 874,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1203,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1512,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1908,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "frost",
+              3
+            ],
+            [
+              "fire",
+              3
+            ],
+            [
+              "lightning",
+              3
+            ],
+            [
+              "shield",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "mixed",
+      "seed": 11,
+      "seconds": 900,
+      "over": false,
+      "kills": 4257,
+      "bossKills": 3,
+      "threat": 20,
+      "hp": 932,
+      "spent": 10358,
+      "returns": 0,
+      "reactions": 0,
+      "attackDuty": 0,
+      "peakEnemies": 80,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "cannon",
+          3
+        ],
+        [
+          "blade",
+          3
+        ],
+        [
+          "frost",
+          3
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "cannon",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 38,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 800,
+          "kills": 100,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 800,
+          "kills": 150,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "blade",
+              2
+            ],
+            [
+              "frost",
+              2
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 800,
+          "kills": 276,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              2
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 443,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 584,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 861,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1173,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1498,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1887,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 660,
+          "hp": 932,
+          "kills": 2287,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 720,
+          "hp": 932,
+          "kills": 2767,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 780,
+          "hp": 932,
+          "kills": 3332,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 840,
+          "hp": 932,
+          "kills": 3907,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "mixed",
+      "seed": 71,
+      "seconds": 900,
+      "over": false,
+      "kills": 4238,
+      "bossKills": 3,
+      "threat": 20,
+      "hp": 399,
+      "spent": 10358,
+      "returns": 0,
+      "reactions": 0,
+      "attackDuty": 0,
+      "peakEnemies": 79,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "cannon",
+          3
+        ],
+        [
+          "blade",
+          3
+        ],
+        [
+          "frost",
+          3
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "cannon",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 40,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 600,
+          "kills": 101,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 800,
+          "kills": 157,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "blade",
+              2
+            ],
+            [
+              "frost",
+              2
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 800,
+          "kills": 281,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              2
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 442,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 584,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 872,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1193,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1508,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1921,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 660,
+          "hp": 967,
+          "kills": 2317,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 720,
+          "hp": 967,
+          "kills": 2779,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 780,
+          "hp": 967,
+          "kills": 3346,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 840,
+          "hp": 967,
+          "kills": 3912,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "build": "mixed",
+      "seed": 20260911,
+      "seconds": 900,
+      "over": false,
+      "kills": 4279,
+      "bossKills": 3,
+      "threat": 20,
+      "hp": 1012,
+      "spent": 10358,
+      "returns": 0,
+      "reactions": 0,
+      "attackDuty": 0,
+      "peakEnemies": 96,
+      "levels": [
+        [
+          "pulse",
+          3
+        ],
+        [
+          "cannon",
+          3
+        ],
+        [
+          "blade",
+          3
+        ],
+        [
+          "frost",
+          3
+        ]
+      ],
+      "core": [
+        10,
+        8,
+        3
+      ],
+      "sample": [
+        {
+          "time": 0,
+          "hp": 600,
+          "kills": 0,
+          "levels": [
+            [
+              "pulse",
+              1
+            ],
+            [
+              "cannon",
+              1
+            ]
+          ]
+        },
+        {
+          "time": 60,
+          "hp": 600,
+          "kills": 38,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ]
+          ]
+        },
+        {
+          "time": 120,
+          "hp": 800,
+          "kills": 100,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "blade",
+              1
+            ],
+            [
+              "frost",
+              2
+            ]
+          ]
+        },
+        {
+          "time": 180,
+          "hp": 800,
+          "kills": 150,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              1
+            ],
+            [
+              "blade",
+              2
+            ],
+            [
+              "frost",
+              2
+            ]
+          ]
+        },
+        {
+          "time": 240,
+          "hp": 800,
+          "kills": 279,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              2
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 300,
+          "hp": 1000,
+          "kills": 449,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 360,
+          "hp": 1200,
+          "kills": 595,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 420,
+          "hp": 1200,
+          "kills": 880,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 480,
+          "hp": 1200,
+          "kills": 1186,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 540,
+          "hp": 1200,
+          "kills": 1502,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 600,
+          "hp": 1200,
+          "kills": 1893,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 660,
+          "hp": 736,
+          "kills": 2304,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 720,
+          "hp": 976,
+          "kills": 2766,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 780,
+          "hp": 976,
+          "kills": 3327,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        },
+        {
+          "time": 840,
+          "hp": 976,
+          "kills": 3921,
+          "levels": [
+            [
+              "pulse",
+              3
+            ],
+            [
+              "cannon",
+              3
+            ],
+            [
+              "blade",
+              3
+            ],
+            [
+              "frost",
+              3
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

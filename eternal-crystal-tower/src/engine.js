@@ -1,6 +1,6 @@
 import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, getArenaEdgePosition } from "./config.js";
 import { SeededRng } from "./rng.js";
-import { createModuleBay, installedModule, adjacentReactors, moduleDamageMultiplier, shieldSector, SPECIALIZATIONS, specializeModule, hasSpecialization, modulesAdjacent } from "./modules.js";
+import { createModuleBay, installedModule, adjacentReactors, moduleDamageMultiplier, shieldSector, SPECIALIZATIONS, MODULE_BALANCE, specializeModule, hasSpecialization, modulesAdjacent } from "./modules.js";
 import { getGunMuzzleWorld } from "./tower-model.js";
 import { ENDLESS_SHOP_RULES, createEndlessShopState, hasEndlessRelic, refreshEndlessShop, releaseEndlessShopNotice } from "./endless-shop.js";
 import { CHAPTER_TWO_CONFIG, CHAPTER_TWO_ID, CHAPTER_TWO_TECH_ORDER, CHAPTER_TWO_TECH_TREE, CHAPTER_TWO_UPGRADE_META, chooseChapterTwoEnemyType, isChapterTwo } from './chapter-two.js';
@@ -1019,7 +1019,7 @@ function fireTower(state, weaponId = null, claimedTargetIds = null) {
   const module = weaponId ? installedModule(state, weaponId) : null;
   const heavy = weaponId === "cannon";
   if (module) {
-    stats.damage *= (heavy ? 3.4 : 1 + (module.level - 1) * 0.35) * moduleDamageMultiplier(state, weaponId);
+    stats.damage *= (heavy ? MODULE_BALANCE.cannon.damage * (1 + (module.level - 1) * MODULE_BALANCE.cannon.damagePerLevel) : 1 + (module.level - 1) * 0.35) * moduleDamageMultiplier(state, weaponId);
     stats.range = heavy ? 620 : stats.range;
     if (module.specialization === "pulseSplit") stats.damage *= 0.85;
     if (module.specialization === "cannonBurst") stats.damage *= 0.75;
@@ -1062,7 +1062,7 @@ function fireTower(state, weaponId = null, claimedTargetIds = null) {
     state.tower.siegeStreak = state.tower.siegeTargetId === primaryId ? state.tower.siegeStreak + 1 : 0;
     state.tower.siegeTargetId = primaryId;
     const cfg = GAME_CONFIG.cannon.siege;
-    const maxStacks = cfg.maxChargeStacks + chargeLevel - 1;
+    const maxStacks = module?.specialization === "cannonLance" ? MODULE_BALANCE.cannon.lanceStacks : cfg.maxChargeStacks + chargeLevel - 1;
     const stacks = Math.min(maxStacks, state.tower.siegeStreak);
     fullCharge = stacks >= maxStacks;
     chargeMultiplier += stacks * cfg.chargeBonusPerStack;
@@ -2558,7 +2558,8 @@ export function getSawOrbitRadius(state, bladeIndex = 0) {
   const trackOffset = count >= 4 ? (bladeIndex % 2 === 0 ? cfg.orbitSpread : -cfg.orbitSpread) : 0;
   const breathing = state.tower.upgrades.sawBreathing > 0 ? GAME_CONFIG.upgrades.sawBreathing : null;
   const rangeMultiplier = breathing ? breathing.radiusCenter + Math.sin(state.time * breathing.angularSpeed) * breathing.radiusAmplitude : 1;
-  return (cfg.radius + trackOffset) * rangeMultiplier * getTowerScale(state) * (state.tower.bladeExpansion > 0 ? 1.3 : 1);
+  const radius = installedModule(state, "blade") ? MODULE_BALANCE.blade.orbitRadius : cfg.radius;
+  return (radius + trackOffset) * rangeMultiplier * getTowerScale(state) * (state.tower.bladeExpansion > 0 ? 1.3 : 1);
 }
 
 export function getSawBladeRadius(state) {
@@ -2573,7 +2574,7 @@ export function getSawContactDamage(state) {
   const cfg = GAME_CONFIG.upgrades.saw;
   const overdrive = state.tower.upgrades.sawOverdrive;
   const baseDamage = cfg.damage * (1 + (count - 1) * cfg.growthDamage);
-  const towerDamage = getTowerStats(state).damage * cfg.towerDamageMultiplier;
+  const towerDamage = getTowerStats(state).damage * (installedModule(state, "blade") ? MODULE_BALANCE.blade.towerDamageMultiplier : cfg.towerDamageMultiplier);
   return (baseDamage + towerDamage) * (1 + overdrive * GAME_CONFIG.upgrades.sawOverdrive.damagePerLevel) * moduleDamageMultiplier(state, "blade");
 }
 
@@ -2594,7 +2595,7 @@ function releaseSawStorm(state, pulses = 1) {
   const cfg = GAME_CONFIG.upgrades.sawStorm;
   const { x, y } = getTowerPosition(state);
   const radius = cfg.radius * getTowerScale(state);
-  const baseDamage = getSawContactDamage(state) * cfg.damageMultiplier * pulses;
+  const baseDamage = getSawContactDamage(state) * (installedModule(state, "blade") ? MODULE_BALANCE.blade.stormDamageMultiplier : cfg.damageMultiplier) * pulses;
   let hits = 0;
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || Math.hypot(enemy.x - x, enemy.y - y) > radius + enemy.radius) continue;
@@ -2668,7 +2669,7 @@ function finishLaunchedSaw(state, saw, returned = false) {
     let hits = 0;
     for (const enemy of state.enemies) {
       if (enemy.hp <= 0 || Math.hypot(enemy.x - x, enemy.y - y) > radius + enemy.radius) continue;
-      damageEnemy(state, enemy, saw.damage * homecoming.burstDamageMultiplier * getSawScarMultiplier(enemy), "sawHomecoming");
+      damageEnemy(state, enemy, saw.damage * (saw.burstDamageMultiplier ?? homecoming.burstDamageMultiplier) * getSawScarMultiplier(enemy), "sawHomecoming");
       hits += 1;
     }
     state.elementFx.push({ element: "sawHomecoming", x, y, radius, life: homecoming.duration, maxLife: homecoming.duration });
@@ -2714,7 +2715,7 @@ function updateLaunchedSaws(state, dt, enemySpatialIndex = null) {
         if ((saw.x - enemy.x) ** 2 + (saw.y - enemy.y) ** 2 > reach * reach) continue;
         saw.returnHitIds.push(enemy.id);
         saw.returnHits += 1;
-        damageEnemy(state, enemy, saw.damage * GAME_CONFIG.upgrades.sawHomecoming.returnDamageMultiplier * getSawScarMultiplier(enemy), "sawHomecoming");
+        damageEnemy(state, enemy, saw.damage * (saw.returnDamageMultiplier ?? GAME_CONFIG.upgrades.sawHomecoming.returnDamageMultiplier) * getSawScarMultiplier(enemy), "sawHomecoming");
       }
       if (Math.hypot(saw.x - tower.x, saw.y - tower.y) <= getTowerRadius(state) + cfg.radius || saw.life <= 0) finishLaunchedSaw(state, saw, true);
       continue;
@@ -2749,7 +2750,7 @@ function updateLaunchedSaws(state, dt, enemySpatialIndex = null) {
       const reach = cfg.radius + enemy.radius;
       if (dx * dx + dy * dy > reach * reach) continue;
       saw.hitIds.push(enemy.id);
-      damageEnemy(state, enemy, saw.damage * (1 + (saw.bounceIndex ?? 0) * cfg.bounceDamagePerHop) * getSawScarMultiplier(enemy), "launchedSaw");
+      damageEnemy(state, enemy, saw.damage * (1 + (saw.bounceIndex ?? 0) * (saw.bounceDamagePerHop ?? cfg.bounceDamagePerHop)) * getSawScarMultiplier(enemy), "launchedSaw");
       const nextTarget = saw.bouncesRemaining > 0
         ? rankTargets(state, state.enemies.filter((candidate) => candidate.hp > 0 && !saw.hitIds.includes(candidate.id) && Math.hypot(candidate.x - saw.x, candidate.y - saw.y) <= cfg.bounceRange), 1)[0]
         : null;
@@ -2795,16 +2796,21 @@ function updateLaunchedSaws(state, dt, enemySpatialIndex = null) {
   const target = rankTargets(state, state.enemies.filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - x, enemy.y - y) <= cfg.range), 1)[0];
   if (!target) return;
   const launchAngle = Math.atan2(target.y - y, target.x - x);
-  const damage = getSawContactDamage(state) * cfg.damageMultiplier + getTowerStats(state).damage * cfg.towerDamageMultiplier;
+  const blade = installedModule(state, "blade");
+  const tuning = MODULE_BALANCE.blade;
+  const damage = blade
+    ? getTowerStats(state).damage * tuning.launchDamageMultiplier * (1 + (blade.level - 1) * tuning.launchDamagePerLevel) * moduleDamageMultiplier(state, "blade")
+    : getSawContactDamage(state) * cfg.damageMultiplier + getTowerStats(state).damage * cfg.towerDamageMultiplier;
   state.launchedSaws.push({
     id: state.nextId++, bladeIndex, x, y,
     vx: Math.cos(launchAngle) * cfg.projectileSpeed,
     vy: Math.sin(launchAngle) * cfg.projectileSpeed,
     damage, life: cfg.flightLife,
-    bouncesRemaining: cfg.baseBounces + state.tower.upgrades.sawRicochet,
+    bouncesRemaining: blade ? blade.level - 1 : cfg.baseBounces + state.tower.upgrades.sawRicochet,
+    ...(blade ? {bounceDamagePerHop:tuning.bounceDamagePerHop,returnDamageMultiplier:tuning.returnDamageMultiplier,burstDamageMultiplier:tuning.burstDamageMultiplier} : {}),
     bounceIndex: 0, hitIds: [], returning: false, returnHitIds: [], returnHits: 0, done: false
   });
-  state.tower.sawLaunchCooldown = cfg.launchInterval;
+  state.tower.sawLaunchCooldown = blade ? tuning.launchInterval : cfg.launchInterval;
   state.events.push({ type: "sawLaunch", bladeIndex, targetId: target.id });
 }
 
@@ -3378,8 +3384,8 @@ function updateDrones(state, dt) {
   }
   const cfg = GAME_CONFIG.drones;
   const tech = CHAPTER_TWO_CONFIG.droneTech;
-  const afterburnerLevel = isChapterTwo(state) ? state.tower.upgrades.droneAfterburner ?? 0 : 0;
-  const movementMultiplier = 1 + afterburnerLevel * tech.afterburnerSpeedPerLevel;
+  const hangar = installedModule(state, "hangar"), tuning = MODULE_BALANCE.hangar;
+  const movementMultiplier = 1 + (hangar ? (hangar.level - 1) * tuning.speedPerLevel : 0);
   for (const drone of state.drones) {
     const wasRecovering = drone.recoveryTimer > 0;
     drone.recoveryTimer = Math.max(0, (drone.recoveryTimer ?? 0) - dt);
@@ -3398,7 +3404,7 @@ function updateDrones(state, dt) {
     // Self-destruct drones spend a fixed battery charge per launch instead of
     // draining continuously while they travel to their priority target.
   } else if (attackMode) {
-    state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - (installedModule(state, "hangar") ? 2 : cfg.attackDrainPerSecond) * dt);
+    state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - (hangar ? tuning.attackDrain : cfg.attackDrainPerSecond) * dt);
     if (state.tower.droneEnergy <= 0) {
       state.tower.droneMode = "collect";
       state.events.push({ type: "droneDepleted" });
@@ -3407,7 +3413,7 @@ function updateDrones(state, dt) {
     updateDroneGuard(state, dt);
   } else if (!guardCooldownWasActive) {
     const relayMultiplier = 1 + (state.tower.upgrades.droneRelay ?? 0) * tech.relayRegenPerLevel;
-    state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + (installedModule(state, "hangar") ? 14 : cfg.guardRegenPerSecond) * relayMultiplier * dt);
+    state.tower.droneEnergy = Math.min(getDroneEnergyMax(state), state.tower.droneEnergy + (hangar ? tuning.regen + (hangar.level - 1) * tuning.regenPerLevel : cfg.guardRegenPerSecond) * relayMultiplier * dt);
     if (state.tower.upgrades.droneIntercept > 0 && state.tower.interceptCharge < 1) {
       state.tower.interceptRecharge = Math.max(0, state.tower.interceptRecharge - dt);
       if (state.tower.interceptRecharge <= 0) {
@@ -3433,13 +3439,13 @@ function updateDrones(state, dt) {
       }
     }
   }
-  const chapterDamageMultiplier = isChapterTwo(state) ? CHAPTER_TWO_CONFIG.droneDamageMultiplier : installedModule(state, "hangar") ? 2.8 * moduleDamageMultiplier(state, "hangar") : 1;
+  const chapterDamageMultiplier = hangar ? tuning.damageMultiplier * moduleDamageMultiplier(state, "hangar") : 1;
   const payloadMultiplier = 1 + (state.tower.upgrades.dronePayload ?? 0) * tech.payloadDamagePerLevel;
   const lowEnergy = state.tower.droneEnergy <= getDroneEnergyMax(state) * tech.overdriveEnergyThreshold;
   const overdriveMultiplier = isChapterTwo(state) && state.tower.upgrades.droneOverdrive > 0 && lowEnergy ? tech.overdriveDamageMultiplier : 1;
   const specializationDamage = hasSpecialization(state, "hangarHeavy") ? 2.5 : hasSpecialization(state, "hangarSwarm") ? 0.75 : 1;
   const damage = getTowerStats(state).damage * cfg.damageMultiplier * chapterDamageMultiplier * payloadMultiplier * overdriveMultiplier * specializationDamage;
-  const hitInterval = cfg.hitInterval * Math.max(0.45, 1 - afterburnerLevel * tech.afterburnerIntervalReductionPerLevel);
+  const hitInterval = cfg.hitInterval;
   for (let index = 0; index < state.drones.length; index += 1) {
     const drone = state.drones[index];
     drone.hitCooldown = Math.max(0, drone.hitCooldown - dt);
@@ -3479,7 +3485,7 @@ function updateDrones(state, dt) {
       damageEnemy(state, target, damage, "drone");
       const element = state.tower.moduleBay ? rollProjectileElement(state, 1, "hangar") : null;
       if (element) applyElementalHit(state, target, element, damage);
-      const energyCost = (installedModule(state, "hangar") ? 2 : cfg.hitEnergyCost) * (hasSpecialization(state, "hangarHeavy") ? 2 : 1) * (overdriveMultiplier > 1 ? tech.overdriveEnergyCostMultiplier : 1);
+      const energyCost = (hangar ? tuning.hitEnergy : cfg.hitEnergyCost) * (hasSpecialization(state, "hangarHeavy") ? 2 : 1) * (overdriveMultiplier > 1 ? tech.overdriveEnergyCostMultiplier : 1);
       state.tower.droneEnergy = Math.max(0, state.tower.droneEnergy - energyCost);
       if (state.tower.upgrades.droneHunt > 0 && target.elite) {
         target.markTimer = Math.max(target.markTimer, cfg.huntMarkDuration);

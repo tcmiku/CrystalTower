@@ -1,4 +1,5 @@
 import { MODULES } from './modules.js';
+import { buildCrystalBlade } from './blade-geometry.js';
 
 const armor = [.16, .25, .38], edge = [.49, .64, .75], dark = [.025, .055, .09];
 const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
@@ -29,14 +30,9 @@ export function buildModuleMesh(builder, { id, level = 1, component = "all" }) {
     }
   } else if (id === 'blade') {
     m.ring(0, 8, 0, 12, 0, 7, armor, 12);
-    m.ring(0, 15, 0, 19, 12, 3, edge, 24);
-    m.ring(0, 18, 0, 14, 10, 2, color, 24);
-    m.crystal(0, 16, 0, 5, 12, 0, [color, edge, color]);
-    for (let i = 0; i < 8; i++) {
-      const a = i * Math.PI / 4, p = (r, t, y) => [Math.cos(t) * r, y, Math.sin(t) * r];
-      m.face([p(15,a,18),p(25,a+.16,18),p(17,a+.42,18)],edge);
-      m.face([p(15,a,16),p(17,a+.42,18),p(25,a+.16,18)],armor);
-    }
+    const rotor=buildCrystalBlade(builder);
+    for(let i=0;i<rotor.length;i+=10) {rotor[i]*=.88;rotor[i+1]=18+rotor[i+1]*.88;rotor[i+2]*=.88;}
+    m.data.push(...rotor);
   } else if (id === 'hangar') {
     m.box(0, 8, 0, 35, 14, 22, armor);
     m.box(0, 22, 0, 37, 3, 24, edge);

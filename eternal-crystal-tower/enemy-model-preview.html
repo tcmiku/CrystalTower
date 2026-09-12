@@ -12,6 +12,9 @@
     <option value="sentinel">晶甲守卫 · 盾晶重装</option>
     <option value="hexer">咒晶怪 · 紫晶环绕</option>
     <option value="rammer">冲撞兽 · 橙热撞角</option>
+    <option value="inkHound">墨影猎犬 · 青光脊刃</option>
+    <option value="orbitMote">轨道微星 · 交错星环</option>
+    <option value="rustBeetle">锈蚀甲虫 · 酸蚀重甲</option>
   </select>
   <button id="spin">暂停旋转</button>
   <a href="/">返回战场</a>
@@ -23,7 +26,7 @@ const renderer=new EnemyModelRenderer();
 if(renderer.canvas){renderer.canvas.width=1600;renderer.canvas.height=1600;}
 const typeSelect=document.getElementById('type');
 const spinBtn=document.getElementById('spin');
-const radii={wisp:14,runner:11,brute:23,crawler:13,sentinel:28,hexer:17,rammer:25};
+const radii={wisp:14,runner:11,brute:23,crawler:13,sentinel:28,hexer:17,rammer:25,inkHound:13,orbitMote:19,rustBeetle:26};
 let spin=true,angle=0,last=0;
 spinBtn.onclick=()=>{spin=!spin;spinBtn.textContent=spin?'暂停旋转':'继续旋转'};
 function frame(ms){

@@ -2,21 +2,29 @@
 export const BAY_COLUMNS = 3;
 export const BAY_ROWS = 2;
 export const SLOT_COUNT = 6;
+// First-chapter equipment tuning; legacy upgrades and chapter-two ships keep their own rules.
+export const MODULE_BALANCE = Object.freeze({
+  cannon: Object.freeze({ damage: 3.4, damagePerLevel: .2, lanceStacks: 2 }),
+  blade: Object.freeze({ orbitRadius: 118, towerDamageMultiplier: .65, stormDamageMultiplier: 1.5,
+    launchDamageMultiplier: 2.2, launchDamagePerLevel: .2, launchInterval: .85, bounceDamagePerHop: .15,
+    returnDamageMultiplier: 1.1, burstDamageMultiplier: .6 }),
+  hangar: Object.freeze({ damageMultiplier: 2.8, attackDrain: 2, hitEnergy: 2, regen: 14, regenPerLevel: 4, speedPerLevel: .12 })
+});
 export const SPECIALIZATIONS = Object.freeze({
   pulseSplit: { module: "pulse", name: "裂晶散射", description: "轻炮命中后分裂两枚晶矢，可再追击一次；单发伤害降低 15%。" },
   pulseFocus: { module: "pulse", name: "持续校准", description: "轻炮连续锁定同一目标逐步加速，最多 +60%；换目标重置。" },
-  cannonLance: { module: "cannon", name: "贯星蓄能", description: "重炮蓄能上限提前开放，满蓄能可对任何目标贯穿；射速降低 20%。" },
+  cannonLance: { module: "cannon", name: "贯星蓄能", description: "连续锁敌叠满 2 层即发射贯星炮，可贯穿任何目标；射速降低 20%。" },
   cannonBurst: { module: "cannon", name: "震荡炮弹", description: "重炮射速 +35%，命中产生 95 范围爆炸；单发伤害降低 25%，失去穿透与蓄能。" },
   bladeGuard: { module: "blade", name: "晶刃屏障", description: "每 1.2 秒拦截一枚进入刀环的炮弹，拦截后刀环扩张 2 秒。" },
-  bladeReturn: { module: "blade", name: "回旋飞刃", description: "晶刃离塔追敌、弹射后沿返程再次切割；飞出期间近身防线变薄。" },
+  bladeReturn: { module: "blade", name: "回旋飞刃", description: "每 0.85 秒发射一刃，伤害为塔攻击的 2.2／2.64／3.08 倍；最多弹射 0／1／2 次，每跳 +15%，返程伤害 110%。飞出期间近身防线变薄。" },
   hangarHeavy: { module: "hangar", name: "重型猎杀", description: "机群缩编为两架，单机伤害 ×2.5，命中耗电 ×2；优先首领与精英。" },
   hangarSwarm: { module: "hangar", name: "蜂群清扫", description: "增加两架轻型无人机，分散追击不同目标；单机伤害降低 25%。" }
 });
 export const MODULES = Object.freeze({
   pulse: { name: "晶矢轻炮", size: 1, cost: 60, color: "#7fe9ff", icon: "damage", weapon: true, description: "全向射击，基础射程 360。每级伤害 +35%，适合给元素反应提供连续命中。" },
-  cannon: { name: "贯星重炮", size: 2, cost: 150, color: "#ffb377", icon: "cannonSiege", weapon: true, description: "射程 620，140 内无法锁敌；伤害 ×3.4，射速 ×0.55，穿透与首领加伤。强化后连续锁敌蓄能。" },
-  blade: { name: "环刃发生器", size: 2, cost: 120, color: "#b6f58a", icon: "saw", weapon: true, description: "三枚环刃守住近身，强化后增加刃数、晶痕与环刃风暴。无法追击防线外的远程敌人。" },
-  hangar: { name: "蜂巢无人机库", size: 2, cost: 140, color: "#ffd578", icon: "drone", weapon: true, description: "三至五架无人机；II 级协同齐射，III 级重型载荷。出击每秒／每击耗电 2，整备每秒回电 14；G 切换。" },
+  cannon: { name: "贯星重炮", size: 2, cost: 150, color: "#ffb377", icon: "cannonSiege", weapon: true, description: "射程 620，140 内无法锁敌；I／II／III 级伤害 ×3.4／4.08／4.76，射速 ×0.55。强化增加穿透、首领加伤与连续锁敌蓄能。" },
+  blade: { name: "环刃发生器", size: 2, cost: 120, color: "#b6f58a", icon: "saw", weapon: true, description: "三／五／七枚晶刃守住 118 半径近圈，接触伤害继承 65% 塔攻击。II 级晶痕，III 级高速旋转与环刃风暴；远程敌人需要其他武器补位。" },
+  hangar: { name: "蜂巢无人机库", size: 2, cost: 140, color: "#ffd578", icon: "drone", weapon: true, description: "三至五架无人机；II 级协同齐射，III 级重型载荷。每次升级飞行速度 +12%；出击每秒／每击耗电 2，I／II／III 级整备每秒回电 14／18／22；G 切换。" },
   shield: { name: "扇区护盾", size: 1, cost: 80, color: "#78dabb", icon: "droneGuard", description: "只减免所在 60° 扇区的来袭伤害，I／II／III 级减伤 45%／55%／65%。朝向与战场编号一致。" },
   frost: { name: "霜棱反应器", size: 1, cost: 90, color: "#91ddff", icon: "frost", element: "frost", description: "只强化相邻武器：伤害 +15%／级，35%／45%／55% 概率附加冰冻。与火焰交替命中触发融爆。" },
   fire: { name: "烬火反应器", size: 1, cost: 90, color: "#ff8d70", icon: "fire", element: "fire", description: "只强化相邻武器：伤害 +15%／级，附加灼烧。火＋冰触发融爆；火＋雷触发超导爆炸。" },
@@ -80,7 +88,7 @@ export function syncModuleUpgrades(state) {
   for (const module of state.tower.moduleBay.installed) {
     const level = module.level;
     if (module.id === "cannon") Object.assign(upgrades, { cannonSiege: 1, cannonPierce: level, cannonCharge: level >= 2 ? level - 1 : 0, cannonStarPiercer: level === 3 ? 1 : 0 });
-    if (module.id === "blade") Object.assign(upgrades, { saw: 1 + level * 2, sawOverdrive: level >= 2 ? level : 0, sawAccelerator: level >= 2 ? 1 : 0, sawStorm: level === 3 ? 1 : 0 });
+    if (module.id === "blade") Object.assign(upgrades, { saw: 1 + level * 2, sawOverdrive: level - 1, sawAccelerator: level === 3 ? 1 : 0, sawStorm: level === 3 ? 1 : 0 });
     if (module.id === "hangar") Object.assign(upgrades, { drone: level + 2, autoCollect: 1, droneBattery: level - 1, droneHunt: level >= 2 ? 1 : 0, droneScavenge: level >= 2 ? 1 : 0, droneSalvo: level >= 2 ? 1 : 0, dronePayload: level === 3 ? 2 : 0, droneAfterburner: level - 1 });
     if (MODULES[module.id].element) upgrades[module.id] = 1;
     if (module.specialization === "cannonLance") Object.assign(upgrades, { cannonCharge: Math.max(1, level - 1), cannonStarPiercer: 1 });

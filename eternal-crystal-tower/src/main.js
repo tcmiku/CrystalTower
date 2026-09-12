@@ -2712,6 +2712,7 @@ function selectRunRelic(id) {
 }
 function handleEvents(events) {
   for (const event of events) {
+    renderer.recordCombatEvent(event);
     if (event.type === "relicChoice") setRelicChoiceOpen(true);
     else if (event.type === "relicComboDiscovered") {
       if (discoverHiddenRelic(save, event.id)) persistSave();
@@ -3007,7 +3008,7 @@ function updateUi() {
     button.setAttribute("aria-label", `${SKILL_META[key].key} · ${SKILL_META[key].name} · ${statusLabel}：${SKILL_META[key].tooltip}`);
     button.querySelector(".cooldown-mask").style.height = `${!active ? cooldownRatio * 100 : 0}%`;
     button.querySelector(".cooldown-ring").style.setProperty("--cooldown-progress", `${cooldownRatio * 100}%`);
-    button.querySelector(".cooldown-text").textContent = "";
+    button.querySelector(".cooldown-text").textContent = skillState === "cooldown" ? String(Math.ceil(cooldown)) : "";
     button.querySelector(".skill-status").textContent = statusLabel;
     const tooltip = button.querySelector(".skill-tooltip span");
     if (tooltip) tooltip.textContent = `${SKILL_META[key].tooltip}${key === "starfall" && hasEndlessRelic(state, "globalStarfall") ? " · 全目标火力协议：按 E 立即全屏轰击" : ""}${key === "overload" && hasEndlessRelic(state, "perpetualOverload") ? " · 永续超载核心：首次开启后永久运转" : ""}${researchedNodes.length > 0 ? ` · ${ACTIVE_SKILL_RESEARCH_META[key].protocol} · ${activeRoute?.name ?? "未启用路线"} ${activeResearchLevel}/2 · 已研究 ${researchedNodes.length}/4` : ""}${state.relics.owned.hourglass ? ` · 逆时沙漏：冷却恢复 +${Math.round((GAME_CONFIG.relics.hourglass.cooldownRateMultiplier - 1) * 100)}%` : ""}`;
@@ -3424,7 +3425,7 @@ createUpgradeUi();
 createSkillUi();
 
 function setTopbarCollapsed(collapsed) {
-  if (!dom.topbar || !dom.topbarToggle || (collapsed && window.innerWidth <= 1180)) return;
+  if (!dom.topbar || !dom.topbarToggle) return;
   dom.topbar.classList.toggle("is-collapsed", collapsed);
   document.querySelector(".game-shell")?.classList.toggle("topbar-collapsed", collapsed);
   dom.topbarToggle.setAttribute("aria-expanded", String(!collapsed));
@@ -3433,7 +3434,7 @@ function setTopbarCollapsed(collapsed) {
 }
 
 function setSidePanelCollapsed(collapsed) {
-  if (!dom.upgradePanel || !dom.upgradePanelToggle || (collapsed && window.innerWidth <= 1180)) return;
+  if (!dom.upgradePanel || !dom.upgradePanelToggle) return;
   dom.upgradePanel.classList.toggle("is-collapsed", collapsed);
   document.querySelector(".game-shell")?.classList.toggle("side-panel-collapsed", collapsed);
   dom.upgradePanelToggle.setAttribute("aria-expanded", String(!collapsed));
@@ -3442,7 +3443,7 @@ function setSidePanelCollapsed(collapsed) {
 }
 
 function setSkillBarCollapsed(collapsed) {
-  if (!dom.skillBar || !dom.skillBarToggle || (collapsed && window.innerWidth <= 1180)) return;
+  if (!dom.skillBar || !dom.skillBarToggle) return;
   dom.skillBar.classList.toggle("is-collapsed", collapsed);
   dom.skillBarToggle.setAttribute("aria-expanded", String(!collapsed));
   dom.skillBarToggle.setAttribute("aria-label", collapsed ? "展开主动技能栏" : "收起主动技能栏");
@@ -3462,11 +3463,6 @@ dom.topbarToggle?.addEventListener("click", (event) => {
   setTopbarCollapsed(!dom.topbar.classList.contains("is-collapsed"));
 });
 window.addEventListener("resize", () => {
-  if (window.innerWidth <= 1180) {
-    setTopbarCollapsed(false);
-    setSidePanelCollapsed(false);
-    setSkillBarCollapsed(false);
-  }
   if (moduleFloatOpen) positionModuleFloatPanel();
 });
 
@@ -3475,7 +3471,9 @@ dom.droneProtocolButton.addEventListener("click", switchDroneProtocol);
 for (const button of dom.targetProtocolList.children) button.addEventListener("click", () => switchTargetProtocol(button.dataset.protocol));
 document.body.dataset.chapter = String(state.chapter);
 updateUi();
-setTopbarCollapsed(window.innerWidth > 1180);
+setTopbarCollapsed(true);
+setSidePanelCollapsed(true);
+setSkillBarCollapsed(true);
 if (previewMode === "tutorial-coin") showFirstRunTutorial(1, true);
 if (previewMode === "tutorial-upgrade") showFirstRunTutorial(2, true);
 if (previewMode === "tutorial-branches") showFirstRunTutorial(3, true);

@@ -3,16 +3,16 @@ import assert from "node:assert/strict";
 import { Renderer, getCombatViewport, getCoverCrop, getTowerAimTarget, getTowerVisualState } from "../src/renderer.js";
 import { createGameState, getTowerStats } from "../src/engine.js";
 
-test("桌面 UI 收缩后战斗视口扩展到剩余场地中央", () => {
+test("战术面板展开或收起都不挤压战场或改变瞄准坐标", () => {
   const expanded = getCombatViewport(2048, 956, { sidePanelCollapsed: false, skillBarCollapsed: false });
   const collapsed = getCombatViewport(2048, 956, { sidePanelCollapsed: true, skillBarCollapsed: true });
   assert.deepEqual(
     { width: expanded.width, height: expanded.height, rightInset: expanded.rightInset, bottomInset: expanded.bottomInset },
-    { width: 1780, height: 852, rightInset: 268, bottomInset: 104 }
+    { width: 2048, height: 956, rightInset: 0, bottomInset: 0 }
   );
   assert.deepEqual(
     { width: collapsed.width, height: collapsed.height, rightInset: collapsed.rightInset, bottomInset: collapsed.bottomInset },
-    { width: 1966, height: 956, rightInset: 82, bottomInset: 0 }
+    { width: 2048, height: 956, rightInset: 0, bottomInset: 0 }
   );
 });
 

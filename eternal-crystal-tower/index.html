@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="./auth.css" />
     <link rel="stylesheet" href="./battle-ui.css" />
     <link rel="stylesheet" href="./modules.css" />
+    <link rel="stylesheet" href="./battle-focus.css" />
   </head>
   <body class="is-loading">
     <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite" aria-label="游戏素材加载中">
@@ -54,7 +55,7 @@
       <button id="tutorialDismiss" type="button">继续守望</button>
       <button id="tutorialSkip" type="button" aria-label="跳过本局新手引导">跳过引导</button>
     </aside>
-    <main class="game-shell topbar-collapsed">
+    <main class="game-shell combat-focus topbar-collapsed side-panel-collapsed">
       <header id="topbar" class="topbar is-collapsed">
         <button id="topbarToggle" class="topbar-toggle" type="button" aria-label="展开顶部信息栏" aria-expanded="false" title="展开顶部信息栏"><span aria-hidden="true">⌃</span></button>
         <div class="brand">
@@ -99,8 +100,8 @@
           <div id="pauseOverlay" class="pause-overlay hidden"><strong>战场凝固</strong><span>点击右上角，或按空格 / P / Esc 继续</span></div>
         </div>
 
-        <aside id="upgradePanel" class="upgrade-panel" aria-label="战术侧栏">
-          <button id="upgradePanelToggle" class="upgrade-panel-toggle" type="button" aria-label="折叠战术侧栏" aria-expanded="true" title="折叠侧栏">
+        <aside id="upgradePanel" class="upgrade-panel is-collapsed" aria-label="战术侧栏">
+          <button id="upgradePanelToggle" class="upgrade-panel-toggle" type="button" aria-label="展开战术侧栏" aria-expanded="false" title="展开侧栏">
             <span aria-hidden="true">›</span>
           </button>
           <div class="panel-heading"><div><span>防线中枢</span><h2>科技树</h2></div><span class="key-hint">T</span></div>
@@ -147,8 +148,8 @@
         </aside>
       </section>
 
-      <footer id="skillBar" class="skill-bar" aria-label="主动技能栏">
-        <button id="skillBarToggle" class="skill-bar-toggle" type="button" aria-label="收起主动技能栏" aria-expanded="true" title="收起主动技能栏"><span aria-hidden="true">⌄</span></button>
+      <footer id="skillBar" class="skill-bar is-collapsed" aria-label="主动技能栏">
+        <button id="skillBarToggle" class="skill-bar-toggle" type="button" aria-label="展开主动技能栏" aria-expanded="false" title="展开主动技能栏"><span aria-hidden="true">⌄</span></button>
         <div class="objective"><span class="pulse-dot"></span><div><strong id="objectiveTitle">怪潮已至</strong><small id="objectiveText">晶塔会自动攻击。用金币加固防线。</small></div></div>
         <div id="skillList" class="skill-list"></div>
         <div class="seed-label">种子 <span id="seedText"></span></div>
