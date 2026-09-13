@@ -1,0 +1,27 @@
+.assault-panel { position:fixed; z-index:5; top:96px; left:16px; width:300px; max-height:calc(100dvh - 210px); overflow:auto; border:1px solid #5a789555; border-radius:12px; background:#091625ed; color:#d2e5f6; box-shadow:0 8px 24px #0003; font-size:12px; }
+.assault-panel[hidden] { display:none; }
+.assault-panel summary { cursor:pointer; padding:12px 14px; list-style:none; }
+.assault-panel summary::after { content:'⌄'; float:right; color:#a4ddeb; }
+.assault-kicker { display:block; font-size:10px; color:#80c6dc; letter-spacing:.12em; margin-bottom:6px; }
+.assault-status { font-size:12px; line-height:1.6; }
+.assault-body { padding:0 14px 12px; }
+.assault-hint { color:#b8c9dc; line-height:1.7; margin:0 0 12px; }
+.assault-guide { border-top:1px solid #6388a533; color:#819eb4; font-size:10px; line-height:1.7; padding-top:10px; margin-bottom:0; }
+.assault-nodes,.assault-mission { display:grid; gap:8px; }
+.assault-mission:not(:empty) { margin-top:12px; padding-top:12px; border-top:1px solid #6388a533; }
+.assault-panel button { text-align:left; min-height:40px; padding:9px 11px; border:1px solid #78d9d47a; border-radius:8px; background:#173949; color:#e0fff7; font:inherit; cursor:pointer; }
+.assault-panel button span { display:block; font-size:11px; margin-top:5px; color:#bdd6da; }
+.assault-panel button:hover:not(:disabled) { background:#245363; border-color:#a4fff4; }
+.assault-panel button:focus-visible,.assault-panel summary:focus-visible { outline:2px solid #fff; outline-offset:-2px; }
+.assault-panel button:disabled { opacity:.5; cursor:default; }
+.assault-panel small { font-size:10px; color:#aebdd1; line-height:1.6; }
+.assault-panel progress { width:100%; accent-color:#83e9c2; }
+.assault-panel label { display:flex; align-items:center; gap:6px; font-size:11px; }
+.assault-chosen { color:#c7e8a4; margin:0; line-height:1.7; }
+.assault-panel[data-phase="warning"],.assault-panel[data-phase="boss-warning"] { border-color:#f0b57a; }
+.module-facing { display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:9px; }
+.module-facing span { font-size:10px; color:#a8d9e8; width:100%; }
+.module-facing button { font-size:11px; padding:5px 9px; border:1px solid #45677d; border-radius:5px; background:#142c40; color:#cae5f7; cursor:pointer; }
+.module-facing button[aria-pressed="true"] { color:#102031; background:#8ce9e1; border-color:#befff8; }
+.module-editor .module-selection:has(.module-facing) { height:auto; min-height:155px; }
+@media(max-width:800px) { .assault-panel { top:98px; left:10px; width:min(290px,calc(100vw - 70px)); max-height:calc(100dvh - 230px); } .assault-panel summary { padding:8px 10px; } .assault-panel button { min-height:44px; } }

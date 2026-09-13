@@ -1,14 +1,13 @@
-import { MODULES, MODULE_BALANCE, SPECIALIZATIONS, getBayLayout, moduleAt, installedModule, occupiedSlots, adjacentReactors, modulesAdjacent, modulePlacementStatus, moduleMoveStatus, moduleUpgradeCost, installModule, removeModule, moveModule, upgradeModule } from './modules.js';
+import { MODULES, MODULE_BALANCE, SPECIALIZATIONS, getBayLayout, moduleAt, installedModule, occupiedSlots, adjacentReactors, modulesAdjacent, modulePlacementStatus, moduleMoveStatus, moduleUpgradeCost, installModule, removeModule, moveModule, upgradeModule, setModuleFacing, moduleFacingAngle, defaultModuleFacing, FACING_NAMES } from './modules.js';
 
 export const createCompactModuleUi = (root,state,options) => createModuleUi(root,state,{...options,compact:true});
 
 export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCore,compact=false}) {
   const controller=new AbortController(), signal=controller.signal;
   let selected=null, held=null, gesture=null, hover=null, signature='', suppress=false, lastPoint=null;
-  const directions=['北','东北','东南','南','西南','西北'];
   root.classList.add('module-editor');
   if(!compact) root.classList.add('module-workspace');
-  root.innerHTML=`${compact?'<header class="module-float-header"><span>模块装配</span><button type="button" data-action="close" aria-label="关闭模块装配">×</button></header>':''}<section class="module-layout"><div class="module-heading"><span>装配</span><strong class="module-capacity"></strong></div><div class="module-board"></div><div class="module-editor-tools"><button type="button" data-action="rotate" title="旋转 R" aria-label="旋转模块">↻</button><button type="button" data-action="cancel">取消</button><span class="module-hint" role="status"></span></div><div class="module-selection"></div>${coreStatus?'<div class="module-core-upgrades"></div>':''}</section><section class="module-catalog"><div class="module-heading"><span>仓库</span><small class="module-wallet"></small></div><div class="module-cards"></div></section>`;
+  root.innerHTML=`${compact?'<header class="module-float-header"><span>模块装配</span><button type="button" data-action="close" aria-label="关闭模块装配">×</button></header>':''}${coreStatus?'<section class="module-core-upgrades" aria-label="晶塔核心升级"></section>':''}<section class="module-layout"><div class="module-heading"><span>装配</span><strong class="module-capacity"></strong></div><div class="module-board"></div><div class="module-editor-tools"><button type="button" data-action="rotate" title="旋转 R" aria-label="旋转模块">↻</button><button type="button" data-action="cancel">取消</button><span class="module-hint" role="status"></span></div><div class="module-selection"></div></section><section class="module-catalog"><div class="module-heading"><span>仓库</span><small class="module-wallet"></small></div><div class="module-cards"></div></section>`;
   const board=root.querySelector('.module-board'), info=root.querySelector('.module-selection');
   const ghost=document.createElement('div');ghost.className='module-drag-ghost';ghost.hidden=true;document.body.append(ghost);
   const listen=(target,type,fn)=>target.addEventListener(type,fn,{signal});
@@ -44,7 +43,7 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
     delete state.modulePreview;
     if(!held||hover===null)return;
     const status=placement(hover);
-    state.modulePreview={id:held.id,slot:hover,rotation:held.rotation,valid:status.ok};
+    state.modulePreview={id:held.id,slot:hover,rotation:held.rotation,facing:installedModule(state,held.id)?.facing??defaultModuleFacing(state),valid:status.ok};
     const {columns,rows}=bayLayout();
     const x=hover%columns,y=Math.floor(hover/columns);
     for(let i=0;i<MODULES[held.id].size;i++){
@@ -108,7 +107,8 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
     if(action==='upgrade'||action==='remove'){
       if(m&&(action==='upgrade'?upgradeModule(state,m.slot):removeModule(state,m.slot))){cancel();refresh()}return;
     }
-    if(action?.startsWith('core-')){buyCore(action.slice(5));signature='';update();return}
+    if(action?.startsWith('face-')){if(setModuleFacing(state,selected,Number(action.slice(5)))){signature='';update();refresh()}return;}
+    if(action?.startsWith('core-')){const key=action.slice(5),before=state.tower.upgrades[key];buyCore(key);signature='';update();refresh();if(state.tower.upgrades[key]>before&&!matchMedia('(prefers-reduced-motion: reduce)').matches)root.querySelector(`[data-action="${action}"]`)?.animate([{boxShadow:'inset 0 0 0 2px #fff, 0 0 24px #8ce9e199'},{boxShadow:'none'}],{duration:600});return}
     if(event.target.closest('.module-board')&&held){
       const cell=event.target.closest('[data-cell]')?.dataset.cell;
       const piece=event.target.closest('.module-piece')?.dataset.id;
@@ -120,17 +120,17 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
     const live=info.querySelector('.module-live-status');if(!live)return;
     const m=installedModule(state,selected);let text='';
     if(m?.id==='mortar')text=`${m.cooldown>0?`装填 ${m.cooldown.toFixed(1)}s`:'等待射程内目标'} · 在途 ${state.tower.moduleBay.combat.shells.length} 枚`;
-    else if(m?.id==='gravity')text=`${directions[m.slot%6]} · ${m.cooldown>0?`牵引冷却 ${m.cooldown.toFixed(1)}s`:'等待扇区目标'}`;
-    else if(m?.id==='interceptor')text=`${directions[m.slot%6]} · 拦截弹 ${m.charges??0}/${MODULE_BALANCE.interceptor.capacity[m.level-1]}${m.charges<MODULE_BALANCE.interceptor.capacity[m.level-1]?` · 充能 ${Math.max(0,MODULE_BALANCE.interceptor.recharge[m.level-1]-(m.recharge??0)).toFixed(1)}s`:''}`;
+    else if(m?.id==='gravity')text=`${FACING_NAMES[Math.round((moduleFacingAngle(m)+Math.PI/2)/(Math.PI/4))%8]} · ${m.cooldown>0?`牵引冷却 ${m.cooldown.toFixed(1)}s`:'等待扇区目标'}`;
+    else if(m?.id==='interceptor')text=`${FACING_NAMES[Math.round((moduleFacingAngle(m)+Math.PI/2)/(Math.PI/4))%8]} · 拦截弹 ${m.charges??0}/${MODULE_BALANCE.interceptor.capacity[m.level-1]}${m.charges<MODULE_BALANCE.interceptor.capacity[m.level-1]?` · 充能 ${Math.max(0,MODULE_BALANCE.interceptor.recharge[m.level-1]-(m.recharge??0)).toFixed(1)}s`:''}`;
     else if(m?.id==='service')text=!modulesAdjacent(state,'hangar','service')?'未连接 · 需与机库共享一条边':m.launchBuff>0?`出击省电 ${m.launchBuff.toFixed(1)}s`:m.servicing?'归航整备 · 回电加速':m.recharged&&m.level>=3?'整备完成 · 下次出击省电':'已连接机库 · 等待归航';
-    else if(selected&&MODULES[selected]?.directional)text='锚定格决定防守方向 · 战场预览显示范围';
+    else if(selected&&MODULES[selected]?.directional)text='朝向独立于装配格 · 战场预览显示范围';
     else if(selected)text=`${MODULES[selected].size} 格${MODULES[selected].element?' · 只连接共享边的武器':''}`;
     if(live.textContent!==text)live.textContent=text;
   }
   function update(){
     if(gesture?.dragging)return;
     updateLive();
-    const bay=state.tower.moduleBay,next=JSON.stringify([bay.revision,Math.floor(state.coins),Math.ceil(bay.refitCooldown),state.over,selected,held,state.tower.upgrades]);
+    const bay=state.tower.moduleBay,next=JSON.stringify([bay.revision,Math.floor(state.coins),Math.ceil(bay.refitCooldown),state.over,state.threat,selected,held,state.tower.upgrades,bay.installed.map(m=>Math.ceil(m.facingCooldown??0))]);
     if(signature===next)return;signature=next;
     const focus=root.contains(document.activeElement)?document.activeElement.dataset.focus:null;
     const {columns,rows,slotCount}=bayLayout();
@@ -144,14 +144,14 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
       const n=document.createElement('button');n.type='button';n.className='module-cell';n.dataset.cell=cell;n.dataset.focus=`cell-${cell}`;
       n.style.gridColumn=String(cell%columns+1);
       n.style.gridRow=String(Math.floor(cell/columns)+1);
-      n.innerHTML=`<b>${cell+1}</b>`;n.setAttribute('aria-label',`第 ${cell+1} 格，${directions[cell%6]}，${MODULES[moduleAt(state,cell)?.id]?.name??'空格'}`);board.append(n);
+      n.innerHTML=`<b>${cell+1}</b>`;n.setAttribute('aria-label',`第 ${cell+1} 格，${MODULES[moduleAt(state,cell)?.id]?.name??'空格'}`);board.append(n);
     }
     const connected=selected?(MODULES[selected]?.weapon?adjacentReactors(state,selected).map(m=>m.id):bay.installed.filter(m=>MODULES[m.id].weapon&&adjacentReactors(state,m.id).some(r=>r.id===selected)).map(m=>m.id)):[];
     if(['hangar','service'].includes(selected)&&modulesAdjacent(state,'hangar','service'))connected.push(selected==='hangar'?'service':'hangar');
     for(const m of bay.installed){
       const n=document.createElement('button');n.type='button';n.className=`module-piece${selected===m.id?' inspected':''}${connected.includes(m.id)?' connected':''}`;n.dataset.id=m.id;n.dataset.focus=`piece-${m.id}`;
       n.style.gridColumn=`${m.slot%columns+1} / span ${m.rotation?1:MODULES[m.id].size}`;n.style.gridRow=`${Math.floor(m.slot/columns)+1} / span ${m.rotation?MODULES[m.id].size:1}`;n.style.setProperty('--module-color',MODULES[m.id].color);
-      n.innerHTML=`<span class="module-art"></span><small>Lv.${m.level}</small>`;n.setAttribute('aria-label',MODULES[m.id].name);icon(n.firstChild,MODULES[m.id].icon);board.append(n);
+      n.innerHTML=`<span class="module-art"></span><small>Lv.${m.level}${MODULES[m.id].directional?` · ${FACING_NAMES[m.facing??0]}`:''}</small>`;n.setAttribute('aria-label',MODULES[m.id].name);icon(n.firstChild,MODULES[m.id].icon);board.append(n);
     }
     const cards=root.querySelector('.module-cards');cards.innerHTML='';
     for(const [id,meta] of Object.entries(MODULES)){
@@ -161,8 +161,14 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
     }
     if(selected){const meta=MODULES[selected],m=installedModule(state,selected);
       info.innerHTML=`<div class="module-selected-title"><strong>${meta.name}${m?.specialization ? ` · ${SPECIALIZATIONS[m.specialization].name}` : ""}</strong><details><summary aria-label="模块说明">ⓘ</summary><p>${meta.description}${m?.specialization ? `<br><b>${SPECIALIZATIONS[m.specialization].name}</b>：${SPECIALIZATIONS[m.specialization].description}` : meta.weapon ? "<br>击败精英后可获得武器专精，本局每件限选一个方向。" : ""}${selected === "shield" ? "<br>邻接重炮：格挡充能；邻接环刃：格挡后扩张。" : selected === "hangar" || selected === "pulse" ? "<br>机库与轻炮相邻：半电以下主动回航，轻炮加速 6 秒。" : ""}</p></details></div><div class="module-actions">${m?btn('移动','move',locked())+btn(m.level>=3?'已满级':`强化 ◆${moduleUpgradeCost(m)}`,'upgrade',locked()||m.level>=3||state.coins<moduleUpgradeCost(m))+btn(`拆卸 +${Math.floor(m.invested*.8)}`,'remove',locked()):btn(`安装 ◆${meta.cost}`,'install',!available(selected))}</div>`;
-    }else info.innerHTML='<div class="module-selected-title"><strong>选择模块</strong></div><div class="module-actions"></div>';
-    if(coreStatus){const core=root.querySelector('.module-core-upgrades');core.innerHTML='';for(const [key,title] of [['damage','伤害'],['rate','射速'],['ascend','升阶']]){const status=coreStatus(key);core.insertAdjacentHTML('beforeend',btn(`${title} · ${status.maxed?'满级':status.unlocked?`◆${status.cost}`:'未解锁'}`,`core-${key}`,!status.unlocked||state.coins<status.cost))}}
+    }else info.innerHTML='<div class="module-selected-title"><strong>选择模块以安装或强化</strong></div><div class="module-actions"></div>';
+    const directional=installedModule(state,selected);
+    if(directional&&MODULES[selected].directional){const facing=Number.isInteger(directional.facing)?directional.facing:Math.round((directional.slot%6)*4/3)%8;info.insertAdjacentHTML('beforeend',`<div class="module-facing"><span>独立朝向 · ${directional.facingCooldown>0?`重整 ${Math.ceil(directional.facingCooldown)}s`:'战斗中转向暂停本模块 3 秒'}</span>${FACING_NAMES.map((name,i)=>`<button type="button" data-action="face-${i}" data-focus="face-${i}" aria-pressed="${facing===i}" ${directional.facingCooldown>0?'disabled':''}>${name}</button>`).join('')}</div>`);}
+    if(coreStatus){
+      const core=root.querySelector('.module-core-upgrades');
+      const upgrades=[['damage','提升伤害','✦'],['rate','提升射速','ϟ'],['ascend','晶塔升阶','◇']].map(([key,title,glyph])=>({key,title,glyph,...coreStatus(key)}));
+      core.innerHTML=`<div class="module-core-heading"><div><span class="module-core-eyebrow">CORE UPGRADE</span><h3>晶塔核心升级</h3></div><span class="module-core-summary">${upgrades.some(s=>s.ready)?`${upgrades.filter(s=>s.ready).length} 项可升级`:upgrades.every(s=>s.maxed)?'核心已全部强化':state.over?'本局已结束':'积累金币 · 提升威胁以解锁'}</span></div><div class="module-core-grid">${upgrades.map(s=>`<button type="button" class="module-core-card core-${s.key} ${s.ready?'is-ready':s.maxed?'is-maxed':'is-locked'}" data-action="core-${s.key}" data-focus="core-${s.key}" ${s.ready?'':'disabled'}><span class="module-core-top"><span class="module-core-symbol" aria-hidden="true">${s.glyph}</span><strong>${s.title}</strong><small>${s.key==='ascend'?`阶 ${s.level+1} / ${s.maxLevel+1}`:`Lv.${s.level} / ${s.maxLevel}`}</small></span><span class="module-core-effect">${s.effect}</span><span class="module-core-bottom"><span class="module-core-cta">${s.ready?(s.key==='ascend'?'立即升阶':'立即升级')+' ↑':s.reason}</span>${Number.isFinite(s.cost)&&!s.maxed?`<b class="module-core-price">◆ ${s.cost}</b>`:''}</span></button>`).join('')}</div>`;
+    }
     info.insertAdjacentHTML('beforeend','<div class="module-live-status"></div>');
     updateLive();updateTools();paint();if(focus)root.querySelector(`[data-focus="${focus}"]`)?.focus({preventScroll:true});
   }

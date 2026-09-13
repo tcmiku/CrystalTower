@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createGameState, updateGame, spawnEnemy, damageTower, applyElementalHit, getTowerStats, getTechStatus, purchaseUpgrade, toggleDroneMode, getDroneEnergyMax, snapshotState, collectCoinAt, useSkill, chooseRelic } from "../src/engine.js";
-import { MODULES, moduleAt, occupiedSlots, adjacentReactors, moduleDamageMultiplier, modulePlacementStatus, installModule, moveModule, removeModule, upgradeModule } from "../src/modules.js";
+import { MODULES, moduleAt, occupiedSlots, adjacentReactors, moduleDamageMultiplier, modulePlacementStatus, installModule, moveModule, removeModule, upgradeModule, setModuleFacing } from "../src/modules.js";
 import { getTowerVisualState } from "../src/renderer.js";
 import { buildTowerModel } from "../src/tower-model.js";
 
@@ -134,7 +134,7 @@ test("adjacency uses shared grid edges, excludes diagonals and never wraps rows"
   assert.equal(moduleDamageMultiplier(state, "cannon"), 1.15);
 });
 
-test("sector shield reduces only the matching incoming direction, including after moving", () => {
+test("sector shield reduces only the matching incoming direction, retains facing after moving and can turn independently", () => {
   const state = emptyBay();
   assert.ok(installModule(state, "shield", 0));
   const start = state.tower.hp;
@@ -143,6 +143,8 @@ test("sector shield reduces only the matching incoming direction, including afte
   damageTower(state, 100, false, "test", { x: 720, y: 760 });
   assert.equal(state.tower.hp, start - 155);
   assert.ok(moveModule(state, 0, 3));
+  assert.equal(state.tower.moduleBay.installed[0].facing,0);
+  assert.ok(setModuleFacing(state,"shield",4));
   damageTower(state, 100, false, "test", { x: 720, y: 760 });
   assert.equal(state.tower.hp, start - 210);
   assert.ok(upgradeModule(state, 3));
@@ -161,8 +163,9 @@ test("enemy attacks and hostile projectiles carry direction into the shield rule
   assert.equal(state.tower.hp, hp - 55);
 });
 
-test("paused assembly supports multiple edits; running refits block immediate shield rotation", () => {
+test("legacy paused assembly supports edits and commits a timed refit", () => {
   const state = emptyBay();
+  delete state.assault;
   state.time = 1;
   state.paused = true;
   assert.ok(installModule(state, "shield", 0));

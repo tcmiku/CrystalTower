@@ -1,5 +1,8 @@
+import { createAssaultUi } from './assault-ui.js';
+import { GATES, assaultStatus, assaultFormation } from './assault.js';
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { createCompactModuleUi, createModuleUi } from "./module-ui.js";
+import { coreUpgradePresentation } from "./core-upgrade-ui.js";
 import { MODULES, SPECIALIZATIONS, installModule, occupiedSlots, modulePlacementStatus, slotCountForTier } from "./modules.js";
 import { applyAdminSettings, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, enableAdminCheats, getDroneDetonateRecovery, getDroneEnergyMax, getSkillCooldownDuration, getTechConfig, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateChapterOneObjectives, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
@@ -817,6 +820,7 @@ let tutorialStep = 0;
 let tutorialSkipped = false;
 let tutorialHideTimer = null;
 const loadingStartedAt = performance.now();
+const assaultUi = createAssaultUi(() => state, showToast);
 const renderer = new Renderer(dom.gameCanvas, updateLoadingProgress);
 const audio = new AudioSynth(save.settings.muted);
 
@@ -1202,7 +1206,7 @@ function createUpgradeUi() {
     document.querySelector(".tech-summary-copy").textContent = "点击晶塔弹出极简悬浮框，快速安装或调整拼装板。";
     dom.techResearchedText.previousElementSibling.textContent = "槽位占用";
     dom.techAvailableText.previousElementSibling.textContent = "可安装";
-    moduleUi = createModuleUi(dom.upgradeList, state, { icon: applyTechIconArt, notify: showToast, refresh: updateUi, coreStatus: (key) => getTechStatus(state, key), buyCore: buyUpgrade });
+    moduleUi = createModuleUi(dom.upgradeList, state, { icon: applyTechIconArt, notify: showToast, refresh: updateUi, coreStatus: (key) => coreUpgradePresentation(state, key), buyCore: buyUpgrade });
     return;
   }
   const branches = activeBranchMeta();
@@ -1260,7 +1264,7 @@ function applyTechIconArt(element, key) {
   const moduleArt = { moduleMortar: "mortar", moduleGravity: "gravity", moduleInterceptor: "interceptor", moduleService: "service" }[key];
   if (moduleArt) {
     element.classList.add("tech-icon-generated");
-    element.style.backgroundImage = `url("./assets/icons/module-${moduleArt}.svg")`;
+    element.style.backgroundImage = `url("./assets/generated/module-${moduleArt}-ai-v1.png")`;
     element.style.backgroundSize = "contain";
     element.style.backgroundPosition = "center";
     element.textContent = "";
@@ -2754,6 +2758,7 @@ function selectRunRelic(id, replaceId = null) {
   pendingRelicReplacement = null;
   audio.play("ascend");
   handleEvents(state.events);
+  if(state.tower.moduleBay&&state.assault){dom.waveText.textContent=({rest:'整备',warning:'即将接敌',vanguard:'前锋',main:'主攻',cleanup:'清理',boss:'首领战','boss-warning':'首领接近'})[state.assault.phase];dom.waveMeta.textContent=`第 ${String(state.wave.index+(['rest','warning'].includes(state.assault.phase)?1:0)).padStart(2,'0')} 波`;}
   renderRelicHud();
   renderThreatSealHud();
   if (state.relicChoice) {
@@ -2910,13 +2915,17 @@ function handleEvents(events) {
     else if (event.type === "relicWard") showToast(`棱镜护佑 · 护盾 +${Math.round(event.value)}`);
     else if (event.type === "relicFrostbloom") renderer.trigger("targetProtocol");
     else if (event.type === "relicGilded") showToast(`拾金脉冲 · 额外金币 +${event.value}`);
-    else if (event.type === "threat") { announce(isChapterTwo(state) && event.level === CHAPTER_TWO_CONFIG.finalThreat ? `威胁 ${formatThreat(event.level)} · 渊潮王舰信号确认` : event.level === GAME_CONFIG.sovereign.spawnThreat ? `威胁 ${formatThreat(event.level)} · 超巨型灾厄来袭` : !isChapterTwo(state) && event.level === (state.threatSeals?.modifiers?.colossusSpawnThreat ?? GAME_CONFIG.colossus.spawnThreat) ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · ${isChapterTwo(state) ? "极夜旗舰来袭" : "大首领来袭"}` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
+    else if (event.type === "threat") { if(state.tower.moduleBay&&state.assault)showToast(`威胁 ${formatThreat(event.level)}${state.assault.bossMilestones.includes(event.level)?" · 首领信号确认，清场后迎战":" · 下波敌军强度提升"}`);else announce(isChapterTwo(state) && event.level === CHAPTER_TWO_CONFIG.finalThreat ? `威胁 ${formatThreat(event.level)} · 渊潮王舰信号确认` : event.level === GAME_CONFIG.sovereign.spawnThreat ? `威胁 ${formatThreat(event.level)} · 超巨型灾厄来袭` : !isChapterTwo(state) && event.level === (state.threatSeals?.modifiers?.colossusSpawnThreat ?? GAME_CONFIG.colossus.spawnThreat) ? `威胁 ${formatThreat(event.level)} · 巨型首领来袭` : event.level % GAME_CONFIG.threat.bossEvery === 0 ? `威胁 ${formatThreat(event.level)} · ${isChapterTwo(state) ? "极夜旗舰来袭" : "大首领来袭"}` : `威胁升至 ${formatThreat(event.level)}`); if (event.level === 2) showFirstRunTutorial(3); }
     else if (event.type === "phase") { audio.play("phase"); announce(isChapterTwo(state) ? (event.phase === "day" ? "海况转稳 · 侦测距离恢复" : "极夜风暴压上海面") : (event.phase === "day" ? "晨光穿透荒原" : "长夜笼罩战场")); }
-    else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); announce(isChapterTwo(state) ? "侦测到大规模舰队" : `${SECTOR_NAMES[state.wave.direction] ?? "外围"} · ${FORMATIONS[state.wave.formation]?.name ?? "怪潮"} · ${FORMATIONS[state.wave.formation]?.hint ?? "准备迎击"}`); }
+    else if (event.type === "waveWarning") { audio.play("waveWarning"); renderer.trigger("waveWarning"); if(!state.tower.moduleBay||!state.assault)announce(isChapterTwo(state) ? "侦测到大规模舰队" : `${SECTOR_NAMES[state.wave.direction] ?? "外围"} · ${assaultFormation(state.wave.formation).hint}`); }
     else if (event.type === "bossWeakpoints") announce("连接节点暴露 · 击破一个获得反噬、停火或破甲；其余节点随之消失");
     else if (event.type === "bossWeakpointBroken") { audio.play("ascend"); announce(WEAKPOINTS[event.role].hint); }
     else if (event.type === "moduleSynergy") showToast(event.name);
-    else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); announce(event.endless ? `无尽${isChapterTwo(state) ? "舰队" : "怪潮"} ${event.index} 抵达 · 精英信号 ${event.eliteCount}` : `第 ${event.index} 次${isChapterTwo(state) ? "舰队" : "怪潮"}抵达`); }
+    else if (event.type === 'assaultRest') showToast(`本波已肃清 · 补给 ◆${event.coins} · 进入整备`);
+    else if (event.type === 'assaultBossWarning') { audio.play('waveWarning'); showToast('首领接近 · 检查防线与无人机归航'); }
+    else if (event.type === 'salvageComplete') showToast(`远征队已归航 · 获得 ◆${event.coins}`);
+    else if (event.type === 'resonancePulse') showToast(`${GATES[event.gate].node}已触发`);
+    else if (event.type === "waveStart") { audio.play("waveStart"); renderer.trigger("waveStart"); if(!state.tower.moduleBay||!state.assault)announce(event.endless ? `无尽${isChapterTwo(state) ? "舰队" : "怪潮"} ${event.index} 抵达 · 精英信号 ${event.eliteCount}` : `第 ${event.index} 次${isChapterTwo(state) ? "舰队" : "怪潮"}抵达`); }
     else if (event.type === "waveCleared" && event.endless) showToast(`无尽怪潮 ${String(event.index).padStart(2, "0")} 已肃清 · 获得增幅选择`);
     else if (event.type === "overloadRelease") { audio.play("overload"); renderer.trigger("overloadRelease", event.overheated ? 1.5 : 1); announce(event.damage > 0 ? `${event.overheated ? "过热" : "临界"}泄压 · 范围冲击 ${Math.round(event.damage)}` : event.overheated ? "热浪爆发 · 晶塔过热" : event.early ? "超载中断 · 提前释放冲击" : "超载冲击释放"); }
     else if (event.type === "shieldBurst") { audio.play("hit"); renderer.trigger("shieldBurst"); announce(`满盾反击 · 晶片命中 ${event.hits}${event.knockbackHits ? ` · 击退 ${event.knockbackHits}` : ""}`); }
@@ -2932,6 +2941,7 @@ function handleEvents(events) {
 }
 
 function updateUi() {
+  assaultUi.update(state);
   const stats = getTowerStats(state);
   dom.adminCheatBadge.classList.toggle("hidden", !state.admin.enabled);
   dom.adminConsoleLaunchButton.classList.toggle("hidden", !state.admin.enabled);
@@ -2956,6 +2966,7 @@ function updateUi() {
   dom.waveText.textContent = state.wave.active ? "涌入中" : formatTime(Math.max(0, state.wave.nextAt - state.time));
   dom.waveMeta.textContent = `${state.endlessMode ? "无尽 · " : ""}第 ${String(state.wave.index + (state.wave.active ? 0 : 1)).padStart(2, "0")} 波${(state.wave.warningStarted || state.wave.active) && FORMATIONS[state.wave.formation] ? ` · ${FORMATIONS[state.wave.formation].name}` : ""}`;
   dom.waveText.closest(".wave-status").classList.toggle("warning", state.wave.warningStarted || state.wave.active);
+  if(state.tower.moduleBay&&state.assault){dom.waveText.textContent=({rest:'整备',warning:'即将接敌',vanguard:'前锋',main:'主攻',cleanup:'清理',boss:'首领战','boss-warning':'首领接近'})[state.assault.phase];dom.waveMeta.textContent=`第 ${String(state.wave.index+(['rest','warning'].includes(state.assault.phase)?1:0)).padStart(2,'0')} 波`;}
   renderRelicHud();
   renderThreatSealHud();
   renderEndlessShopHud();

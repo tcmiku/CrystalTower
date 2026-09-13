@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGameState, updateGame, spawnEnemy, getTowerPosition, getTowerStats, getDroneEnergyMax, getTechStatus, toggleDroneMode, offerRelicChoice, chooseRelic, snapshotState, damageTower } from '../src/engine.js';
-import { installModule, removeModule, moveModule, upgradeModule, installedModule, specializeModule, occupiedSlots, MODULE_BALANCE } from '../src/modules.js';
+import { installModule, removeModule, moveModule, upgradeModule, installedModule, specializeModule, occupiedSlots, MODULE_BALANCE, setModuleFacing } from '../src/modules.js';
 import { buildTowerModel } from '../src/tower-model.js';
 import { recordModuleAttack, sampleModuleEffects } from '../src/module-effects.js';
 
@@ -103,7 +103,9 @@ test('gravity pulls only its sector field, elites resist, and bosses or fixed an
   assert.equal(boss.gravitySlow,.85);assert.equal(normal.hp,10000);
   s.paused=true;assert.ok(moveModule(s,0,3));assert.equal(s.tower.moduleBay.combat.fields.length,0);
   const frozen=snapshotState(s);advance(s,4);assert.deepEqual(snapshotState(s),frozen);
-  s.paused=false;advance(s,1.3);assert.ok(s.tower.moduleBay.combat.fields[0].y>getTowerPosition(s).y);
+  s.paused=false;assert.equal(installedModule(s,'gravity').facing,0);
+  s.assault.phase='rest';assert.ok(setModuleFacing(s,'gravity',4));
+  advance(s,1.3);assert.ok(s.tower.moduleBay.combat.fields[0].y>getTowerPosition(s).y);
 });
 
 test('interceptor consumes real charges only for ordinary projectiles in its own sector',()=>{
@@ -129,7 +131,7 @@ test('ordinary ranged attacks now travel, can be intercepted, and preserve shiel
   const plain=arena();const caster=enemy(plain,0,-200,'hexer');Object.assign(caster,{attackRange:230,attackCooldown:0,damage:20});
   const hp=plain.tower.hp;updateGame(plain,1/60);assert.equal(plain.tower.hp,hp);assert.equal(plain.hostileProjectiles[0].kind,'enemyBolt');
   caster.attackCooldown=999;advance(plain,.7);assert.ok(plain.tower.hp<hp);
-  const defended=arena();installModule(defended,'interceptor',0);installModule(defended,'shield',3);advance(defended,4);
+  const defended=arena();installModule(defended,'interceptor',0);installModule(defended,'shield',3);setModuleFacing(defended,'shield',4);advance(defended,4);
   const attacker=enemy(defended,0,-200,'hexer');Object.assign(attacker,{attackRange:230,attackCooldown:0,damage:20});
   advance(defended,.7);assert.equal(defended.tower.hp,getTowerStats(defended).maxHp);assert.equal(installedModule(defended,'interceptor').charges,1);
 });

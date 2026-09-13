@@ -1,0 +1,25 @@
+{
+  "mode": "built-in image_gen",
+  "assets": [
+    {
+      "id": "mortar",
+      "prompt": "Use case: stylized-concept. Asset type: single square fantasy sci-fi tower defense inventory icon. High-end hand-painted 3D game item render, richly faceted luminous crystals, dark blue gunmetal and subtle antique gold trim, sharp readable silhouette, three-quarter isometric view, object centered occupying 80% of canvas, generous clean margin. TRUE transparent background with alpha. No text, letters, border, UI, floor, scene, watermark or other items. Match a jewel-like ornate crystal technology game inventory, concentrated glow within object rather than broad haze. Subject: starfall mortar, a squat heavy upward-tilted artillery barrel made of icy sapphire crystals mounted on a sturdy angular dark metal pedestal, bright blue-white star core inside its large circular muzzle, small floating crystal shell above muzzle. Palette ice blue and silver, tiny gold joints. Distinct compact heavy artillery silhouette.",
+      "file": "module-mortar-ai-v1.png"
+    },
+    {
+      "id": "gravity",
+      "prompt": "Use case: stylized-concept. Asset type: single square fantasy sci-fi tower defense inventory icon. High-end hand-painted 3D game item render, richly faceted luminous crystals, dark blue gunmetal and subtle antique gold trim, sharp readable silhouette, three-quarter isometric view, object centered occupying 80% of canvas, generous clean margin. TRUE transparent background with alpha. No text, letters, border, UI, floor, scene, watermark or other items. Match a jewel-like ornate crystal technology game inventory, concentrated glow within object rather than broad haze. Subject: gravity anchor device, a floating violet crystal singularity sphere suspended within two imposing interlocked angular dark metal crescent prongs, three anchoring crystalline feet, a tight purple orbital ring bending around the central dark core. Palette amethyst violet with gold structural accents. Distinct tall gravity containment mechanism silhouette.",
+      "file": "module-gravity-ai-v1.png"
+    },
+    {
+      "id": "interceptor",
+      "prompt": "Use case: stylized-concept. Asset type: single square fantasy sci-fi tower defense inventory icon. High-end hand-painted 3D game item render, richly faceted luminous crystals, dark blue gunmetal and subtle antique gold trim, sharp readable silhouette, three-quarter isometric view, object centered occupying 80% of canvas, generous clean margin. TRUE transparent background with alpha. No text, letters, border, UI, floor, scene, watermark or other items. Match a jewel-like ornate crystal technology game inventory, concentrated glow within object rather than broad haze. Subject: light interception array, a compact defensive turret with three sleek mint-cyan crystal emitter prongs pointing upward and outward from a circular gunmetal base, bright teal focal lens in the middle, short sharp beam between tips suggesting projectile interception. Palette luminous turquoise teal and silver. Distinct three-pronged defensive array silhouette.",
+      "file": "module-interceptor-ai-v1.png"
+    },
+    {
+      "id": "service",
+      "prompt": "Use case: stylized-concept. Asset type: single square fantasy sci-fi tower defense inventory icon. High-end hand-painted 3D game item render, richly faceted luminous crystals, dark blue gunmetal and subtle antique gold trim, sharp readable silhouette, three-quarter isometric view, object centered occupying 80% of canvas, generous clean margin. TRUE transparent background with alpha. No text, letters, border, UI, floor, scene, watermark or other items. Match a jewel-like ornate crystal technology game inventory, concentrated glow within object rather than broad haze. Subject: rapid drone servicing dock, a chunky hexagonal dark metal hangar cradle with open symmetrical mechanical arms, a tiny folded-wing crystal drone visibly docked at its center above a luminous emerald charging core, lime green battery energy channels and small gold connectors. Palette jade green, pale lime and gunmetal. Distinct open maintenance dock silhouette.",
+      "file": "module-service-ai-v1.png"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { MODULES, MODULE_BALANCE, installedModule, modulesAdjacent } from './modules.js';
+import { MODULES, MODULE_BALANCE, installedModule, modulesAdjacent, moduleFacingAngle, FACING_NAMES } from './modules.js';
 import { sectorAngle, SECTOR_NAMES } from './chapter-one.js';
 
 const TAU = Math.PI * 2;
@@ -10,7 +10,7 @@ export function drawModuleGround(ctx, state, time, tower, towerRadius) {
   const preview = state.modulePreview;
   const selected = preview ?? installedModule(state, state.moduleSelection);
   if (selected && MODULES[selected.id]?.directional) {
-    const angle = sectorAngle(selected.slot % 6), color = preview?.valid === false ? '#ff8d91' : MODULES[selected.id].color;
+    const angle = moduleFacingAngle(selected), color = preview?.valid === false ? '#ff8d91' : MODULES[selected.id].color;
     const reach = selected.id === 'gravity' ? MODULE_BALANCE.gravity.distance + 100 : towerRadius + MODULE_BALANCE.interceptor.rangeBeyondTower;
     ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.globalAlpha = .07;
     ctx.beginPath(); ctx.moveTo(tower.x, tower.y); ctx.arc(tower.x, tower.y, reach, angle - Math.PI / 6, angle + Math.PI / 6); ctx.closePath(); ctx.fill();
@@ -19,7 +19,7 @@ export function drawModuleGround(ctx, state, time, tower, towerRadius) {
       ctx.beginPath(); ctx.arc(tower.x + Math.cos(angle) * 230, tower.y + Math.sin(angle) * 230, MODULE_BALANCE.gravity.radius[(selected.level ?? 1) - 1], 0, TAU); ctx.stroke();
     }
     ctx.font = '12px "Microsoft YaHei", sans-serif'; ctx.textAlign = 'center'; ctx.globalAlpha = .95;
-    ctx.fillText(`${SECTOR_NAMES[selected.slot % 6]} · ${selected.id === 'gravity' ? '牵引区域' : '拦截扇区'}`, tower.x + Math.cos(angle) * (reach + 20), tower.y + Math.sin(angle) * (reach + 20));
+    ctx.fillText(`${Number.isInteger(selected.facing)?FACING_NAMES[selected.facing]:SECTOR_NAMES[selected.slot%6]} · ${selected.id === 'gravity' ? '牵引区域' : selected.id==='shield'?'护盾扇区':'拦截扇区'}`, tower.x + Math.cos(angle) * (reach + 20), tower.y + Math.sin(angle) * (reach + 20));
     ctx.restore();
   }
   for (const field of combat.fields) {
@@ -46,7 +46,7 @@ export function drawModuleGround(ctx, state, time, tower, towerRadius) {
   }
   const interceptor = installedModule(state, 'interceptor');
   if (interceptor) {
-    const angle = sectorAngle(interceptor.slot % 6), reach = towerRadius + MODULE_BALANCE.interceptor.rangeBeyondTower;
+    const angle = moduleFacingAngle(interceptor), reach = towerRadius + MODULE_BALANCE.interceptor.rangeBeyondTower;
     ctx.save();ctx.strokeStyle = interceptor.charges > 0 ? '#7df3db' : '#42675f';ctx.lineWidth = interceptor.charges > 0 ? 2 : 1;ctx.globalAlpha = .7;
     ctx.beginPath();ctx.arc(tower.x,tower.y,reach,angle-Math.PI/6,angle+Math.PI/6);ctx.stroke();
     const capacity = MODULE_BALANCE.interceptor.capacity[interceptor.level-1];

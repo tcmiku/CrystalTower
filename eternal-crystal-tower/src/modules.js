@@ -1,4 +1,4 @@
-// A 3-column board that grows with tower ascend. Slot numbers identify wall sectors (mod 6) and ring depth.
+// A 3-column board that grows with tower ascend. Cells define footprint and adjacency; facing is independent.
 export const BAY_COLUMNS = 3;
 export const BAY_ROWS = 2;
 export const SLOT_COUNT = 6;
@@ -42,13 +42,13 @@ export const MODULES = Object.freeze({
   cannon: { name: "贯星重炮", size: 2, cost: 150, color: "#ffb377", icon: "cannonSiege", weapon: true, description: "射程 620，140 内无法锁敌；I／II／III 级伤害 ×3.4／4.08／4.76，射速 ×0.55。强化增加穿透、首领加伤与连续锁敌蓄能。" },
   blade: { name: "环刃发生器", size: 2, cost: 120, color: "#b6f58a", icon: "saw", weapon: true, description: "三／五／七枚晶刃守住 118 半径近圈，接触伤害继承 65% 塔攻击。II 级晶痕，III 级高速旋转与环刃风暴；远程敌人需要其他武器补位。" },
   hangar: { name: "蜂巢无人机库", size: 2, cost: 140, color: "#ffd578", icon: "drone", weapon: true, description: "三至五架无人机；II 级协同齐射，III 级重型载荷。每次升级飞行速度 +12%；出击每秒／每击耗电 2，I／II／III 级整备每秒回电 14／18／22；G 切换。" },
-  shield: { name: "扇区护盾", size: 1, cost: 80, color: "#78dabb", icon: "droneGuard", description: "只减免所在 60° 扇区的来袭伤害，I／II／III 级减伤 45%／55%／65%。朝向与战场编号一致。" },
+  shield: { name: "扇区护盾", size: 1, cost: 80, directional: true, color: "#78dabb", icon: "droneGuard", description: "只减免朝向覆盖的 60° 扇区的来袭伤害，I／II／III 级减伤 45%／55%／65%。朝向可独立调整，战斗中转向需重整 3 秒。" },
   frost: { name: "霜棱反应器", size: 1, cost: 90, color: "#91ddff", icon: "frost", element: "frost", description: "只强化相邻武器：伤害 +15%／级，35%／45%／55% 概率附加冰冻。与火焰交替命中触发融爆。" },
   fire: { name: "烬火反应器", size: 1, cost: 90, color: "#ff8d70", icon: "fire", element: "fire", description: "只强化相邻武器：伤害 +15%／级，附加灼烧。火＋冰触发融爆；火＋雷建立超导电链，传递部分伤害。" },
   lightning: { name: "雷鸣反应器", size: 1, cost: 100, color: "#c8a3ff", icon: "lightning", element: "lightning", description: "只强化相邻武器：伤害 +15%／级，附加连锁。与冰触发碎晶裂片并暴露弱点；与火建立传伤电链。" },
   mortar: { name: "星陨迫击炮", size: 2, cost: 160, color: "#9ccaff", icon: "moduleMortar", weapon: true, description: "每 3 秒曲射轰炸固定落点，射程 180—600。I／II／III 级伤害 ×3／3.6／4.2；II 级落地缩短至 0.7 秒，III 级爆炸范围扩大至 110。继承相邻元素；高速与近身敌人容易漏过。" },
-  gravity: { name: "引力锚", size: 2, cost: 140, color: "#bba1ff", icon: "moduleGravity", directional: true, description: "每 8 秒在所在扇区中圈展开引力场，持续 2 秒；II 级范围 100→120，III 级持续 2.5 秒。聚拢普通敌人，精英牵引减弱；首领不被拖动，仅可移动首领轻微减速。自身不造成伤害。" },
-  interceptor: { name: "截光阵列", size: 1, cost: 100, color: "#7df3db", icon: "moduleInterceptor", directional: true, description: "拦截所在 60° 扇区的普通敌弹，初始需充能。I 级存 2 发，每 2 秒恢复 1 发；II 级存 3 发，III 级恢复缩短至 1.6 秒。不能拦截首领炮击、光束和近身攻击。" },
+  gravity: { name: "引力锚", size: 2, cost: 140, color: "#bba1ff", icon: "moduleGravity", directional: true, description: "每 8 秒在指定朝向中圈展开引力场，持续 2 秒；II 级范围 100→120，III 级持续 2.5 秒。聚拢普通敌人，精英牵引减弱；首领不被拖动，仅可移动首领轻微减速。自身不造成伤害。" },
+  interceptor: { name: "截光阵列", size: 1, cost: 100, color: "#7df3db", icon: "moduleInterceptor", directional: true, description: "拦截朝向覆盖的 60° 扇区的普通敌弹，初始需充能。I 级存 2 发，每 2 秒恢复 1 发；II 级存 3 发，III 级恢复缩短至 1.6 秒。不能拦截首领炮击、光束和近身攻击。" },
   service: { name: "快速整备舱", size: 1, cost: 110, color: "#a8e8b2", icon: "moduleService", description: "必须邻接机库：实际归航后回电 +40%；II 级回航速度 +20%；III 级在舱内补回至少 10% 电量并充满后，下次出击前 3 秒飞行耗电减半，命中耗电不变。" }
 });
 
@@ -143,14 +143,15 @@ export function syncModuleUpgrades(state) {
 function changed(state) {
   syncModuleUpgrades(state);
   // Time must advance between refits: pausing cannot rotate a shield for every incoming hit.
-  if (state.paused) state.tower.moduleBay.pendingRefit = true;
+  if (['rest','warning'].includes(state.assault?.phase)) { state.tower.moduleBay.pendingRefit=false; state.tower.moduleBay.refitCooldown=0; }
+  else if (state.paused) state.tower.moduleBay.pendingRefit = true;
   else state.tower.moduleBay.refitCooldown = state.time > 0 ? 8 : 0;
   state.events.push({ type: "purchase", key: "module" });
 }
 export function installModule(state, id, slot, rotation = 0) {
   if (!modulePlacementStatus(state, id, slot, false, rotation).ok) return false;
   state.coins -= MODULES[id].cost;
-  state.tower.moduleBay.installed.push({ id, slot, rotation, level: 1, invested: MODULES[id].cost, ...(state.tower.moduleBay.specializations?.[id] ? { specialization: state.tower.moduleBay.specializations[id] } : {}) });
+  state.tower.moduleBay.installed.push({ id, slot, rotation, ...(MODULES[id].directional ? {facing: defaultModuleFacing(state)}:{}), level: 1, invested: MODULES[id].cost, ...(state.tower.moduleBay.specializations?.[id] ? { specialization: state.tower.moduleBay.specializations[id] } : {}) });
   changed(state);
   return true;
 }
@@ -196,14 +197,24 @@ export function upgradeModule(state, slot) {
   changed(state);
   return true;
 }
-export function shieldSector(state, origin, tower) {
-  if (!origin || !state.tower.moduleBay) return null;
-  const angle = Math.atan2(origin.y - tower.y, origin.x - tower.x) + Math.PI / 2;
-  const sector = ((Math.floor((angle + Math.PI / 6) / (Math.PI / 3)) % 6) + 6) % 6;
-  // Outer rings share the same six battlefield sectors; prefer the innermost shield.
-  for (let slot = sector; slot < getBayLayout(state).slotCount; slot += 6) {
-    const module = moduleAt(state, slot);
-    if (module?.id === "shield") return module;
-  }
-  return null;
+export const defaultModuleFacing = state => state.assault && Number.isInteger(state.wave.direction) ? state.wave.direction*2 : 0;
+export const FACING_NAMES = ['北','东北','东','东南','南','西南','西','西北'];
+export const moduleFacingAngle = module => Number.isInteger(module.facing) ? -Math.PI/2 + module.facing*Math.PI/4 : -Math.PI/2 + (module.slot%6)*Math.PI/3;
+export function moduleCovers(module,origin,tower) {
+  if(!module||module.facingCooldown>0)return false;
+  const delta=Math.atan2(origin.y-tower.y,origin.x-tower.x)-moduleFacingAngle(module);
+  return Math.abs(Math.atan2(Math.sin(delta),Math.cos(delta)))<=Math.PI/6+1e-9;
+}
+export function setModuleFacing(state,id,facing) {
+  const m=installedModule(state,id);
+  if(!m||!MODULES[id].directional||state.over||!Number.isInteger(facing)||facing<0||facing>7||m.facingCooldown>0||m.facing===facing)return false;
+  const free=['rest','warning'].includes(state.assault?.phase);
+  m.facing=facing;m.facingCooldown=free?0:3;
+  state.tower.moduleBay.revision++;
+  return true;
+}
+export function shieldSector(state,origin,tower) {
+  if(!origin||!state.tower.moduleBay)return null;
+  const shield=installedModule(state,'shield');
+  return moduleCovers(shield,origin,tower)?shield:null;
 }

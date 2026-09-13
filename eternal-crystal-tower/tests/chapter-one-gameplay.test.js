@@ -168,19 +168,17 @@ test("every specialization changes a real combat path", () => {
   }
 });
 
-test("six-sector waves spawn the advertised formation and deterministic directions", () => {
-  for (const formation of Object.keys(FORMATIONS)) {
-    const s = arena(); removeModule(s, 0);
-    s.wave = { ...s.wave, nextAt: 0, warningStarted: true, direction: 5, sectorCount: 6, formation };
-    advance(s, 1);
-    const enemies = s.enemies.filter(enemy => enemy.waveIndex === 1);
-    assert.ok(enemies.length > 0);
-    assert.ok(enemies.every(enemy => enemy.formation === formation));
-    assert.ok(enemies.every(enemy => FORMATIONS[formation].types.includes(enemy.type)));
-    if (formation === "brood") assert.ok(enemies.some(enemy => enemy.broodRemaining === 4));
-    const expected = sectorAngle(5);
-    const first = enemies[0]; const angle = Math.atan2(first.y-500, first.x-720);
-    assert.ok(Math.cos(angle-expected)>0.9);
+test("four-gate opening advertises the actual formation and both pincer directions", () => {
+  for (const [index, formation, gate] of [[2,'wall',0],[3,'battery',1],[4,'brood',3],[5,'pincer',0]]) {
+    const s=arena();removeModule(s,0);s.wave.index=index;s.wave.nextAt=12;
+    advance(s,2.1);
+    assert.equal(s.wave.formation,formation);assert.equal(s.wave.direction,gate);assert.equal(s.wave.sectorCount,4);
+    const planned=s.assault.plan;
+    assert.ok(planned.length>0);assert.ok(planned.every(u=>u.gate===gate||formation==='pincer'&&u.gate===2));
+    if(formation==='brood')assert.equal(planned.filter(u=>u.brood).length,1);
+    advance(s,10);
+    assert.ok(s.enemies.length>0);assert.ok(s.enemies.every(e=>e.formation===formation));
+    if(formation==='pincer')assert.deepEqual([...new Set(s.enemies.map(e=>e.gate))].sort(),[0,2]);
   }
 });
 
@@ -237,12 +235,10 @@ test("pincer warning stays inside the visible battlefield and below the top HUD"
     if (key === "moveTo" || key === "lineTo") points.push(args);
   }, set: () => true });
   const s = arena();
-  Object.assign(s.wave, { nextAt: 10, warningStarted: true, direction: 5, sectorCount: 6, formation: "pincer" });
+  Object.assign(s.wave, { nextAt: 10, warningStarted: true, direction: 0, secondary: 2, sectorCount: 4, formation: "pincer" });
   const bounds = { left: 18, right: 888, top: 84, bottom: 638 };
   Renderer.prototype.drawWaveWarning.call({ time: 0, warningBounds: bounds }, ctx, s);
-  assert.ok(labels.some(([label]) => label.includes("双翼夹击")));
-  assert.ok(labels.some(([label]) => label.includes("西北＋东北")));
-  assert.ok(labels.every(([, , y]) => y >= 84));
+  assert.equal(labels.length,0,'chapter-one warning text lives in the command panel');
   // Each ingress arc contributes 25 absolute world points, followed by its
   // three local arrow vertices. Exclude those local arrow coordinates.
   const arcs = [...points.slice(0, 25), ...points.slice(28, 53)];

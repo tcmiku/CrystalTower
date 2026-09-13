@@ -1,3 +1,5 @@
+import { drawAssaultGround } from './assault-renderer.js';
+import { assaultFormation } from './assault.js';
 import { GAME_CONFIG, getArenaEdgePosition, getCrowdVisualScale } from "./config.js";
 import { getChapterTwoDroneAmmoMax, getDroneDetonateRecovery, getDroneEnergyMax, getDroneGuardShieldMax, getDronePosition, getSawBladeRadius, getSawOrbitRadius, getStarfallConeHalfAngle, getTowerPosition, getTowerRadius, getTowerStats } from "./engine.js";
 import { isChapterTwo } from "./chapter-two.js";
@@ -602,6 +604,7 @@ export class Renderer {
   drawWorld(ctx, state) {
     this.drawGround(ctx, state);
     this.drawTowerGroundVeins(ctx, state);
+    drawAssaultGround(ctx, state);
     this.drawWaveWarning(ctx, state);
     this.drawRange(ctx, state);
     drawModuleGround(ctx, state, this.time, getTowerPosition(state), getTowerRadius(state));
@@ -1133,9 +1136,10 @@ export class Renderer {
     const wave = state.wave;
     const countdown = wave.nextAt - state.time;
     const warning = wave.warningStarted && countdown > 0 && countdown <= GAME_CONFIG.waves.warning;
-    if (!warning && !wave.active) return;
-    const formation = FORMATIONS[wave.formation];
-    const directions = wave.sectorCount === 6 && wave.formation === "pincer" ? [wave.direction, (wave.direction + 2) % 6] : [wave.direction];
+    const cleanup=state.tower.moduleBay&&state.assault?.phase==='cleanup'&&state.time-state.assault.cleanupAt>=8;
+    if (!warning && !wave.active && !cleanup) return;
+    const formation = state.assault ? assaultFormation(wave.formation) : FORMATIONS[wave.formation];
+    const directions = state.assault ? [wave.direction, wave.secondary].filter(d=>d!=null) : wave.sectorCount === 6 && wave.formation === "pincer" ? [wave.direction, (wave.direction + 2) % 6] : [wave.direction];
     const bounds = this.warningBounds ?? { left: 18, right: 888, top: 84, bottom: 638 };
     const pointOnView = angle => {
       const dx = Math.cos(angle), dy = Math.sin(angle), cx = GAME_CONFIG.arena.centerX, cy = GAME_CONFIG.arena.centerY;
@@ -1144,6 +1148,16 @@ export class Renderer {
       const distance = Math.max(0, Math.min(tx, ty));
       return { x: cx + dx * distance, y: cy + dy * distance };
     };
+    if(cleanup){
+      const enemies=state.enemies.filter(e=>e.hp>0&&e.type!=='anchor');
+      const outside=enemies.filter(e=>e.x<bounds.left||e.x>bounds.right||e.y<bounds.top||e.y>bounds.bottom).slice(0,3);
+      for(const enemy of outside){
+        const angle=Math.atan2(enemy.y-GAME_CONFIG.arena.centerY,enemy.x-GAME_CONFIG.arena.centerX),p=pointOnView(angle);
+        ctx.save();ctx.translate(p.x-Math.cos(angle)*22,p.y-Math.sin(angle)*22);ctx.rotate(angle+Math.PI/2);ctx.fillStyle='#ffe09a';
+        ctx.beginPath();ctx.moveTo(0,-12);ctx.lineTo(-8,8);ctx.lineTo(8,8);ctx.closePath();ctx.fill();ctx.restore();
+      }
+      return;
+    }
     for (const direction of directions) {
       const angle = wave.sectorCount === 6 ? sectorAngle(direction) : [-Math.PI / 2, 0, Math.PI / 2, Math.PI][direction] ?? -Math.PI / 2;
       const arc = wave.sectorCount === 6 ? Math.PI / 4 : GAME_CONFIG.arena.spawnRing.ingressArc;
@@ -1159,6 +1173,8 @@ export class Renderer {
       ctx.translate(marker.x, marker.y); ctx.rotate(angle + Math.PI / 2);
       ctx.fillStyle = "#ff6e7e"; ctx.beginPath(); ctx.moveTo(0,18); ctx.lineTo(-13,-8); ctx.lineTo(13,-8); ctx.closePath(); ctx.fill(); ctx.restore();
     }
+    // Chapter one keeps text in the command panel; canvas supplies edge cues only.
+    if(state.tower.moduleBay&&state.assault)return;
     const x = GAME_CONFIG.arena.width / 2;
     const names = wave.sectorCount === 6 ? SECTOR_NAMES : ["北", "东", "南", "西"];
     ctx.save(); ctx.textAlign = "center";

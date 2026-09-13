@@ -602,6 +602,7 @@ test("昼夜按四个威胁波次循环", () => {
 test("怪潮提前十秒预警并从标记方向集中生成", () => {
   const state = createGameState(31);
   state.tower.hp = 1_000_000;
+  state.wave.nextAt = 90;
   state.time = 79.95;
   updateGame(state, 0.1);
   assert.equal(state.wave.warningStarted, true);

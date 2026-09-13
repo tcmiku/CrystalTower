@@ -36,7 +36,7 @@ export function sampleModuleEffects(module, layout, time, aimYaw=0, attack=0, pe
       break;
     case 'interceptor':
       path([[0,23,-6],[21,23,-6],[24,23,6],[0,23,6]],.45,1);
-      for(let i=0;i<3;i++) diamond(17,20,-6+i*6,1.5,.5);
+      for(let i=0;i<3;i++) diamond(17,20,-6+i*6,1.5,.35+.15*Math.sin(phase*3+i)**2);
       break;
     case 'service':
       for(const x of [-6,6]) {const y=22+(phase*8)%12;path([[x-2,y,6],[x+2,y,6]],.8,2);}
