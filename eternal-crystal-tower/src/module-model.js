@@ -28,6 +28,29 @@ export function buildModuleMesh(builder, { id, level = 1, component = "all" }) {
       m.box(heavy ? 15 : 11, 21, side * (heavy ? 4 : 2), heavy ? 31 : 22, 2, 2, color);
       if (heavy) m.box(-10, 12, side * 10, 12, 8, 5, armor);
     }
+  } else if (id === 'laser') {
+    m.ring(-3,8,0,12,0,6,armor,12);
+    m.box(-9,13,0,17,15,18,armor);
+    for(const z of [-7,7])for(const x of [-14,-7,0])m.box(x,17,z,3,17,5,edge);
+    m.box(13,17,0,28,9,11,dark);
+    for(const z of [-6,6])m.box(12,21,z,30,3,3,color);
+    m.box(27,17,0,4,14,16,edge);m.box(29.2,19,0,1,8,10,color);
+    m.crystal(-10,25,0,5,15,0,[color,[1,.9,.65],armor]);
+  } else if (id === 'mine') {
+    m.box(0,8,0,34,11,22,armor);
+    for(const x of [-11,0,11]){m.ring(x,19,0,6,0,3,edge,8);m.crystal(x,22,0,4,12,x*.03,[color,[1,.95,.7],armor]);}
+    for(const z of [-10,10])m.box(0,21,z,36,4,4,edge);
+    m.box(0,10,14,20,3,10,armor);m.box(0,13,17,18,2,4,color);
+  } else if (id === 'bridge') {
+    for(const x of [-8,8]){m.box(x,9,0,6,17,13,edge);m.crystal(x,26,0,3,7,0,[color,edge,armor]);}
+    m.box(0,17,0,24,4,5,color);m.ring(0,21,0,7,4,3,color,8);
+    m.crystal(0,14,0,4,17,0,[color,[.95,.85,1],armor]);
+  } else if (id === 'capacitor') {
+    m.box(0,8,0,22,8,20,armor);
+    for(const [x,z] of [[-6,-5],[6,-5],[-6,5],[6,5]]){
+      m.ring(x,16,z,4,0,3,edge,8);m.crystal(x,19,z,3,15,0,[color,[.85,1,.96],armor]);
+    }
+    m.box(0,13,0,3,26,3,edge);
   } else if (id === 'mortar') {
     m.ring(0,8,0,13,0,7,armor,12);
     for (const side of [-1,1]) m.box(0,12,side*11,18,10,5,edge);
@@ -193,7 +216,7 @@ export function buildMountedModules(builder, installed, layout) {
       support.box(px,y-1,pz,20*scale,2,3,color,yaw);
     }
     parts.push({name:`socket-${module.id}`,vertices:new Float32Array(support.data)});
-    const gun=['pulse','cannon','mortar'].includes(module.id);
+    const gun=['pulse','cannon','mortar','laser'].includes(module.id);
     for(const component of gun ? ['base','gun'] : module.id==='blade' ? ['base','rotor'] : ['all']) {
     const vertices=buildModuleMesh(builder,{...module,component:component==='rotor'?'gun':component});
     for(let i=0;i<vertices.length;i+=10) {

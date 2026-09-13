@@ -13,6 +13,10 @@ export function recordModuleAttack(fx,event) {
   else if(event.type==='moduleGravity') id='gravity';
   else if(event.type==='moduleIntercept') id='interceptor';
   else if(['moduleService','moduleServiceLaunch'].includes(event.type)) id='service';
+  else if(event.type==='moduleLaser') id='laser';
+  else if(['moduleMine','mineExplosion'].includes(event.type)) id='mine';
+  else if(['moduleCharge','moduleDischarge'].includes(event.type)) id='capacitor';
+  else if(event.type==='moduleBridge') id='bridge';
   if(MODULES[id]) fx[`attack-${id}`]=MODULE_ATTACK_DURATION;
 }
 
@@ -20,12 +24,23 @@ export function recordModuleAttack(fx,event) {
 export function sampleModuleEffects(module, layout, time, aimYaw=0, attack=0, peers=null) {
   const mount=getModuleMount(module,layout,peers), effects=[], level=Math.max(1,Math.min(3,module.level??1));
   const color=MODULES[module.id].color, phase=time+module.slot*.37;
-  const yaw=['pulse','cannon','mortar'].includes(module.id)?aimYaw:mount.yaw;
+  const yaw=['pulse','cannon','mortar','laser'].includes(module.id)?aimYaw:mount.yaw;
   const point=([x,y,z])=>[mount.x+mount.scale*(x*Math.cos(yaw)-z*Math.sin(yaw)),mount.y+y*mount.scale,mount.z+mount.scale*(x*Math.sin(yaw)+z*Math.cos(yaw))];
   const path=(points,alpha=.65,width=1,fill=false,tint=color)=>effects.push({points:points.map(point),alpha,width,fill,color:tint});
   const ring=(radius,y,start=0,arc=Math.PI*2,alpha=.5)=>path(Array.from({length:25},(_,i)=>{const a=start+i*arc/24;return [Math.cos(a)*radius,y,Math.sin(a)*radius]}),alpha,1.2);
   const diamond=(x,y,z,r,alpha,tint=color)=>path([[x-r,y,z],[x,y+r,z],[x+r,y,z],[x,y-r,z],[x-r,y,z]],alpha,1,true,tint);
   switch(module.id) {
+    case 'laser':
+      for(const z of [-6,6])path([[-2,24,z],[26,24,z]],.45+.2*Math.sin(phase*3)**2,2);
+      diamond(-10,36+Math.sin(phase*3),0,3,.6);break;
+    case 'mine':
+      for(const x of [-11,0,11])diamond(x,34,0,2,.55+.2*Math.sin(phase*3+x));break;
+    case 'bridge':
+      path([[-10,23,0],[0,28,0],[10,23,0]],.7,2);
+      diamond(-9+(phase%1)*18,25,0,2,.8);break;
+    case 'capacitor':
+      for(const x of [-6,6])for(const z of [-5,5])diamond(x,28+Math.sin(phase*3+x+z)*2,z,2,.55);
+      break;
     case 'mortar':
       for(const z of [-7,7]) diamond(-12,20+Math.sin(phase*3)*2,z,2.3,.7);
       ring(14,12,phase,Math.PI,.4);
@@ -92,7 +107,15 @@ export function sampleModuleEffects(module, layout, time, aimYaw=0, attack=0, pe
   const power=Math.max(0,Math.min(1,attack/MODULE_ATTACK_DURATION));
   if(power>0) {
     const age=1-power;
-    if(module.id==='mortar') {
+    if(module.id==='laser') {
+      path([[28,20,0],[53+age*14,20,0]],power,4,false,'#fff4cc');
+    } else if(module.id==='mine') {
+      for(const x of [-11,0,11])diamond(x,35+age*18,0,4*power,power);
+    } else if(module.id==='capacitor') {
+      ring(12+age*18,20,0,Math.PI*2,power);diamond(0,36+age*12,0,5*power,power);
+    } else if(module.id==='bridge') {
+      path([[-13,26,0],[0,31+age*8,0],[13,26,0]],power,3,false,'#f3deff');
+    } else if(module.id==='mortar') {
       path([[11,40,-6],[18+age*12,53+age*28,0],[20,42,6]],power,1,true,'#e9f7ff');
       ring(14+age*20,14,0,Math.PI*2,power*.7);
     } else if(module.id==='gravity') {

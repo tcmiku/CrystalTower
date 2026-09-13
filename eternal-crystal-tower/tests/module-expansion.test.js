@@ -164,7 +164,7 @@ test('service upgrades improve return speed, reward a real full recharge and lea
 test('refitting clears artillery and temporary support state without leaving delayed hits',()=>{
   const s=arena();installModule(s,'mortar',0);const target=enemy(s);installedModule(s,'mortar').cooldown=0;updateGame(s,1/60);
   assert.equal(s.tower.moduleBay.combat.shells.length,1);s.paused=true;assert.ok(removeModule(s,0));s.paused=false;
-  advance(s,2);assert.equal(target.hp,10000);assert.deepEqual(s.tower.moduleBay.combat,{shells:[],fields:[],effects:[]});
+  advance(s,2);assert.equal(target.hp,10000);assert.ok(Object.values(s.tower.moduleBay.combat).every(items=>items.length===0));
 });
 
 test('new module meshes and attack feedback are finite and distinct at every level',()=>{

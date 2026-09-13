@@ -2336,7 +2336,7 @@ export class Renderer {
     const mount = getTowerCannonLayout(state.tower.upgrades.ascend);
     const artScale = TOWER_ART_SCALE * (state.enemies.some(enemy => enemy.type === "sovereign" && enemy.hp > 0) ? GAME_CONFIG.sovereign.towerScale : 1);
     const aimIds = state.tower.gunAimTargetIds ?? {};
-    for (const key of ["pulse", "cannon", "mortar", "base"]) {
+    for (const key of ["pulse", "cannon", "mortar", "laser", "base"]) {
       const targetId = aimIds[key];
       const target = targetId == null ? null : state.enemies.find((enemy) => enemy.id === targetId && enemy.hp > 0);
       if (!target) {

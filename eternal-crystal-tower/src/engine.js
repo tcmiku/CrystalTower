@@ -1,7 +1,7 @@
 import { createAssaultState, updateAssault, updateSalvage, updateResonance, advanceAssaultDifficulty, GATES } from './assault.js';
 import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, getArenaEdgePosition } from "./config.js";
 import { SeededRng } from "./rng.js";
-import { createModuleBay, installedModule, adjacentReactors, moduleDamageMultiplier, shieldSector, moduleFacingAngle, moduleCovers, SPECIALIZATIONS, MODULE_BALANCE, specializeModule, hasSpecialization, modulesAdjacent } from "./modules.js";
+import { createModuleBay, installedModule, weaponReactors, moduleDamageMultiplier, shieldSector, moduleFacingAngle, moduleCovers, SPECIALIZATIONS, MODULE_BALANCE, specializeModule, hasSpecialization, modulesAdjacent, capacitorForWeapon } from "./modules.js";
 import { getGunMuzzleWorld } from "./tower-model.js";
 import { ENDLESS_SHOP_RULES, createEndlessShopState, hasEndlessRelic, refreshEndlessShop, releaseEndlessShopNotice } from "./endless-shop.js";
 import { CHAPTER_TWO_CONFIG, CHAPTER_TWO_ID, CHAPTER_TWO_TECH_ORDER, CHAPTER_TWO_TECH_TREE, CHAPTER_TWO_UPGRADE_META, chooseChapterTwoEnemyType, isChapterTwo } from './chapter-two.js';
@@ -1069,6 +1069,7 @@ function fireTower(state, weaponId = null, claimedTargetIds = null) {
   state.tower.gunAimTargetIds[gunKey] = targets[0]?.id ?? null;
   state.tower.priorityTargetIds = targets.map((target) => target.id);
   if (!targets.length) return false;
+  stats.damage *= consumeCapacitor(state, weaponId);
   if (module?.specialization === "pulseFocus") {
     module.focusStacks = module.focusTarget === targets[0].id ? Math.min(6, (module.focusStacks ?? 0) + 1) : 0;
     module.focusTarget = targets[0].id;
@@ -1137,14 +1138,14 @@ function fireTower(state, weaponId = null, claimedTargetIds = null) {
 
 function rollProjectileElement(state, chanceMultiplier = 1, weaponId = "blade") {
   if (state.tower.moduleBay) {
-    const reactors = adjacentReactors(state, weaponId);
+    const reactors = weaponReactors(state, weaponId);
     if (!reactors.length) return null;
-    const total = reactors.reduce((sum, reactor) => sum + 0.25 + reactor.level * 0.1, 0);
+    const total = reactors.reduce((sum, reactor) => sum + (0.25 + reactor.level * 0.1) * reactor.efficiency, 0);
     const roll = state.rng.next();
     let cursor = 0;
     for (const reactor of reactors) {
-      cursor += (0.25 + reactor.level * 0.1) * Math.min(1, 0.9 / total) * chanceMultiplier;
-      if (roll < cursor) return reactor.id;
+      cursor += (0.25 + reactor.level * 0.1) * reactor.efficiency * Math.min(1, 0.9 / total) * chanceMultiplier;
+      if (roll < cursor) { if(reactor.viaBridge)state.events.push({type:'moduleBridge'}); return reactor.id; }
     }
     return null;
   }
@@ -2318,7 +2319,7 @@ function updateColossus(state, boss, dt) {
   const bulwarkActive = boss.activeSkill === "bulwark" || Boolean(boss.activeSkills?.bulwark);
   const speedMultiplier = (bulwarkActive ? cfg.bulwark.orbitSpeedMultiplier : 1) * (boss.enraged ? cfg.enrageOrbitSpeedMultiplier : 1);
   const freezeMultiplier = !boss.enraged && boss.freezeTimer > 0 ? 0.35 : 1;
-  boss.orbitAngle += cfg.orbitSpeed * speedMultiplier * freezeMultiplier * (boss.gravitySlow ?? 1) * dt;
+  boss.orbitAngle += cfg.orbitSpeed * speedMultiplier * freezeMultiplier * (boss.gravitySlow ?? 1) * (boss.mineSlow ?? 1) * dt;
   boss.x = GAME_CONFIG.arena.centerX + Math.cos(boss.orbitAngle) * cfg.orbitRadiusX;
   boss.y = GAME_CONFIG.arena.centerY + Math.sin(boss.orbitAngle) * cfg.orbitRadiusY;
   if (boss.enraged) {
@@ -2541,7 +2542,7 @@ function updateMortar(state, dt) {
   if (!target || mortar.cooldown > 0) return;
   const origin = getGunMuzzleWorld(tower.x, tower.y, mortar, state.tower.upgrades.ascend, Math.atan2(target.y - tower.y, target.x - tower.x), bay.installed);
   const cluster = mortar.specialization === "mortarCluster", stagger = mortar.specialization === "mortarStagger";
-  const damage = stats.damage * cfg.damage * (1 + (mortar.level - 1) * cfg.damagePerLevel) * moduleDamageMultiplier(state, "mortar") * (cluster ? cfg.clusterDamage : stagger ? cfg.staggerDamage : 1);
+  const damage = stats.damage * cfg.damage * (1 + (mortar.level - 1) * cfg.damagePerLevel) * moduleDamageMultiplier(state, "mortar") * (cluster ? cfg.clusterDamage : stagger ? cfg.staggerDamage : 1) * consumeCapacitor(state, 'mortar');
   for (let i = 0; i < (cluster ? 3 : 1); i++) {
     const angle = i * Math.PI * 2 / 3;
     const flight = cfg.flight[mortar.level - 1] + (cluster ? i * .12 : 0);
@@ -2552,8 +2553,124 @@ function updateMortar(state, dt) {
   const overload = state.skills.overload;
   const overloadRate = overload.permanentEngaged ? overload.unstable > 0 ? ENDLESS_SHOP_RULES.overloadUnstableRateMultiplier : GAME_CONFIG.skills.overload.rateMultiplier
     : overload.active > 0 ? GAME_CONFIG.skills.overload.rateMultiplier : overload.slow > 0 ? GAME_CONFIG.skills.overload.slowRateMultiplier : 1;
-  mortar.cooldown = cfg.interval * GAME_CONFIG.tower.fireRate / stats.fireRate / overloadRate;
+  mortar.cooldown = cfg.interval * GAME_CONFIG.tower.fireRate / stats.fireRate / overloadRate * (capacitorForWeapon(state, 'mortar') ? MODULE_BALANCE.capacitor.cooldownMultiplier : 1);
   state.events.push({ type: "shoot", tier: state.tower.upgrades.ascend, weaponId: "mortar" });
+}
+
+function updateCapacitor(state, dt, locked) {
+  const capacitor = installedModule(state, 'capacitor');
+  if (!capacitor) return;
+  capacitor.charging = false;
+  const weapon = installedModule(state, capacitor.boundId), bay = state.tower.moduleBay;
+  if (!weapon || !capacitorForWeapon(state, weapon.id) || locked || bay.refitCooldown > 0 || bay.pendingRefit) { capacitor.chargeTime = 0; return; }
+  const tower = getTowerPosition(state), range = weapon.id === 'mortar' ? 600 : weapon.id === 'cannon' ? 620 : getTowerStats(state).range;
+  const min = weapon.id === 'mortar' ? 180 : weapon.id === 'cannon' ? 140 : 0;
+  const firstGun = bay.installed.find(m => ['pulse','cannon'].includes(m.id));
+  const cooldown = weapon === firstGun ? state.tower.fireCooldown : weapon.cooldown;
+  const hasTarget = state.enemies.some(e => e.hp > 0 && Math.hypot(e.x-tower.x,e.y-tower.y) >= min && Math.hypot(e.x-tower.x,e.y-tower.y) <= range);
+  if (hasTarget || cooldown > 0) { capacitor.chargeTime = 0; return; }
+  const cfg = MODULE_BALANCE.capacitor, max = cfg.capacity[capacitor.level - 1];
+  if (capacitor.stacks >= max) { capacitor.chargeTime = 0; return; }
+  capacitor.charging = true;
+  capacitor.chargeTime += dt;
+  while (capacitor.chargeTime + 1e-9 >= cfg.interval[capacitor.level - 1] && capacitor.stacks < max) {
+    capacitor.chargeTime -= cfg.interval[capacitor.level - 1];
+    capacitor.stacks++;
+    state.events.push({ type: 'moduleCharge' });
+  }
+}
+
+function consumeCapacitor(state, id) {
+  const capacitor = capacitorForWeapon(state, id);
+  if (!capacitor) return 1;
+  const stacks = capacitor.stacks ?? 0;
+  capacitor.stacks = capacitor.chargeTime = 0;
+  capacitor.charging = false;
+  if (stacks > 0) state.events.push({ type: 'moduleDischarge', weaponId: id, stacks });
+  return 1 + stacks * MODULE_BALANCE.capacitor.damagePerStack;
+}
+
+function updateLaser(state, dt) {
+  const bay = state.tower.moduleBay;
+  if (!bay) return;
+  bay.combat.beams = [];
+  const laser = installedModule(state, 'laser');
+  if (!laser) return;
+  const cfg = MODULE_BALANCE.laser, focus = laser.specialization === 'laserFocus', sweep = laser.specialization === 'laserSweep';
+  const cooling = focus ? cfg.focusCooling : cfg.cooling[laser.level - 1];
+  if (laser.cooling > 0) { laser.cooling = Math.max(0, laser.cooling - dt); return; }
+  const tower = getTowerPosition(state);
+  const pool = state.enemies.filter(e => e.hp > 0 && Math.hypot(e.x-tower.x,e.y-tower.y) <= cfg.range);
+  const target = rankTargets(state, pool, 1)[0];
+  state.tower.gunAimTargetIds.laser = target?.id ?? null;
+  if (!target) {
+    if (laser.beamTime > 0) laser.cooling = cooling;
+    laser.beamTime = laser.lockTime = laser.elementClock = 0; laser.beamTarget = null;
+    return;
+  }
+  if (laser.beamTarget !== target.id) { laser.beamTarget = target.id; laser.lockTime = 0; }
+  const duration = focus ? cfg.focusDuration : cfg.duration;
+  const activeDt = Math.min(dt, duration - laser.beamTime);
+  const ramp = cfg.rampTime[laser.level - 1], max = focus ? cfg.focusDamage : cfg.maxDamage;
+  // Integrate the linear ramp so DPS does not depend on the simulation step size.
+  const integral = t => t <= ramp ? cfg.minDamage*t + (max-cfg.minDamage)*t*t/(2*ramp) : (cfg.minDamage+max)*ramp/2 + max*(t-ramp);
+  const base = getTowerStats(state).damage * moduleDamageMultiplier(state, 'laser');
+  const damage = base * (sweep ? cfg.minDamage*activeDt : integral(laser.lockTime+activeDt)-integral(laser.lockTime));
+  laser.lockTime += activeDt; laser.beamTime += activeDt; laser.elementClock += activeDt;
+  const angle = Math.atan2(target.y-tower.y,target.x-tower.x);
+  const targets = sweep ? pool.filter(e => {const d=Math.atan2(e.y-tower.y,e.x-tower.x)-angle;return Math.abs(Math.atan2(Math.sin(d),Math.cos(d)))<=Math.PI/6;}) : [target];
+  const origin = getGunMuzzleWorld(tower.x,tower.y,laser,state.tower.upgrades.ascend,angle,bay.installed);
+  const elementalTick = laser.elementClock + 1e-9 >= cfg.elementInterval;
+  const element = elementalTick ? rollProjectileElement(state,1,'laser') : null;
+  if (elementalTick) { laser.elementClock = Math.max(0, laser.elementClock - cfg.elementInterval); state.events.push({type:'moduleLaser'}); }
+  for (const enemy of targets) {
+    damageEnemy(state,enemy,damage,'beam');
+    if(element) applyElementalHit(state,enemy,element,base*(sweep?cfg.minDamage:Math.min(max,cfg.minDamage+(max-cfg.minDamage)*laser.lockTime/ramp))*cfg.elementInterval);
+    bay.combat.beams.push({fromX:origin.x,fromY:origin.y,x:enemy.x,y:enemy.y,power:sweep?.2:Math.min(1,laser.lockTime/ramp)});
+  }
+  if (laser.beamTime + 1e-9 >= duration) { laser.cooling = cooling; laser.beamTime = laser.lockTime = laser.elementClock = 0; laser.beamTarget = null; }
+}
+
+function updateMines(state, dt) {
+  const bay = state.tower.moduleBay;
+  if (!bay) return;
+  const combat = bay.combat, cfg = MODULE_BALANCE.mine, layer = installedModule(state,'mine'), tower = getTowerPosition(state);
+  combat.mines ??= []; combat.slowFields ??= [];
+  for (const field of combat.slowFields) field.life -= dt;
+  combat.slowFields = combat.slowFields.filter(field=>field.life>0);
+  for (const mine of combat.mines) mine.life -= dt;
+  combat.mines = combat.mines.filter(mine=>mine.life>0);
+  if (layer && !(layer.facingCooldown > 0)) {
+    layer.cooldown = Math.max(0,layer.cooldown-dt);
+    if (layer.cooldown<=0 && combat.mines.length<cfg.capacity[layer.level-1]) {
+      const offsets=[-.32,0,.32,.16], index=layer.deployIndex++%offsets.length;
+      const angle=moduleFacingAngle(layer)+offsets[index], distance=cfg.distance+(index===3?55:0);
+      const specialization=layer.specialization;
+      combat.mines.push({id:state.nextId++,x:tower.x+Math.cos(angle)*distance,y:tower.y+Math.sin(angle)*distance,life:cfg.lifetime,
+        damage:getTowerStats(state).damage*cfg.damage*moduleDamageMultiplier(state,'mine')*(specialization==='mineChain'?cfg.chainDamage:specialization==='mineSlow'?cfg.slowDamage:1),
+        element:rollProjectileElement(state,1,'mine'),specialization,detonateAt:null});
+      layer.cooldown=cfg.interval[layer.level-1];state.events.push({type:'moduleMine'});
+    }
+  }
+  for(const mine of combat.mines) {
+    if(mine.detonateAt==null && state.enemies.some(e=>e.hp>0&&Math.hypot(e.x-mine.x,e.y-mine.y)<=cfg.trigger+e.radius)) mine.detonateAt=state.time;
+  }
+  const detonating=combat.mines.filter(m=>m.detonateAt!=null&&m.detonateAt<=state.time+1e-9);
+  for(const mine of detonating) {
+    for(const enemy of state.enemies) {
+      if(enemy.hp<=0||Math.hypot(enemy.x-mine.x,enemy.y-mine.y)>cfg.radius+enemy.radius)continue;
+      damageEnemy(state,enemy,mine.damage,'explosion');
+      if(mine.element)applyElementalHit(state,enemy,mine.element,mine.damage);
+    }
+    if(mine.specialization==='mineChain') for(const neighbor of combat.mines) {
+      if(neighbor!==mine&&neighbor.detonateAt==null&&Math.hypot(neighbor.x-mine.x,neighbor.y-mine.y)<=cfg.chainRange)neighbor.detonateAt=state.time+cfg.chainDelay;
+    }
+    if(mine.specialization==='mineSlow')combat.slowFields.push({x:mine.x,y:mine.y,radius:cfg.radius,life:cfg.slowDuration});
+    combat.effects.push({kind:'mine',x:mine.x,y:mine.y,radius:cfg.radius,life:.5,duration:.5});
+    state.events.push({type:'mineExplosion',id:mine.id,x:mine.x,y:mine.y});
+  }
+  combat.mines=combat.mines.filter(m=>!detonating.includes(m));
+  for(const enemy of state.enemies)enemy.mineSlow=combat.slowFields.some(f=>Math.hypot(enemy.x-f.x,enemy.y-f.y)<=f.radius+enemy.radius)?isBossEnemy(enemy)?cfg.bossSlow:cfg.slow:1;
 }
 
 function updateHostileProjectiles(state, dt) {
@@ -2665,7 +2782,7 @@ function updateEnemies(state, dt) {
     if (enemy.hp <= 0) continue;
     if (enemy.approachTarget) {
       const dx=enemy.approachTarget.x-enemy.x,dy=enemy.approachTarget.y-enemy.y,distance=Math.hypot(dx,dy);
-      const step=enemy.freezeTimer>0?0:Math.min(distance,120*(enemy.gravitySlow??1)*dt);
+      const step=enemy.freezeTimer>0?0:Math.min(distance,120*(enemy.gravitySlow??1)*(enemy.mineSlow??1)*dt);
       enemy.x+=dx/(distance||1)*step;enemy.y+=dy/(distance||1)*step;
       if(distance<=step+.1)delete enemy.approachTarget;
       continue;
@@ -2709,7 +2826,7 @@ function updateEnemies(state, dt) {
     const dy = targetY - enemy.y;
     const distance = Math.hypot(dx, dy) || 1;
     if (distance > targetRadius + enemy.radius + 3 + (enemy.attackRange ?? 0)) {
-      const moveSpeed = enemy.freezeTimer > 0 ? 0 : enemy.speed * (enemy.gravitySlow ?? 1);
+      const moveSpeed = enemy.freezeTimer > 0 ? 0 : enemy.speed * (enemy.gravitySlow ?? 1) * (enemy.mineSlow ?? 1);
       enemy.x += dx / distance * moveSpeed * dt;
       enemy.y += dy / distance * moveSpeed * dt;
       enemy.attackCooldown = 0;
@@ -4214,6 +4331,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   // tower that has been idle for a while fires once per simulation frame when
   // an enemy finally enters range.
   state.tower.fireCooldown = Math.max(0, state.tower.fireCooldown - dt);
+  updateCapacitor(state, dt, entryCombatLocked);
   const guns = state.tower.moduleBay ? state.tower.moduleBay.installed.filter((module) => ["pulse", "cannon"].includes(module.id)) : [null];
   state.tower.gunAimTargetIds ??= { base: null, pulse: null, cannon: null };
   const towerPos = getTowerPosition(state);
@@ -4243,7 +4361,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
     const economyRateMultiplier = state.skills.coinVacuum.fireRateBuff > 0 ? GAME_CONFIG.activeSkillResearch.coinVacuum.fireRateMultiplier : 1;
     const specializationRate = gun?.specialization === "cannonLance" ? 0.8 : gun?.specialization === "cannonBurst" ? 1.35 : gun?.specialization === "pulseFocus" ? 1 + (gun.focusStacks ?? 0) * 0.1 : 1;
     const relayRate = gun?.id === "pulse" && modulesAdjacent(state, "hangar", "pulse") && state.tower.pulseRelay > 0 ? 1.5 : 1;
-    const cooldown = 1 / (stats.fireRate * overloadRateMultiplier * economyRateMultiplier * specializationRate * relayRate) / (gun?.id === "cannon" ? 0.55 : 1);
+    const cooldown = 1 / (stats.fireRate * overloadRateMultiplier * economyRateMultiplier * specializationRate * relayRate) / (gun?.id === "cannon" ? 0.55 : 1) * (capacitorForWeapon(state, gun?.id) ? MODULE_BALANCE.capacitor.cooldownMultiplier : 1);
     if (gunIndex === 0) state.tower.fireCooldown = cooldown;
     if (gun) gun.cooldown = cooldown;
   }
@@ -4252,10 +4370,12 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
   if (!entryCombatLocked) {
     updateChapterOneObjectives(state, dt);
     updateModuleSupport(state, dt);
+    updateMines(state, dt);
   }
   updateEnemies(state, dt);
   if (!entryCombatLocked) {
     updateMortar(state, dt);
+    updateLaser(state, dt);
     updateDrones(state, dt);
     const needsEnemySpatialIndex = state.projectiles.length > 0 || state.launchedSaws.length > 0 || state.tower.upgrades.saw > 0;
     const enemySpatialIndex = needsEnemySpatialIndex ? buildEnemySpatialIndex(state.enemies) : null;

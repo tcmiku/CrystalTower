@@ -1,4 +1,4 @@
-import { MODULES, MODULE_BALANCE, SPECIALIZATIONS, getBayLayout, moduleAt, installedModule, occupiedSlots, adjacentReactors, modulesAdjacent, modulePlacementStatus, moduleMoveStatus, moduleUpgradeCost, installModule, removeModule, moveModule, upgradeModule, setModuleFacing, moduleFacingAngle, defaultModuleFacing, FACING_NAMES } from './modules.js';
+import { MODULES, MODULE_BALANCE, SPECIALIZATIONS, getBayLayout, moduleAt, installedModule, occupiedSlots, adjacentReactors, modulesAdjacent, modulePlacementStatus, moduleMoveStatus, moduleUpgradeCost, installModule, removeModule, moveModule, upgradeModule, setModuleFacing, moduleFacingAngle, defaultModuleFacing, FACING_NAMES, bridgeConnection, weaponReactors, capacitorTargets, bindCapacitor } from './modules.js';
 
 export const createCompactModuleUi = (root,state,options) => createModuleUi(root,state,{...options,compact:true});
 
@@ -35,7 +35,7 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
   }
   function target(event){const c=rawCell(event);if(!c||!held)return null;const {columns,rows}=bayLayout();const x=c.x-held.offset.x,y=c.y-held.offset.y;return x<0||x>=columns||y<0||y>=rows?null:y*columns+x}
   const placement=cell=>held.from!==null?moduleMoveStatus(state,held.id,cell,held.rotation):modulePlacementStatus(state,held.id,cell,false,held.rotation);
-  function updateTools(){root.querySelector('[data-action="rotate"]').disabled=(!held&&!selected)||MODULES[held?.id??selected]?.size===1||locked();root.querySelector('[data-action="cancel"]').style.visibility=held?'visible':'hidden'}
+  function updateTools(){root.querySelector('[data-action="rotate"]').disabled=(!held&&!selected)||(MODULES[held?.id??selected]?.size===1&&(held?.id??selected)!=='bridge')||locked();root.querySelector('[data-action="cancel"]').style.visibility=held?'visible':'hidden'}
   function paint(){
     board.querySelectorAll('.module-cell').forEach(n=>n.classList.remove('preview-good','preview-bad'));
     board.querySelectorAll('.module-piece').forEach(n=>n.classList.toggle('lifted',held?.id===n.dataset.id));
@@ -51,6 +51,11 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
       if(cx<columns&&cy<rows)board.querySelector(`[data-cell="${cy*columns+cx}"]`)?.classList.add(status.ok?'preview-good':'preview-bad');
     }
     if(!status.ok||status.swap)hint.textContent=status.reason;
+    if(held.id==='bridge'){
+      const link=bridgeConnection(state,{id:'bridge',slot:hover,rotation:held.rotation,level:installedModule(state,'bridge')?.level??1});
+      board.querySelectorAll('.module-piece').forEach(n=>n.classList.toggle('connected',status.ok&&[link?.reactor.id,link?.weapon.id].includes(n.dataset.id)));
+      if(status.ok)hint.textContent=link?`${MODULES[link.reactor.id].name} → ${MODULES[link.weapon.id].name} · 触发效率 ${Math.round(link.efficiency*100)}%`:'两端须正对反应器与武器';
+    }
     ghost.classList.toggle('invalid',!status.ok);
   }
   function place(cell,dragged=false){
@@ -64,7 +69,7 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
   }
   function rotate(){
     if(!held&&selected)begin(selected);
-    if(!held||MODULES[held.id].size===1)return;
+    if(!held||MODULES[held.id].size===1&&held.id!=='bridge')return;
     held.rotation=1-held.rotation;held.offset={x:held.offset.y,y:held.offset.x};if(lastPoint)hover=target(lastPoint);paint();updateTools();
   }
   function handleKey(event){
@@ -108,6 +113,7 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
       if(m&&(action==='upgrade'?upgradeModule(state,m.slot):removeModule(state,m.slot))){cancel();refresh()}return;
     }
     if(action?.startsWith('face-')){if(setModuleFacing(state,selected,Number(action.slice(5)))){signature='';update();refresh()}return;}
+    if(action?.startsWith('bind-')){if(bindCapacitor(state,action.slice(5))){signature='';update();refresh()}return;}
     if(action?.startsWith('core-')){const key=action.slice(5),before=state.tower.upgrades[key];buyCore(key);signature='';update();refresh();if(state.tower.upgrades[key]>before&&!matchMedia('(prefers-reduced-motion: reduce)').matches)root.querySelector(`[data-action="${action}"]`)?.animate([{boxShadow:'inset 0 0 0 2px #fff, 0 0 24px #8ce9e199'},{boxShadow:'none'}],{duration:600});return}
     if(event.target.closest('.module-board')&&held){
       const cell=event.target.closest('[data-cell]')?.dataset.cell;
@@ -123,6 +129,10 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
     else if(m?.id==='gravity')text=`${FACING_NAMES[Math.round((moduleFacingAngle(m)+Math.PI/2)/(Math.PI/4))%8]} · ${m.cooldown>0?`牵引冷却 ${m.cooldown.toFixed(1)}s`:'等待扇区目标'}`;
     else if(m?.id==='interceptor')text=`${FACING_NAMES[Math.round((moduleFacingAngle(m)+Math.PI/2)/(Math.PI/4))%8]} · 拦截弹 ${m.charges??0}/${MODULE_BALANCE.interceptor.capacity[m.level-1]}${m.charges<MODULE_BALANCE.interceptor.capacity[m.level-1]?` · 充能 ${Math.max(0,MODULE_BALANCE.interceptor.recharge[m.level-1]-(m.recharge??0)).toFixed(1)}s`:''}`;
     else if(m?.id==='service')text=!modulesAdjacent(state,'hangar','service')?'未连接 · 需与机库共享一条边':m.launchBuff>0?`出击省电 ${m.launchBuff.toFixed(1)}s`:m.servicing?'归航整备 · 回电加速':m.recharged&&m.level>=3?'整备完成 · 下次出击省电':'已连接机库 · 等待归航';
+    else if(m?.id==='laser')text=m.cooling>0?`散热 ${m.cooling.toFixed(1)}s`:m.beamTime>0?`持续照射 ${m.beamTime.toFixed(1)}s · 锁定 ${m.lockTime.toFixed(1)}s`:'等待射程内目标';
+    else if(m?.id==='mine')text=`${FACING_NAMES[m.facing??0]} · 晶雷 ${state.tower.moduleBay.combat.mines.length}/${MODULE_BALANCE.mine.capacity[m.level-1]} · 部署 ${m.cooldown.toFixed(1)}s · 存活 15s`;
+    else if(m?.id==='bridge'){const link=bridgeConnection(state);text=link?`${MODULES[link.reactor.id].name} → ${MODULES[link.weapon.id].name} · ${adjacentReactors(state,link.weapon.id).some(r=>r.id===link.reactor.id)?'已有直接邻接，导桥不叠加':`触发效率 ${Math.round(link.efficiency*100)}% · 不加基础伤害`}`:`${m.rotation?'纵向':'横向'} · 两端须正对反应器与武器`;}
+    else if(m?.id==='capacitor')text=m.boundId?`${MODULES[m.boundId].name} · 储能 ${m.stacks}/${MODULE_BALANCE.capacitor.capacity[m.level-1]} · ${m.charging?'停火蓄能':m.stacks?'等待开火释放':'等待装填完成且无目标'}`:'未绑定 · 选择一门相邻的炮类武器';
     else if(selected&&MODULES[selected]?.directional)text='朝向独立于装配格 · 战场预览显示范围';
     else if(selected)text=`${MODULES[selected].size} 格${MODULES[selected].element?' · 只连接共享边的武器':''}`;
     if(live.textContent!==text)live.textContent=text;
@@ -146,7 +156,10 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
       n.style.gridRow=String(Math.floor(cell/columns)+1);
       n.innerHTML=`<b>${cell+1}</b>`;n.setAttribute('aria-label',`第 ${cell+1} 格，${MODULES[moduleAt(state,cell)?.id]?.name??'空格'}`);board.append(n);
     }
-    const connected=selected?(MODULES[selected]?.weapon?adjacentReactors(state,selected).map(m=>m.id):bay.installed.filter(m=>MODULES[m.id].weapon&&adjacentReactors(state,m.id).some(r=>r.id===selected)).map(m=>m.id)):[];
+    const connected=selected?(MODULES[selected]?.weapon?weaponReactors(state,selected).map(m=>m.id):bay.installed.filter(m=>MODULES[m.id].weapon&&weaponReactors(state,m.id).some(r=>r.id===selected)).map(m=>m.id)):[];
+    const link=bridgeConnection(state);
+    if(link&&[link.weapon.id,link.reactor.id,'bridge'].includes(selected))connected.push(link.weapon.id,link.reactor.id,'bridge');
+    if(selected==='capacitor')connected.push(...capacitorTargets(state).map(m=>m.id));
     if(['hangar','service'].includes(selected)&&modulesAdjacent(state,'hangar','service'))connected.push(selected==='hangar'?'service':'hangar');
     for(const m of bay.installed){
       const n=document.createElement('button');n.type='button';n.className=`module-piece${selected===m.id?' inspected':''}${connected.includes(m.id)?' connected':''}`;n.dataset.id=m.id;n.dataset.focus=`piece-${m.id}`;
@@ -163,6 +176,7 @@ export function createModuleUi(root,state,{icon,notify,refresh,coreStatus,buyCor
       info.innerHTML=`<div class="module-selected-title"><strong>${meta.name}${m?.specialization ? ` · ${SPECIALIZATIONS[m.specialization].name}` : ""}</strong><details><summary aria-label="模块说明">ⓘ</summary><p>${meta.description}${m?.specialization ? `<br><b>${SPECIALIZATIONS[m.specialization].name}</b>：${SPECIALIZATIONS[m.specialization].description}` : meta.weapon ? "<br>击败精英后可获得武器专精，本局每件限选一个方向。" : ""}${selected === "shield" ? "<br>邻接重炮：格挡充能；邻接环刃：格挡后扩张。" : selected === "hangar" || selected === "pulse" ? "<br>机库与轻炮相邻：半电以下主动回航，轻炮加速 6 秒。" : ""}</p></details></div><div class="module-actions">${m?btn('移动','move',locked())+btn(m.level>=3?'已满级':`强化 ◆${moduleUpgradeCost(m)}`,'upgrade',locked()||m.level>=3||state.coins<moduleUpgradeCost(m))+btn(`拆卸 +${Math.floor(m.invested*.8)}`,'remove',locked()):btn(`安装 ◆${meta.cost}`,'install',!available(selected))}</div>`;
     }else info.innerHTML='<div class="module-selected-title"><strong>选择模块以安装或强化</strong></div><div class="module-actions"></div>';
     const directional=installedModule(state,selected);
+    if(selected==='capacitor'&&directional){info.insertAdjacentHTML('beforeend',`<div class="module-facing"><span>绑定武器 · 改绑清空储能</span>${capacitorTargets(state).map(m=>`<button type="button" data-action="bind-${m.id}" data-focus="bind-${m.id}" aria-pressed="${directional.boundId===m.id}" ${locked()?'disabled':''}>${MODULES[m.id].name}</button>`).join('')}</div>`);}
     if(directional&&MODULES[selected].directional){const facing=Number.isInteger(directional.facing)?directional.facing:Math.round((directional.slot%6)*4/3)%8;info.insertAdjacentHTML('beforeend',`<div class="module-facing"><span>独立朝向 · ${directional.facingCooldown>0?`重整 ${Math.ceil(directional.facingCooldown)}s`:'战斗中转向暂停本模块 3 秒'}</span>${FACING_NAMES.map((name,i)=>`<button type="button" data-action="face-${i}" data-focus="face-${i}" aria-pressed="${facing===i}" ${directional.facingCooldown>0?'disabled':''}>${name}</button>`).join('')}</div>`);}
     if(coreStatus){
       const core=root.querySelector('.module-core-upgrades');

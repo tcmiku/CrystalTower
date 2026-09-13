@@ -23,7 +23,11 @@ export const MODULE_BALANCE = Object.freeze({
   mortar: Object.freeze({ minRange: 180, range: 600, interval: 3, flight: [.9, .7, .7], radius: [90, 90, 110], damage: 3, damagePerLevel: .2, clusterSpread: 60, clusterDamage: .42, staggerDamage: .75, staggerDuration: 1 }),
   gravity: Object.freeze({ distance: 230, radius: [100, 120, 120], duration: [2, 2, 2.5], interval: 8, pullSpeed: 95, elitePull: .35, bossSlow: .85 }),
   interceptor: Object.freeze({ capacity: [2, 3, 3], recharge: [2, 2, 1.6], rangeBeyondTower: 90, projectileSpeed: 300 }),
-  service: Object.freeze({ regenMultiplier: 1.4, returnMultiplier: 1.2, launchDuration: 3, flightDrainMultiplier: .5, dockRadius: 24 })
+  service: Object.freeze({ regenMultiplier: 1.4, returnMultiplier: 1.2, launchDuration: 3, flightDrainMultiplier: .5, dockRadius: 24 }),
+  laser: Object.freeze({ range: 300, duration: 3, cooling: [2, 2, 1.5], rampTime: [3, 1.8, 1.8], minDamage: .8, maxDamage: 2, elementInterval: .5, focusDuration: 5, focusDamage: 3, focusCooling: 3 }),
+  mine: Object.freeze({ interval: [4, 4, 3.2], capacity: [3, 4, 4], lifetime: 15, distance: 230, trigger: 28, radius: 70, damage: 2.5, chainRange: 130, chainDelay: .15, chainDamage: .75, slowDamage: .65, slowDuration: 3, slow: .55, bossSlow: .85 }),
+  bridge: Object.freeze({ efficiency: [.7, .85, 1] }),
+  capacitor: Object.freeze({ interval: [2, 1.5, 1.5], capacity: [3, 3, 4], damagePerStack: .25, cooldownMultiplier: 1.1 })
 });
 export const SPECIALIZATIONS = Object.freeze({
   pulseSplit: { module: "pulse", name: "裂晶散射", description: "轻炮命中后分裂两枚晶矢，可再追击一次；单发伤害降低 15%。" },
@@ -35,7 +39,11 @@ export const SPECIALIZATIONS = Object.freeze({
   hangarHeavy: { module: "hangar", name: "重型猎杀", description: "机群缩编为两架，单机伤害 ×2.5，命中耗电 ×2；优先首领与精英。" },
   hangarSwarm: { module: "hangar", name: "蜂群清扫", description: "增加两架轻型无人机，分散追击不同目标；单机伤害降低 25%。" },
   mortarCluster: { module: "mortar", name: "集束轰击", description: "一次发射三枚分散落点的晶弹，每枚伤害为普通炮弹的 42%；覆盖更广，单点伤害降低。" },
-  mortarStagger: { module: "mortar", name: "震荡压制", description: "炮弹伤害降低 25%，命中后打断普通远程单位蓄能并压制 1 秒；首领免疫压制。" }
+  mortarStagger: { module: "mortar", name: "震荡压制", description: "炮弹伤害降低 25%，命中后打断普通远程单位蓄能并压制 1 秒；首领免疫压制。" },
+  laserSweep: { module: "laser", name: "切割扇面", description: "同时照射目标方向 60° 内的敌人，每秒造成塔攻击 0.8 倍伤害；取消单体增幅，保留散热。" },
+  laserFocus: { module: "laser", name: "熔穿焦点", description: "连续照射上限延长到 5 秒，单体每秒伤害最高为塔攻击 3 倍；散热延长至 3 秒。" },
+  mineChain: { module: "mine", name: "连锁雷场", description: "引爆 130 范围内的相邻晶雷，每隔 0.15 秒传递一次；单雷伤害降低 25%，每枚仅爆炸一次。" },
+  mineSlow: { module: "mine", name: "阻滞雷场", description: "爆炸伤害降低 35%，留下持续 3 秒的减速区；普通敌人移速降低 45%，首领降低 15%。" }
 });
 export const MODULES = Object.freeze({
   pulse: { name: "晶矢轻炮", size: 1, cost: 60, color: "#7fe9ff", icon: "damage", weapon: true, description: "全向射击，基础射程 360。每级伤害 +35%，适合给元素反应提供连续命中。" },
@@ -49,11 +57,15 @@ export const MODULES = Object.freeze({
   mortar: { name: "星陨迫击炮", size: 2, cost: 160, color: "#9ccaff", icon: "moduleMortar", weapon: true, description: "每 3 秒曲射轰炸固定落点，射程 180—600。I／II／III 级伤害 ×3／3.6／4.2；II 级落地缩短至 0.7 秒，III 级爆炸范围扩大至 110。继承相邻元素；高速与近身敌人容易漏过。" },
   gravity: { name: "引力锚", size: 2, cost: 140, color: "#bba1ff", icon: "moduleGravity", directional: true, description: "每 8 秒在指定朝向中圈展开引力场，持续 2 秒；II 级范围 100→120，III 级持续 2.5 秒。聚拢普通敌人，精英牵引减弱；首领不被拖动，仅可移动首领轻微减速。自身不造成伤害。" },
   interceptor: { name: "截光阵列", size: 1, cost: 100, color: "#7df3db", icon: "moduleInterceptor", directional: true, description: "拦截朝向覆盖的 60° 扇区的普通敌弹，初始需充能。I 级存 2 发，每 2 秒恢复 1 发；II 级存 3 发，III 级恢复缩短至 1.6 秒。不能拦截首领炮击、光束和近身攻击。" },
-  service: { name: "快速整备舱", size: 1, cost: 110, color: "#a8e8b2", icon: "moduleService", description: "必须邻接机库：实际归航后回电 +40%；II 级回航速度 +20%；III 级在舱内补回至少 10% 电量并充满后，下次出击前 3 秒飞行耗电减半，命中耗电不变。" }
+  service: { name: "快速整备舱", size: 1, cost: 110, color: "#a8e8b2", icon: "moduleService", description: "必须邻接机库：实际归航后回电 +40%；II 级回航速度 +20%；III 级在舱内补回至少 10% 电量并充满后，下次出击前 3 秒飞行耗电减半，命中耗电不变。" },
+  laser: { name: "熔晶射线塔", size: 2, cost: 150, color: "#ffad77", icon: "moduleLaser", weapon: true, description: "射程 300，持续照射最多 3 秒，再散热 2 秒；同一目标每秒伤害从塔攻击 0.8 倍增至 2 倍，换目标重置。II 级更快蓄热，III 级散热降至 1.5 秒。邻接元素每 0.5 秒最多触发一次。" },
+  mine: { name: "晶簇布雷器", size: 2, cost: 130, color: "#f3cd83", icon: "moduleMine", weapon: true, directional: true, description: "每 4 秒向指定朝向中圈布雷，最多 3 枚、每枚存活 15 秒。接敌后造成塔攻击 2.5 倍伤害，爆炸半径 70；II 级存量 4，III 级间隔 3.2 秒。部署时保存元素，转向或拆装会回收旧雷。" },
+  bridge: { name: "共鸣导桥", size: 1, cost: 90, color: "#d4b2ff", icon: "moduleBridge", description: "选择横向或纵向，将两端正对的反应器连接到武器；触发效率 70%／85%／100%，不传递基础伤害加成。直接邻接优先，不连接其他导桥或支援模块。" },
+  capacitor: { name: "储能晶匣", size: 1, cost: 100, color: "#8ef0e1", icon: "moduleCapacitor", description: "绑定一门相邻轻炮、重炮或迫击炮。武器装填完成且没有射程内目标时，每 2 秒蓄 1 层、最多 3 层；下次开火每层增伤 25%，持续射击间隔增加 10%。II 级蓄能 1.5 秒，III 级最多 4 层。改绑与重整清空能量。" }
 });
 
 export function createModuleBay() {
-  return { installed: [{ id: "pulse", slot: 0, level: 1, invested: 60 }], specializations: {}, revision: 0, refitCooldown: 0, combat: { shells: [], fields: [], effects: [] } };
+  return { installed: [{ id: "pulse", slot: 0, level: 1, invested: 60 }], specializations: {}, revision: 0, refitCooldown: 0, combat: { shells: [], fields: [], effects: [], mines: [], slowFields: [], beams: [] } };
 }
 export function moduleCells(module, columns = BAY_COLUMNS) {
   const step = module.rotation === 1 ? columns : 1;
@@ -91,6 +103,33 @@ export function adjacentReactors(state, id) {
   return state.tower.moduleBay.installed.filter((module) => MODULES[module.id].element && cells.some((slot) => moduleCells(module, columns).some((cell) => touches(slot, cell, columns))));
 }
 export const moduleDamageMultiplier = (state, id) => 1 + adjacentReactors(state, id).reduce((sum, reactor) => sum + reactor.level * 0.15, 0);
+export function bridgeConnection(state, bridge = installedModule(state, 'bridge')) {
+  if (!bridge) return null;
+  const { columns, slotCount } = getBayLayout(state), step = bridge.rotation === 1 ? columns : 1;
+  const before = bridge.slot - step, after = bridge.slot + step;
+  if (before < 0 || after >= slotCount || bridge.rotation !== 1 && (bridge.slot % columns === 0 || bridge.slot % columns === columns - 1)) return null;
+  const a = moduleAt(state, before), b = moduleAt(state, after);
+  const reactor = [a,b].find(m => m && MODULES[m.id].element), weapon = [a,b].find(m => m && MODULES[m.id].weapon);
+  return reactor && weapon ? { bridge, reactor, weapon, efficiency: MODULE_BALANCE.bridge.efficiency[(bridge.level ?? 1) - 1] } : null;
+}
+export function weaponReactors(state, id) {
+  const sources = adjacentReactors(state, id).map(m => ({ ...m, efficiency: 1 }));
+  const link = bridgeConnection(state);
+  if (link?.weapon.id === id && !sources.some(m => m.id === link.reactor.id)) sources.push({ ...link.reactor, efficiency: link.efficiency, viaBridge: true });
+  return sources;
+}
+export const capacitorTargets = state => state.tower.moduleBay?.installed.filter(m => ['pulse','cannon','mortar'].includes(m.id) && modulesAdjacent(state, 'capacitor', m.id)) ?? [];
+export function capacitorForWeapon(state, id) {
+  const m = installedModule(state, 'capacitor');
+  return m?.boundId === id && capacitorTargets(state).some(target => target.id === id) ? m : null;
+}
+export function bindCapacitor(state, id) {
+  const m = installedModule(state, 'capacitor');
+  if (!m || state.over || state.tower.moduleBay.refitCooldown > 0 || m.boundId === id || !capacitorTargets(state).some(target => target.id === id)) return false;
+  m.boundId = id;
+  changed(state);
+  return true;
+}
 export function modulePlacementStatus(state, id, slot, moving = false, rotation = 0) {
   const bay = state.tower.moduleBay;
   const { columns, rows, slotCount } = getBayLayout(state);
@@ -129,10 +168,17 @@ export function syncModuleUpgrades(state) {
   state.tower.moduleShieldCharge = 0;
   state.tower.bladeExpansion = 0;
   state.tower.pulseRelay = 0;
-  state.tower.moduleBay.combat = { shells: [], fields: [], effects: [] };
+  state.tower.moduleBay.combat = { shells: [], fields: [], effects: [], mines: [], slowFields: [], beams: [] };
   for (const module of state.tower.moduleBay.installed) {
     if (module.id === "mortar") module.cooldown = MODULE_BALANCE.mortar.interval;
     if (module.id === "gravity") module.cooldown = 1;
+    if (module.id === "laser") Object.assign(module, { beamTime: 0, lockTime: 0, beamTarget: null, cooling: 0, elementClock: 0 });
+    if (module.id === "mine") Object.assign(module, { cooldown: MODULE_BALANCE.mine.interval[module.level - 1], deployIndex: 0 });
+    if (module.id === "capacitor") {
+      const targets = capacitorTargets(state);
+      if (!targets.some(target => target.id === module.boundId)) module.boundId = targets.length === 1 ? targets[0].id : null;
+      Object.assign(module, { stacks: 0, chargeTime: 0, charging: false });
+    }
     if (module.id === "interceptor") { module.charges = 0; module.recharge = 0; }
     if (module.id === "service") { module.launchBuff = 0; module.recharged = false; module.recoveredEnergy = 0; module.servicing = false; module.pulseCooldown = 0; }
   }
@@ -210,6 +256,7 @@ export function setModuleFacing(state,id,facing) {
   if(!m||!MODULES[id].directional||state.over||!Number.isInteger(facing)||facing<0||facing>7||m.facingCooldown>0||m.facing===facing)return false;
   const free=['rest','warning'].includes(state.assault?.phase);
   m.facing=facing;m.facingCooldown=free?0:3;
+  if(id==='mine'){state.tower.moduleBay.combat.mines=[];state.tower.moduleBay.combat.slowFields=[];m.cooldown=MODULE_BALANCE.mine.interval[m.level-1];m.deployIndex=0;}
   state.tower.moduleBay.revision++;
   return true;
 }

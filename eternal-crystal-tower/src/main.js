@@ -3,7 +3,7 @@ import { GATES, assaultStatus, assaultFormation } from './assault.js';
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
 import { createCompactModuleUi, createModuleUi } from "./module-ui.js";
 import { coreUpgradePresentation } from "./core-upgrade-ui.js";
-import { MODULES, SPECIALIZATIONS, installModule, occupiedSlots, modulePlacementStatus, slotCountForTier } from "./modules.js";
+import { MODULES, SPECIALIZATIONS, installModule, occupiedSlots, modulePlacementStatus, slotCountForTier, setModuleFacing, bindCapacitor } from "./modules.js";
 import { applyAdminSettings, calculateAchievementProgress, calculateRunScore, calculateStardust, chooseRelic, lockRelicChoice, collectCoinAt, collectPermanentResourceAt, createGameState, cycleTargetProtocol, enableAdminCheats, getDroneDetonateRecovery, getDroneEnergyMax, getSkillCooldownDuration, getTechConfig, getTechStatus, getThreatSealModifiers, getTowerPosition, getTowerRadius, getTowerStats, getUpgradeCost, lockAnchorAt, offerRelicChoice, purchaseUpgrade, setTargetProtocol, spawnEnemy, spawnPermanentResourceDrop, toggleDroneDetonate, toggleDroneMode, updateChapterOneObjectives, updateGame, useSkill } from "./engine.js";
 import { seedFromUrl } from "./rng.js";
 import { buyRelicArchiveUpgrade, buyRelicSlot, buyRelicUpgrade, buyResearch, buySkillResearch, defaultSave, discoverEndlessRelic, discoverHiddenRelic, grantChapterCoreEnergy, grantPermanentResource, loadSave, markBaseRecoverySeen, registerFailure, relicArchiveCapacity, relicUpgradeCost, repairChapterNode, researchCost, SAVE_KEY, sanitizeLeaderboardMessage, sanitizePlayerName, setDisabledRelic, setSkillResearchBranch, skillResearchCost, toggleRelicSet, toggleThreatSeal, unlockDoubleSpeed, writeSave } from "./storage.js";
@@ -1261,6 +1261,8 @@ function createTechEdge(svg, from, to, layout, exclusive = false) {
 function applyTechIconArt(element, key) {
   element.classList.remove("tech-icon-terminal", "tech-icon-generated");
   element.style.removeProperty("background-image");
+  const expansionIcon = {moduleLaser:'laser',moduleMine:'mine',moduleBridge:'bridge',moduleCapacitor:'capacitor'}[key];
+  if(expansionIcon){element.classList.add('tech-icon-generated');element.style.backgroundImage=`url("./assets/icons/module-${expansionIcon}.svg")`;element.style.backgroundSize='contain';element.style.backgroundPosition='center';element.textContent='';return;}
   const moduleArt = { moduleMortar: "mortar", moduleGravity: "gravity", moduleInterceptor: "interceptor", moduleService: "service" }[key];
   if (moduleArt) {
     element.classList.add("tech-icon-generated");
@@ -3599,6 +3601,7 @@ if (previewMode === "chapter-one-modules") {
   state.tower.upgrades.ascend = 1;
   state.tower.moduleBay.installed = [];
   for (const [id, slot] of [["gravity", 0], ["interceptor", 2], ["mortar", 3], ["pulse", 5], ["hangar", 6], ["service", 8]]) installModule(state, id, slot);
+  setModuleFacing(state, "interceptor", 3);
   state.tower.hp = getTowerStats(state).maxHp;
   state.tower.droneEnergy = 45;
   state.spawnTimer = 12;
@@ -3614,11 +3617,27 @@ if (previewMode === "chapter-one-modules") {
   }
   // Read-only observability for this isolated, no-save preview and browser QA.
   window.readModulePreview = () => structuredClone({ time: state.time, paused: state.paused, over: state.over, hp: state.tower.hp,
-    coins: state.coins, energy: state.tower.droneEnergy, mode: state.tower.droneMode, bay: state.tower.moduleBay,
+    coins: state.coins, energy: state.tower.droneEnergy, mode: state.tower.droneMode, bay: state.tower.moduleBay, assault: state.assault,
     enemies: state.enemies.map(({id,x,y,hp}) => ({id,x,y,hp})), hostileProjectiles: state.hostileProjectiles, drones: state.drones });
   state.paused = true;
   updateUi();
   announce("新模块试验场 · 空格开始，点击晶塔调整装配，G 切换无人机");
+}
+if (previewMode === "chapter-one-modules-two") {
+  state.coins = 6000; state.tower.upgrades.ascend = 3; state.tower.moduleBay.installed = [];
+  for(const [id,slot,rotation=0] of [['fire',0],['bridge',1],['pulse',2],['mine',3],['capacitor',5],['laser',6],['mortar',8,1],['gravity',9]])installModule(state,id,slot,rotation);
+  bindCapacitor(state,'pulse');
+  state.tower.hp = getTowerStats(state).maxHp;
+  state.spawnTimer = 25; state.wave.nextAt = 40;
+  const p=getTowerPosition(state);
+  for(let i=0;i<9;i++){
+    const e=spawnEnemy(state,'brute',{x:p.x-70+i*17,y:p.y-720-(i%3)*28});
+    Object.assign(e,{hp:2400,maxHp:2400,speed:34,damage:4});
+  }
+  window.readModulePreview = () => structuredClone({time:state.time,paused:state.paused,over:state.over,hp:state.tower.hp,coins:state.coins,
+    bay:state.tower.moduleBay,assault:state.assault,enemies:state.enemies.map(({id,x,y,hp})=>({id,x,y,hp})),projectiles:state.projectiles});
+  state.paused=true;updateUi();
+  announce('第二批模块试验场 · 空格开始：先蓄能布雷，再接敌；T 调整导桥与绑定');
 }
 if (previewMode === "endless-relic") {
   state.endlessMode = true;
