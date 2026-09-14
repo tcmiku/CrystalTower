@@ -61,10 +61,26 @@ for(const el of document.querySelectorAll('input,select'))el.addEventListener('i
 document.querySelector('#fire').onclick=()=>{firing=!firing;document.querySelector('#fire').textContent=firing?'停止攻击演示':'演示模块攻击'};
 document.querySelector('#orbit').onclick=()=>{orbit=!orbit;document.querySelector('#orbit').textContent=orbit?'停止环视':'自动环视'};
 const cardViews=[];
-const observer=new IntersectionObserver(entries=>{for(const entry of entries){const v=cardViews.find(v=>v.canvas===entry.target);if(v)v.visible=entry.isIntersecting}});
+const releaseRenderer=r=>{const gl=r.gl;r.dispose();gl?.getExtension('WEBGL_lose_context')?.loseContext()};
+const observer=new IntersectionObserver(entries=>{
+  for(const entry of entries){const v=cardViews.find(v=>v.canvas===entry.target);if(v)v.visible=entry.isIntersecting}
+  for(const v of cardViews)if(!v.visible&&v.renderer){releaseRenderer(v.renderer);v.renderer=null}
+  let live=cardViews.filter(v=>v.renderer).length;
+  for(const v of cardViews)if(v.visible&&!v.renderer&&live<8){v.renderer=new TowerModelRenderer();live++}
+});
 const descriptions={pulse:'晶能导轨流光 · 独立炮口闪光',cannon:'蓄能光环 · 导轨充能与后坐',blade:'高速旋转环刃 · 绿色弧形拖尾',hangar:'机库航灯 · 出舱扫描光',shield:'向外扩散的六边形护盾波',frost:'旋绕冰晶 · 飘落霜粒',fire:'炉芯焰舌 · 上升余烬',lightning:'双极跳跃电弧 · 旋转电场'};
 Object.assign(descriptions,{mortar:'仰角曲射炮管 · 蓝白炮口与后坐',gravity:'悬浮引力环 · 紫色牵引核心',interceptor:'旋转截光环 · 储弹晶点与拦截闪光',service:'双侧整备轨 · 绿色输能灯带'});
 Object.assign(descriptions,{laser:'双轨聚焦镜 · 炽橙束流与散热鳍',mine:'三联晶雷架 · 预装晶簇与投放轨',bridge:'双端共鸣柱 · 横纵直连输能桥',capacitor:'四晶储能匣 · 青绿蓄能晶体'});
-for(const [id,meta] of Object.entries(MODULES)){const card=document.createElement('article');card.className='card';card.innerHTML=`<h2 style="color:${meta.color}">${meta.name}</h2><canvas width="400" height="330" aria-label="${meta.name}安装效果"></canvas><p>${descriptions[id]}</p>`;document.querySelector('#cards').append(card);const r=new TowerModelRenderer(),c=card.querySelector('canvas').getContext('2d');c.translate(200,205);c.scale(1.65,1.65);r.draw(c,visual([{id,slot:3,rotation:0,level:3}],0),-.3,0,{},-.35);cardViews.push({renderer:r,ctx:c,canvas:card.querySelector('canvas'),id,visible:false});observer.observe(card.querySelector('canvas'))}
-draw();function frame(t){if(t-last>40){const v=document.querySelector('#view');if(orbit)v.value=(Number(v.value)+1+180)%360-180;draw(t/1000);for(const v of cardViews)if(v.visible){v.ctx.save();v.ctx.setTransform(1,0,0,1,0,0);v.ctx.clearRect(0,0,400,330);v.ctx.restore();v.renderer.draw(v.ctx,visual([{id:v.id,slot:3,rotation:0,level:3}],0),-.3,t/1000,{...attackFx([v.id],t/1000),shoot:firing?Math.max(0,.28-(t/1000)%1.3):0},-.35)}last=t}requestAnimationFrame(frame)}requestAnimationFrame(frame);
+// Static thumbnails share one context; only visible cards retain animated renderers.
+const thumbnailRenderer=new TowerModelRenderer();
+for(const [id,meta] of Object.entries(MODULES)){
+  const card=document.createElement('article');card.className='card';
+  card.innerHTML=`<h2 style="color:${meta.color}">${meta.name}</h2><canvas width="400" height="330" aria-label="${meta.name}安装效果"></canvas><p>${descriptions[id]}</p>`;
+  document.querySelector('#cards').append(card);
+  const c=card.querySelector('canvas').getContext('2d');c.translate(200,205);c.scale(1.65,1.65);
+  thumbnailRenderer.draw(c,visual([{id,slot:3,rotation:0,level:3}],0),-.3,0,{},-.35);
+  cardViews.push({renderer:null,ctx:c,canvas:card.querySelector('canvas'),id,visible:false});observer.observe(card.querySelector('canvas'));
+}
+releaseRenderer(thumbnailRenderer);
+draw();function frame(t){if(t-last>40){const v=document.querySelector('#view');if(orbit)v.value=(Number(v.value)+1+180)%360-180;draw(t/1000);for(const v of cardViews)if(v.visible&&v.renderer){v.ctx.save();v.ctx.setTransform(1,0,0,1,0,0);v.ctx.clearRect(0,0,400,330);v.ctx.restore();v.renderer.draw(v.ctx,visual([{id:v.id,slot:3,rotation:0,level:3}],0),-.3,t/1000,{...attackFx([v.id],t/1000),shoot:firing?Math.max(0,.28-(t/1000)%1.3):0},-.35)}last=t}requestAnimationFrame(frame)}requestAnimationFrame(frame);
 </script></html>

@@ -1,3 +1,4 @@
+import { drawFortifications } from './fortification-renderer.js';
 import { drawAssaultGround } from './assault-renderer.js';
 import { assaultFormation } from './assault.js';
 import { GAME_CONFIG, getArenaEdgePosition, getCrowdVisualScale } from "./config.js";
@@ -96,6 +97,12 @@ export function getArenaViewTransform(cssWidth, cssHeight, zoom = GAME_CONFIG.ar
   const offsetX = viewport.x + viewport.width / 2 - (logical.centerX - panX) * scale;
   const offsetY = viewport.y + viewport.height / 2 - (logical.centerY - panY) * scale;
   return { scale, offsetX, offsetY, fit, zoom: clampCameraZoom(zoom), viewport };
+}
+
+export function getFortViewTransform(cssWidth, cssHeight) {
+  const viewport={x:10,y:118,width:Math.max(180,cssWidth-72),height:Math.max(200,cssHeight-498)};
+  const scale=Math.min(viewport.width/800,viewport.height/800);
+  return {scale,offsetX:viewport.x+viewport.width/2-720*scale,offsetY:viewport.y+viewport.height/2-500*scale,viewport};
 }
 
 export function getCoverCrop(sourceWidth, sourceHeight, targetWidth, targetHeight, focusX = 0.5, focusY = 0.5) {
@@ -448,10 +455,12 @@ export class Renderer {
   }
 
   getViewTransform(cssWidth, cssHeight) {
+    if(this.fortBuilding&&cssWidth<=800)return getFortViewTransform(cssWidth,cssHeight);
     return getArenaViewTransform(cssWidth, cssHeight, this.zoom, this.panX, this.panY);
   }
 
   render(state, delta = 1 / 60) {
+    this.fortBuilding=Boolean(state.fortUi);
     const dpr = this.resize();
     const ctx = this.ctx;
     const cssWidth = this.canvas.width / dpr;
@@ -613,6 +622,7 @@ export class Renderer {
     this.drawCoins(ctx, state);
     this.drawPermanentResources(ctx, state);
     this.drawSummonRifts(ctx, state);
+    drawFortifications(ctx, state);
     this.drawProjectiles(ctx, state);
     this.drawHostileProjectiles(ctx, state);
     this.drawElementFx(ctx, state);

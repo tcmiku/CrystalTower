@@ -1,0 +1,13 @@
+.fort-launch { margin:0 12px 12px; width:calc(100% - 24px); }
+.fort-panel { position:fixed; z-index:12; left:16px; bottom:112px; width:340px; max-height:calc(100dvh - 220px); overflow:auto; padding:14px; color:#d9e9ee; background:#0d1c29f5; border:1px solid #729f9b; border-radius:12px; box-shadow:0 10px 30px #07111a88; font:12px/1.5 "Microsoft YaHei",sans-serif; }
+.fort-panel[hidden],.fort-panel [hidden] { display:none!important; }
+.fort-panel header { position:sticky; top:0; z-index:1; background:#0d1c29; padding-bottom:6px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.fort-panel header b { font-size:16px; }.fort-panel [data-status] { margin-left:8px; color:#a4ddc7; }
+.fort-panel button { padding:7px 9px; min-height:36px; border:1px solid #597880; border-radius:6px; background:#203944; color:#e3f4f1; font:inherit; cursor:pointer; }
+.fort-panel button:hover:not(:disabled) { background:#365961; }.fort-panel button:disabled { opacity:.45; cursor:default; }.fort-panel button:focus-visible { outline:2px solid #f5dfab; outline-offset:2px; }
+.fort-panel button[aria-pressed="true"] { background:#91cbb6; border-color:#c7eee0; color:#122e2c; }
+.fort-tools,.fort-actions,.fort-panel footer { display:flex; flex-wrap:wrap; gap:6px; }.fort-tools button { flex:1; }.fort-tools small { display:block; font-size:10px; }
+.fort-capacity { color:#b4d0d4; font-size:11px; }.fort-help { color:#9bb3be; font-size:11px; }.fort-selection { border-top:1px solid #53748066; padding-top:9px; }
+.fort-panel footer { margin-top:10px; }.fort-result { flex-basis:100%; color:#e3cc9f; min-height:18px; font-size:11px; }
+.fort-building .pause-overlay { display:none!important; }.fort-building .assault-panel details { display:none; }.fort-building .assault-panel .fort-launch { margin-top:12px; }.fort-cursor { cursor:crosshair; }
+@media(max-width:800px) { .fort-panel { left:8px; bottom:112px; width:calc(100vw - 16px); box-sizing:border-box; padding:10px; max-height:240px; }.fort-panel button { min-height:44px; }.fort-help { margin:6px 0; }.fort-capacity { margin:6px 0; }.fort-panel header b { font-size:14px; }.fort-building .assault-panel { visibility:hidden; } }

@@ -1,3 +1,4 @@
+import { createFortUi } from './fortification-ui.js';
 import { createAssaultUi } from './assault-ui.js';
 import { GATES, assaultStatus, assaultFormation } from './assault.js';
 import { GAME_CONFIG, SKILL_ORDER, TECH_ORDER } from "./config.js";
@@ -294,6 +295,9 @@ const requestedChapter = urlParams.get("chapter") === "2" ? 2 : save.campaign.cu
 let activeChapter = requestedChapter;
 let state = createGameState(baseSeed, save.research, save.relicUnlocks, save.relicSlots, save.relicArchive, save.threatSeals.equipped, save.skillResearch, activeChapter);
 const previewMode = urlParams.get("preview");
+if (previewMode === 'fortifications') {
+  activeChapter=1;state=createGameState(baseSeed);state.paused=true;state.admin.leaderboardEligible=false;
+}
 if (previewMode?.startsWith("chapter-one-")) {
   activeChapter = 1;
   state = createGameState(baseSeed);
@@ -821,6 +825,8 @@ let tutorialSkipped = false;
 let tutorialHideTimer = null;
 const loadingStartedAt = performance.now();
 const assaultUi = createAssaultUi(() => state, showToast);
+const fortUi = createFortUi(() => state, dom.gameCanvas, canvasPoint, showToast, () =>
+  !techTreeOpen && !moduleFloatOpen && !leaderboardModalOpen && !updatesModalOpen && !introOpen && !accountModalOpen && !baseCampOpen && !relicChoiceOpen && !endlessShopOpen && !adminConsoleOpen && !chapterCompleteOpen && !starfallAiming);
 const renderer = new Renderer(dom.gameCanvas, updateLoadingProgress);
 const audio = new AudioSynth(save.settings.muted);
 
@@ -2924,6 +2930,7 @@ function handleEvents(events) {
     else if (event.type === "bossWeakpointBroken") { audio.play("ascend"); announce(WEAKPOINTS[event.role].hint); }
     else if (event.type === "moduleSynergy") showToast(event.name);
     else if (event.type === 'assaultRest') showToast(`本波已肃清 · 补给 ◆${event.coins} · 进入整备`);
+    else if (event.type === 'fortBreach') { showToast(`${event.direction}侧防线已破 · 留意缺口`); audio.play('waveWarning'); }
     else if (event.type === 'assaultBossWarning') { audio.play('waveWarning'); showToast('首领接近 · 检查防线与无人机归航'); }
     else if (event.type === 'salvageComplete') showToast(`远征队已归航 · 获得 ◆${event.coins}`);
     else if (event.type === 'resonancePulse') showToast(`${GATES[event.gate].node}已触发`);
@@ -2943,6 +2950,7 @@ function handleEvents(events) {
 }
 
 function updateUi() {
+  fortUi.update(state);
   assaultUi.update(state);
   const stats = getTowerStats(state);
   dom.adminCheatBadge.classList.toggle("hidden", !state.admin.enabled);
@@ -3373,6 +3381,7 @@ function settleRun(stardust, outcome = state.endlessMode ? "endless" : "defeat")
 
 function togglePause(force) {
   if (state.over) return;
+  if (fortUi.active) { fortUi.close(); dom.pauseOverlay.classList.toggle('hidden', !state.paused); return; }
   if (endlessShopOpen) {
     state.paused = true;
     return;
@@ -3426,6 +3435,7 @@ function toggleDoubleSpeed() {
 }
 
 function restart() {
+  fortUi.close();
   const resumeSpeed = restoreDoubleSpeedAfterSovereign && save.unlocks.doubleSpeed;
   sovereignSpeedLocked = false;
   restoreDoubleSpeedAfterSovereign = false;
@@ -3821,6 +3831,10 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") setAccountOpen(false, true);
     return;
   }
+  if (fortUi.active) {
+    if (event.key === 'Escape' || event.key.toLowerCase() === 'b') { event.preventDefault(); fortUi.close(); }
+    return;
+  }
   if (event.key.toLowerCase() === "m" && (state.endlessMode || state.admin?.shopEnabled) && state.endlessShop?.unlocked) {
     setEndlessShopOpen(true);
     return;
@@ -3843,6 +3857,7 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" || event.key.toLowerCase() === "t") { event.preventDefault(); setTechTreeOpen(false, true); }
     return;
   }
+  if (!techTreeOpen && event.key.toLowerCase() === 'b') { event.preventDefault(); fortUi.toggle(); return; }
   if (techTreeOpen && event.key >= "1" && event.key <= "4") {
     selectTechBranch(Object.keys(activeBranchMeta())[Number(event.key) - 1]);
   } else if (techTreeOpen && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
@@ -4000,6 +4015,7 @@ dom.moduleFloatPanel.addEventListener("module-float-close", () => setModuleFloat
 dom.pauseButton.addEventListener("click", () => togglePause());
 dom.speedButton.addEventListener("click", toggleDoubleSpeed);
 dom.gameCanvas.addEventListener("pointermove", (event) => {
+  if (fortUi.move(event)) return;
   if (event.pointerType === "touch") {
     if (!starfallAiming) return;
     event.preventDefault();
@@ -4087,6 +4103,7 @@ dom.gameCanvas.addEventListener("touchend", () => {
   cameraZoom.pinchDistance = 0;
 }, { passive: true });
 dom.gameCanvas.addEventListener("pointerdown", (event) => {
+  if (fortUi.down(event)) return;
   if (event.pointerType === "touch") event.preventDefault();
   const { x, y } = canvasPoint(event);
   if (starfallAiming) {
@@ -4116,6 +4133,7 @@ dom.gameCanvas.addEventListener("pointerdown", (event) => {
   if (collectCoinAt(state, x, y, GAME_CONFIG.coins.clickRadius * touchScale)) audio.play("coinPick");
 });
 dom.gameCanvas.addEventListener("contextmenu", (event) => {
+  if (fortUi.active) { event.preventDefault(); return; }
   if (!starfallAiming) return;
   event.preventDefault();
   cancelStarfallAim();

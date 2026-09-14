@@ -1,3 +1,4 @@
+import { createFortifications, updateForts, stepFortEnemy, firstFort, moveFortEnemy, damageFort, clearFortSpawn, fortArtilleryTarget } from './fortifications.js';
 import { createAssaultState, updateAssault, updateSalvage, updateResonance, advanceAssaultDifficulty, GATES } from './assault.js';
 import { GAME_CONFIG, TARGET_PROTOCOL_ORDER, getArenaEdgePosition } from "./config.js";
 import { SeededRng } from "./rng.js";
@@ -222,6 +223,7 @@ export function createGameState(seed = 1, research = { damage: 0, health: 0, inc
   } else {
     state.tower.moduleBay = createModuleBay();
     state.assault = createAssaultState();
+    state.fortifications = createFortifications();
     state.wave.nextAt = 12;
     state.coins = 180;
   }
@@ -711,6 +713,7 @@ export function spawnEnemy(state, type = chooseEnemyType(state), position, optio
       if (merged) return merged;
     }
   }
+  clearFortSpawn(state, enemy);
   state.enemies.push(enemy);
   if (type === "boss") {
     spawnBossAnchors(state, enemy);
@@ -1824,7 +1827,8 @@ function resolveDeaths(state) {
       const cfg = GAME_CONFIG.eliteAffixes.split;
       for (let index = 0; index < cfg.count; index += 1) {
         const angle = index * Math.PI * 2 / cfg.count + state.rng.next() * 0.35;
-        const position={x:enemy.x+Math.cos(angle)*enemy.radius,y:enemy.y+Math.sin(angle)*enemy.radius};
+        let position={x:enemy.x+Math.cos(angle)*enemy.radius,y:enemy.y+Math.sin(angle)*enemy.radius};
+        if(firstFort(state,enemy,position,5))position={x:enemy.x,y:enemy.y};
         const options={splitChild:true,waveIndex:enemy.waveIndex,threat:enemy.spawnThreat};
         const child=spawnEnemy(state,enemy.type,position,options);
         if(child)child.gate=enemy.gate;
@@ -2223,8 +2227,9 @@ function fireColossusArtillery(state, boss) {
   const { centerX, centerY } = GAME_CONFIG.arena;
   const spread = (state.rng.next() - 0.5) * 90;
   const angleToCenter = Math.atan2(centerY - boss.y, centerX - boss.x);
-  const targetX = centerX - Math.sin(angleToCenter) * spread;
-  const targetY = centerY + Math.cos(angleToCenter) * spread;
+  const target = fortArtilleryTarget(state,boss,{x:centerX-Math.sin(angleToCenter)*spread,y:centerY+Math.cos(angleToCenter)*spread});
+  const targetX = target.x;
+  const targetY = target.y;
   const angle = Math.atan2(targetY - boss.y, targetX - boss.x);
   state.hostileProjectiles.push({
     id: state.nextId++, kind: "colossusMortar", x: boss.x, y: boss.y,
@@ -2319,9 +2324,15 @@ function updateColossus(state, boss, dt) {
   const bulwarkActive = boss.activeSkill === "bulwark" || Boolean(boss.activeSkills?.bulwark);
   const speedMultiplier = (bulwarkActive ? cfg.bulwark.orbitSpeedMultiplier : 1) * (boss.enraged ? cfg.enrageOrbitSpeedMultiplier : 1);
   const freezeMultiplier = !boss.enraged && boss.freezeTimer > 0 ? 0.35 : 1;
-  boss.orbitAngle += cfg.orbitSpeed * speedMultiplier * freezeMultiplier * (boss.gravitySlow ?? 1) * (boss.mineSlow ?? 1) * dt;
-  boss.x = GAME_CONFIG.arena.centerX + Math.cos(boss.orbitAngle) * cfg.orbitRadiusX;
-  boss.y = GAME_CONFIG.arena.centerY + Math.sin(boss.orbitAngle) * cfg.orbitRadiusY;
+  const nextAngle=boss.orbitAngle+cfg.orbitSpeed*speedMultiplier*freezeMultiplier*(boss.gravitySlow??1)*(boss.mineSlow??1)*dt;
+  const obstacle=moveFortEnemy(state,boss,{x:GAME_CONFIG.arena.centerX+Math.cos(nextAngle)*cfg.orbitRadiusX,y:GAME_CONFIG.arena.centerY+Math.sin(nextAngle)*cfg.orbitRadiusY});
+  if(!obstacle)boss.orbitAngle=nextAngle;
+  else {
+    boss.fortStomp=(boss.fortStomp??1.5)-dt;
+    boss.fortStompTarget={x:obstacle.x,y:obstacle.y};
+    if(boss.fortStomp<=0){damageFort(state,obstacle,boss.damage*3);boss.fortStomp=1.5;}
+  }
+  if(!obstacle){boss.fortStomp=1.5;boss.fortStompTarget=null;}
   if (boss.enraged) {
     updateParallelColossusSkills(state, boss, dt);
     return;
@@ -2386,9 +2397,10 @@ function finishSovereignSkill(boss) {
 function fireSovereignArtillery(state, boss) {
   const cfg = GAME_CONFIG.sovereign.artillery;
   const { x: centerX, y: centerY } = getTowerPosition(state);
-  const targetX = centerX + (state.rng.next() - 0.5) * 190;
-  const targetY = centerY + (state.rng.next() - 0.5) * 90;
-  const angle = Math.atan2(targetY - boss.y, targetX - boss.x);
+  const target = fortArtilleryTarget(state,boss,{x:centerX+(state.rng.next()-.5)*190,y:centerY+(state.rng.next()-.5)*90});
+  const targetX = target.x;
+  const targetY = target.y;
+  const angle = Math.atan2(targetY - boss.y - 48, targetX - boss.x);
   state.hostileProjectiles.push({
     id: state.nextId++, kind: "sovereignMortar", x: boss.x, y: boss.y + 48,
     vx: Math.cos(angle) * cfg.projectileSpeed, vy: Math.sin(angle) * cfg.projectileSpeed,
@@ -2488,7 +2500,7 @@ function updateModuleSupport(state, dt) {
       if (isBossEnemy(enemy)) { enemy.gravitySlow = cfg.bossSlow; continue; }
       // Pull never teleports a unit or interrupts its attacks. Elites resist displacement.
       const travel = Math.min(Math.max(0, distance - 14), cfg.pullSpeed * (enemy.elite ? cfg.elitePull : 1) * dt);
-      if (distance > 0) { enemy.x += dx / distance * travel; enemy.y += dy / distance * travel; }
+      if (distance > 0) moveFortEnemy(state, enemy, {x:enemy.x+dx/distance*travel,y:enemy.y+dy/distance*travel});
     }
   }
   const interceptor = installedModule(state, "interceptor"), rule = MODULE_BALANCE.interceptor;
@@ -2684,6 +2696,8 @@ function updateHostileProjectiles(state, dt) {
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
     projectile.life -= dt;
+    const fortHit = projectile.kind === 'enemyBolt' ? firstFort(state, {x:oldX,y:oldY}, projectile, projectile.radius, true) : null;
+    if (fortHit) { damageFort(state, fortHit.building, projectile.damage); projectile.life=0; continue; }
     const stepX = projectile.x - oldX, stepY = projectile.y - oldY;
     const t = Math.max(0, Math.min(1, ((centerX - oldX) * stepX + (centerY - oldY) * stepY) / (stepX * stepX + stepY * stepY || 1)));
     const nearX = oldX + stepX * t, nearY = oldY + stepY * t;
@@ -2705,12 +2719,16 @@ function updateHostileProjectiles(state, dt) {
         if (decoy && Math.hypot(decoy.x - projectile.targetX, decoy.y - projectile.targetY) <= decoy.radius + 9) {
           decoy.hp = Math.max(0, decoy.hp - projectile.damage);
           state.events.push({ type: "relicDecoyHit", x: decoy.x, y: decoy.y, damage: projectile.damage });
-        } else if (!projectile.decoyId) damageTower(state, projectile.damage, projectile.heavy, projectile.source, { x: centerX - projectile.vx, y: centerY - projectile.vy });
+        } else if (!projectile.decoyId && !projectile.fortId) damageTower(state, projectile.damage, projectile.heavy, projectile.source, { x: centerX - projectile.vx, y: centerY - projectile.vy });
         projectile.life = 0;
       }
       continue;
     }
     if (reachedTarget || hitTower) {
+      const impactX=hitTower?projectile.x:projectile.targetX,impactY=hitTower?projectile.y:projectile.targetY;
+      for (const building of state.fortifications?.items ?? []) {
+        if (building.hp>0 && Math.hypot(building.x-impactX,building.y-impactY)<=85+building.size/2) damageFort(state,building,projectile.damage);
+      }
       if (hitTower) damageTower(state, projectile.damage, true, projectile.kind === "sovereignMortar" ? "sovereignArtillery" : "colossusArtillery", { x: centerX - projectile.vx, y: centerY - projectile.vy });
       state.events.push({ type: "colossusImpact", x: projectile.x, y: projectile.y, hitTower });
       projectile.life = 0;
@@ -2783,8 +2801,8 @@ function updateEnemies(state, dt) {
     if (enemy.approachTarget) {
       const dx=enemy.approachTarget.x-enemy.x,dy=enemy.approachTarget.y-enemy.y,distance=Math.hypot(dx,dy);
       const step=enemy.freezeTimer>0?0:Math.min(distance,120*(enemy.gravitySlow??1)*(enemy.mineSlow??1)*dt);
-      enemy.x+=dx/(distance||1)*step;enemy.y+=dy/(distance||1)*step;
-      if(distance<=step+.1)delete enemy.approachTarget;
+      const obstruction=moveFortEnemy(state,enemy,{x:enemy.x+dx/(distance||1)*step,y:enemy.y+dy/(distance||1)*step});
+      if(obstruction||distance<=step+.1)delete enemy.approachTarget;
       continue;
     }
     if (state.tower.moduleBay) {
@@ -2794,7 +2812,7 @@ function updateEnemies(state, dt) {
         enemy.broodTimer -= dt;
         if (enemy.broodTimer <= 0) {
           if(state.enemies.length+2<=GAME_CONFIG.combat.maxEnemies){
-            for (let i = 0; i < 2; i++) {const child=spawnEnemy(state, "wisp", { x: enemy.x + (i ? 22 : -22), y: enemy.y + 16 }, { waveIndex: enemy.waveIndex, threat:enemy.spawnThreat });if(child)child.gate=enemy.gate;}
+            for (let i = 0; i < 2; i++) {const child=spawnEnemy(state, "wisp", { x: enemy.x, y: enemy.y }, { waveIndex: enemy.waveIndex, threat:enemy.spawnThreat });if(child){child.gate=enemy.gate;moveFortEnemy(state,child,{x:enemy.x+(i?22:-22),y:enemy.y+16});}}
             enemy.broodRemaining -= 1;
             enemy.broodTimer = 6;
             state.events.push({ type: "broodSpawn", x: enemy.x, y: enemy.y });
@@ -2819,6 +2837,8 @@ function updateEnemies(state, dt) {
       continue;
     }
     const decoy = state.decoys.find((candidate) => candidate.hp > 0);
+    const fortOverload=enemy.type==='boss'&&bossAnchors(state,enemy).some(anchor=>anchor.anchorRole==='overload');
+    if (stepFortEnemy(state, enemy, decoy ?? {x:centerX,y:centerY,radius:towerRadius}, dt, {damageTower,intervalMultiplier:fortOverload?GAME_CONFIG.boss.overloadAttackIntervalMultiplier:1})) continue;
     const targetX = decoy?.x ?? centerX;
     const targetY = decoy?.y ?? centerY;
     const targetRadius = decoy?.radius ?? towerRadius;
@@ -4028,8 +4048,7 @@ function knockbackEnemies(state, radius, distance, bossMultiplier = 1) {
     const scale = isBossEnemy(enemy) ? bossMultiplier : 1;
     const falloff = 0.55 + 0.45 * (1 - currentDistance / radius);
     const push = distance * scale * falloff;
-    enemy.x = Math.max(-34, Math.min(width + 34, enemy.x + dx / currentDistance * push));
-    enemy.y = Math.max(-34, Math.min(height + 34, enemy.y + dy / currentDistance * push));
+    moveFortEnemy(state, enemy, {x:Math.max(-34, Math.min(width + 34, enemy.x + dx / currentDistance * push)),y:Math.max(-34, Math.min(height + 34, enemy.y + dy / currentDistance * push))});
     hits += 1;
   }
   return hits;
@@ -4373,6 +4392,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
     updateMines(state, dt);
   }
   updateEnemies(state, dt);
+  updateForts(state, dt, damageEnemy, entryCombatLocked);
   if (!entryCombatLocked) {
     updateMortar(state, dt);
     updateLaser(state, dt);
@@ -4415,6 +4435,7 @@ export function updateGame(state, dt = GAME_CONFIG.fixedStep) {
 
 export function snapshotState(state) {
   return {
+    fortifications: state.fortifications ? structuredClone(state.fortifications) : null,
     moduleBay: state.tower.moduleBay ? structuredClone(state.tower.moduleBay) : null,
     assault: state.tower.moduleBay && state.assault ? structuredClone(state.assault) : null,
     chapterOneCombat: state.tower.moduleBay ? {

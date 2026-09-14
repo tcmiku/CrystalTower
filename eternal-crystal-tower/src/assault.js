@@ -9,7 +9,7 @@ export const GATES = Object.freeze([
   { name: '西侧通道', short: '西', angle: Math.PI, color: '#bda3ff', node: '快速整备', benefit: '本波无人机整备回电 +40%' }
 ]);
 export const ASSAULT_RULES = Object.freeze({ warning: 10, rest: 12, approachSpeed: 120, battleRadius: 360, vanguardDuration: 10, mainDuration: 24, missionDuration: 12 });
-const OPENING = [['scout',0],['rush',2],['wall',0],['battery',1],['brood',3],['pincer',0]];
+const OPENING = [['scout',0],['rush',2],['wall',0],['battery',1],['brood',3],['pincer',0],['breach',1]];
 export const assaultFormation = key => FORMATIONS[key] ?? { name: key === 'scout' ? '裂口试探' : '疾行突袭', hint: key === 'scout' ? '观察北侧入口 · 提升晶塔伤害' : '快速敌军突进 · 留意内圈漏怪' };
 export const angleDistance = (a,b) => Math.abs(Math.atan2(Math.sin(a-b),Math.cos(a-b)));
 export const gatePoint = (gate,radius=360,lane=0) => {
@@ -30,13 +30,13 @@ export function advanceAssaultDifficulty(state,dt) {
 export function planAssault(state) {
   const index=state.wave.index+1, opening=OPENING[index-1];
   const history=state.assault.history,previous=history.at(-1),repeated=previous&&history.at(-2);
-  const formations=['wall','pincer','brood','battery'].filter(f=>!repeated||previous.formation!==f||repeated.formation!==f);
+  const formations=['wall','pincer','brood','battery',...(index>=7?['breach']:[])].filter(f=>!repeated||previous.formation!==f||repeated.formation!==f);
   const gates=[0,1,2,3].filter(g=>!repeated||previous.gate!==g||repeated.gate!==g);
   const formation=opening?.[0] ?? formations[Math.floor(state.rng.next()*formations.length)];
   const gate=opening?.[1] ?? gates[Math.floor(state.rng.next()*gates.length)];
   const secondary=formation==='pincer'?(gate+2)%4:index>6?(gate+1)%4:null;
   const base=[12,14,18,20,22,26][index-1]??Math.min(90,18+index*3);
-  const weight=({scout:1,rush:1,wall:.65,battery:.7,brood:.8,pincer:.9})[formation];
+  const weight=({scout:1,rush:1,wall:.65,battery:.7,brood:.8,pincer:.9,breach:.7})[formation];
   const count=Math.ceil(base*weight*(state.threatSeals?.modifiers?.waveCountMultiplier??1));
   return { index, formation, gate, secondary, count, threat:state.threat };
 }

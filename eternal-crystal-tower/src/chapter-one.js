@@ -4,6 +4,7 @@ export const SECTOR_NAMES = ["北", "东北", "东南", "南", "西南", "西北
 export const sectorAngle = (sector) => -Math.PI / 2 + sector * Math.PI / 3;
 
 export const FORMATIONS = Object.freeze({
+  breach: { name: "冲撞攻坚", hint: "冲撞兽蓄力破墙；冻结或震荡打断，机枪守住破口", types: ["rammer", "brute", "runner", "crawler"], countMultiplier: 0.7 },
   wall: { name: "盾墙推进", hint: "前排保护后排；穿透重炮或无人机绕后", types: ["brute", "brute", "hexer", "wisp"], countMultiplier: 0.75 },
   pincer: { name: "双翼夹击", hint: "两侧高速包夹；环刃守近圈，留星落救场", types: ["runner", "crawler", "runner"], countMultiplier: 0.9 },
   brood: { name: "母巢迁徙", hint: "母巢每 6 秒孵化，最多 4 次；击破停止增援", types: ["sentinel", "wisp", "crawler"], countMultiplier: 0.6 },
